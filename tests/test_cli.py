@@ -1,72 +1,51 @@
-from __future__ import annotations
+"""CLI validation, argument contracts, and user-facing failure statuses."""
 
 from pathlib import Path
 
 import pytest
 
 from gh_dispatch.cli import CliOptions, _build_parser, async_main
+from gh_dispatch.config import load_settings
 
 
-def test_parser_builds_typed_validate_options(tmp_path: Path) -> None:
-    namespace = _build_parser().parse_args(
-        ["--config", str(tmp_path / "dispatch.toml"), "validate"]
+def test_parser_supports_source_independent_commands(tmp_path: Path) -> None:
+    parsed = _build_parser().parse_args(
+        ["--config", str(tmp_path / "config.toml"), "run", "--dry-run"]
     )
-
-    options = CliOptions.model_validate(vars(namespace))
-
-    assert options.command == "validate"
-    assert options.config == tmp_path / "dispatch.toml"
-    assert options.dry_run is False
+    options = CliOptions.model_validate(vars(parsed))
+    assert options.command == "run"
+    assert options.dry_run
+    assert _build_parser().parse_args(["watch"]).command == "watch"
 
 
-def test_parser_accepts_watch_command(tmp_path: Path) -> None:
-    namespace = _build_parser().parse_args(["--config", str(tmp_path / "dispatch.toml"), "watch"])
-
-    options = CliOptions.model_validate(vars(namespace))
-
-    assert options.command == "watch"
-
-
-@pytest.mark.asyncio
-async def test_validate_command_loads_config_without_calling_external_clis(
+async def test_validate_is_side_effect_free_for_cron_only_configuration(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    repo_path = tmp_path / "checkout"
-    repo_path.mkdir()
-    config_path = tmp_path / "dispatch.toml"
-    config_path.write_text(
-        '[agent]\nprompt = "Fix ${issue_number}"\n\n'
-        "[watchers.issues]\npoll_interval_seconds = 30\n\n"
-        '[[watchers.issues.repositories]]\nrepo = "acme/api"\n'
-        'path = "checkout"\nquery = "is:open"\n',
+    path = tmp_path / "config.toml"
+    path.write_text(
+        '[settings]\nstate_db_path="state.sqlite3"\n'
+        '[coding_agents.automations.daily]\ntrigger_type="cron"\nrepo="acme/api"\n'
+        'schedule="0 9 * * *"\nprompt="Maintain ${repo}"\n',
         encoding="utf-8",
     )
-
-    exit_code = await async_main(CliOptions(command="validate", config=config_path))
-
-    assert exit_code == 0
-    assert "Configuration is valid (1 watcher repositories; max active tasks: 1)." in (
-        capsys.readouterr().out
-    )
+    assert await async_main(CliOptions(command="validate", config=path)) == 0
+    assert "1 automations" in capsys.readouterr().out
+    assert sorted(item.name for item in tmp_path.iterdir()) == ["config.toml"]
 
 
-@pytest.mark.asyncio
-async def test_validate_command_counts_cron_jobs(
+async def test_example_configuration_is_valid(tmp_path: Path) -> None:
+    example = Path(__file__).resolve().parents[1] / "gh-dispatch.example.toml"
+    settings = await load_settings(example)
+    assert sorted(settings.resolve_automations()) == [
+        "resolve-ready-issues",
+        "review-pull-requests",
+        "weekly-maintenance",
+    ]
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_configuration_error_has_actionable_exit_code(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    config_path = tmp_path / "dispatch.toml"
-    config_path.write_text(
-        '[agent]\nprompt = "Issue ${issue_number}"\n\n'
-        "[watchers.issues]\n\n"
-        '[[watchers.issues.repositories]]\nrepo = "acme/api"\nquery = "is:open"\n\n'
-        "[watchers.cron]\n\n"
-        "[[watchers.cron.jobs]]\n"
-        'id = "daily"\nschedule = "0 9 * * *"\nrepo = "acme/api"\n'
-        'prompt = "Maintain ${repo}"\n',
-        encoding="utf-8",
-    )
-
-    exit_code = await async_main(CliOptions(command="validate", config=config_path))
-
-    assert exit_code == 0
-    assert "1 watcher repositories; 1 cron job; max active tasks: 1" in capsys.readouterr().out
+    assert await async_main(CliOptions(command="run", config=tmp_path / "absent.toml")) == 2
+    assert "configuration file not found" in capsys.readouterr().err

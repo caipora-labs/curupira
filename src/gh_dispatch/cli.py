@@ -1,30 +1,29 @@
-"""Command-line interface for gh-dispatch."""
-
-from __future__ import annotations
+"""Command-line entry points for configuration, one-shot dispatch, and polling."""
 
 import argparse
 import asyncio
 import logging
 import sys
-import tomllib
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import ValidationError
 
+from gh_dispatch import __version__
 from gh_dispatch.clients.gh import GhClient
 from gh_dispatch.config import load_settings
-from gh_dispatch.cron import CronWatcher
-from gh_dispatch.dispatcher import dispatch_next_issue
+from gh_dispatch.dispatcher import create_task_feeds, dispatch_next_task
 from gh_dispatch.errors import DispatchError
+from gh_dispatch.executor import TaskExecutor
+from gh_dispatch.feeds import merge_task_streams
+from gh_dispatch.models.base import ValidatedModel
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
-from gh_dispatch.scheduler import CoreScheduler
-from gh_dispatch.watcher import IssueWatcher, PullRequestWatcher, merge_task_streams
+from gh_dispatch.scheduler import TaskScheduler
 
 
-class CliOptions(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
+class CliOptions(ValidatedModel):
+    """Validated command-line options."""
 
     command: Literal["validate", "run", "watch"]
     config: Path
@@ -34,136 +33,84 @@ class CliOptions(BaseModel):
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gh-dispatch",
-        description="Watch GitHub issues and pull requests and run coding-agent tasks.",
+        description="Dispatch GitHub and cron automations to native coding-agent CLIs.",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(
         "--config",
         type=Path,
         default=Path("gh-dispatch.toml"),
         help="TOML configuration file (default: ./gh-dispatch.toml)",
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("validate", help="validate configuration without calling CLIs")
-    run_parser = subparsers.add_parser("run", help="find an issue and start its coding agent")
-    run_parser.add_argument(
+    subcommands = parser.add_subparsers(dest="command", required=True)
+    subcommands.add_parser(
+        "validate", help="validate configuration without calling external CLIs or writing state"
+    )
+    run = subcommands.add_parser("run", help="execute one currently available automation task")
+    run.add_argument(
         "--dry-run",
         action="store_true",
-        help="show the selected issue without starting its coding agent",
+        help="preview a task without reserving, persisting, cloning, or executing",
     )
-    subparsers.add_parser("watch", help="poll issues and run bounded concurrent tasks")
+    subcommands.add_parser("watch", help="poll all automations using the shared bounded scheduler")
     return parser
 
 
 async def async_main(options: CliOptions) -> int:
+    """Load validated settings and execute the selected CLI command."""
     try:
         settings = await load_settings(options.config)
-    except (OSError, ValueError, ValidationError, tomllib.TOMLDecodeError) as error:
+    except (OSError, ValueError) as error:
         print(f"Configuration error: {error}", file=sys.stderr)
         return 2
-
     if options.command == "validate":
-        repository_count = len(settings.watchers.issues.repositories)
-        if settings.watchers.pull_requests is not None:
-            repository_count += len(settings.watchers.pull_requests.repositories)
-        cron_job_count = len(settings.watchers.cron.jobs) if settings.watchers.cron else 0
-        details = f"{repository_count} watcher repositories"
-        if cron_job_count:
-            noun = "cron job" if cron_job_count == 1 else "cron jobs"
-            details += f"; {cron_job_count} {noun}"
-        print(
-            "Configuration is valid "
-            f"({details}; max active tasks: {settings.core.max_active_tasks})."
-        )
+        count = len(settings.coding_agents.automations)
+        limit = settings.settings.max_active_tasks
+        print(f"Configuration is valid ({count} automations; max active tasks: {limit}).")
         return 0
-
-    if options.command == "watch":
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s %(levelname)s %(message)s",
-        )
-        gh = GhClient()
-        session_repository = RunningSessionRepository(settings.core.state_db_path)
-        recovered_sessions = await session_repository.list_all()
-        has_recovered_cron = any(session.task.task_type == "cron" for session in recovered_sessions)
-        cron_repository = (
-            CronScheduleRepository(settings.core.state_db_path)
-            if settings.watchers.cron is not None or has_recovered_cron
-            else None
-        )
-        streams = [
-            IssueWatcher(
-                settings.watchers.issues,
-                gh,
-                workspace_dir=settings.core.workspace_dir,
-            ).watch()
-        ]
-        if settings.watchers.pull_requests is not None:
-            streams.append(
-                PullRequestWatcher(
-                    settings.watchers.pull_requests,
-                    gh,
-                    workspace_dir=settings.core.workspace_dir,
-                ).watch()
-            )
-        if settings.watchers.cron is not None and cron_repository is not None:
-            streams.append(
-                CronWatcher(
-                    settings.watchers.cron,
-                    cron_repository,
-                    workspace_dir=settings.core.workspace_dir,
-                ).watch()
-            )
-        scheduler = CoreScheduler(
-            settings.core,
-            settings.agent,
-            settings.coding_agents,
-            gh,
-            session_repository,
-            cron_repository=cron_repository,
-        )
-        tasks = merge_task_streams(
-            streams,
-            max_pending=settings.core.max_active_tasks,
-        )
-        try:
-            await scheduler.run(tasks, resume_sessions=recovered_sessions)
-        except DispatchError as error:
-            print(f"Dispatch error: {error}", file=sys.stderr)
-            return 1
-        return 0
-
-    session_repository = RunningSessionRepository(settings.core.state_db_path)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    gh = GhClient()
     try:
-        outcome = await dispatch_next_issue(
-            settings,
-            GhClient(),
-            dry_run=options.dry_run,
-            session_repository=session_repository,
+        if options.command == "run":
+            outcome = await dispatch_next_task(settings, gh, dry_run=options.dry_run)
+            if outcome.selected is None:
+                print("No matching task is currently available.")
+                return 0
+            selected = outcome.selected
+            identity = selected.identity
+            print(
+                f"Selected {identity.automation_id}: "
+                f"{identity.repo}#{identity.number}: {selected.title}"
+            )
+            print(selected.url)
+            if options.dry_run:
+                print("Dry run: no task was reserved or executed.")
+            elif outcome.process is not None:
+                if outcome.process.stdout:
+                    print(outcome.process.stdout)
+                if outcome.process.stderr:
+                    print(outcome.process.stderr, file=sys.stderr)
+                return outcome.process.returncode
+            return 0
+        sessions = RunningSessionRepository(settings.settings.state_db_path)
+        recovered = await sessions.list_all()
+        cron = CronScheduleRepository(settings.settings.state_db_path)
+        feeds = create_task_feeds(settings, gh, cron)
+        executor = TaskExecutor(settings.settings, gh, sessions, cron)
+        scheduler = TaskScheduler(settings.settings, executor)
+        tasks = merge_task_streams(
+            [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
         )
-    except DispatchError as error:
+        await scheduler.run(tasks, resume_sessions=recovered)
+        return 1 if scheduler.failed_tasks else 0
+    except (DispatchError, OSError, ValidationError) as error:
         print(f"Dispatch error: {error}", file=sys.stderr)
         return 1
 
-    if outcome.selected is None:
-        print("No matching issue found.")
-        return 0
-
-    repository = outcome.selected.repository.repo
-    selected = outcome.selected
-    print(f"Selected {repository}#{selected.number}: {selected.title}")
-    print(selected.url)
-
-    if options.dry_run:
-        print("Dry run: the coding agent was not started.")
-        return 0
-
-    return outcome.process.returncode if outcome.process is not None else 0
-
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Parse arguments and start the asynchronous application."""
-    namespace = _build_parser().parse_args(argv)
-    options = CliOptions.model_validate(vars(namespace))
+    """Parse arguments and own the application's event-loop lifecycle."""
+    options = CliOptions.model_validate(vars(_build_parser().parse_args(argv)))
     try:
         return asyncio.run(async_main(options))
     except KeyboardInterrupt:

@@ -1,337 +1,146 @@
-from __future__ import annotations
+"""Source-independent dispatch, previews, and persisted execution snapshots."""
 
-import asyncio
-import json
-from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 import pytest
 
-from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.clients.opencode import OpenCodeClient
-from gh_dispatch.clients.process import AsyncProcessRunner
-from gh_dispatch.coding_agents import CodingAgent, SessionStartedCallback
-from gh_dispatch.config import AppSettings
-from gh_dispatch.dispatcher import (
-    dispatch_next_issue,
-    dispatch_next_pull_request,
-    render_prompt,
-)
-from gh_dispatch.models import CodingTaskRequest, CommandRequest, ProcessResult, SelectedTask
-from gh_dispatch.repositories import RunningSessionRepository
+from gh_dispatch.config import ApplicationSettings
+from gh_dispatch.dispatcher import dispatch_next_task
+from gh_dispatch.executor import render_task_prompt
+from gh_dispatch.models import GhIssue, GhPullRequest, RunningCodingSession
+from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+from tests.fakes import FakeGitHub, RecordingAdapter
+from tests.helpers import issue_task
 
 
-class RecordingRunner(AsyncProcessRunner):
-    def __init__(self, *results: ProcessResult) -> None:
-        self.results = list(results)
-        self.requests: list[CommandRequest] = []
-
-    async def run(
-        self,
-        request: CommandRequest,
-        *,
-        on_stdout_line: Callable[[str], Awaitable[None]] | None = None,
-    ) -> ProcessResult:
-        self.requests.append(request)
-        if request.arguments[:2] == ("repo", "clone"):
-            destination = Path(request.arguments[3])
-            destination.mkdir(parents=True, exist_ok=True)
-            (destination / ".git").mkdir()
-            return ProcessResult(returncode=0)
-        result = self.results.pop(0)
-        if on_stdout_line is not None:
-            for line in result.stdout.splitlines():
-                await on_stdout_line(line)
-        return result
-
-
-class InterruptOnceAgent(CodingAgent):
-    def __init__(self) -> None:
-        super().__init__()
-        self.requests: list[CodingTaskRequest] = []
-
-    async def run_task(
-        self,
-        request: CodingTaskRequest,
-        *,
-        on_session_started: SessionStartedCallback | None = None,
-    ) -> ProcessResult:
-        self.requests.append(request)
-        if request.session_id is None:
-            assert on_session_started is not None
-            await on_session_started("ses_dispatch")
-            raise asyncio.CancelledError
-        return ProcessResult(returncode=0)
-
-
-def make_settings(first_path: Path, second_path: Path):
-    return AppSettings.model_validate(
+def settings(path: Path, trigger: str = "issue") -> ApplicationSettings:
+    """Build a one-shot configuration with all state inside the test directory."""
+    config: dict[str, object] = {
+        "trigger_type": trigger,
+        "repo": "acme/api",
+        "path": path,
+        "prompt": "Handle ${task_number}: ${task_title}",
+    }
+    if trigger == "cron":
+        config.update(schedule="0 9 * * *", start_date="2020-01-01T00:00:00+00:00")
+    else:
+        config["query"] = "is:open"
+    return ApplicationSettings.model_validate(
         {
-            "core": {"max_active_tasks": 1},
-            "agent": {
-                "prompt": "${repo}#${issue_number}: ${issue_title}\n${issue_body}\n${issue_url}",
-                "pull_request_prompt": (
-                    "Review ${pull_request_number}: ${pull_request_title}\n"
-                    "${pull_request_body}\n${pull_request_head_ref}->${pull_request_base_ref}"
-                ),
-            },
-            "coding_agents": {
-                "default": "opencode-default",
-                "profiles": {
-                    "opencode-default": {
-                        "provider": "opencode",
-                        "model": "openai/default-model",
-                        "agent": "plan",
-                        "effort": "medium",
-                    },
-                    "opencode-custom": {
-                        "provider": "opencode",
-                        "model": "anthropic/claude-sonnet",
-                        "agent": "build",
-                        "effort": "high",
-                    },
-                },
-            },
-            "watchers": {
-                "issues": {
-                    "poll_interval_seconds": 30,
-                    "batch_size": 30,
-                    "repositories": [
-                        {
-                            "repo": "acme/first",
-                            "path": first_path,
-                            "query": "is:open label:ready",
-                        },
-                        {
-                            "repo": "acme/second",
-                            "path": second_path,
-                            "query": "is:open label:ready",
-                            "prompt": "Custom prompt for ${issue_number}",
-                            "coding_agent": "opencode-custom",
-                        },
-                    ],
-                },
-                "pull_requests": {
-                    "repositories": [
-                        {
-                            "repo": "acme/prs",
-                            "path": first_path.parent / "pr-checkout",
-                            "query": "is:open label:review-needed",
-                            "coding_agent": "opencode-default",
-                        }
-                    ]
-                },
-            },
+            "settings": {"state_db_path": path / "state.sqlite3"},
+            "coding_agents": {"automations": {"work": config}},
         }
     )
 
 
-def issue_json(number: int = 7) -> str:
-    return json.dumps(
-        [
-            {
-                "number": number,
-                "title": "Implement dispatch",
-                "body": "Issue details",
-                "url": f"https://github.com/acme/second/issues/{number}",
-                "state": "OPEN",
-                "labels": [],
-            }
-        ]
+async def test_dispatch_renders_the_task_prompt_and_uses_shared_executor(tmp_path: Path) -> None:
+    configured = settings(tmp_path)
+    gh = FakeGitHub(
+        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
     )
-
-
-@pytest.mark.asyncio
-async def test_dispatch_uses_first_repository_with_a_matching_issue(
-    tmp_path: Path,
-) -> None:
-    settings = make_settings(tmp_path / "first", tmp_path / "second")
-    gh_runner = RecordingRunner(
-        ProcessResult(returncode=0, stdout="[]"),
-        ProcessResult(returncode=0, stdout=issue_json()),
-    )
-    opencode_runner = RecordingRunner(ProcessResult(returncode=0))
-
-    outcome = await dispatch_next_issue(
-        settings,
-        GhClient(gh_runner),
-        dry_run=True,
-    )
-
+    adapter = RecordingAdapter()
+    outcome = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
     assert outcome.selected is not None
-    assert outcome.selected.repository.repo == "acme/second"
-    assert outcome.selected.number == 7
-    assert len(gh_runner.requests) == 2
-    assert opencode_runner.requests == []
-
-
-@pytest.mark.asyncio
-async def test_dispatch_renders_repo_override_and_starts_opencode(
-    tmp_path: Path,
-) -> None:
-    settings = make_settings(tmp_path / "first", tmp_path / "second")
-    selected_issue = json.loads(issue_json())[0]
-    selected = settings.watchers.issues.repositories[1]
-
-    prompt = render_prompt(
-        settings,
-        SelectedTask(
-            task_type="issue",
-            repository=selected,
-            number=selected_issue["number"],
-            title=selected_issue["title"],
-            body=selected_issue["body"],
-            url=selected_issue["url"],
-            workspace_path=selected.path or tmp_path / "second",
-        ),
-    )
-    assert prompt == "Custom prompt for 7"
-
-    assert settings.watchers.pull_requests is not None
-    pull_request_repository = settings.watchers.pull_requests.repositories[0]
-    pull_request_prompt = render_prompt(
-        settings,
-        SelectedTask(
-            task_type="pull_request",
-            repository=pull_request_repository,
-            number=17,
-            title="Update API",
-            body="Please review",
-            url="https://github.com/acme/prs/pull/17",
-            workspace_path=pull_request_repository.workspace_path(settings.core.workspace_dir),
-            is_draft=True,
-            head_ref_name="feature/api",
-            base_ref_name="main",
-        ),
-    )
-    assert pull_request_prompt == "Review 17: Update API\nPlease review\nfeature/api->main"
-
-    gh_runner = RecordingRunner(
-        ProcessResult(returncode=0, stdout="[]"),
-        ProcessResult(returncode=0, stdout=issue_json()),
-    )
-    opencode_runner = RecordingRunner(ProcessResult(returncode=0))
-    outcome = await dispatch_next_issue(
-        settings,
-        GhClient(gh_runner),
-        agent_factory=lambda _provider: OpenCodeClient(opencode_runner),
-    )
-
+    assert outcome.selected.identity.automation_id == "work"
     assert outcome.process is not None
     assert outcome.process.returncode == 0
-    assert opencode_runner.requests[0].cwd == tmp_path / "second"
-    assert opencode_runner.requests[0].arguments == (
-        "run",
-        "--format",
-        "json",
-        "--model",
-        "anthropic/claude-sonnet",
-        "--agent",
-        "build",
-        "--variant",
-        "high",
-        "Custom prompt for 7",
+    assert adapter.requests[0].message == "Handle 42: Fix"
+    assert gh.checkouts == [tmp_path]
+    assert await RunningSessionRepository(configured.settings.state_db_path).list_all() == []
+
+
+@pytest.mark.parametrize("trigger", ["issue", "cron"])
+async def test_dry_run_has_no_state_checkout_or_process_side_effects(
+    tmp_path: Path, trigger: str
+) -> None:
+    configured = settings(tmp_path, trigger)
+    gh = FakeGitHub(
+        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
     )
-
-
-@pytest.mark.asyncio
-async def test_dispatch_can_start_a_pull_request_task(tmp_path: Path) -> None:
-    settings = make_settings(tmp_path / "first", tmp_path / "second")
-    pull_request_json = json.dumps(
-        [
-            {
-                "number": 17,
-                "title": "Update API",
-                "body": "Please review",
-                "url": "https://github.com/acme/prs/pull/17",
-                "state": "OPEN",
-                "labels": [],
-                "isDraft": True,
-                "headRefName": "feature/api",
-                "baseRefName": "main",
-            }
-        ]
+    adapter = RecordingAdapter()
+    outcome = await dispatch_next_task(
+        configured, gh, dry_run=True, adapter_factory=lambda _: adapter
     )
-    gh_runner = RecordingRunner(ProcessResult(returncode=0, stdout=pull_request_json))
-    opencode_runner = RecordingRunner(ProcessResult(returncode=0))
-
-    outcome = await dispatch_next_pull_request(
-        settings,
-        GhClient(gh_runner),
-        agent_factory=lambda _provider: OpenCodeClient(opencode_runner),
-    )
-
     assert outcome.selected is not None
-    assert outcome.selected.task_type == "pull_request"
-    assert outcome.selected.number == 17
-    assert opencode_runner.requests[0].cwd == tmp_path / "pr-checkout"
-    assert opencode_runner.requests[0].arguments == (
-        "run",
-        "--format",
-        "json",
-        "--model",
-        "openai/default-model",
-        "--agent",
-        "plan",
-        "--variant",
-        "medium",
-        "Review 17: Update API\nPlease review\nfeature/api->main",
-    )
-
-
-@pytest.mark.asyncio
-async def test_one_shot_dispatch_persists_and_resumes_session(tmp_path: Path) -> None:
-    settings = make_settings(tmp_path / "first", tmp_path / "second")
-    persisted = RunningSessionRepository(tmp_path / "state.sqlite3")
-    agent = InterruptOnceAgent()
-
-    def github() -> GhClient:
-        return GhClient(
-            RecordingRunner(
-                ProcessResult(returncode=0, stdout="[]"),
-                ProcessResult(returncode=0, stdout=issue_json()),
-            )
-        )
-
-    with pytest.raises(asyncio.CancelledError):
-        await dispatch_next_issue(
-            settings,
-            github(),
-            agent_factory=lambda _provider: agent,
-            session_repository=persisted,
-        )
-
-    saved = await persisted.list_all()
-    assert len(saved) == 1
-    assert saved[0].session_id == "ses_dispatch"
-
-    outcome = await dispatch_next_issue(
-        settings,
-        github(),
-        agent_factory=lambda _provider: agent,
-        session_repository=persisted,
-    )
-
-    assert outcome.process is not None
-    assert agent.requests[1].session_id == "ses_dispatch"
-    assert "Continue the interrupted task" in agent.requests[1].message
-    assert await persisted.list_all() == []
-
-
-@pytest.mark.asyncio
-async def test_dispatch_returns_empty_outcome_when_no_issues_match(tmp_path: Path) -> None:
-    settings = make_settings(tmp_path / "first", tmp_path / "second")
-    gh_runner = RecordingRunner(
-        ProcessResult(returncode=0, stdout="[]"),
-        ProcessResult(returncode=0, stdout="[]"),
-    )
-    opencode_runner = RecordingRunner()
-
-    outcome = await dispatch_next_issue(
-        settings,
-        GhClient(gh_runner),
-    )
-
-    assert outcome.selected is None
     assert outcome.process is None
-    assert opencode_runner.requests == []
+    assert not gh.checkouts
+    assert not adapter.requests
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_empty_dispatch_does_not_create_state(tmp_path: Path) -> None:
+    assert (await dispatch_next_task(settings(tmp_path), FakeGitHub())).selected is None
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
+    tmp_path: Path,
+) -> None:
+    configured = settings(tmp_path)
+    original = issue_task(tmp_path, name="work")
+    session = RunningCodingSession(
+        task=original, session_id="original", message="Original task prompt"
+    )
+    await RunningSessionRepository(configured.settings.state_db_path).save(session)
+    adapter = RecordingAdapter()
+    gh = FakeGitHub(
+        issues=[GhIssue(number=42, title="Changed", url="https://github.com/acme/api/issues/42")]
+    )
+    result = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
+    assert result.selected == original
+    assert adapter.requests[0].session_id == "original"
+    assert "Continue the interrupted task" in adapter.requests[0].message
+
+
+def test_common_placeholders_use_the_task_source(tmp_path: Path) -> None:
+    assert render_task_prompt(issue_task(tmp_path)) == "Handle issue 42: Task 42"
+
+
+async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
+    tmp_path: Path,
+) -> None:
+    data = settings(tmp_path).model_dump()
+    data["coding_agents"]["automations"]["reviews"] = {
+        "trigger_type": "pull_request",
+        "repo": "acme/api",
+        "query": "is:open",
+        "prompt": "Review ${pull_request_head_ref} -> ${pull_request_base_ref}",
+        "path": tmp_path,
+    }
+    configured = ApplicationSettings.model_validate(data)
+    gh = FakeGitHub(
+        issues=[GhIssue(number=42, title="Issue", url="https://github.com/acme/api/issues/42")],
+        pulls=[
+            GhPullRequest(
+                number=12,
+                title="Review",
+                url="https://github.com/acme/api/pull/12",
+                headRefName="feature",
+                baseRefName="main",
+            )
+        ],
+    )
+    outcome = await dispatch_next_task(configured, gh, dry_run=True)
+    assert outcome.selected is not None
+    assert outcome.selected.identity.task_type == "issue"
+    gh.issues = []
+    adapter = RecordingAdapter()
+    outcome = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
+    assert outcome.selected is not None
+    assert outcome.selected.identity.task_type == "pull_request"
+    assert adapter.requests[0].message == "Review feature -> main"
+
+
+async def test_cron_execution_completes_claimed_state_through_shared_executor(
+    tmp_path: Path,
+) -> None:
+    configured = settings(tmp_path, "cron")
+    outcome = await dispatch_next_task(
+        configured, FakeGitHub(), adapter_factory=lambda _: RecordingAdapter()
+    )
+    assert outcome.selected is not None
+    assert outcome.selected.identity.task_type == "cron"
+    state = await CronScheduleRepository(configured.settings.state_db_path).state("work")
+    assert state is not None
+    assert state.last_execution_at is not None
+    assert state.pending_scheduled_for is None

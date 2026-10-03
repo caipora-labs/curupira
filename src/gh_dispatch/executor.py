@@ -1,0 +1,121 @@
+"""The shared checkout, prompt, execution, and persistence lifecycle."""
+
+import logging
+from datetime import UTC, datetime
+from string import Template
+
+from gh_dispatch.clients.gh import GhClient
+from gh_dispatch.coding_agents import (
+    RESUME_SESSION_PROMPT,
+    CliAdapterFactory,
+    CodingAgentCliAdapter,
+    create_cli_adapter,
+)
+from gh_dispatch.errors import PromptRenderError
+from gh_dispatch.models import (
+    CodingTaskRequest,
+    ExecutionSettings,
+    GhRepositoryCloneRequest,
+    ProcessResult,
+    RunningCodingSession,
+    Task,
+)
+from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+
+logger = logging.getLogger(__name__)
+
+
+def render_task_prompt(task: Task) -> str:
+    """Render only the task's own template using common and source-specific fields."""
+    identity = task.identity
+    context: dict[str, str] = {
+        "repo": identity.repo,
+        "automation_id": identity.automation_id,
+        "task_type": identity.task_type,
+        "task_number": str(identity.number),
+        "task_title": task.title,
+        "task_body": task.body or "",
+        "task_url": task.url,
+    }
+    if identity.task_type in {"issue", "pull_request"}:
+        for suffix in ("number", "title", "body", "url"):
+            context[f"{identity.task_type}_{suffix}"] = context[f"task_{suffix}"]
+    if identity.task_type == "pull_request":
+        context.update(
+            pull_request_is_draft=str(task.is_draft).lower() if task.is_draft is not None else "",
+            pull_request_head_ref=task.head_ref_name or "",
+            pull_request_base_ref=task.base_ref_name or "",
+        )
+    try:
+        return Template(task.automation.configuration.prompt).substitute(context)
+    except (KeyError, ValueError) as error:
+        raise PromptRenderError(
+            f"could not render prompt for {identity.automation_id}: {error}"
+        ) from error
+
+
+class TaskExecutor:
+    """Execute new or resumed tasks with identical provider and state semantics."""
+
+    def __init__(
+        self,
+        settings: ExecutionSettings,
+        gh: GhClient,
+        sessions: RunningSessionRepository,
+        cron: CronScheduleRepository,
+        *,
+        adapter_factory: CliAdapterFactory = create_cli_adapter,
+    ) -> None:
+        self._settings = settings
+        self._gh = gh
+        self._sessions = sessions
+        self._cron = cron
+        self._adapter_factory = adapter_factory
+        self._adapters: dict[str, CodingAgentCliAdapter] = {}
+
+    async def execute(
+        self, task: Task, resumed: RunningCodingSession | None = None
+    ) -> ProcessResult:
+        """Persist session events and remove state only after the native process exits."""
+        if resumed is not None and resumed.task != task:
+            raise ValueError("resumption must use the original persisted task snapshot")
+        profile = task.automation.profile
+        provider = profile.provider
+        adapter = self._adapters.get(provider)
+        if adapter is None:
+            adapter = self._adapter_factory(provider)
+            self._adapters[provider] = adapter
+        checkout = await self._gh.ensure_repository(
+            GhRepositoryCloneRequest(
+                repo=task.identity.repo, destination=task.automation.workspace_path
+            )
+        )
+        original_message = resumed.message if resumed is not None else render_task_prompt(task)
+
+        async def persist(session_id: str) -> None:
+            await self._sessions.save(
+                RunningCodingSession(task=task, session_id=session_id, message=original_message)
+            )
+
+        if task.identity.task_type == "cron":
+            await self._cron.mark_started(task.identity.automation_id, datetime.now(UTC))
+        logger.info(
+            "%s task %s", "Resuming" if resumed is not None else "Starting", task.identity.key
+        )
+        result = await adapter.run_task(
+            CodingTaskRequest(
+                cwd=checkout.path,
+                profile=profile,
+                message=RESUME_SESSION_PROMPT if resumed is not None else original_message,
+                session_id=resumed.session_id if resumed is not None else None,
+                timeout=self._settings.task_timeout_seconds,
+                max_output_bytes=self._settings.max_output_bytes,
+            ),
+            on_session_started=persist,
+        )
+        if task.identity.task_type == "cron":
+            await self._cron.complete_run(task, self._sessions)
+        else:
+            await self._sessions.delete(task)
+        logger.info("Task %s exited with status %s", task.identity.key, result.returncode)
+        return result

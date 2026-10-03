@@ -1,87 +1,60 @@
-from __future__ import annotations
+"""Canonical session keys, snapshot recovery, and non-destructive state handling."""
 
 import asyncio
 import sqlite3
 from pathlib import Path
-from typing import Literal
 
 import pytest
 
-from gh_dispatch.models import RepositoryWorkspaceSettings, RunningCodingSession, SelectedTask
+from gh_dispatch.errors import StateDatabaseError
+from gh_dispatch.models import RunningCodingSession
 from gh_dispatch.repositories import RunningSessionRepository
+from tests.helpers import issue_task
 
 
-def task(
-    repo: str = "acme/api",
-    task_type: Literal["issue", "pull_request"] = "issue",
-    number: int = 42,
-) -> SelectedTask:
-    repository = RepositoryWorkspaceSettings(repo=repo)
-    return SelectedTask(
-        task_type=task_type,
-        repository=repository,
-        number=number,
-        title=f"Task {number}",
-        body="Details",
-        url=f"https://github.com/{repo}/issues/{number}",
-        workspace_path=Path("/tmp/acme/api"),
-    )
-
-
-def session_state(selected: SelectedTask, session_id: str) -> RunningCodingSession:
-    return RunningCodingSession(
-        task=selected,
-        session_id=session_id,
-        message=f"Handle task {selected.number}",
-        model="openai/test-model",
-    )
-
-
-@pytest.mark.asyncio
-async def test_repository_round_trips_typed_models_with_composite_ids(tmp_path: Path) -> None:
+async def test_round_trip_keeps_independent_automations_separate(tmp_path: Path) -> None:
     repository = RunningSessionRepository(tmp_path / "state.sqlite3")
-    issue = session_state(task(), "ses_issue")
-    pull_request = session_state(task(task_type="pull_request"), "ses_pr")
-
-    await repository.save(issue)
-    await repository.save(pull_request)
-
-    assert await repository.get(issue.task) == issue
-    assert await repository.get(pull_request.task) == pull_request
-    assert {item.session_id for item in await repository.list_all()} == {"ses_issue", "ses_pr"}
-
-    await repository.delete(issue.task)
-
-    assert await repository.get(issue.task) is None
-    assert await repository.get(pull_request.task) == pull_request
-
-
-@pytest.mark.asyncio
-async def test_repository_expires_ttl_records(tmp_path: Path) -> None:
-    repository = RunningSessionRepository(tmp_path / "state.sqlite3")
-    saved = session_state(task(), "ses_expiring")
-
-    await repository.save(saved, ttl_seconds=0.01)
-    await asyncio.sleep(0.05)
-
-    assert await repository.get(saved.task) is None
-    assert await repository.list_all() == []
+    first = RunningCodingSession(
+        task=issue_task(tmp_path, name="first"), session_id="first", message="Work"
+    )
+    second = RunningCodingSession(
+        task=issue_task(tmp_path, name="second"), session_id="second", message="Review"
+    )
+    await repository.save(first)
+    await repository.save(second)
+    assert await repository.get(first.task) == first
+    assert len(await repository.list_all()) == 2
+    await repository.delete(first.task)
+    assert await repository.get(first.task) is None
+    assert await repository.get(second.task) == second
 
 
-@pytest.mark.asyncio
-async def test_repository_recreates_incompatible_database_schema(tmp_path: Path) -> None:
-    database_path = tmp_path / "state.sqlite3"
-    with sqlite3.connect(database_path) as connection:
-        connection.execute("CREATE TABLE key_value_state (old_value BLOB)")
-        connection.execute("INSERT INTO key_value_state VALUES (x'00')")
+@pytest.mark.parametrize("contents", [b"not a database", None])
+async def test_incompatible_files_are_preserved(tmp_path: Path, contents: bytes | None) -> None:
+    path = tmp_path / "state.sqlite3"
+    if contents is None:
+        with sqlite3.connect(path) as connection:
+            connection.execute("CREATE TABLE unrelated (value TEXT)")
+            connection.execute("INSERT INTO unrelated VALUES ('preserve me')")
+    else:
+        path.write_bytes(contents)
+    original = path.read_bytes()
+    with pytest.raises(StateDatabaseError, match="preserved"):
+        await RunningSessionRepository(path).list_all()
+    assert path.read_bytes() == original
 
-    repository = RunningSessionRepository(database_path)
 
-    assert await repository.list_all() == []
-    saved = session_state(task(), "ses_after_recreate")
-    await repository.save(saved)
-    assert await repository.get(saved.task) == saved
-
-    with sqlite3.connect(database_path) as connection:
-        columns = [row[1] for row in connection.execute("PRAGMA table_info(key_value_state)")]
-    assert columns == ["entity", "id", "ttl", "content"]
+async def test_expired_records_are_removed_and_invalid_payloads_preserved(tmp_path: Path) -> None:
+    path = tmp_path / "state.sqlite3"
+    repository = RunningSessionRepository(path)
+    session = RunningCodingSession(task=issue_task(tmp_path), session_id="native", message="Work")
+    await repository.save(session, ttl_seconds=0.001)
+    await asyncio.sleep(0.01)
+    assert await repository.get(session.task) is None
+    await repository.save(session)
+    with sqlite3.connect(path) as connection:
+        connection.execute("UPDATE key_value_state SET content = 'invalid JSON'")
+    with pytest.raises(StateDatabaseError):
+        await repository.list_all()
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM key_value_state").fetchone()[0] == 1

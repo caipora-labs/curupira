@@ -62,3 +62,7 @@ class UnsupportedCodingAgentError(DispatchError):
 
 class PromptRenderError(DispatchError):
     """A prompt template references invalid or unsupported fields."""
+
+
+class StateDatabaseError(DispatchError):
+    """Local state cannot be read safely; the original file is preserved."""

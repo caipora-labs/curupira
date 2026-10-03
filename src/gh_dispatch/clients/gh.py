@@ -6,6 +6,7 @@ import asyncio
 import json
 import re
 from pathlib import Path
+from typing import cast
 
 from pydantic import TypeAdapter, ValidationError
 from pyresilience import RetryConfig, resilient
@@ -111,6 +112,7 @@ class GhClient:
             return GhRepositoryCheckout(repo=request.repo, path=destination, cloned=True)
 
     async def list_issues(self, request: GhIssueSearchRequest) -> list[GhIssue]:
+        """List issues through the resilient gh boundary."""
         payload = await self._list_issues_resilient(request)
         try:
             return TypeAdapter(list[GhIssue]).validate_python(payload)
@@ -118,6 +120,7 @@ class GhClient:
             raise CliOutputError(f"gh returned invalid issue JSON: {error}") from error
 
     async def list_pull_requests(self, request: GhPullRequestSearchRequest) -> list[GhPullRequest]:
+        """List pull requests through the resilient gh boundary."""
         payload = await self._list_pull_requests_resilient(request)
         try:
             return TypeAdapter(list[GhPullRequest]).validate_python(payload)
@@ -224,7 +227,7 @@ def _decode_json_output(output: str) -> object:
     """Decode either gh's JSON array or jq's newline-delimited JSON results."""
     content = output.strip()
     if not content:
-        return []
+        return cast(list[object], [])
 
     try:
         return json.loads(content)

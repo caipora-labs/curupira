@@ -1,162 +1,91 @@
-from __future__ import annotations
+"""Cron windows, read-only preview, coalescing, and occurrence claims."""
 
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 
-import pytest
-from pydantic import ValidationError
-
-from gh_dispatch.cron import CronWatcher
+from gh_dispatch.feeds import CronTaskFeed, latest_due_occurrence
 from gh_dispatch.models import (
-    CronJobSettings,
-    CronWatcherSettings,
+    CronAutomationConfiguration,
+    CronRunState,
+    PollingSettings,
     RunningCodingSession,
-    SelectedTask,
 )
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+from tests.helpers import resolved_automation
 
 
-def job(**overrides: object) -> CronJobSettings:
-    values: dict[str, object] = {
-        "id": "daily-maintenance",
-        "schedule": "* * * * *",
-        "timezone": "UTC",
-        "repo": "acme/api",
-        "prompt": "Maintain ${repo} at ${task_number}",
-    }
-    values.update(overrides)
-    return CronJobSettings.model_validate(values)
+async def test_preview_does_not_create_state_and_real_poll_coalesces(tmp_path: Path) -> None:
+    database = tmp_path / "nested/state.sqlite3"
+    repository = CronScheduleRepository(database)
+    now = datetime(2026, 10, 3, 12, tzinfo=UTC)
+    feed = CronTaskFeed(
+        resolved_automation(tmp_path, "maintenance", "cron"),
+        PollingSettings(),
+        repository,
+        now=lambda: now,
+    )
+    preview = await feed.poll(preview=True)
+    assert preview[0].scheduled_for == datetime(2026, 10, 3, 9, tzinfo=UTC)
+    assert not database.parent.exists()
+    actual = await feed.poll()
+    assert actual == preview
+    assert await feed.poll() == []
+    recovered = CronTaskFeed(feed.automation, PollingSettings(), repository, now=lambda: now)
+    assert await recovered.poll() == actual
 
 
-@pytest.mark.asyncio
-async def test_cron_watcher_coalesces_missed_ticks_and_restores_pending_run(
+async def test_pending_occurrence_is_not_overwritten_and_completion_is_atomic(
     tmp_path: Path,
 ) -> None:
-    current = datetime(2026, 10, 3, 9, 10, tzinfo=UTC)
-    state_repository = CronScheduleRepository(tmp_path / "state.sqlite3")
-    cron_job = job(
-        start_date="2026-10-03T09:00:00+00:00",
-        end_date="2026-10-03T09:05:00+00:00",
+    database = tmp_path / "state.sqlite3"
+    repository = CronScheduleRepository(database)
+    sessions = RunningSessionRepository(database)
+    now = datetime(2026, 10, 3, 12, tzinfo=UTC)
+    feed = CronTaskFeed(
+        resolved_automation(tmp_path, "maintenance", "cron"),
+        PollingSettings(),
+        repository,
+        now=lambda: now,
     )
-    settings = CronWatcherSettings(jobs=[cron_job])
-
-    first_watcher = CronWatcher(
-        settings,
-        state_repository,
-        tmp_path / "workspaces",
-        now=lambda: current,
+    task = (await feed.poll())[0]
+    await sessions.save(RunningCodingSession(task=task, session_id="native", message="Maintain"))
+    results = await asyncio.gather(*[repository.set_pending("maintenance", now) for _ in range(3)])
+    assert all(
+        state is not None and state.pending_scheduled_for == task.scheduled_for for state in results
     )
-    first_run = await anext(first_watcher.watch())
-
-    assert first_run.task_type == "cron"
-    assert first_run.cron_job_id == "daily-maintenance"
-    assert first_run.scheduled_for == datetime(2026, 10, 3, 9, 5, tzinfo=UTC)
-    assert first_run.repository.repo == "acme/api"
-    assert first_run.repository.prompt == "Maintain ${repo} at ${task_number}"
-    assert first_run.scheduled_for is not None
-    assert first_run.number == int(first_run.scheduled_for.timestamp())
-    saved_state = await state_repository.state(cron_job.id)
-    assert saved_state is not None
-    assert saved_state.pending_scheduled_for == first_run.scheduled_for
-    still_pending = await state_repository.set_pending(
-        cron_job.id,
-        datetime(2026, 10, 3, 9, 6, tzinfo=UTC),
-    )
-    assert still_pending is not None
-    assert still_pending.pending_scheduled_for == first_run.scheduled_for
-
-    restarted_watcher = CronWatcher(
-        settings,
-        state_repository,
-        tmp_path / "workspaces",
-        now=lambda: current,
-    )
-    restored_run = await anext(restarted_watcher.watch())
-
-    assert restored_run == first_run
-
-
-@pytest.mark.asyncio
-async def test_cron_without_start_date_uses_persisted_creation_time(
-    tmp_path: Path,
-) -> None:
-    current = [datetime(2026, 10, 3, 9, 0, 30, tzinfo=UTC)]
-    sleep_calls = 0
-
-    async def advance_to_next_minute(_seconds: float) -> None:
-        nonlocal sleep_calls
-        sleep_calls += 1
-        current[0] = datetime(2026, 10, 3, 9, 1, tzinfo=UTC)
-
-    cron_job = job()
-    watcher = CronWatcher(
-        CronWatcherSettings(jobs=[cron_job]),
-        CronScheduleRepository(tmp_path / "state.sqlite3"),
-        tmp_path / "workspaces",
-        now=lambda: current[0],
-        sleep=advance_to_next_minute,
-    )
-
-    first_run = await anext(watcher.watch())
-
-    assert sleep_calls == 1
-    assert first_run.scheduled_for == datetime(2026, 10, 3, 9, 1, tzinfo=UTC)
-
-    restored_state = await CronScheduleRepository(tmp_path / "state.sqlite3").get_or_create(
-        cron_job.id,
-        datetime(2026, 10, 4, 12, 0, tzinfo=UTC),
-    )
-    assert restored_state.created_at == datetime(2026, 10, 3, 9, 0, 30, tzinfo=UTC)
-
-
-def test_cron_job_validates_expression_timezone_and_date_window() -> None:
-    with pytest.raises(ValidationError, match="five-field cron expression"):
-        job(schedule="not a cron")
-
-    with pytest.raises(ValidationError, match="unknown timezone"):
-        job(timezone="Mars/Olympus")
-
-    with pytest.raises(ValidationError, match="end_date must be greater"):
-        job(
-            start_date="2026-10-04T00:00:00+00:00",
-            end_date="2026-10-03T00:00:00+00:00",
-        )
-
-
-@pytest.mark.asyncio
-async def test_cron_completion_atomically_clears_pending_run_and_session(
-    tmp_path: Path,
-) -> None:
-    database_path = tmp_path / "state.sqlite3"
-    cron_job = job()
-    scheduled_for = datetime(2026, 10, 3, 9, 5, tzinfo=UTC)
-    cron_repository = CronScheduleRepository(database_path)
-    session_repository = RunningSessionRepository(database_path)
-    await cron_repository.get_or_create(cron_job.id, datetime(2026, 10, 3, 9, 0, tzinfo=UTC))
-    await cron_repository.set_pending(cron_job.id, scheduled_for)
-    await cron_repository.mark_started(cron_job.id, datetime(2026, 10, 3, 9, 5, 1, tzinfo=UTC))
-
-    selected = SelectedTask(
-        task_type="cron",
-        repository=cron_job.repository_settings(),
-        number=int(scheduled_for.timestamp()),
-        title=cron_job.id,
-        url=f"cron://{cron_job.id}",
-        workspace_path=cron_job.workspace_path(tmp_path / "workspaces"),
-        cron_job_id=cron_job.id,
-        scheduled_for=scheduled_for,
-    )
-    session = RunningCodingSession(
-        task=selected,
-        session_id="ses_cron",
-        message="Continue cron task",
-    )
-    await session_repository.save(session)
-
-    await cron_repository.complete_run(cron_job.id, selected, session_repository)
-
-    state = await cron_repository.state(cron_job.id)
+    await repository.complete_run(task, sessions)
+    state = await repository.state("maintenance")
     assert state is not None
     assert state.pending_scheduled_for is None
-    assert state.last_execution_at == datetime(2026, 10, 3, 9, 5, 1, tzinfo=UTC)
-    assert await session_repository.get(selected) is None
+    assert await sessions.list_all() == []
+
+
+def test_timezone_window_is_inclusive_and_dst_uses_local_clock() -> None:
+    config = CronAutomationConfiguration(
+        repo="acme/api",
+        prompt="Maintain",
+        schedule="0 9 * * *",
+        timezone="Europe/Rome",
+        start_date=datetime.fromisoformat("2026-10-24T09:00:00+02:00"),
+        end_date=datetime.fromisoformat("2026-10-26T09:00:00+01:00"),
+    )
+    state = CronRunState(automation_id="maintenance", created_at=datetime(2026, 10, 1, tzinfo=UTC))
+    assert latest_due_occurrence(config, state, datetime(2026, 10, 23, tzinfo=UTC)) is None
+    assert latest_due_occurrence(config, state, datetime(2026, 10, 25, 10, tzinfo=UTC)) == datetime(
+        2026, 10, 25, 8, tzinfo=UTC
+    )
+    assert latest_due_occurrence(config, state, datetime(2026, 11, 1, tzinfo=UTC)) == datetime(
+        2026, 10, 26, 8, tzinfo=UTC
+    )
+
+
+async def test_readonly_preview_preserves_existing_state(tmp_path: Path) -> None:
+    repository = CronScheduleRepository(tmp_path / "state.sqlite3")
+    created = datetime(2026, 10, 1, tzinfo=UTC)
+    await repository.get_or_create("maintenance", created)
+    before = repository._database_path.read_bytes()
+    preview = await repository.preview_state("maintenance")
+    assert preview is not None
+    assert preview.created_at == created
+    assert repository._database_path.read_bytes() == before

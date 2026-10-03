@@ -1,3 +1,5 @@
-"""Dispatch GitHub issues to local coding agents."""
+"""Dispatch GitHub and cron automations to native coding-agent CLIs."""
 
-__version__ = "0.1.0"
+from gh_dispatch._version import __version__
+
+__all__ = ["__version__"]

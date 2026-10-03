@@ -1,95 +1,39 @@
-"""Typed adapter for the Codex CLI."""
-
-from __future__ import annotations
+"""Native Codex CLI argument translation."""
 
 import json
 
-from gh_dispatch.clients.process import AsyncProcessRunner
-from gh_dispatch.coding_agents import CodingAgent, SessionStartedCallback
-from gh_dispatch.models import CodingTaskRequest, CommandRequest, ProcessResult
+from gh_dispatch.coding_agents import CodingAgentCliAdapter
+from gh_dispatch.models import CodexCliProfile, CodingTaskRequest
 
 
-class CodexClient(CodingAgent):
-    """Run Codex with JSONL events so sessions can be persisted and resumed."""
+class CodexCliAdapter(CodingAgentCliAdapter):
+    """Invoke Codex exec; configuration profiles are not custom agents."""
 
-    def __init__(self, runner: AsyncProcessRunner | None = None) -> None:
-        self._runner = runner or AsyncProcessRunner()
+    executable = "codex"
+    provider = "codex"
 
-    async def run_task(
-        self,
-        request: CodingTaskRequest,
-        *,
-        on_session_started: SessionStartedCallback | None = None,
-    ) -> ProcessResult:
+    def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
+        """Apply global native options before initial or resumed exec commands."""
+        profile = request.profile
+        if not isinstance(profile, CodexCliProfile):
+            raise ValueError("Codex requires a Codex profile")
         arguments: list[str] = []
-        if request.agent is not None:
-            arguments.extend(("--profile", request.agent))
-
-        if request.session_id is None:
+        if profile.model is not None:
+            arguments.extend(("--model", profile.model))
+        if profile.effort is not None:
+            arguments.extend(("--config", f"model_reasoning_effort={json.dumps(profile.effort)}"))
+        if profile.sandbox is not None:
+            arguments.extend(("--sandbox", profile.sandbox))
+        if profile.auto_review:
             arguments.extend(
-                [
-                    "exec",
-                    "--json",
-                    "--sandbox",
-                    "workspace-write",
-                    "--approve-for-me",
-                ]
+                (
+                    "--config",
+                    'approval_policy="on-request"',
+                    "--config",
+                    'approvals_reviewer="auto_review"',
+                )
             )
-        else:
-            arguments.extend(("exec", "resume", request.session_id, "--json"))
-
-        if request.model is not None:
-            arguments.extend(("--model", request.model))
-        if request.effort is not None:
-            arguments.extend(("--config", f"model_reasoning_effort={json.dumps(request.effort)}"))
-        arguments.append(request.message)
-
-        command = CommandRequest(
-            executable="codex",
-            arguments=tuple(arguments),
-            cwd=request.cwd,
-            timeout=None,
-            capture_output=True,
-        )
-        if on_session_started is None:
-            result = await self._runner.run(command)
-        else:
-            result = await self._runner.run(
-                command,
-                on_stdout_line=_session_event_handler(on_session_started),
-            )
-        return result.model_copy(update={"stdout": _render_output(result.stdout)})
-
-
-def _session_event_handler(callback: SessionStartedCallback):
-    reported_session_id: str | None = None
-
-    async def handle(line: str) -> None:
-        nonlocal reported_session_id
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            return
-        session_id = event.get("thread_id") if isinstance(event, dict) else None
-        if isinstance(session_id, str) and session_id and session_id != reported_session_id:
-            reported_session_id = session_id
-            await callback(session_id)
-
-    return handle
-
-
-def _render_output(output: str) -> str:
-    messages: list[str] = []
-    for line in output.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(event, dict) or event.get("type") != "item.completed":
-            continue
-        item = event.get("item")
-        if isinstance(item, dict) and item.get("type") == "agent_message":
-            text = item.get("text")
-            if isinstance(text, str):
-                messages.append(text)
-    return "\n".join(messages)
+        arguments.append("exec")
+        if request.session_id is not None:
+            arguments.extend(("resume", request.session_id))
+        return (*arguments, "--json", "--", request.message)

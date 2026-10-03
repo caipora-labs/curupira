@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Ruff lint and format
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # astral-sh/setup-uv v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+
+  types:
+    name: Strict type check
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # astral-sh/setup-uv v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - run: uv run --no-sync pyrefly check
+
+  test-linux:
+    name: Tests (Linux, Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # astral-sh/setup-uv v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - run: uv run --no-sync pytest --cov --cov-report=term-missing
+      - run: uv run --no-sync gh-dispatch --config gh-dispatch.example.toml validate
+
+  test-portable:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        python-version: ["3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # astral-sh/setup-uv v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - run: uv run --no-sync pytest --cov --cov-report=term-missing
+      - run: uv run --no-sync gh-dispatch --config gh-dispatch.example.toml validate
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # astral-sh/setup-uv v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - run: uv run --no-sync pip-audit
+
+  package:
+    name: Build and smoke-test distributions
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # astral-sh/setup-uv v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - run: uv build
+      - run: uv run --no-sync twine check dist/*
+      - name: Smoke-test the installed wheel outside the repository
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install dist/*.whl
+          cd /tmp
+          /tmp/smoke/bin/python -c "import gh_dispatch; print(gh_dispatch.__version__)"
+          /tmp/smoke/bin/gh-dispatch --help

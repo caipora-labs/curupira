@@ -1,16 +1,40 @@
-"""Safe asynchronous process execution shared by CLI-specific clients."""
-
-from __future__ import annotations
+"""Bounded asynchronous subprocess execution without shell interpretation."""
 
 import asyncio
+import logging
+import os
+import signal
 from collections.abc import Awaitable, Callable
 
 from gh_dispatch.errors import CliLaunchError, CliNotFoundError, CliTimeoutError
 from gh_dispatch.models import CommandRequest, ProcessResult
 
+logger = logging.getLogger(__name__)
+MAX_EVENT_LINE_BYTES = 1_000_000
+READ_CHUNK_BYTES = 16_384
+
+
+class _OutputBuffer:
+    """Retain a bounded output tail while detecting truncation."""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self.data = bytearray()
+        self.truncated = False
+
+    def append(self, chunk: bytes) -> None:
+        self.data.extend(chunk)
+        excess = len(self.data) - self.limit
+        if excess > 0:
+            del self.data[:excess]
+            self.truncated = True
+
+    def text(self) -> str:
+        return self.data.decode(errors="replace")
+
 
 class AsyncProcessRunner:
-    """Run executables directly, without a shell or command-string parsing."""
+    """Run native executables with disconnected stdin and bounded output capture."""
 
     async def run(
         self,
@@ -18,121 +42,92 @@ class AsyncProcessRunner:
         *,
         on_stdout_line: Callable[[str], Awaitable[None]] | None = None,
     ) -> ProcessResult:
-        capture_streams = request.capture_output or on_stdout_line is not None
-        stdout_pipe = asyncio.subprocess.PIPE if capture_streams else None
-        stderr_pipe = asyncio.subprocess.PIPE if capture_streams else None
-
+        """Reap the process and helper tasks on timeout, cancellation, or callback failure."""
+        capture = request.capture_output or on_stdout_line is not None
         try:
             process = await asyncio.create_subprocess_exec(
                 request.executable,
                 *request.arguments,
-                cwd=str(request.cwd) if request.cwd is not None else None,
-                stdin=None,
-                stdout=stdout_pipe,
-                stderr=stderr_pipe,
+                cwd=request.cwd,
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE if capture else None,
+                stderr=asyncio.subprocess.PIPE if capture else None,
+                start_new_session=os.name == "posix",
             )
         except FileNotFoundError as error:
-            if request.cwd is not None and not request.cwd.is_dir():
+            if request.cwd is not None and not await asyncio.to_thread(request.cwd.is_dir):
                 raise CliLaunchError(
-                    request.executable,
-                    f"working directory does not exist: {request.cwd}",
+                    request.executable, f"working directory does not exist: {request.cwd}"
                 ) from error
             raise CliNotFoundError(request.executable) from error
         except OSError as error:
             raise CliLaunchError(request.executable, str(error)) from error
-
-        if on_stdout_line is not None:
-            return await self._run_streaming(process, request, on_stdout_line)
-
+        stdout = _OutputBuffer(request.max_output_bytes)
+        stderr = _OutputBuffer(request.max_output_bytes)
+        workers: list[asyncio.Task[object]] = []
+        if process.stdout is not None:
+            workers.append(
+                asyncio.create_task(self._collect(process.stdout, stdout, on_stdout_line))
+            )
+        if process.stderr is not None:
+            workers.append(asyncio.create_task(self._collect(process.stderr, stderr, None)))
+        wait = asyncio.create_task(process.wait())
+        workers.append(wait)
         try:
-            if request.capture_output:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=request.timeout
-                )
-                return ProcessResult(
-                    returncode=process.returncode or 0,
-                    stdout=stdout.decode(errors="replace"),
-                    stderr=stderr.decode(errors="replace"),
-                )
-
-            if request.timeout is None:
-                returncode = await process.wait()
-            else:
-                returncode = await asyncio.wait_for(process.wait(), timeout=request.timeout)
-            return ProcessResult(returncode=returncode)
-        except TimeoutError as error:
-            try:
-                process.kill()
-            except ProcessLookupError:
-                pass
-            await process.wait()
-            timeout = request.timeout or 0.0
-            raise CliTimeoutError(request.executable, timeout) from error
-        except asyncio.CancelledError:
-            try:
-                process.kill()
-            except ProcessLookupError:
-                pass
-            await process.wait()
-            raise
-
-    async def _run_streaming(
-        self,
-        process: asyncio.subprocess.Process,
-        request: CommandRequest,
-        on_stdout_line: Callable[[str], Awaitable[None]],
-    ) -> ProcessResult:
-        assert process.stdout is not None
-        assert process.stderr is not None
-
-        async def collect_stdout() -> bytes:
-            chunks: list[bytes] = []
-            while line := await process.stdout.readline():
-                chunks.append(line)
-                await on_stdout_line(line.decode(errors="replace").rstrip("\r\n"))
-            return b"".join(chunks)
-
-        stdout_task = asyncio.create_task(collect_stdout())
-        stderr_task = asyncio.create_task(process.stderr.read())
-        wait_task = asyncio.create_task(process.wait())
-        workers = (stdout_task, stderr_task, wait_task)
-        try:
-            gathered = asyncio.gather(*workers)
-            if request.timeout is None:
-                stdout, stderr, returncode = await gathered
-            else:
-                stdout, stderr, returncode = await asyncio.wait_for(gathered, request.timeout)
+            await asyncio.wait_for(asyncio.gather(*workers), timeout=request.timeout)
             return ProcessResult(
-                returncode=returncode,
-                stdout=stdout.decode(errors="replace"),
-                stderr=stderr.decode(errors="replace"),
+                returncode=wait.result(),
+                stdout=stdout.text(),
+                stderr=stderr.text(),
+                output_truncated=stdout.truncated or stderr.truncated,
             )
         except TimeoutError as error:
-            self._kill(process)
-            await process.wait()
-            await asyncio.gather(*workers, return_exceptions=True)
-            timeout = request.timeout or 0.0
-            raise CliTimeoutError(request.executable, timeout) from error
-        except asyncio.CancelledError:
-            self._kill(process)
-            await process.wait()
-            for worker in workers:
-                if not worker.done():
-                    worker.cancel()
-            await asyncio.gather(*workers, return_exceptions=True)
-            raise
+            await self._cleanup(process, workers)
+            raise CliTimeoutError(request.executable, request.timeout or 0.0) from error
         except BaseException:
-            self._kill(process)
-            await process.wait()
-            for worker in workers:
-                if not worker.done():
-                    worker.cancel()
-            await asyncio.gather(*workers, return_exceptions=True)
+            await self._cleanup(process, workers)
             raise
 
+    async def _collect(
+        self,
+        stream: asyncio.StreamReader,
+        output: _OutputBuffer,
+        callback: Callable[[str], Awaitable[None]] | None,
+    ) -> None:
+        pending = bytearray()
+        discarding = False
+        while chunk := await stream.read(READ_CHUNK_BYTES):
+            output.append(chunk)
+            if callback is None:
+                continue
+            for fragment in chunk.splitlines(keepends=True):
+                ends_line = fragment.endswith(b"\n")
+                if not discarding:
+                    pending.extend(fragment)
+                    if len(pending) > MAX_EVENT_LINE_BYTES:
+                        pending.clear()
+                        discarding = True
+                        logger.warning("Ignoring oversized CLI event line")
+                if ends_line:
+                    if not discarding:
+                        await callback(pending.decode(errors="replace").rstrip("\r\n"))
+                    pending.clear()
+                    discarding = False
+        if callback is not None and pending and not discarding:
+            await callback(pending.decode(errors="replace"))
+
     @staticmethod
-    def _kill(process: asyncio.subprocess.Process) -> None:
+    async def _cleanup(
+        process: asyncio.subprocess.Process, workers: list[asyncio.Task[object]]
+    ) -> None:
         try:
-            process.kill()
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGKILL)
+            elif process.returncode is None:
+                process.kill()
         except ProcessLookupError:
-            pass
+            logger.debug("Process already exited during cleanup")
+        for worker in workers:
+            worker.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
+        await process.wait()
