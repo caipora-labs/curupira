@@ -1,0 +1,99 @@
+[core]
+max_active_tasks = 1
+workspace_dir = "~/.gh-dispatch/workspaces"
+# state_db_path = "~/.gh-dispatch/state.sqlite3" # banco local das sessões em execução
+
+[watchers.issues]
+poll_interval_seconds = 30
+batch_size = 100
+
+[[watchers.issues.repositories]]
+repo = "acme/api"
+query = "is:open label:agent-ready sort:created-asc"
+# path = "~/code/api" # opcional; sem path, clona em workspace_dir/acme/api
+
+# O prompt é opcional por repositório. Quando definido, substitui [agent].prompt.
+# prompt = "Trabalhe na issue ${issue_number}: ${issue_title}"
+
+[[watchers.issues.repositories]]
+repo = "acme/worker"
+query = "is:open label:agent-ready sort:created-asc"
+coding_agent = "opencode-fast"
+
+[watchers.pull_requests]
+poll_interval_seconds = 30
+batch_size = 100
+
+[[watchers.pull_requests.repositories]]
+repo = "acme/api"
+query = "is:open label:review-needed"
+coding_agent = "opencode-default"
+
+[watchers.cron]
+poll_interval_seconds = 1
+
+[[watchers.cron.jobs]]
+id = "weekly-maintenance"
+schedule = "0 9 * * 1"
+timezone = "Europe/Rome"
+# start_date = 2026-10-05T00:00:00+02:00
+# end_date = 2026-12-31T23:59:00+01:00
+repo = "acme/api"
+prompt = "Faça a manutenção semanal de ${repo} (execução ${task_number})."
+coding_agent = "opencode-default"
+
+# Queries com project: filtram automaticamente status Todo e usam state open.
+# Substitua ou adicione como outra entrada [[watchers.issues.repositories]].
+# repo = "mariotaddeucci/bob"
+# query = "project:mariotaddeucci/5"
+
+[agent]
+prompt = """
+Resolva a issue ${issue_number}: ${issue_title}
+
+${issue_body}
+
+Repositório: ${repo}
+URL: ${issue_url}
+"""
+pull_request_prompt = """
+Revise o pull request ${pull_request_number}: ${pull_request_title}
+
+${pull_request_body}
+
+Repositório: ${repo}
+URL: ${pull_request_url}
+Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
+"""
+
+[coding_agents]
+default = "opencode-default"
+
+[coding_agents.profiles.opencode-default]
+provider = "opencode"
+# model = "provider/model" # omitido: usa o default do OpenCode
+# agent = "build"          # omitido: usa o default do OpenCode
+# effort = "high"          # passado para --variant
+
+[coding_agents.profiles.opencode-fast]
+provider = "opencode"
+model = "provider/fast-model"
+agent = "build"
+effort = "low"
+
+[coding_agents.profiles.codex]
+provider = "codex"
+# model = "gpt-5.4"
+# agent = "my-codex-config-profile" # mapeado para --profile
+effort = "high"
+
+[coding_agents.profiles.claude-code]
+provider = "claude"
+model = "sonnet"
+# agent = "reviewer"
+effort = "high"
+
+[coding_agents.profiles.cursor]
+provider = "cursor"
+# model = "composer-2.5"
+agent = "plan" # Cursor aceita os modos agent, ask e plan; agent é o padrão
