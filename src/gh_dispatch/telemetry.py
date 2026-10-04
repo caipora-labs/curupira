@@ -42,12 +42,15 @@ class TaskTelemetry:
             "gh_dispatch.task.id": str(identity.number),
         }
         with self._tracer.start_as_current_span(
-            f"gh_dispatch.task.{identity.task_type}", attributes=attributes
+            f"gh_dispatch.task.{identity.task_type}",
+            attributes=attributes,
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
             try:
                 yield span
             except Exception as error:
-                self._record_failure(span, str(error) or type(error).__name__)
+                self.record_exception(span, error)
                 raise
 
     def record_result(self, span: Span, result: ProcessResult) -> None:
@@ -61,6 +64,11 @@ class TaskTelemetry:
             or f"process exited with status {result.returncode}"
         )
         self._record_failure(span, message)
+
+    def record_exception(self, span: Span, error: Exception) -> None:
+        """Record an exception event and the task's error outcome."""
+        span.record_exception(error)
+        self._record_failure(span, str(error) or type(error).__name__)
 
     def shutdown(self) -> None:
         """Flush and stop the OTLP exporter created by this instance, if any."""

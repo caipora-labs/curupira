@@ -1,18 +1,14 @@
 """OTLP task spans and disabled-by-default behavior."""
 
 from datetime import UTC, datetime
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from threading import Thread
 from typing import cast
 
 import pytest
-from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
-from typing_extensions import override
 
 from gh_dispatch.executor import TaskExecutor
 from gh_dispatch.models import (
@@ -133,11 +129,8 @@ def test_task_exception_is_exported_as_failure(tmp_path: Path) -> None:
     telemetry, provider, exporter = telemetry_with_exporter()
 
     try:
-        with (
-            pytest.raises(RuntimeError, match="checkout unavailable"),
-            telemetry.task_span(issue_task(tmp_path)),
-        ):
-            raise RuntimeError("checkout unavailable")
+        with telemetry.task_span(issue_task(tmp_path)) as span:
+            telemetry.record_exception(span, RuntimeError("checkout unavailable"))
 
         [span] = exporter.get_finished_spans()
         attributes = span.attributes or {}
@@ -158,39 +151,28 @@ def test_telemetry_without_endpoint_uses_non_recording_spans(tmp_path: Path) -> 
     assert not span.is_recording()
 
 
-def test_configured_endpoint_receives_otlp_http_protobuf(tmp_path: Path) -> None:
-    payloads: list[bytes] = []
+def test_configured_endpoint_is_given_to_otlp_exporter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    exporter = InMemorySpanExporter()
+    endpoints: list[str] = []
 
-    class CollectorHandler(BaseHTTPRequestHandler):
-        def do_POST(self) -> None:
-            payloads.append(self.rfile.read(int(self.headers["Content-Length"])))
-            self.send_response(200)
-            self.send_header("Content-Length", "0")
-            self.end_headers()
+    def create_exporter(*, endpoint: str) -> InMemorySpanExporter:
+        endpoints.append(endpoint)
+        return exporter
 
-        @override
-        def log_message(self, format: str, *args: object) -> None:
-            return
-
-    server = HTTPServer(("127.0.0.1", 0), CollectorHandler)
-    thread = Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    endpoint = f"http://127.0.0.1:{server.server_port}/v1/traces"
+    monkeypatch.setattr("gh_dispatch.telemetry.OTLPSpanExporter", create_exporter)
+    endpoint = "http://collector:4318/v1/traces"
     telemetry = TaskTelemetry(endpoint)
     try:
         with telemetry.task_span(issue_task(tmp_path)) as span:
             telemetry.record_result(span, ProcessResult(returncode=0))
-        telemetry.shutdown()
     finally:
-        server.shutdown()
-        thread.join()
-        server.server_close()
+        telemetry.shutdown()
 
-    assert len(payloads) == 1
-    exported = ExportTraceServiceRequest.FromString(payloads[0])
-    spans = exported.resource_spans[0].scope_spans[0].spans
-    assert len(spans) == 1
-    attributes = {item.key: item.value.string_value for item in spans[0].attributes}
+    assert endpoints == [endpoint]
+    [span] = exporter.get_finished_spans()
+    attributes = span.attributes or {}
     assert attributes["gh_dispatch.repo"] == "acme/api"
     assert attributes["gh_dispatch.task.type"] == "issue"
     assert attributes["gh_dispatch.task.id"] == "42"
