@@ -15,17 +15,17 @@ before opening a pull request; CI runs the same steps.
 ## Verification commands
 
 ```bash
-uv run pytest --cov --cov-report=term-missing
-uv run ruff check .
-uv run ruff format --check .
-uv run pyrefly check
+uv run --no-sync pytest
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check .
+uv run --no-sync pyrefly check
 uv build
-uv run twine check dist/*
+uv run --no-sync twine check dist/*
 ```
 
-Coverage must stay at or above 85% branch coverage (`fail_under = 85` in
-`pyproject.toml`). The example configuration is covered by tests: changes to
-`gh-dispatch.example.toml` must keep `test_example_configuration_is_valid` green.
+When collecting coverage, it must stay at or above 85% branch coverage
+(`fail_under = 85` in `pyproject.toml`). The example configuration is covered by tests:
+changes to `gh-dispatch.example.toml` must keep `test_example_configuration_is_valid` green.
 
 ## Architecture boundaries
 
@@ -72,7 +72,7 @@ To cut a release:
 1. Move the `Unreleased` entries in `CHANGELOG.md` into a new version section.
 2. Bump `__version__` in `src/gh_dispatch/_version.py` to match.
 3. Run the full verification suite and confirm `uv build` plus
-   `uv run twine check dist/*` pass.
+   `uv run --no-sync twine check dist/*` pass.
 4. Before the first production publication, run the `testpypi.yml` workflow manually
    from `main` to rehearse the upload to TestPyPI and verify the installed package.
 5. Tag the validated commit as `vX.Y.Z` and push the tag. The `publish.yml` workflow

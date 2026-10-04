@@ -226,13 +226,16 @@ may change without notice.
 
 ```bash
 uv sync --dev
-uv run pytest --cov --cov-report=term-missing
-uv run ruff check .
-uv run ruff format --check .
-uv run pyrefly check
+uv run --no-sync pytest
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check .
+uv run --no-sync pyrefly check
 uv build
-uv run twine check dist/*
+uv run --no-sync twine check dist/*
 ```
+
+To inspect branch coverage locally, run `uv run --no-sync pytest --cov --cov-report=term-missing`;
+the configured minimum is 85%.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup and the exact verification
 commands, and [CHANGELOG.md](CHANGELOG.md) for release notes.

@@ -3,9 +3,10 @@
 ## Behavior and tests
 
 - [ ] Behavioral tests cover the change (no authenticated agents or network access)
-- [ ] `uv run pytest --cov --cov-report=term-missing` passes (coverage >= 85%)
-- [ ] `uv run ruff check .` and `uv run ruff format --check .` pass
-- [ ] `uv run pyrefly check` passes
+- [ ] `uv run --no-sync pytest` passes
+- [ ] `uv run --no-sync ruff check .` and `uv run --no-sync ruff format --check .` pass
+- [ ] `uv run --no-sync pyrefly check` passes
+- [ ] `uv build` passes
 
 ## Documentation
 

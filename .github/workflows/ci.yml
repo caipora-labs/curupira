@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -54,7 +55,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       - run: uv sync --frozen --dev
-      - run: uv run --no-sync pytest --cov --cov-report=term-missing
+      - run: uv run --no-sync pytest
       - run: uv run --no-sync gh-dispatch --config gh-dispatch.example.toml validate
 
   test-portable:
@@ -74,7 +75,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       - run: uv sync --frozen --dev
-      - run: uv run --no-sync pytest --cov --cov-report=term-missing
+      - run: uv run --no-sync pytest
       - run: uv run --no-sync gh-dispatch --config gh-dispatch.example.toml validate
 
   audit:

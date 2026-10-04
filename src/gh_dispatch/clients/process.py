@@ -54,13 +54,13 @@ class AsyncProcessRunner:
                 stderr=asyncio.subprocess.PIPE if capture else None,
                 start_new_session=os.name == "posix",
             )
-        except FileNotFoundError as error:
+        except OSError as error:
             if request.cwd is not None and not await asyncio.to_thread(request.cwd.is_dir):
                 raise CliLaunchError(
                     request.executable, f"working directory does not exist: {request.cwd}"
                 ) from error
-            raise CliNotFoundError(request.executable) from error
-        except OSError as error:
+            if isinstance(error, FileNotFoundError):
+                raise CliNotFoundError(request.executable) from error
             raise CliLaunchError(request.executable, str(error)) from error
         stdout = _OutputBuffer(request.max_output_bytes)
         stderr = _OutputBuffer(request.max_output_bytes)
