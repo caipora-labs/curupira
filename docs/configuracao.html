@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Configure watchers de issues, pull requests e cron no gh-dispatch.">
+    <title>Configuração · gh-dispatch</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="gh-dispatch, início">
+        <span class="brand-mark">gh</span> gh-dispatch
+      </a>
+      <nav aria-label="Navegação principal">
+        <a href="index.html">Início</a>
+        <a href="instalacao.html">Instalação</a>
+        <a aria-current="page" href="configuracao.html">Configuração</a>
+        <a href="providers.html">Providers</a>
+        <a href="operacao.html">Operação</a>
+      </nav>
+    </header>
+
+    <main class="page" id="conteudo">
+      <p class="eyebrow">02 / CONFIGURAÇÃO</p>
+      <h1>Declare o que deve ser executado</h1>
+      <p class="lead">
+        Um arquivo TOML reúne limites globais, perfis de coding agents e automações. Cada
+        automação acompanha uma fonte: issues, pull requests ou um agendamento cron.
+      </p>
+
+      <section class="content-section">
+        <h2>Estrutura básica</h2>
+        <p>Este exemplo configura os três tipos de automação e perfis para os quatro providers:</p>
+        <pre><code>[settings]
+max_active_tasks = 2
+workspace_dir = "~/.gh-dispatch/workspaces"
+state_db_path = "~/.gh-dispatch/state.sqlite3"
+
+[coding_agents.defaults]
+profile = "opencode"
+timezone = "UTC"
+
+[coding_agents.profiles.opencode]
+provider = "opencode"
+model = "anthropic/claude-sonnet-4"
+agent = "issue-resolver"
+effort = "high"
+
+[coding_agents.profiles.codex]
+provider = "codex"
+model = "gpt-5.4"
+agent = "work"
+effort = "high"
+
+[coding_agents.profiles.claude]
+provider = "claude"
+model = "sonnet"
+agent = "reviewer"
+effort = "high"
+
+[coding_agents.profiles.cursor]
+provider = "cursor"
+model = "composer-2.5"
+agent = "agent"
+
+[coding_agents.automations.resolve-issues]
+trigger_type = "issue"
+repo = "acme/api"
+query = "is:open label:agent-ready sort:created-asc"
+profile = "opencode"
+prompt = "Resolva a issue ${issue_number}: ${issue_title}\n\n${issue_body}"
+
+[coding_agents.automations.review-pull-requests]
+trigger_type = "pull_request"
+repo = "acme/api"
+query = "is:open label:review-needed"
+profile = "claude"
+prompt = "Revise o pull request ${pull_request_number}: ${pull_request_title}\n\n${pull_request_body}"
+
+[coding_agents.automations.weekly-maintenance]
+trigger_type = "cron"
+repo = "acme/api"
+schedule = "0 9 * * 1"
+profile = "codex"
+prompt = "Faça a manutenção semanal de ${repo}."</code></pre>
+        <p>
+          Salve o arquivo como <code>~/.gh-dispatch/settings.toml</code>. Os nomes depois de
+          <code>profiles.</code> e <code>automations.</code> são identificadores escolhidos por
+          você; <code>profile</code> liga cada automação a um perfil existente.
+        </p>
+      </section>
+
+      <section class="content-section">
+        <h2>Watchers de issues e pull requests</h2>
+        <p>
+          Use <code>trigger_type = "issue"</code> ou <code>"pull_request"</code> e uma consulta
+          GitHub Search em <code>query</code>. O campo <code>repo</code> usa o formato
+          <code>owner/repository</code>. Prompts aceitam placeholders como
+          <code>${issue_title}</code>, <code>${pull_request_number}</code> e <code>${repo}</code>.
+        </p>
+      </section>
+
+      <section class="content-section">
+        <h2>Jobs cron</h2>
+        <p>
+          Use <code>trigger_type = "cron"</code> e uma expressão de cinco campos em
+          <code>schedule</code>. Você pode definir <code>timezone</code> (padrão UTC),
+          <code>start_date</code> e <code>end_date</code>. Para exemplos completos de perfis e
+          opções nativas, consulte <a href="providers.html">Providers</a>.
+        </p>
+      </section>
+
+      <section class="callout compact">
+        <div>
+          <p class="eyebrow">DICA</p>
+          <h2>Valide antes de executar</h2>
+          <p>O comando verifica o TOML sem chamar providers, criar checkouts ou gravar estado.</p>
+        </div>
+        <code class="inline-command">gh-dispatch validate</code>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <a href="instalacao.html">← Instalação</a>
+      <a href="providers.html">Próximo: providers →</a>
+    </footer>
+  </body>
+</html>
