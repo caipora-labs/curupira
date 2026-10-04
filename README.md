@@ -30,6 +30,11 @@ Or with pipx:
 pipx install gh-dispatch
 ```
 
+## Documentação
+
+Consulte o [guia completo em português](https://mariotaddeucci.github.io/gh-dispatch/) para
+instalação, configuração de automações, providers e comandos de operação.
+
 ## Configuration
 
 The default settings file is `~/.gh-dispatch/settings.toml`. Initialize it by copying
