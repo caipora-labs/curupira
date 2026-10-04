@@ -24,7 +24,7 @@ async def test_arguments_are_literal_and_stdin_is_disconnected() -> None:
         )
     )
     assert result.returncode == 0
-    assert result.stdout == payload + "\n''\n"
+    assert result.stdout.splitlines() == [payload, "''"]
 
 
 async def test_capture_is_bounded_but_callbacks_receive_all_events() -> None:

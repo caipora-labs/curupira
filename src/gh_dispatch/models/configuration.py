@@ -52,8 +52,8 @@ class ExecutionSettings(ValidatedModel):
 
     max_active_tasks: Annotated[int, Field(strict=True, ge=1, le=1000)] = 1
     max_pending_tasks: Annotated[int, Field(strict=True, ge=1, le=10000)] = 100
-    workspace_dir: Path = Path("~/.gh-dispatch/workspaces")
-    state_db_path: Path = Path("~/.gh-dispatch/state.sqlite3")
+    workspace_dir: Path = Field(default_factory=lambda: Path("~/.gh-dispatch/workspaces"))
+    state_db_path: Path = Field(default_factory=lambda: Path("~/.gh-dispatch/state.sqlite3"))
     otlp_endpoint: AnyHttpUrl | None = None
     task_timeout_seconds: PositiveSeconds | None = None
     max_output_bytes: Annotated[int, Field(strict=True, ge=1024, le=100_000_000)] = 1_000_000
