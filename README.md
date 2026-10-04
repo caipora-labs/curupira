@@ -3,7 +3,7 @@
 Dispatch GitHub issues, pull requests, and cron occurrences to local AI coding-agent
 CLIs with bounded concurrency and exclusive execution per checkout.
 
-Each automation in `gh-dispatch.toml` watches one source (issues, pull requests, or a
+Each automation in the settings TOML watches one source (issues, pull requests, or a
 cron schedule) and carries its own prompt. All automations share one discovery,
 scheduling, and execution pipeline: `run` executes a single currently available task,
 while `watch` polls every automation continuously.
@@ -32,9 +32,17 @@ pipx install gh-dispatch
 
 ## Configuration
 
-Copy `gh-dispatch.example.toml` to `gh-dispatch.toml` and adjust repositories, paths,
-queries, and prompts. The default path is `./gh-dispatch.toml`; pass `--config` to use
-another file.
+The default settings file is `~/.gh-dispatch/settings.toml`. Initialize it by copying
+the example and adjust repositories, paths, queries, and prompts:
+
+```bash
+mkdir -p ~/.gh-dispatch
+cp gh-dispatch.example.toml ~/.gh-dispatch/settings.toml
+```
+
+The `~/.gh-dispatch` directory is created automatically when the default file is first
+loaded. Pass `--config path/to/settings.toml` to use a different file; relative workspace,
+state, and automation paths are resolved from that file's directory.
 
 ```toml
 [settings]
@@ -130,36 +138,39 @@ Without `start_date`, the window starts when the automation is first recorded.
 ### State files
 
 Running sessions and cron schedule state live in `state_db_path` (default
-`~/.gh-dispatch/state.sqlite3`). Session records are removed when the agent process
-ends; `watch` resumes all saved sessions after a restart, and `run` resumes the saved
-session of the task it selects. If the file exists but is not a compatible database, the
-application exits with an error instead of deleting it — delete or move the file
-yourself to start fresh.
+`~/.gh-dispatch/state.sqlite3`). The per-user dispatch lock is stored in
+`~/.gh-dispatch/dispatch.lock`, and the dedicated log directory is
+`~/.gh-dispatch/logs`. Only one `run` or `watch` process can dispatch at a time; a second
+process exits with an error rather than running tasks in parallel. Session records are
+removed when the agent process ends; `watch` resumes all saved sessions after a restart,
+and `run` resumes the saved session of the task it selects. If the file exists but is not
+a compatible database, the application exits with an error instead of deleting it —
+delete or move the file yourself to start fresh.
 
 ## Usage
 
 Validate configuration without calling external CLIs or writing state:
 
 ```bash
-gh-dispatch --config gh-dispatch.toml validate
+gh-dispatch validate
 ```
 
 Execute one currently available task and wait for the agent to finish:
 
 ```bash
-gh-dispatch --config gh-dispatch.toml run
+gh-dispatch run
 ```
 
 Preview the selected task without reserving, persisting, cloning, or executing:
 
 ```bash
-gh-dispatch --config gh-dispatch.toml run --dry-run
+gh-dispatch run --dry-run
 ```
 
 Poll all automations with the shared bounded scheduler until interrupted:
 
 ```bash
-gh-dispatch --config gh-dispatch.toml watch
+gh-dispatch watch
 ```
 
 `validate` exits `0` when the configuration is valid and `2` on configuration errors.
