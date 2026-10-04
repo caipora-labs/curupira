@@ -91,23 +91,151 @@ async def test_omitted_options_and_option_like_prompts_are_literal(
 
 
 @pytest.mark.parametrize(
-    "profile",
+    ("profile", "flag", "value"),
     [
-        OpenCodeCliProfile(agent="custom-reviewer", model="vendor/model", effort="high"),
-        ClaudeCodeCliProfile(agent="custom-reviewer", model="sonnet", effort="high"),
+        (
+            OpenCodeCliProfile(agent="custom-reviewer", model="vendor/model", effort="high"),
+            "--agent",
+            "custom-reviewer",
+        ),
+        (
+            ClaudeCodeCliProfile(agent="custom-reviewer", model="sonnet", effort="high"),
+            "--agent",
+            "custom-reviewer",
+        ),
+        (CodexCliProfile(agent="work"), "--profile", "work"),
+        (CursorCliProfile(agent="ask"), "--mode", "ask"),
     ],
 )
-async def test_native_custom_agents_are_selected_by_flag(
-    tmp_path: Path, profile: CliProfile
+async def test_agent_option_uses_its_provider_native_flag(
+    tmp_path: Path, profile: CliProfile, flag: str, value: str
 ) -> None:
     runner = RecordingRunner(ProcessResult(returncode=0))
     await create_cli_adapter(profile.provider, runner).run_task(
         CodingTaskRequest(cwd=tmp_path, profile=profile, message="Review")
     )
     arguments = runner.requests[0].arguments
-    assert arguments[arguments.index("--agent") + 1] == "custom-reviewer"
-    assert "--model" in arguments
-    assert "high" in arguments
+    assert arguments[arguments.index(flag) + 1] == value
+
+
+def test_provider_profiles_match_current_cli_argument_contracts(tmp_path: Path) -> None:
+    requests = [
+        (
+            OpenCodeCliProfile(model="vendor/model", agent="reviewer", effort="high"),
+            "opencode",
+            (
+                "run",
+                "--format",
+                "json",
+                "--session",
+                "native-session",
+                "--model",
+                "vendor/model",
+                "--agent",
+                "reviewer",
+                "--variant",
+                "high",
+                "--",
+                "Handle task",
+            ),
+        ),
+        (
+            CodexCliProfile(
+                model="gpt-5.4",
+                agent="work",
+                effort="high",
+                sandbox="workspace-write",
+            ),
+            "codex",
+            (
+                "exec",
+                "resume",
+                "native-session",
+                "--model",
+                "gpt-5.4",
+                "--profile",
+                "work",
+                "--config",
+                'model_reasoning_effort="high"',
+                "--sandbox",
+                "workspace-write",
+                "--json",
+                "--",
+                "Handle task",
+            ),
+        ),
+        (
+            ClaudeCodeCliProfile(model="sonnet", agent="reviewer", effort="high"),
+            "claude",
+            (
+                "-p",
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                "--resume",
+                "native-session",
+                "--model",
+                "sonnet",
+                "--agent",
+                "reviewer",
+                "--effort",
+                "high",
+                "--",
+                "Handle task",
+            ),
+        ),
+        (
+            CursorCliProfile(model="composer-2.5", agent="plan", force=True, trust=True),
+            "cursor",
+            (
+                "--print",
+                "--output-format",
+                "stream-json",
+                "--resume",
+                "native-session",
+                "--mode",
+                "plan",
+                "--model",
+                "composer-2.5",
+                "--force",
+                "--trust",
+                "--",
+                "Handle task",
+            ),
+        ),
+    ]
+    for profile, provider, expected in requests:
+        arguments = create_cli_adapter(provider).build_arguments(
+            CodingTaskRequest(
+                cwd=tmp_path, profile=profile, session_id="native-session", message="Handle task"
+            )
+        )
+        assert arguments == expected
+
+
+def test_codex_exec_without_session_uses_json_config_and_profile(tmp_path: Path) -> None:
+    profile = CodexCliProfile(
+        model="gpt-5.4", agent="work", effort="ultra", sandbox="workspace-write"
+    )
+
+    arguments = create_cli_adapter("codex").build_arguments(
+        CodingTaskRequest(cwd=tmp_path, profile=profile, message="Handle task")
+    )
+
+    assert arguments == (
+        "exec",
+        "--model",
+        "gpt-5.4",
+        "--profile",
+        "work",
+        "--config",
+        'model_reasoning_effort="ultra"',
+        "--sandbox",
+        "workspace-write",
+        "--json",
+        "--",
+        "Handle task",
+    )
 
 
 @pytest.mark.parametrize(

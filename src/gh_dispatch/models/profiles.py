@@ -30,10 +30,11 @@ class OpenCodeCliProfile(CliProfileBase):
 
 
 class CodexCliProfile(CliProfileBase):
-    """Codex options; a configuration profile is not a custom agent."""
+    """Codex options, including selection of an existing CLI configuration profile."""
 
     provider: Literal["codex"] = "codex"
-    effort: Literal["minimal", "low", "medium", "high", "xhigh", "max", "ultra"] | None = None
+    agent: NonEmptyString | None = None
+    effort: Literal["low", "medium", "high", "xhigh", "max", "ultra"] | None = None
     sandbox: Literal["read-only", "workspace-write", "danger-full-access"] | None = None
     auto_review: bool = False
 
@@ -58,9 +59,10 @@ class ClaudeCodeCliProfile(CliProfileBase):
 
 
 class CursorCliProfile(CliProfileBase):
-    """Cursor options; modes and custom agents are distinct concepts."""
+    """Cursor options, including native agent/ask/plan mode selection."""
 
     provider: Literal["cursor"] = "cursor"
+    agent: Literal["agent", "ask", "plan"] | None = None
     force: bool = False
     trust: bool = False
 
