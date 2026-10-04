@@ -22,6 +22,7 @@ from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepos
 from gh_dispatch.runtime import (
     DispatchInstanceLock,
     InstanceAlreadyRunningError,
+    create_execution_log_handler,
     default_config_path,
     dispatch_home,
     ensure_runtime_directories,
@@ -110,8 +111,14 @@ async def _execute_command(options: CliOptions) -> int:
         if settings.settings.otlp_endpoint is not None
         else None
     )
+    log_handler: logging.FileHandler | None = None
+    root_logger = logging.getLogger()
     try:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+        if options.command == "watch" or not options.dry_run:
+            log_handler = create_execution_log_handler()
+            root_logger.setLevel(logging.INFO)
+            root_logger.addHandler(log_handler)
         gh = GhClient()
         if options.command == "run":
             outcome = await dispatch_next_task(
@@ -151,7 +158,12 @@ async def _execute_command(options: CliOptions) -> int:
         print(f"Dispatch error: {error}", file=sys.stderr)
         return 1
     finally:
-        telemetry.shutdown()
+        try:
+            telemetry.shutdown()
+        finally:
+            if log_handler is not None:
+                root_logger.removeHandler(log_handler)
+                log_handler.close()
 
 
 def main(argv: Sequence[str] | None = None) -> int:

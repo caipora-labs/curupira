@@ -1,6 +1,7 @@
 """Per-user runtime paths and process exclusivity."""
 
 import errno
+import logging
 import os
 from pathlib import Path
 from typing import BinaryIO
@@ -21,6 +22,16 @@ def ensure_runtime_directories() -> None:
     home = dispatch_home()
     home.mkdir(parents=True, exist_ok=True, mode=0o700)
     (home / "logs").mkdir(exist_ok=True, mode=0o700)
+
+
+def create_execution_log_handler() -> logging.FileHandler:
+    """Create an append-only UTF-8 handler under the central logs directory."""
+    ensure_runtime_directories()
+    log_path = dispatch_home() / "logs" / "gh-dispatch.log"
+    handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    return handler
 
 
 class InstanceAlreadyRunningError(RuntimeError):
