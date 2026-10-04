@@ -73,13 +73,20 @@ To cut a release:
 2. Bump `__version__` in `src/gh_dispatch/_version.py` to match.
 3. Run the full verification suite and confirm `uv build` plus
    `uv run twine check dist/*` pass.
-4. Tag the commit as `vX.Y.Z` and push the tag. Only tag pushes publish;
-   ordinary pull-request runs never reach the publish step.
+4. Before the first production publication, run the `testpypi.yml` workflow manually
+   from `main` to rehearse the upload to TestPyPI and verify the installed package.
+5. Tag the validated commit as `vX.Y.Z` and push the tag. The `publish.yml` workflow
+   publishes that version to PyPI; the `release.yml` workflow attaches the distributions
+   to the matching GitHub release.
 
 PyPI publishing uses Trusted Publishing (OIDC), so no API tokens are stored. Before
-the first release, a PyPI maintainer registers this repository as a trusted publisher
-for the `gh-dispatch` project with workflow filename `release.yml` and environment
-`pypi`, and a matching `pypi` environment is created in the repository settings.
+publishing, a PyPI maintainer registers this repository as a trusted publisher for the
+`gh-dispatch` project with owner `mariotaddeucci`, repository `gh-dispatch`, workflow
+filename `publish.yml`, and environment `pypi`. The TestPyPI rehearsal uses a separate
+`testpypi` environment and trusted publisher with workflow filename `testpypi.yml` and
+audience `testpypi`. It uploads to `https://test.pypi.org/legacy/` and smoke-tests the
+installation. The publish workflow checks that the full Linux test matrix, lint, type
+check, and distribution build succeeded for the commit.
 
 ## Style
 
