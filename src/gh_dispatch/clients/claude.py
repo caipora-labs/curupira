@@ -15,7 +15,7 @@ class ClaudeCodeCliAdapter(CodingAgentCliAdapter):
         profile = request.profile
         if not isinstance(profile, ClaudeCodeCliProfile):
             raise ValueError("Claude Code requires a Claude profile")
-        arguments = ["--print", "--output-format", "stream-json", "--verbose"]
+        arguments = ["-p", "--output-format", "stream-json", "--verbose"]
         if request.session_id is not None:
             arguments.extend(("--resume", request.session_id))
         for flag, value in (

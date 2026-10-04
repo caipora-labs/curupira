@@ -84,10 +84,37 @@ def test_poll_interval_requires_finite_positive_value(value: float) -> None:
         ApplicationSettings.model_validate(data)
 
 
-@pytest.mark.parametrize("provider", ["codex", "cursor"])
-def test_unsupported_custom_agents_are_not_reinterpreted(provider: str) -> None:
+def test_codex_agent_selects_a_named_cli_profile() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {"provider": provider, "agent": "reviewer"}
+    data["coding_agents"]["profiles"]["opencode"] = {
+        "provider": "codex",
+        "agent": "work",
+    }
+
+    profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
+
+    assert profile.provider == "codex"
+    assert profile.agent == "work"
+
+
+@pytest.mark.parametrize("mode", ["agent", "ask", "plan"])
+def test_cursor_agent_selects_a_native_mode(mode: str) -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {"provider": "cursor", "agent": mode}
+
+    profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
+
+    assert profile.provider == "cursor"
+    assert profile.agent == mode
+
+
+def test_cursor_rejects_unknown_agent_modes() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {
+        "provider": "cursor",
+        "agent": "reviewer",
+    }
+
     with pytest.raises(ValidationError, match="agent"):
         ApplicationSettings.model_validate(data)
 

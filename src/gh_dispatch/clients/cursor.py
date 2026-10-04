@@ -5,19 +5,21 @@ from gh_dispatch.models import CodingTaskRequest, CursorCliProfile
 
 
 class CursorCliAdapter(CodingAgentCliAdapter):
-    """Run the Cursor CLI without treating execution modes as custom agents."""
+    """Map the profile's agent selection to Cursor's native execution mode."""
 
     executable = "agent"
     provider = "cursor"
 
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
-        """Build a headless invocation with explicit trust/force overrides only."""
+        """Build a headless invocation with native mode and permission overrides."""
         profile = request.profile
         if not isinstance(profile, CursorCliProfile):
             raise ValueError("Cursor requires a Cursor profile")
         arguments = ["--print", "--output-format", "stream-json"]
         if request.session_id is not None:
             arguments.extend(("--resume", request.session_id))
+        if profile.agent is not None:
+            arguments.extend(("--mode", profile.agent))
         if profile.model is not None:
             arguments.extend(("--model", profile.model))
         if profile.force:
