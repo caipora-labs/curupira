@@ -157,6 +157,13 @@ and `run` resumes the saved session of the task it selects. If the file exists b
 a compatible database, the application exits with an error instead of deleting it —
 delete or move the file yourself to start fresh.
 
+### Arquivo de logs
+
+Os comandos `run` e `watch` acrescentam registros a
+`~/.gh-dispatch/logs/gh-dispatch.log`; reiniciar o processo não apaga o conteúdo anterior.
+Cada tarefa registra início e conclusão com horário, repositório, tipo e identificador. Se
+a tarefa falhar, o registro inclui o erro.
+
 ## Usage
 
 Validate configuration without calling external CLIs or writing state:

@@ -1,6 +1,7 @@
 """The shared checkout, prompt, execution, and persistence lifecycle."""
 
 import logging
+from asyncio import CancelledError
 from datetime import UTC, datetime
 from string import Template
 
@@ -80,10 +81,35 @@ class TaskExecutor:
         self, task: Task, resumed: RunningCodingSession | None = None
     ) -> ProcessResult:
         """Execute one task within an outcome span."""
-        with self._telemetry.task_span(task) as span:
-            result = await self._execute_task(task, resumed)
-            self._telemetry.record_result(span, result)
-            return result
+        identity = task.identity
+        context = (identity.repo, identity.task_type, identity.number)
+        action = "Resuming" if resumed is not None else "Starting"
+        logger.info("%s task repo=%s type=%s id=%s", action, *context)
+        try:
+            with self._telemetry.task_span(task) as span:
+                result = await self._execute_task(task, resumed)
+                self._telemetry.record_result(span, result)
+        except CancelledError:
+            logger.warning("Cancelled task repo=%s type=%s id=%s", *context)
+            raise
+        except Exception as error:
+            logger.exception(
+                "Failed task repo=%s type=%s id=%s result=failure error=%s",
+                *context,
+                str(error) or type(error).__name__,
+            )
+            raise
+
+        if result.returncode == 0:
+            logger.info("Completed task repo=%s type=%s id=%s result=success", *context)
+        else:
+            message = result.stderr.strip() or f"process exited with status {result.returncode}"
+            logger.error(
+                "Failed task repo=%s type=%s id=%s result=failure error=%s",
+                *context,
+                message,
+            )
+        return result
 
     async def _execute_task(
         self, task: Task, resumed: RunningCodingSession | None = None
@@ -111,9 +137,6 @@ class TaskExecutor:
 
         if task.identity.task_type == "cron":
             await self._cron.mark_started(task.identity.automation_id, datetime.now(UTC))
-        logger.info(
-            "%s task %s", "Resuming" if resumed is not None else "Starting", task.identity.key
-        )
         result = await adapter.run_task(
             CodingTaskRequest(
                 cwd=checkout.path,
@@ -129,5 +152,4 @@ class TaskExecutor:
             await self._cron.complete_run(task, self._sessions)
         else:
             await self._sessions.delete(task)
-        logger.info("Task %s exited with status %s", task.identity.key, result.returncode)
         return result

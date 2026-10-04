@@ -1,5 +1,6 @@
 """Source-independent dispatch, previews, and persisted execution snapshots."""
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from gh_dispatch.dispatcher import dispatch_next_task
 from gh_dispatch.executor import render_task_prompt
 from gh_dispatch.models import GhIssue, GhPullRequest, RunningCodingSession
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+from gh_dispatch.runtime import create_execution_log_handler
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task
 
@@ -33,7 +35,10 @@ def settings(path: Path, trigger: str = "issue") -> ApplicationSettings:
     )
 
 
-async def test_dispatch_renders_the_task_prompt_and_uses_shared_executor(tmp_path: Path) -> None:
+async def test_dispatch_renders_the_task_prompt_and_uses_shared_executor(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level("INFO")
     configured = settings(tmp_path)
     gh = FakeGitHub(
         issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
@@ -47,6 +52,60 @@ async def test_dispatch_renders_the_task_prompt_and_uses_shared_executor(tmp_pat
     assert adapter.requests[0].message == "Handle 42: Fix"
     assert gh.checkouts == [tmp_path]
     assert await RunningSessionRepository(configured.settings.state_db_path).list_all() == []
+    assert "Starting task repo=acme/api type=issue id=42" in caplog.text
+    assert "Completed task repo=acme/api type=issue id=42 result=success" in caplog.text
+
+
+async def test_dispatch_logs_failed_task_with_identity_and_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level("INFO")
+    configured = settings(tmp_path)
+    gh = FakeGitHub(
+        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    )
+
+    outcome = await dispatch_next_task(
+        configured, gh, adapter_factory=lambda _: RecordingAdapter(returncode=7)
+    )
+
+    assert outcome.process is not None
+    assert outcome.process.returncode == 7
+    assert "Failed task repo=acme/api type=issue id=42 result=failure" in caplog.text
+    assert "process exited with status 7" in caplog.text
+
+
+async def test_failed_dispatch_is_appended_to_the_central_log_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    root_logger = logging.getLogger()
+    previous_level = root_logger.level
+    root_logger.setLevel(logging.INFO)
+    handler = create_execution_log_handler()
+    root_logger.addHandler(handler)
+    configured = settings(tmp_path)
+    gh = FakeGitHub(
+        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    )
+
+    try:
+        await dispatch_next_task(
+            configured, gh, adapter_factory=lambda _: RecordingAdapter(returncode=7)
+        )
+    finally:
+        root_logger.removeHandler(handler)
+        handler.close()
+        root_logger.setLevel(previous_level)
+
+    log_path = tmp_path / ".gh-dispatch" / "logs" / "gh-dispatch.log"
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    assert "Starting task repo=acme/api type=issue id=42" in lines[0]
+    assert "Failed task repo=acme/api type=issue id=42 result=failure" in lines[1]
+    assert "process exited with status 7" in lines[1]
+    assert lines[0][:4].isdigit()
 
 
 @pytest.mark.parametrize("trigger", ["issue", "cron"])
