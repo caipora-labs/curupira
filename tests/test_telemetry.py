@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Thread
+from typing import cast
 
 import pytest
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
@@ -14,7 +15,13 @@ from opentelemetry.trace import StatusCode
 from typing_extensions import override
 
 from gh_dispatch.executor import TaskExecutor
-from gh_dispatch.models import ExecutionSettings, ProcessResult, Task, TaskIdentity
+from gh_dispatch.models import (
+    ExecutionSettings,
+    ProcessResult,
+    RunningCodingSession,
+    Task,
+    TaskIdentity,
+)
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.telemetry import TaskTelemetry
 from tests.fakes import FakeGitHub, RecordingAdapter
@@ -46,6 +53,16 @@ def telemetry_with_exporter() -> tuple[TaskTelemetry, TracerProvider, InMemorySp
     return TaskTelemetry(tracer_provider=provider), provider, exporter
 
 
+class MemorySessionRepository:
+    """Avoid filesystem state in the telemetry/executor integration test."""
+
+    async def save(self, _session: RunningCodingSession) -> None:
+        return
+
+    async def delete(self, _task: Task) -> None:
+        return
+
+
 def test_task_spans_export_success_for_issues_pull_requests_and_cron(tmp_path: Path) -> None:
     telemetry, provider, exporter = telemetry_with_exporter()
     tasks = [issue_task(tmp_path), pull_request_task(tmp_path), cron_task(tmp_path)]
@@ -74,7 +91,7 @@ async def test_executor_exports_the_real_task_outcome(tmp_path: Path) -> None:
     executor = TaskExecutor(
         ExecutionSettings(state_db_path=database),
         FakeGitHub(),
-        RunningSessionRepository(database),
+        cast(RunningSessionRepository, MemorySessionRepository()),
         CronScheduleRepository(database),
         adapter_factory=lambda _: RecordingAdapter(),
         telemetry=telemetry,
