@@ -49,6 +49,8 @@ state, and automation paths are resolved from that file's directory.
 max_active_tasks = 1
 workspace_dir = "~/.gh-dispatch/workspaces"
 state_db_path = "~/.gh-dispatch/state.sqlite3"
+# Endpoint opcional de traces OTLP/HTTP; omita para desativar a telemetria.
+# otlp_endpoint = "http://localhost:4318/v1/traces"
 
 [settings.polling]
 poll_interval_seconds = 30
@@ -134,6 +136,14 @@ automation never runs concurrently with itself. `schedule` is a five-field cron
 expression, `timezone` is IANA (defaulting to `coding_agents.defaults.timezone`), and
 `start_date`/`end_date` form an optional inclusive window interpreted in that timezone.
 Without `start_date`, the window starts when the automation is first recorded.
+
+### OpenTelemetry
+
+Defina `settings.otlp_endpoint` com o endpoint OTLP/HTTP de traces (por exemplo,
+`http://localhost:4318/v1/traces`) para exportar um span por issue, pull request ou
+ocorrência cron despachada. Cada span inclui repositório, tipo, identificador e resultado
+(sucesso ou falha); falhas também incluem `error.message`. O endpoint deve aceitar
+OTLP sobre HTTP/protobuf. Se o campo for omitido, nenhuma telemetria será exportada.
 
 ### State files
 

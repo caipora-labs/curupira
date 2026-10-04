@@ -27,6 +27,7 @@ from gh_dispatch.runtime import (
     ensure_runtime_directories,
 )
 from gh_dispatch.scheduler import TaskScheduler
+from gh_dispatch.telemetry import TaskTelemetry
 
 
 class CliOptions(ValidatedModel):
@@ -104,11 +105,18 @@ async def _execute_command(options: CliOptions) -> int:
         limit = settings.settings.max_active_tasks
         print(f"Configuration is valid ({count} automations; max active tasks: {limit}).")
         return 0
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    gh = GhClient()
+    telemetry = TaskTelemetry(
+        str(settings.settings.otlp_endpoint)
+        if settings.settings.otlp_endpoint is not None
+        else None
+    )
     try:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+        gh = GhClient()
         if options.command == "run":
-            outcome = await dispatch_next_task(settings, gh, dry_run=options.dry_run)
+            outcome = await dispatch_next_task(
+                settings, gh, dry_run=options.dry_run, telemetry=telemetry
+            )
             if outcome.selected is None:
                 print("No matching task is currently available.")
                 return 0
@@ -132,7 +140,7 @@ async def _execute_command(options: CliOptions) -> int:
         recovered = await sessions.list_all()
         cron = CronScheduleRepository(settings.settings.state_db_path)
         feeds = create_task_feeds(settings, gh, cron)
-        executor = TaskExecutor(settings.settings, gh, sessions, cron)
+        executor = TaskExecutor(settings.settings, gh, sessions, cron, telemetry=telemetry)
         scheduler = TaskScheduler(settings.settings, executor)
         tasks = merge_task_streams(
             [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
@@ -142,6 +150,8 @@ async def _execute_command(options: CliOptions) -> int:
     except (DispatchError, OSError, ValidationError) as error:
         print(f"Dispatch error: {error}", file=sys.stderr)
         return 1
+    finally:
+        telemetry.shutdown()
 
 
 def main(argv: Sequence[str] | None = None) -> int:

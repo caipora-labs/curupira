@@ -157,6 +157,29 @@ async def test_relative_paths_resolve_without_creating_workspaces(tmp_path: Path
     assert sorted(path.name for path in tmp_path.iterdir()) == ["config.toml"]
 
 
+async def test_otlp_endpoint_is_optional_and_loaded_from_toml(tmp_path: Path) -> None:
+    config = tmp_path / "settings.toml"
+    config.write_text(
+        '[settings]\notlp_endpoint="http://collector:4318/v1/traces"\n'
+        '[coding_agents.automations.daily]\ntrigger_type="cron"\nrepo="acme/api"\n'
+        'schedule="0 9 * * *"\nprompt="Maintain ${repo}"\n',
+        encoding="utf-8",
+    )
+
+    settings = await load_settings(config)
+
+    assert str(settings.settings.otlp_endpoint) == "http://collector:4318/v1/traces"
+    assert configuration().settings.otlp_endpoint is None
+
+
+def test_otlp_endpoint_rejects_non_http_urls() -> None:
+    data = configuration().model_dump()
+    data["settings"]["otlp_endpoint"] = "grpc://collector:4317"
+
+    with pytest.raises(ValidationError, match="URL"):
+        ApplicationSettings.model_validate(data)
+
+
 def test_shared_workspaces_require_the_same_repository(tmp_path: Path) -> None:
     data = configuration(path=tmp_path).model_dump()
     other = {**data["coding_agents"]["automations"]["daily"], "repo": "acme/other"}

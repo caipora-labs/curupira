@@ -7,6 +7,7 @@ from gh_dispatch.executor import TaskExecutor
 from gh_dispatch.feeds import CronTaskFeed, GitHubTaskFeed, TaskFeed
 from gh_dispatch.models import CronAutomationConfiguration, DispatchOutcome
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+from gh_dispatch.telemetry import TaskTelemetry
 
 
 def create_task_feeds(
@@ -28,6 +29,7 @@ async def dispatch_next_task(
     *,
     dry_run: bool = False,
     adapter_factory: CliAdapterFactory = create_cli_adapter,
+    telemetry: TaskTelemetry | None = None,
 ) -> DispatchOutcome:
     """Run the first currently available task, or preview it without any writes."""
     cron = CronScheduleRepository(settings.settings.state_db_path)
@@ -42,7 +44,12 @@ async def dispatch_next_task(
         sessions = RunningSessionRepository(settings.settings.state_db_path)
         resumed = await sessions.get(selected)
         executor = TaskExecutor(
-            settings.settings, gh, sessions, cron, adapter_factory=adapter_factory
+            settings.settings,
+            gh,
+            sessions,
+            cron,
+            adapter_factory=adapter_factory,
+            telemetry=telemetry,
         )
         task = resumed.task if resumed is not None else selected
         result = await executor.execute(task, resumed)

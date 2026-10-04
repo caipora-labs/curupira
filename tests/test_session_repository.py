@@ -2,6 +2,7 @@
 
 import asyncio
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -33,7 +34,7 @@ async def test_round_trip_keeps_independent_automations_separate(tmp_path: Path)
 async def test_incompatible_files_are_preserved(tmp_path: Path, contents: bytes | None) -> None:
     path = tmp_path / "state.sqlite3"
     if contents is None:
-        with sqlite3.connect(path) as connection:
+        with closing(sqlite3.connect(path)) as connection, connection:
             connection.execute("CREATE TABLE unrelated (value TEXT)")
             connection.execute("INSERT INTO unrelated VALUES ('preserve me')")
     else:
@@ -52,9 +53,9 @@ async def test_expired_records_are_removed_and_invalid_payloads_preserved(tmp_pa
     await asyncio.sleep(0.01)
     assert await repository.get(session.task) is None
     await repository.save(session)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.execute("UPDATE key_value_state SET content = 'invalid JSON'")
     with pytest.raises(StateDatabaseError):
         await repository.list_all()
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection:
         assert connection.execute("SELECT COUNT(*) FROM key_value_state").fetchone()[0] == 1

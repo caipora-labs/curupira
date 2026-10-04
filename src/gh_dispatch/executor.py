@@ -21,6 +21,7 @@ from gh_dispatch.models import (
     Task,
 )
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+from gh_dispatch.telemetry import TaskTelemetry
 
 logger = logging.getLogger(__name__)
 
@@ -65,15 +66,26 @@ class TaskExecutor:
         cron: CronScheduleRepository,
         *,
         adapter_factory: CliAdapterFactory = create_cli_adapter,
+        telemetry: TaskTelemetry | None = None,
     ) -> None:
         self._settings = settings
         self._gh = gh
         self._sessions = sessions
         self._cron = cron
         self._adapter_factory = adapter_factory
+        self._telemetry = telemetry or TaskTelemetry()
         self._adapters: dict[str, CodingAgentCliAdapter] = {}
 
     async def execute(
+        self, task: Task, resumed: RunningCodingSession | None = None
+    ) -> ProcessResult:
+        """Execute one task within an outcome span."""
+        with self._telemetry.task_span(task) as span:
+            result = await self._execute_task(task, resumed)
+            self._telemetry.record_result(span, result)
+            return result
+
+    async def _execute_task(
         self, task: Task, resumed: RunningCodingSession | None = None
     ) -> ProcessResult:
         """Persist session events and remove state only after the native process exits."""

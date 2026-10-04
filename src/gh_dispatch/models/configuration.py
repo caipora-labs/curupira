@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
-from pydantic import Field, field_validator, model_validator
+from pydantic import AnyHttpUrl, Field, field_validator, model_validator
 
 from gh_dispatch.models.base import Identifier, NonEmptyString, PositiveSeconds, ValidatedModel
 from gh_dispatch.models.profiles import CliProfile, OpenCodeCliProfile
@@ -54,6 +54,7 @@ class ExecutionSettings(ValidatedModel):
     max_pending_tasks: Annotated[int, Field(strict=True, ge=1, le=10000)] = 100
     workspace_dir: Path = Path("~/.gh-dispatch/workspaces")
     state_db_path: Path = Path("~/.gh-dispatch/state.sqlite3")
+    otlp_endpoint: AnyHttpUrl | None = None
     task_timeout_seconds: PositiveSeconds | None = None
     max_output_bytes: Annotated[int, Field(strict=True, ge=1024, le=100_000_000)] = 1_000_000
     polling: PollingSettings = Field(default_factory=PollingSettings)
