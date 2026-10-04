@@ -19,6 +19,13 @@ from gh_dispatch.executor import TaskExecutor
 from gh_dispatch.feeds import merge_task_streams
 from gh_dispatch.models.base import ValidatedModel
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+from gh_dispatch.runtime import (
+    DispatchInstanceLock,
+    InstanceAlreadyRunningError,
+    default_config_path,
+    dispatch_home,
+    ensure_runtime_directories,
+)
 from gh_dispatch.scheduler import TaskScheduler
 
 
@@ -39,8 +46,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("gh-dispatch.toml"),
-        help="TOML configuration file (default: ./gh-dispatch.toml)",
+        default=default_config_path(),
+        help="TOML configuration file (default: ~/.gh-dispatch/settings.toml)",
     )
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser(
@@ -58,6 +65,35 @@ def _build_parser() -> argparse.ArgumentParser:
 
 async def async_main(options: CliOptions) -> int:
     """Load validated settings and execute the selected CLI command."""
+    instance_lock: DispatchInstanceLock | None = None
+    try:
+        config_path = options.config.expanduser().resolve()
+        if config_path == default_config_path().resolve():
+            config_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if options.command in {"run", "watch"} and not options.dry_run:
+            instance_lock = DispatchInstanceLock(dispatch_home() / "dispatch.lock")
+            instance_lock.acquire()
+            ensure_runtime_directories()
+    except InstanceAlreadyRunningError as error:
+        print(f"Dispatch error: {error}", file=sys.stderr)
+        if instance_lock is not None:
+            instance_lock.release()
+        return 1
+    except OSError as error:
+        print(f"Runtime setup error: {error}", file=sys.stderr)
+        if instance_lock is not None:
+            instance_lock.release()
+        return 1
+
+    try:
+        return await _execute_command(options)
+    finally:
+        if instance_lock is not None:
+            instance_lock.release()
+
+
+async def _execute_command(options: CliOptions) -> int:
+    """Run a validated command after acquiring any required process lock."""
     try:
         settings = await load_settings(options.config)
     except (OSError, ValueError) as error:
