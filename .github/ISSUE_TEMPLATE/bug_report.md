@@ -12,11 +12,11 @@ labels: bug
 ## Reproduction
 
 ```toml
-# Minimal gh-dispatch.toml (redact private repository names)
+# Minimal ~/.gh-dispatch/settings.toml (redact private repository names)
 ```
 
 ```bash
-# Exact command, e.g. gh-dispatch --config gh-dispatch.toml run
+# Exact command, e.g. gh-dispatch --config ~/.gh-dispatch/settings.toml run
 ```
 
 ## Environment
