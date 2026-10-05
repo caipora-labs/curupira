@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
 from typing_extensions import override
 
-import pytest
-
+import gh_dispatch.tasks.registry as registry
 from gh_dispatch.feeds import TaskFeed
 from gh_dispatch.models import ResolvedAutomation, Task
 from gh_dispatch.tasks.base import FeedDependencies, Trigger
@@ -33,7 +33,8 @@ class FakeTrigger(Trigger):
         raise NotImplementedError
 
 
-def test_register_and_get_trigger() -> None:
+def test_register_and_get_trigger(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(registry, "_TRIGGERS", {})
     trigger = FakeTrigger()
 
     register(trigger)
@@ -41,13 +42,15 @@ def test_register_and_get_trigger() -> None:
     assert get("fake") is trigger
 
 
-def test_register_duplicate_trigger_type_raises() -> None:
+def test_register_duplicate_trigger_type_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(registry, "_TRIGGERS", {})
     register(FakeTrigger())
 
     with pytest.raises(ValueError, match="trigger type already registered: fake"):
         register(FakeTrigger())
 
 
-def test_get_unknown_trigger_type_raises() -> None:
+def test_get_unknown_trigger_type_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(registry, "_TRIGGERS", {})
     with pytest.raises(ValueError, match="unknown trigger type: missing"):
         get("missing")
