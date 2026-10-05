@@ -9,7 +9,7 @@ from typing_extensions import override
 
 from opscli.clients.gh import GhClient
 from opscli.errors import DispatchError
-from opscli.feeds import GitHubTaskFeed, GitHubTaskSource, TaskSource, merge_task_streams
+from opscli.feeds import GitHubTaskFeed, GitHubTaskSource, merge_task_streams
 from opscli.models import (
     GhIssue,
     GhIssueSearchRequest,
@@ -19,6 +19,7 @@ from opscli.models import (
     ResolvedAutomation,
     Task,
 )
+from opscli.tasks.base import TaskSource
 from tests.helpers import issue_task, resolved_automation
 
 
@@ -51,12 +52,13 @@ def item(number: int = 1) -> GhIssue:
 
 
 async def test_github_feed_requests_tasks_through_source_contract(tmp_path: Path) -> None:
-    class FakeSource:
+    class FakeSource(TaskSource):
         """Return tasks directly through the discovery contract."""
 
         def __init__(self) -> None:
             self.requested: tuple[str, int] | None = None
 
+        @override
         async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
             self.requested = (automation.automation_id, limit)
             return [issue_task(tmp_path)]

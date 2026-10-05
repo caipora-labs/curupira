@@ -4,7 +4,6 @@ import asyncio
 import logging
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from croniter import croniter
@@ -23,32 +22,13 @@ from opscli.models import (
     TaskIdentity,
 )
 from opscli.storage import CronScheduleRepository
+from opscli.tasks.base import TaskFeed, TaskSource
 
 logger = logging.getLogger(__name__)
 MAX_POLL_INTERVAL_SECONDS = 300.0
 
 
-class TaskFeed(Protocol):
-    """Discovery interface shared by one-shot dispatch and continuous polling."""
-
-    async def poll(self, *, preview: bool = False) -> list[Task]:
-        """Return tasks currently available; preview must not persist state."""
-        ...
-
-    def stream(self) -> AsyncIterator[Task]:
-        """Yield new tasks continuously with source-appropriate waits."""
-        ...
-
-
-class TaskSource(Protocol):
-    """Discover tasks for one automation without exposing provider commands."""
-
-    async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
-        """Return currently available tasks from this source."""
-        ...
-
-
-class GitHubTaskSource:
+class GitHubTaskSource(TaskSource):
     """Discover issue and pull-request tasks through the GitHub client contract."""
 
     def __init__(self, gh: GhClient) -> None:
@@ -92,7 +72,7 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-class GitHubTaskFeed:
+class GitHubTaskFeed(TaskFeed):
     """One issue or pull request automation with shared polling behavior."""
 
     def __init__(
@@ -141,7 +121,7 @@ class GitHubTaskFeed:
                 yield task
 
 
-class CronTaskFeed:
+class CronTaskFeed(TaskFeed):
     """Coalesce overdue ticks into one persisted pending occurrence."""
 
     def __init__(
