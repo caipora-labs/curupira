@@ -142,6 +142,27 @@ two automations may process the same issue with different prompts.
 Polls that use the `project:` search qualifier keep the `open` state and filter board
 items to the `Todo` status automatically.
 
+### Trello listener
+
+The Trello listener is named `trello-cli` and uses the Scale-Flow CLI at
+<https://github.com/Scale-Flow/trello-cli>. If `trello` is not already installed,
+install it from that repository's [GitHub Releases](https://github.com/Scale-Flow/trello-cli/releases)
+or with Homebrew:
+
+```bash
+brew tap Scale-Flow/tap
+brew install trello-cli
+```
+
+Authenticate with the CLI Connector Power-Up on the Trello board:
+
+```bash
+trello auth login
+```
+
+Follow the pairing instructions printed by the CLI. This is the Scale-Flow CLI; do not
+install the unrelated npm packages also named `trello-cli`.
+
 `max_active_tasks` bounds concurrently running coding agents (default 1). Checkouts are
 exclusive: tasks sharing a workspace path run serially while unrelated workspaces run
 concurrently. Checkouts are created on demand with `gh repo clone` under
