@@ -7,7 +7,7 @@ from pathlib import Path
 
 from typing_extensions import override
 
-from opscli.coding_agents import SessionStartedCallback
+from opscli.agents.base import SessionStartedCallback
 from opscli.executor import TaskExecutor
 from opscli.models import CodingTaskRequest, ExecutionSettings, ProcessResult, Task
 from opscli.repositories import CronScheduleRepository, RunningSessionRepository

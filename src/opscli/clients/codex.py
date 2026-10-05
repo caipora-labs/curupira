@@ -2,7 +2,7 @@
 
 import json
 
-from opscli.coding_agents import CodingAgentCliAdapter
+from opscli.agents.base import CodingAgentCliAdapter
 from opscli.models import CodexCliProfile, CodingTaskRequest
 
 

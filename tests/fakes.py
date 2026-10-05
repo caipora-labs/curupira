@@ -4,8 +4,8 @@ from pathlib import Path
 
 from typing_extensions import override
 
+from opscli.agents.base import CodingAgentCliAdapter, SessionStartedCallback
 from opscli.clients.gh import GhClient
-from opscli.coding_agents import CodingAgentCliAdapter, SessionStartedCallback
 from opscli.models import (
     CodingTaskRequest,
     GhIssue,

@@ -5,13 +5,12 @@ from asyncio import CancelledError
 from datetime import UTC, datetime
 from string import Template
 
-from opscli.clients.gh import GhClient
-from opscli.coding_agents import (
+from opscli.agents import CliAdapterFactory, create_cli_adapter
+from opscli.agents.base import (
     RESUME_SESSION_PROMPT,
-    CliAdapterFactory,
     CodingAgentCliAdapter,
-    create_cli_adapter,
 )
+from opscli.clients.gh import GhClient
 from opscli.errors import PromptRenderError
 from opscli.models import (
     CodingTaskRequest,

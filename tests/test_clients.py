@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
+from opscli.agents import create_cli_adapter
+from opscli.agents.base import CodingAgentCliAdapter
 from opscli.clients.gh import GhClient
 from opscli.clients.process import AsyncProcessRunner
-from opscli.coding_agents import CodingAgentCliAdapter, create_cli_adapter
 from opscli.errors import (
     CliExecutionError,
     CliOutputError,

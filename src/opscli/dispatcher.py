@@ -2,8 +2,8 @@
 
 from collections.abc import Callable
 
+from opscli.agents import CliAdapterFactory, create_cli_adapter
 from opscli.clients.gh import GhClient
-from opscli.coding_agents import CliAdapterFactory, create_cli_adapter
 from opscli.config import ApplicationSettings
 from opscli.executor import TaskExecutor
 from opscli.feeds import CronTaskFeed, GitHubTaskFeed, TaskFeed
