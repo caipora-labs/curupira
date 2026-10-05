@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from gh_dispatch.errors import StateDatabaseError
-from gh_dispatch.models import RunningCodingSession
-from gh_dispatch.repositories import RunningSessionRepository
+from opscli.errors import StateDatabaseError
+from opscli.models import RunningCodingSession
+from opscli.repositories import RunningSessionRepository
 from tests.helpers import issue_task
 
 

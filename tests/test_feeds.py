@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.errors import DispatchError
-from gh_dispatch.feeds import GitHubTaskFeed, GitHubTaskSource, TaskSource, merge_task_streams
-from gh_dispatch.models import (
+from opscli.clients.gh import GhClient
+from opscli.errors import DispatchError
+from opscli.feeds import GitHubTaskFeed, GitHubTaskSource, TaskSource, merge_task_streams
+from opscli.models import (
     GhIssue,
     GhIssueSearchRequest,
     GhPullRequest,

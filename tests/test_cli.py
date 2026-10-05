@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from gh_dispatch.cli import CliOptions, _build_parser, async_main
-from gh_dispatch.config import load_settings
-from gh_dispatch.runtime import DispatchInstanceLock, dispatch_home
+from opscli.cli import CliOptions, _build_parser, async_main
+from opscli.config import load_settings
+from opscli.runtime import DispatchInstanceLock, dispatch_home
 
 
 def test_parser_supports_source_independent_commands(tmp_path: Path) -> None:
@@ -27,7 +27,7 @@ def test_parser_defaults_to_central_settings_path(
 
     parsed = _build_parser().parse_args(["validate"])
 
-    assert parsed.config == tmp_path / ".gh-dispatch" / "settings.toml"
+    assert parsed.config == tmp_path / ".opscli" / "settings.toml"
 
 
 async def test_default_configuration_is_loaded_from_user_home(
@@ -35,7 +35,7 @@ async def test_default_configuration_is_loaded_from_user_home(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    config = tmp_path / ".gh-dispatch" / "settings.toml"
+    config = tmp_path / ".opscli" / "settings.toml"
     config.parent.mkdir()
     config.write_text(
         '[coding_agents.automations.daily]\ntrigger_type="cron"\nrepo="acme/api"\n'
@@ -59,7 +59,7 @@ async def test_dispatch_refuses_to_run_when_another_instance_holds_lock(
         options = CliOptions(command="run", config=tmp_path / "missing.toml")
 
         assert await async_main(options) == 1
-        assert "another gh-dispatch process is already running" in capsys.readouterr().err
+        assert "another opscli process is already running" in capsys.readouterr().err
     finally:
         lock.release()
 
@@ -80,7 +80,7 @@ async def test_validate_is_side_effect_free_for_cron_only_configuration(
 
 
 async def test_example_configuration_is_valid(tmp_path: Path) -> None:
-    example = Path(__file__).resolve().parents[1] / "gh-dispatch.example.toml"
+    example = Path(__file__).resolve().parents[1] / "opscli.example.toml"
     settings = await load_settings(example)
     assert sorted(settings.resolve_automations()) == [
         "resolve-ready-issues",
