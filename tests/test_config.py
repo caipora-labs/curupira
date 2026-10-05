@@ -6,8 +6,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from gh_dispatch.config import ApplicationSettings, load_settings
-from gh_dispatch.models import (
+from opscli.config import ApplicationSettings, load_settings
+from opscli.models import (
     CronAutomationConfiguration,
     IssueAutomationConfiguration,
     PullRequestAutomationConfiguration,

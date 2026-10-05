@@ -1,1 +1,1 @@
-"""Behavioral verification for gh-dispatch."""
+"""Behavioral verification for OpsCli."""

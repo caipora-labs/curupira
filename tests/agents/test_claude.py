@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from gh_dispatch.agents.claude import ClaudeCodeCliAdapter
-from gh_dispatch.models import ClaudeCodeCliProfile, CodingTaskRequest
+from opscli.agents.claude import ClaudeCodeCliAdapter
+from opscli.models import ClaudeCodeCliProfile, CodingTaskRequest
 
 
 def test_build_arguments_uses_claude_native_options(tmp_path: Path) -> None:
@@ -62,7 +62,7 @@ def test_build_arguments_keeps_prompt_literal_and_omits_missing_options(tmp_path
 
 
 def test_build_arguments_rejects_non_claude_profile(tmp_path: Path) -> None:
-    from gh_dispatch.models import CodexCliProfile
+    from opscli.models import CodexCliProfile
 
     request = CodingTaskRequest(cwd=tmp_path, profile=CodexCliProfile(), message="Review")
 
