@@ -80,8 +80,23 @@ class AutomationConfigurationBase(ValidatedModel):
 
     repo: NonEmptyString
     path: Path | None = None
+    setup_script: str | None = None
+    checkout: Literal["worktree", "main"] = "worktree"
     prompt: str
     profile: Identifier | None = None
+
+    @field_validator("setup_script")
+    @classmethod
+    def validate_setup_script(cls, value: str | None) -> str | None:
+        """Require an optional repository-relative script path without traversal."""
+        if value is None:
+            return None
+        if not value.strip():
+            raise ValueError("setup_script must not be empty")
+        path = Path(value)
+        if path.is_absolute() or ".." in path.parts:
+            raise ValueError("setup_script must be a relative path without '..'")
+        return value
 
     @field_validator("repo")
     @classmethod
