@@ -62,9 +62,7 @@ def test_factory_rejects_unknown_provider() -> None:
         create_cli_adapter("unknown")
 
 
-@pytest.mark.parametrize(
-    "profile", [CodexCliProfile(), ClaudeCodeCliProfile(), CursorCliProfile()]
-)
+@pytest.mark.parametrize("profile", [CodexCliProfile(), ClaudeCodeCliProfile(), CursorCliProfile()])
 async def test_omitted_options_and_option_like_prompts_are_literal(
     tmp_path: Path, profile: CliProfile
 ) -> None:
