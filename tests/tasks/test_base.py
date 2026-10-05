@@ -6,8 +6,8 @@ from typing import cast
 
 import pytest
 
-from gh_dispatch.models import ResolvedAutomation, Task
-from gh_dispatch.tasks.base import TaskFeed, TaskSource
+from opscli.models import ResolvedAutomation, Task
+from opscli.tasks.base import TaskFeed, TaskSource
 from tests.helpers import issue_task, resolved_automation
 
 

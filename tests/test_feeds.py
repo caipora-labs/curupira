@@ -7,17 +7,19 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.errors import DispatchError
-from gh_dispatch.feeds import GitHubTaskFeed, merge_task_streams
-from gh_dispatch.models import (
+from opscli.clients.gh import GhClient
+from opscli.errors import DispatchError
+from opscli.feeds import GitHubTaskFeed, GitHubTaskSource, merge_task_streams
+from opscli.models import (
     GhIssue,
     GhIssueSearchRequest,
     GhPullRequest,
     GhPullRequestSearchRequest,
     PollingSettings,
+    ResolvedAutomation,
     Task,
 )
+from opscli.tasks.base import TaskSource
 from tests.helpers import issue_task, resolved_automation
 
 
@@ -49,13 +51,35 @@ def item(number: int = 1) -> GhIssue:
     return GhIssue(number=number, title="Work", url=f"https://github.com/acme/api/issues/{number}")
 
 
+async def test_github_feed_requests_tasks_through_source_contract(tmp_path: Path) -> None:
+    class FakeSource(TaskSource):
+        """Return tasks directly through the discovery contract."""
+
+        def __init__(self) -> None:
+            self.requested: tuple[str, int] | None = None
+
+        @override
+        async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
+            self.requested = (automation.automation_id, limit)
+            return [issue_task(tmp_path)]
+
+    source: TaskSource = FakeSource()
+    feed = GitHubTaskFeed(resolved_automation(tmp_path), PollingSettings(batch_size=6), source)
+
+    assert [task.identity.id for task in await feed.poll()] == ["42"]
+    assert isinstance(source, FakeSource)
+    assert source.requested == ("issues", 6)
+
+
 @pytest.mark.parametrize("trigger", ["issue", "pull_request"])
 async def test_shared_polling_deduplicates_and_uses_global_batch(
     tmp_path: Path, trigger: str
 ) -> None:
     gh = FakeGitHub([[item()], [item()]])
     feed = GitHubTaskFeed(
-        resolved_automation(tmp_path, trigger=trigger), PollingSettings(batch_size=8), gh
+        resolved_automation(tmp_path, trigger=trigger),
+        PollingSettings(batch_size=8),
+        GitHubTaskSource(gh),
     )
     first = await feed.poll()
     assert len(first) == 1
@@ -66,8 +90,9 @@ async def test_shared_polling_deduplicates_and_uses_global_batch(
 
 async def test_different_automations_can_discover_the_same_item(tmp_path: Path) -> None:
     gh = FakeGitHub([[item()], [item()]])
-    first = GitHubTaskFeed(resolved_automation(tmp_path, "first"), PollingSettings(), gh)
-    second = GitHubTaskFeed(resolved_automation(tmp_path, "second"), PollingSettings(), gh)
+    source = GitHubTaskSource(gh)
+    first = GitHubTaskFeed(resolved_automation(tmp_path, "first"), PollingSettings(), source)
+    second = GitHubTaskFeed(resolved_automation(tmp_path, "second"), PollingSettings(), source)
     tasks = [*(await first.poll()), *(await second.poll())]
     assert len({task.identity.key for task in tasks}) == 2
 
@@ -82,10 +107,13 @@ async def test_empty_cycles_back_off_and_reset_after_discovery(tmp_path: Path) -
 
     gh = FakeGitHub([[], [], [item()], []])
     feed = GitHubTaskFeed(
-        resolved_automation(tmp_path), PollingSettings(poll_interval_seconds=17), gh, sleep=sleep
+        resolved_automation(tmp_path),
+        PollingSettings(poll_interval_seconds=17),
+        GitHubTaskSource(gh),
+        sleep=sleep,
     )
     stream = feed.stream()
-    assert (await anext(stream)).identity.number == 1
+    assert (await anext(stream)).identity.id == "1"
     with pytest.raises(StopPollingError):
         await anext(stream)
     assert waits == [17, 34, 17, 34]
@@ -107,7 +135,7 @@ async def test_backoff_is_bounded_and_transient_errors_do_not_stop_stream(tmp_pa
     feed = GitHubTaskFeed(
         resolved_automation(tmp_path),
         PollingSettings(poll_interval_seconds=200),
-        FailingGitHub([]),
+        GitHubTaskSource(FailingGitHub([])),
         sleep=sleep,
     )
     with pytest.raises(StopPollingError):

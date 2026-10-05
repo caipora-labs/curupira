@@ -4,9 +4,9 @@ from pathlib import Path
 
 from typing_extensions import override
 
-from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.coding_agents import CodingAgentCliAdapter, SessionStartedCallback
-from gh_dispatch.models import (
+from opscli.agents.base import CodingAgentCliAdapter, SessionStartedCallback
+from opscli.clients.gh import GhClient
+from opscli.models import (
     CodingTaskRequest,
     GhIssue,
     GhIssueSearchRequest,
@@ -64,24 +64,24 @@ class FakeGitHub(GhClient):
 
     @override
     async def ensure_worktree(
-        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, number: int
+        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, task_id: str
     ) -> Path:
         path = (
             checkout.path.with_name(f"{checkout.path.name}.worktrees")
             / automation_id
-            / f"{task_type}-{number}"
+            / f"{task_type}-{task_id}"
         )
         self.worktrees.append(path)
         return path
 
     @override
     async def remove_worktree(
-        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, number: int
+        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, task_id: str
     ) -> None:
         self.removed_worktrees.append(
             checkout.path.with_name(f"{checkout.path.name}.worktrees")
             / automation_id
-            / f"{task_type}-{number}"
+            / f"{task_type}-{task_id}"
         )
 
 
