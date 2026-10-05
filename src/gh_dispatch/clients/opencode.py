@@ -1,6 +1,6 @@
 """Native OpenCode CLI argument translation."""
 
-from gh_dispatch.coding_agents import CodingAgentCliAdapter
+from gh_dispatch.agents.base import CodingAgentCliAdapter
 from gh_dispatch.models import CodingTaskRequest, OpenCodeCliProfile
 
 

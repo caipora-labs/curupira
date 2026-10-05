@@ -1,4 +1,4 @@
-"""Behavioral interface and factory for external coding-agent CLI adapters."""
+"""Behavioral interface for external coding-agent CLI adapters."""
 
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
@@ -70,15 +70,15 @@ class CodingAgentCliAdapter(ABC):
             raise UnsupportedCodingAgentError(
                 f"{self.provider} adapter cannot use {request.profile.provider} profile"
             )
-        reported: str | None = None
+        reported: set[str] = set()
 
         async def handle(line: str) -> None:
             nonlocal reported
             event = parse_event(line)
-            if event is not None and event.session_id and event.session_id != reported:
-                reported = event.session_id
+            if event is not None and event.session_id and event.session_id not in reported:
+                reported.add(event.session_id)
                 if on_session_started is not None:
-                    await on_session_started(reported)
+                    await on_session_started(event.session_id)
 
         result = await self._runner.run(
             CommandRequest(
@@ -110,27 +110,3 @@ class CodingAgentCliAdapter(ABC):
 
 
 CliAdapterFactory = Callable[[str], CodingAgentCliAdapter]
-
-
-def create_cli_adapter(
-    provider: str, runner: AsyncProcessRunner | None = None
-) -> CodingAgentCliAdapter:
-    """Construct the native adapter for a supported provider."""
-    from gh_dispatch.clients.claude import ClaudeCodeCliAdapter
-    from gh_dispatch.clients.codex import CodexCliAdapter
-    from gh_dispatch.clients.cursor import CursorCliAdapter
-    from gh_dispatch.clients.opencode import OpenCodeCliAdapter
-
-    adapters: dict[str, type[CodingAgentCliAdapter]] = {
-        "opencode": OpenCodeCliAdapter,
-        "codex": CodexCliAdapter,
-        "claude": ClaudeCodeCliAdapter,
-        "cursor": CursorCliAdapter,
-    }
-    try:
-        adapter = adapters[provider]
-    except KeyError as error:
-        raise UnsupportedCodingAgentError(
-            f"unsupported coding agent provider: {provider}"
-        ) from error
-    return adapter(runner)

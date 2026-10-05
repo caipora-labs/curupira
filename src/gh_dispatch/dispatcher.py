@@ -2,8 +2,8 @@
 
 from collections.abc import Callable
 
+from gh_dispatch.agents import CliAdapterFactory, create_cli_adapter
 from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.coding_agents import CliAdapterFactory, create_cli_adapter
 from gh_dispatch.config import ApplicationSettings
 from gh_dispatch.executor import TaskExecutor
 from gh_dispatch.feeds import CronTaskFeed, GitHubTaskFeed, TaskFeed
