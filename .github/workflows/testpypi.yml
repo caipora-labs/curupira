@@ -100,10 +100,10 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.package_version.outputs.version }}
         run: |
-          python -m venv /tmp/gh-dispatch-testpypi
-          /tmp/gh-dispatch-testpypi/bin/pip install \
+          python -m venv /tmp/opscli-testpypi
+          /tmp/opscli-testpypi/bin/pip install \
             --index-url https://test.pypi.org/simple/ \
             --extra-index-url https://pypi.org/simple/ \
-            "gh-dispatch==${PACKAGE_VERSION}"
-          /tmp/gh-dispatch-testpypi/bin/python -c "import opscli; print(opscli.__version__)"
-          /tmp/gh-dispatch-testpypi/bin/opscli --version
+            "opscli==${PACKAGE_VERSION}"
+          /tmp/opscli-testpypi/bin/python -c "import opscli; print(opscli.__version__)"
+          /tmp/opscli-testpypi/bin/opscli --version

@@ -116,7 +116,7 @@ async def test_cancellation_reaps_process() -> None:
 
 async def test_missing_executable_and_working_directory(tmp_path: Path) -> None:
     with pytest.raises(CliNotFoundError):
-        await AsyncProcessRunner().run(CommandRequest(executable="gh-dispatch-not-installed"))
+        await AsyncProcessRunner().run(CommandRequest(executable="opscli-not-installed"))
     with pytest.raises(CliLaunchError, match="working directory"):
         await AsyncProcessRunner().run(
             CommandRequest(executable=sys.executable, cwd=tmp_path / "absent")

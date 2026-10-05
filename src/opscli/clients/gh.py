@@ -127,7 +127,7 @@ class GhClient:
             if default.returncode:
                 raise CliExecutionError("git symbolic-ref", default.returncode, default.stderr)
             ref = default.stdout.strip()
-            branch = f"gh-dispatch/{automation_id}/{task_type}-{number}"
+            branch = f"opscli/{automation_id}/{task_type}-{number}"
             target.parent.mkdir(parents=True, exist_ok=True)
             result = await self._runner.run(
                 CommandRequest(
@@ -152,7 +152,7 @@ class GhClient:
             )
             for arguments in (
                 ("worktree", "remove", "--force", str(target)),
-                ("branch", "-D", f"gh-dispatch/{automation_id}/{task_type}-{number}"),
+                ("branch", "-D", f"opscli/{automation_id}/{task_type}-{number}"),
             ):
                 result = await self._runner.run(
                     CommandRequest(executable="git", arguments=arguments, cwd=base)

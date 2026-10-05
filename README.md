@@ -1,6 +1,6 @@
-# gh-dispatch
+# OpsCli
 
-gh-dispatch runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
+OpsCli runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
 
 Each automation in the settings TOML watches one source (issues, pull requests, or a
 cron schedule) and carries its own prompt. All automations share one discovery,

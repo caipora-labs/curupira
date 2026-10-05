@@ -81,7 +81,7 @@ To cut a release:
 
 PyPI publishing uses Trusted Publishing (OIDC), so no API tokens are stored. Before
 publishing, a PyPI maintainer registers this repository as a trusted publisher for the
-`gh-dispatch` project with owner `mariotaddeucci`, repository `gh-dispatch`, workflow
+`opscli` project with owner `mariotaddeucci`, repository `gh-dispatch`, workflow
 filename `publish.yml`, and environment `pypi`. The TestPyPI rehearsal uses a separate
 `testpypi` environment and trusted publisher with workflow filename `testpypi.yml` and
 audience `testpypi`. It uploads to `https://test.pypi.org/legacy/` and smoke-tests the
