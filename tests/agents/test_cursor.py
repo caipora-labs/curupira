@@ -38,9 +38,7 @@ class RecordingRunner(AsyncProcessRunner):
 
 
 def test_cursor_adapter_is_registered_and_preserves_native_arguments(tmp_path: Path) -> None:
-    profile = CursorCliProfile(
-        model="composer-2.5", agent="plan", force=True, trust=True
-    )
+    profile = CursorCliProfile(model="composer-2.5", agent="plan", force=True, trust=True)
     request = CodingTaskRequest(
         cwd=tmp_path, profile=profile, session_id="native-session", message="Handle task"
     )
@@ -66,9 +64,7 @@ def test_cursor_adapter_is_registered_and_preserves_native_arguments(tmp_path: P
 
 
 async def test_cursor_adapter_reports_session_and_renders_result(tmp_path: Path) -> None:
-    runner = RecordingRunner(
-        '{"type":"result","session_id":"native-session","result":"Done"}'
-    )
+    runner = RecordingRunner('{"type":"result","session_id":"native-session","result":"Done"}')
     adapter = create_cli_adapter("cursor", runner)
     reported: list[str] = []
 

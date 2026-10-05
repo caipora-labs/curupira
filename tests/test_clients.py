@@ -183,7 +183,6 @@ def test_provider_profiles_match_current_cli_argument_contracts(tmp_path: Path) 
                 "Handle task",
             ),
         ),
-        (
     ]
     for profile, provider, expected in requests:
         arguments = create_cli_adapter(provider).build_arguments(
@@ -256,7 +255,7 @@ def test_explicit_permission_options_are_provider_native(tmp_path: Path) -> None
         ClaudeCodeCliProfile(permission_mode="dontAsk", permission_prompts="none"),
         CodexCliProfile(sandbox="workspace-write", auto_review=True, effort="high"),
     ]
-    expected = ["--auto", "--force", "--permission-mode", "--sandbox"]
+    expected = ["--auto", "--permission-mode", "--sandbox"]
     for profile, flag in zip(profiles, expected, strict=True):
         arguments = create_cli_adapter(profile.provider).build_arguments(
             CodingTaskRequest(cwd=tmp_path, message="Work", profile=profile)
