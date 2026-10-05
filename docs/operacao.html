@@ -43,6 +43,10 @@
         <div><h2>Acompanhar continuamente</h2><p>Consulta todas as automações e despacha tarefas conforme ficam disponíveis. A linha de status se reescreve no terminal e não entra no arquivo de log.</p></div>
         <pre><code>opscli watch</code></pre>
       </section>
+      <section class="command-row">
+        <div><h2>Drenar tarefas disponíveis</h2><p>Executa o trabalho atualmente disponível e encerra quando a fila esvazia; <code>--size N</code> limita a quantidade.</p></div>
+        <pre><code>opscli batch [--size N]</code></pre>
+      </section>
 
       <section class="content-section">
         <h2>Selecione outro TOML</h2>
@@ -54,7 +58,7 @@ opscli --config ./settings-dev.toml watch</code></pre>
       <section class="content-section">
         <h2>Execução e arquivos locais</h2>
         <ul>
-          <li>Somente um processo <code>run</code> ou <code>watch</code> pode despachar tarefas por vez.</li>
+          <li>Somente um processo <code>run</code>, <code>batch</code> ou <code>watch</code> pode despachar tarefas por vez.</li>
           <li>Checkouts são exclusivos: duas tarefas que usam o mesmo caminho rodam em sequência.</li>
           <li>Sessões interrompidas são salvas em <code>~/.opscli/state.sqlite3</code> e retomadas por <code>watch</code> após reiniciar.</li>
           <li>Logs de texto são acrescentados em <code>~/.opscli/logs/opscli.log</code>, com horário, repositório, tipo, ID e resultado da tarefa.</li>

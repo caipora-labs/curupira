@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from opscli import __version__
 from opscli.clients.gh import GhClient
-from opscli.config import load_settings
+from opscli.config import ApplicationSettings, load_settings
 from opscli.dispatcher import create_task_feeds, dispatch_next_task
 from opscli.errors import DispatchError
 from opscli.executor import TaskExecutor
@@ -29,9 +29,9 @@ from opscli.runtime import (
 from opscli.scheduler import TaskScheduler
 from opscli.status import TerminalTaskStatus
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
+from opscli.tasks.base import TaskFeed
 from opscli.tasks.feed import merge_task_streams
 from opscli.telemetry import TaskTelemetry
-from opscli.tasks.base import TaskFeed
 
 
 class CliOptions(ValidatedModel):
@@ -185,30 +185,7 @@ async def _execute_command(options: CliOptions) -> int:
                     print(outcome.process.stderr, file=sys.stderr)
                 return outcome.process.returncode
             return 0
-        sessions = RunningSessionRepository(settings.settings.state_db_path)
-        recovered = await sessions.list_all()
-        cron = CronScheduleRepository(settings.settings.state_db_path)
-        feeds = create_task_feeds(settings, gh, cron)
-        executor = TaskExecutor(settings.settings, gh, sessions, cron, telemetry=telemetry)
-        status = TerminalTaskStatus(show_idle=True)
-        scheduler = TaskScheduler(
-            settings.settings,
-            executor,
-            on_active_tasks_changed=lambda tasks: status.update(
-                tasks, settings.settings.max_active_tasks
-            ),
-        )
-        if options.command == "batch":
-            tasks = _batch_stream(feeds, options.size)
-        else:
-            tasks = merge_task_streams(
-                [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
-            )
-        try:
-            await scheduler.run(tasks, resume_sessions=recovered)
-        finally:
-            status.clear()
-        return 1 if scheduler.failed_tasks else 0
+        return await _execute_scheduled_command(settings, gh, telemetry, options)
     except (DispatchError, OSError, ValidationError) as error:
         print(f"Dispatch error: {error}", file=sys.stderr)
         return 1
@@ -219,6 +196,36 @@ async def _execute_command(options: CliOptions) -> int:
             if log_handler is not None:
                 root_logger.removeHandler(log_handler)
                 log_handler.close()
+
+
+async def _execute_scheduled_command(
+    settings: ApplicationSettings, gh: GhClient, telemetry: TaskTelemetry, options: CliOptions
+) -> int:
+    """Execute finite batch or continuous watch work through the shared scheduler."""
+    sessions = RunningSessionRepository(settings.settings.state_db_path)
+    recovered = await sessions.list_all()
+    cron = CronScheduleRepository(settings.settings.state_db_path)
+    feeds = create_task_feeds(settings, gh, cron)
+    executor = TaskExecutor(settings.settings, gh, sessions, cron, telemetry=telemetry)
+    status = TerminalTaskStatus(show_idle=True)
+    scheduler = TaskScheduler(
+        settings.settings,
+        executor,
+        on_active_tasks_changed=lambda tasks: status.update(
+            tasks, settings.settings.max_active_tasks
+        ),
+    )
+    if options.command == "batch":
+        tasks = _batch_stream(feeds, options.size)
+    else:
+        tasks = merge_task_streams(
+            [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
+        )
+    try:
+        await scheduler.run(tasks, resume_sessions=recovered)
+    finally:
+        status.clear()
+    return 1 if scheduler.failed_tasks else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
