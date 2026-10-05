@@ -16,7 +16,7 @@ def format_task_status(tasks: Sequence[Task], limit: int) -> str:
         if identity.task_type == "cron":
             details = f"{identity.automation_id} cron"
         else:
-            details = f"{identity.automation_id} {identity.repo}#{identity.number}"
+            details = f"{identity.automation_id} {identity.repo}#{identity.id}"
     prefix = f"{details} " if details else ""
     return f"\r{prefix}{count}/{limit}"
 

@@ -142,7 +142,7 @@ async def _execute_command(options: CliOptions) -> int:
             identity = selected.identity
             print(
                 f"Selected {identity.automation_id}: "
-                f"{identity.repo}#{identity.number}: {selected.title}"
+                f"{identity.repo}#{identity.id}: {selected.title}"
             )
             print(selected.url)
             if options.dry_run:
