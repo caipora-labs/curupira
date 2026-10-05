@@ -17,7 +17,6 @@ from gh_dispatch.errors import (
     WorkspacePathError,
 )
 from gh_dispatch.models import (
-    ClaudeCodeCliProfile,
     CliProfile,
     CodexCliProfile,
     CodingTaskRequest,
@@ -63,9 +62,7 @@ def test_factory_rejects_unknown_provider() -> None:
         create_cli_adapter("unknown")
 
 
-@pytest.mark.parametrize(
-    "profile", [OpenCodeCliProfile(), CodexCliProfile(), ClaudeCodeCliProfile(), CursorCliProfile()]
-)
+@pytest.mark.parametrize("profile", [OpenCodeCliProfile(), CodexCliProfile(), CursorCliProfile()])
 async def test_omitted_options_and_option_like_prompts_are_literal(
     tmp_path: Path, profile: CliProfile
 ) -> None:
@@ -95,11 +92,6 @@ async def test_omitted_options_and_option_like_prompts_are_literal(
     [
         (
             OpenCodeCliProfile(agent="custom-reviewer", model="vendor/model", effort="high"),
-            "--agent",
-            "custom-reviewer",
-        ),
-        (
-            ClaudeCodeCliProfile(agent="custom-reviewer", model="sonnet", effort="high"),
             "--agent",
             "custom-reviewer",
         ),
@@ -160,26 +152,6 @@ def test_provider_profiles_match_current_cli_argument_contracts(tmp_path: Path) 
                 "--sandbox",
                 "workspace-write",
                 "--json",
-                "--",
-                "Handle task",
-            ),
-        ),
-        (
-            ClaudeCodeCliProfile(model="sonnet", agent="reviewer", effort="high"),
-            "claude",
-            (
-                "-p",
-                "--output-format",
-                "stream-json",
-                "--verbose",
-                "--resume",
-                "native-session",
-                "--model",
-                "sonnet",
-                "--agent",
-                "reviewer",
-                "--effort",
-                "high",
                 "--",
                 "Handle task",
             ),
@@ -246,7 +218,6 @@ def test_codex_exec_without_session_uses_json_config_and_profile(tmp_path: Path)
             CodexCliProfile(),
             '{"type":"thread.started","thread_id":"native"}\n{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}',
         ),
-        (ClaudeCodeCliProfile(), '{"type":"result","session_id":"native","result":"Done"}'),
         (CursorCliProfile(), '{"type":"result","session_id":"native","result":"Done"}'),
     ],
 )
@@ -274,10 +245,9 @@ def test_explicit_permission_options_are_provider_native(tmp_path: Path) -> None
     profiles: list[CliProfile] = [
         OpenCodeCliProfile(auto_approve=True),
         CursorCliProfile(force=True, trust=True),
-        ClaudeCodeCliProfile(permission_mode="dontAsk", permission_prompts="none"),
         CodexCliProfile(sandbox="workspace-write", auto_review=True, effort="high"),
     ]
-    expected = ["--auto", "--force", "--permission-mode", "--sandbox"]
+    expected = ["--auto", "--force", "--sandbox"]
     for profile, flag in zip(profiles, expected, strict=True):
         arguments = create_cli_adapter(profile.provider).build_arguments(
             CodingTaskRequest(cwd=tmp_path, message="Work", profile=profile)
