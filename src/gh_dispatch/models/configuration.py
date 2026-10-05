@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from string import Template
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -94,7 +94,13 @@ class AutomationConfigurationBase(ValidatedModel):
         if not value.strip():
             raise ValueError("setup_script must not be empty")
         path = Path(value)
-        if path.is_absolute() or ".." in path.parts:
+        windows_path = PureWindowsPath(value)
+        if (
+            path.is_absolute()
+            or windows_path.is_absolute()
+            or ".." in path.parts
+            or ".." in windows_path.parts
+        ):
             raise ValueError("setup_script must be a relative path without '..'")
         return value
 
