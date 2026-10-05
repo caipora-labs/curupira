@@ -5,13 +5,12 @@ from asyncio import CancelledError
 from datetime import UTC, datetime
 from string import Template
 
-from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.coding_agents import (
+from gh_dispatch.agents import CliAdapterFactory, create_cli_adapter
+from gh_dispatch.agents.base import (
     RESUME_SESSION_PROMPT,
-    CliAdapterFactory,
     CodingAgentCliAdapter,
-    create_cli_adapter,
 )
+from gh_dispatch.clients.gh import GhClient
 from gh_dispatch.errors import PromptRenderError
 from gh_dispatch.models import (
     CodingTaskRequest,

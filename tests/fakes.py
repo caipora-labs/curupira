@@ -4,8 +4,8 @@ from pathlib import Path
 
 from typing_extensions import override
 
+from gh_dispatch.agents.base import CodingAgentCliAdapter, SessionStartedCallback
 from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.coding_agents import CodingAgentCliAdapter, SessionStartedCallback
 from gh_dispatch.models import (
     CodingTaskRequest,
     GhIssue,

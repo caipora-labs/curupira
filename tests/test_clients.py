@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
+from gh_dispatch.agents import create_cli_adapter
+from gh_dispatch.agents.base import CodingAgentCliAdapter
 from gh_dispatch.clients.gh import GhClient
 from gh_dispatch.clients.process import AsyncProcessRunner
-from gh_dispatch.coding_agents import CodingAgentCliAdapter, create_cli_adapter
 from gh_dispatch.errors import (
     CliExecutionError,
     CliOutputError,

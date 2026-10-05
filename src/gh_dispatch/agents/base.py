@@ -70,15 +70,15 @@ class CodingAgentCliAdapter(ABC):
             raise UnsupportedCodingAgentError(
                 f"{self.provider} adapter cannot use {request.profile.provider} profile"
             )
-        reported: str | None = None
+        reported: set[str] = set()
 
         async def handle(line: str) -> None:
             nonlocal reported
             event = parse_event(line)
-            if event is not None and event.session_id and event.session_id != reported:
-                reported = event.session_id
+            if event is not None and event.session_id and event.session_id not in reported:
+                reported.add(event.session_id)
                 if on_session_started is not None:
-                    await on_session_started(reported)
+                    await on_session_started(event.session_id)
 
         result = await self._runner.run(
             CommandRequest(
@@ -107,3 +107,6 @@ class CodingAgentCliAdapter(ABC):
             elif event.type == "result" and event.result is not None:
                 parts.append(event.result)
         return "\n".join(parts)
+
+
+CliAdapterFactory = Callable[[str], CodingAgentCliAdapter]
