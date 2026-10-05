@@ -9,7 +9,7 @@ import pytest
 
 from opscli.errors import StateDatabaseError
 from opscli.models import RunningCodingSession
-from opscli.repositories import RunningSessionRepository
+from opscli.storage import RunningSessionRepository
 from tests.helpers import issue_task
 
 

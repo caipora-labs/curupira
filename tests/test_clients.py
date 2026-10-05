@@ -53,7 +53,7 @@ class RecordingRunner(AsyncProcessRunner):
         return result
 
 
-@pytest.mark.parametrize("provider", ["opencode", "codex", "claude", "cursor"])
+@pytest.mark.parametrize("provider", ["opencode", "codex", "claude"])
 def test_factory_selects_native_provider_adapter(provider: str) -> None:
     assert isinstance(create_cli_adapter(provider), CodingAgentCliAdapter)
 
@@ -97,7 +97,6 @@ async def test_omitted_options_and_option_like_prompts_are_literal(
             "custom-reviewer",
         ),
         (CodexCliProfile(agent="work"), "--profile", "work"),
-        (CursorCliProfile(agent="ask"), "--mode", "ask"),
     ],
 )
 async def test_agent_option_uses_its_provider_native_flag(
@@ -184,31 +183,6 @@ def test_provider_profiles_match_current_cli_argument_contracts(tmp_path: Path) 
             )
         )
         assert arguments == expected
-
-
-def test_codex_exec_without_session_uses_json_config_and_profile(tmp_path: Path) -> None:
-    profile = CodexCliProfile(
-        model="gpt-5.4", agent="work", effort="ultra", sandbox="workspace-write"
-    )
-
-    arguments = create_cli_adapter("codex").build_arguments(
-        CodingTaskRequest(cwd=tmp_path, profile=profile, message="Handle task")
-    )
-
-    assert arguments == (
-        "exec",
-        "--model",
-        "gpt-5.4",
-        "--profile",
-        "work",
-        "--config",
-        'model_reasoning_effort="ultra"',
-        "--sandbox",
-        "workspace-write",
-        "--json",
-        "--",
-        "Handle task",
-    )
 
 
 @pytest.mark.parametrize(

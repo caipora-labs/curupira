@@ -22,7 +22,7 @@ from opscli.models import (
     Task,
     TaskIdentity,
 )
-from opscli.repositories import CronScheduleRepository
+from opscli.storage import CronScheduleRepository
 
 logger = logging.getLogger(__name__)
 MAX_POLL_INTERVAL_SECONDS = 300.0
@@ -40,6 +40,53 @@ class TaskFeed(Protocol):
         ...
 
 
+class TaskSource(Protocol):
+    """Discover tasks for one automation without exposing provider commands."""
+
+    async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
+        """Return currently available tasks from this source."""
+        ...
+
+
+class GitHubTaskSource:
+    """Discover issue and pull-request tasks through the GitHub client contract."""
+
+    def __init__(self, gh: GhClient) -> None:
+        self._gh = gh
+
+    async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
+        """Query the configured GitHub item type and construct automation tasks."""
+        config = automation.configuration
+        if isinstance(config, CronAutomationConfiguration):
+            raise ValueError("GitHub source cannot consume a cron configuration")
+        if config.trigger_type == "issue":
+            items = await self._gh.list_issues(
+                GhIssueSearchRequest(repo=config.repo, query=config.query, limit=limit)
+            )
+        else:
+            items = await self._gh.list_pull_requests(
+                GhPullRequestSearchRequest(repo=config.repo, query=config.query, limit=limit)
+            )
+        return [
+            Task(
+                identity=TaskIdentity(
+                    automation_id=automation.automation_id,
+                    repo=config.repo,
+                    task_type=config.trigger_type,
+                    id=str(item.number),
+                ),
+                automation=automation,
+                title=item.title,
+                body=item.body,
+                url=item.url,
+                is_draft=item.is_draft if isinstance(item, GhPullRequest) else None,
+                head_ref_name=item.head_ref_name if isinstance(item, GhPullRequest) else None,
+                base_ref_name=item.base_ref_name if isinstance(item, GhPullRequest) else None,
+            )
+            for item in items
+        ]
+
+
 def utc_now() -> datetime:
     """Return an aware timestamp for injectable cron clocks."""
     return datetime.now(UTC)
@@ -52,57 +99,27 @@ class GitHubTaskFeed:
         self,
         automation: ResolvedAutomation,
         polling: PollingSettings,
-        gh: GhClient,
+        source: TaskSource,
         *,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self.automation = automation
         self._polling = polling
-        self._gh = gh
+        self._source = source
         self._sleep = sleep
         self._seen: set[str] = set()
 
     async def poll(self, *, preview: bool = False) -> list[Task]:
         """Query the source and convert fresh items to automation-scoped tasks."""
-        config = self.automation.configuration
-        if isinstance(config, CronAutomationConfiguration):
-            raise ValueError("GitHub feed cannot consume a cron configuration")
-        if config.trigger_type == "issue":
-            items = await self._gh.list_issues(
-                GhIssueSearchRequest(
-                    repo=config.repo, query=config.query, limit=self._polling.batch_size
-                )
-            )
-        else:
-            items = await self._gh.list_pull_requests(
-                GhPullRequestSearchRequest(
-                    repo=config.repo, query=config.query, limit=self._polling.batch_size
-                )
-            )
+        discovered = await self._source.discover(self.automation, self._polling.batch_size)
         tasks: list[Task] = []
-        for item in items:
-            identity = TaskIdentity(
-                automation_id=self.automation.automation_id,
-                repo=config.repo,
-                task_type=config.trigger_type,
-                number=item.number,
-            )
+        for task in discovered:
+            identity = task.identity
             if identity.key in self._seen:
                 continue
             if not preview:
                 self._seen.add(identity.key)
-            tasks.append(
-                Task(
-                    identity=identity,
-                    automation=self.automation,
-                    title=item.title,
-                    body=item.body,
-                    url=item.url,
-                    is_draft=item.is_draft if isinstance(item, GhPullRequest) else None,
-                    head_ref_name=item.head_ref_name if isinstance(item, GhPullRequest) else None,
-                    base_ref_name=item.base_ref_name if isinstance(item, GhPullRequest) else None,
-                )
-            )
+            tasks.append(task)
         return tasks
 
     async def stream(self) -> AsyncIterator[Task]:
@@ -167,7 +184,7 @@ class CronTaskFeed:
             automation_id=name,
             repo=config.repo,
             task_type="cron",
-            number=int(occurrence.timestamp()),
+            id=str(int(occurrence.timestamp())),
         )
         if not preview and self._emitted == identity.key:
             return []

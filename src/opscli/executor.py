@@ -20,7 +20,7 @@ from opscli.models import (
     RunningCodingSession,
     Task,
 )
-from opscli.repositories import CronScheduleRepository, RunningSessionRepository
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.telemetry import TaskTelemetry
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ def render_task_prompt(task: Task) -> str:
         "repo": identity.repo,
         "automation_id": identity.automation_id,
         "task_type": identity.task_type,
-        "task_number": str(identity.number),
+        "task_number": identity.id,
         "task_title": task.title,
         "task_body": task.body or "",
         "task_url": task.url,
@@ -81,7 +81,7 @@ class TaskExecutor:
     ) -> ProcessResult:
         """Execute one task within an outcome span."""
         identity = task.identity
-        context = (identity.repo, identity.task_type, identity.number)
+        context = (identity.repo, identity.task_type, identity.id)
         action = "Resuming" if resumed is not None else "Starting"
         logger.info("%s task repo=%s type=%s id=%s", action, *context)
         try:
@@ -159,7 +159,7 @@ class TaskExecutor:
                 checkout,
                 automation_id=task.identity.automation_id,
                 task_type=task.identity.task_type,
-                number=task.identity.number,
+                task_id=task.identity.id,
             )
         try:
             result = await adapter.run_task(
@@ -185,7 +185,7 @@ class TaskExecutor:
                         checkout,
                         automation_id=task.identity.automation_id,
                         task_type=task.identity.task_type,
-                        number=task.identity.number,
+                        task_id=task.identity.id,
                     )
                 except Exception:
                     logger.exception("Could not clean up worktree for %s", task.identity.key)

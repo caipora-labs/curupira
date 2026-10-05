@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, model_validator
 
 from opscli.models.base import Identifier, NonEmptyString, ValidatedModel
 from opscli.models.configuration import AutomationConfiguration, CronAutomationConfiguration
@@ -12,24 +12,18 @@ from opscli.models.profiles import CliProfile
 
 
 class TaskIdentity(ValidatedModel):
-    """One automation's work on a GitHub item or scheduled occurrence."""
+    """One automation's work on a source item or scheduled occurrence."""
 
     automation_id: Identifier
     repo: NonEmptyString
     task_type: Literal["issue", "pull_request", "cron"]
-    number: int = Field(
-        gt=0,
-        description=(
-            "Positive integer from the source. Trello card IDs are strings and do not fit "
-            "this contract; Trello is not a supported provider."
-        ),
-    )
+    id: NonEmptyString
 
     @property
     def key(self) -> str:
         """Return a collision-free canonical key shared by all consumers."""
         return json.dumps(
-            [self.automation_id, self.repo, self.task_type, self.number], separators=(",", ":")
+            [self.automation_id, self.repo, self.task_type, self.id], separators=(",", ":")
         )
 
 
@@ -69,7 +63,7 @@ class Task(ValidatedModel):
         if isinstance(config, CronAutomationConfiguration):
             if self.scheduled_for is None:
                 raise ValueError("cron tasks require scheduled_for")
-            if self.identity.number != int(self.scheduled_for.timestamp()):
+            if self.identity.id != str(int(self.scheduled_for.timestamp())):
                 raise ValueError("cron identity must match its scheduled occurrence")
         elif self.scheduled_for is not None:
             raise ValueError("GitHub tasks must not contain a scheduled occurrence")

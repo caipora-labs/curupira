@@ -1,7 +1,7 @@
 """Typed SQLite storage for resumable native coding-agent sessions."""
 
 from opscli.models import RunningCodingSession, Task
-from opscli.repositories.key_value import _SQLiteJsonRepository
+from opscli.storage.key_value import _SQLiteJsonRepository
 
 
 class RunningSessionRepository(_SQLiteJsonRepository[RunningCodingSession]):
