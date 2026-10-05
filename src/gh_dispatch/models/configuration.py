@@ -2,7 +2,7 @@
 
 import re
 from datetime import datetime
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from string import Template
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -94,10 +94,13 @@ class AutomationConfigurationBase(ValidatedModel):
         if not value.strip():
             raise ValueError("setup_script must not be empty")
         path = Path(value)
+        posix_path = PurePosixPath(value)
         windows_path = PureWindowsPath(value)
         if (
             path.is_absolute()
+            or posix_path.is_absolute()
             or windows_path.is_absolute()
+            or bool(windows_path.root)
             or ".." in path.parts
             or ".." in windows_path.parts
         ):

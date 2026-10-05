@@ -10,10 +10,12 @@ from gh_dispatch.config import ApplicationSettings
 from gh_dispatch.dispatcher import dispatch_next_task
 from gh_dispatch.executor import render_task_prompt
 from gh_dispatch.models import (
+    CommandRequest,
     GhIssue,
     GhPullRequest,
     GhRepositoryCheckout,
     GhRepositoryCloneRequest,
+    ProcessResult,
     RunningCodingSession,
 )
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
@@ -192,7 +194,17 @@ async def test_existing_checkout_does_not_rerun_setup(tmp_path: Path) -> None:
     assert not gh.setup_scripts
 
 
-async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(tmp_path: Path) -> None:
+async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FailedSetupRunner:
+        def __init__(self) -> None:
+            self.requests: list[CommandRequest] = []
+
+        async def run(self, request: CommandRequest) -> ProcessResult:
+            self.requests.append(request)
+            return ProcessResult(returncode=7, stderr="setup failed")
+
     class FreshCloneGitHub(FakeGitHub):
         @override
         async def ensure_repository(
@@ -203,9 +215,6 @@ async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(tmp_path:
 
     checkout = tmp_path / "checkout"
     checkout.mkdir()
-    script = checkout / "setup.sh"
-    script.write_text("#!/bin/sh\nprintf 'setup failed' >&2\nexit 7\n", encoding="utf-8")
-    script.chmod(0o755)
     configured = settings(checkout)
     data = configured.model_dump()
     data["coding_agents"]["automations"]["work"]["setup_script"] = "setup.sh"
@@ -213,6 +222,8 @@ async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(tmp_path:
     gh = FreshCloneGitHub(
         issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
     )
+    runner = FailedSetupRunner()
+    monkeypatch.setattr(gh, "_runner", runner)
     adapter = RecordingAdapter()
 
     outcome = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
@@ -222,6 +233,7 @@ async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(tmp_path:
     assert outcome.process.stderr == "setup failed"
     assert not adapter.requests
     assert not checkout.exists()
+    assert runner.requests[0].executable == str(checkout / "setup.sh")
 
 
 def test_common_placeholders_use_the_task_source(tmp_path: Path) -> None:
