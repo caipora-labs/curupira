@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from gh_dispatch.errors import DispatchError
-from gh_dispatch.models import PollingSettings, ResolvedAutomation, Task
-from gh_dispatch.tasks.base import TaskSource
-from gh_dispatch.tasks.feed import PollingTaskFeed, merge_task_streams
+from opscli.errors import DispatchError
+from opscli.models import PollingSettings, ResolvedAutomation, Task
+from opscli.tasks.base import TaskSource
+from opscli.tasks.feed import PollingTaskFeed, merge_task_streams
 from tests.helpers import issue_task, resolved_automation
 
 
@@ -116,7 +116,7 @@ async def test_merge_drains_finite_sources_and_propagates_errors(tmp_path: Path)
         yield issue_task(tmp_path)
 
     merged = [task async for task in merge_task_streams([finite(1), finite(2)], max_pending=1)]
-    assert {task.identity.number for task in merged} == {1, 2}
+    assert {task.identity.id for task in merged} == {"1", "2"}
     with pytest.raises(DispatchError, match="broken source"):
         async for _ in merge_task_streams([finite(3), broken()], max_pending=1):
             pass

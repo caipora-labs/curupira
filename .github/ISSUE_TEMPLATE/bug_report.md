@@ -12,16 +12,16 @@ labels: bug
 ## Reproduction
 
 ```toml
-# Minimal ~/.gh-dispatch/settings.toml (redact private repository names)
+# Minimal ~/.opscli/settings.toml (redact private repository names)
 ```
 
 ```bash
-# Exact command, e.g. gh-dispatch --config ~/.gh-dispatch/settings.toml run
+# Exact command, e.g. opscli --config ~/.opscli/settings.toml run
 ```
 
 ## Environment
 
-- gh-dispatch version (`gh-dispatch --version`):
+- opscli version (`opscli --version`):
 - Python version:
 - Platform (Linux/macOS/Windows):
 - Provider CLI and version (if relevant):

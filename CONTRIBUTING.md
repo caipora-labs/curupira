@@ -25,7 +25,7 @@ uv run --no-sync twine check dist/*
 
 When collecting coverage, it must stay at or above 85% branch coverage
 (`fail_under = 85` in `pyproject.toml`). The example configuration is covered by tests:
-changes to `gh-dispatch.example.toml` must keep `test_example_configuration_is_valid` green.
+changes to `opscli.example.toml` must keep `test_example_configuration_is_valid` green.
 
 ## Architecture boundaries
 
@@ -36,7 +36,7 @@ changes to `gh-dispatch.example.toml` must keep `test_example_configuration_is_v
 - `feeds.py` — task discovery (`GitHubTaskFeed`, `CronTaskFeed`, multiplexing).
 - `executor.py` / `scheduler.py` / `dispatcher.py` — shared execution pipeline used
   identically by every trigger type.
-- `repositories/` — SQLite persistence with validated payloads; incompatible files
+- `storage/` — SQLite persistence with validated payloads; incompatible files
   raise instead of being deleted.
 - `cli.py` — argument parsing and exit codes only.
 
@@ -65,12 +65,12 @@ permanent ignore.
 ## Releases
 
 Versioning is `MAJOR.MINOR.PATCH`. The single version source is
-`src/gh_dispatch/_version.py`; the build backend reads it, and the CLI reports it.
+`src/opscli/_version.py`; the build backend reads it, and the CLI reports it.
 
 To cut a release:
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` into a new version section.
-2. Bump `__version__` in `src/gh_dispatch/_version.py` to match.
+2. Bump `__version__` in `src/opscli/_version.py` to match.
 3. Run the full verification suite and confirm `uv build` plus
    `uv run --no-sync twine check dist/*` pass.
 4. Before the first production publication, run the `testpypi.yml` workflow manually
@@ -81,7 +81,7 @@ To cut a release:
 
 PyPI publishing uses Trusted Publishing (OIDC), so no API tokens are stored. Before
 publishing, a PyPI maintainer registers this repository as a trusted publisher for the
-`gh-dispatch` project with owner `mariotaddeucci`, repository `gh-dispatch`, workflow
+`opscli` project with owner `mariotaddeucci`, repository `gh-dispatch`, workflow
 filename `publish.yml`, and environment `pypi`. The TestPyPI rehearsal uses a separate
 `testpypi` environment and trusted publisher with workflow filename `testpypi.yml` and
 audience `testpypi`. It uploads to `https://test.pypi.org/legacy/` and smoke-tests the
