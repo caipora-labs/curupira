@@ -21,28 +21,27 @@ while `watch` polls every automation continuously.
 Install as an isolated tool:
 
 ```bash
-uv tool install gh-dispatch
+uv tool install git+https://github.com/mariotaddeucci/gh-dispatch.git
 ```
 
-Or with pipx:
+The package is not yet published to PyPI. Install it directly from GitHub with `uv` as
+shown above.
 
-```bash
-pipx install gh-dispatch
-```
+## Documentation
 
-## Documentação
-
-Consulte o [guia completo em português](https://mariotaddeucci.github.io/gh-dispatch/) para
-instalação, configuração de automações, providers e comandos de operação.
+See the [full guide in Portuguese](https://mariotaddeucci.github.io/gh-dispatch/) for
+installation, automation configuration, providers, and operational commands.
 
 ## Configuration
 
-The default settings file is `~/.gh-dispatch/settings.toml`. Initialize it by copying
-the example and adjust repositories, paths, queries, and prompts:
+The default settings file is `~/.gh-dispatch/settings.toml`. Download the example
+configuration directly to that location, then adjust repositories, paths, queries, and
+prompts:
 
 ```bash
 mkdir -p ~/.gh-dispatch
-cp gh-dispatch.example.toml ~/.gh-dispatch/settings.toml
+curl -fsSL https://raw.githubusercontent.com/mariotaddeucci/gh-dispatch/main/gh-dispatch.example.toml \
+  -o ~/.gh-dispatch/settings.toml
 ```
 
 The `~/.gh-dispatch` directory is created automatically when the default file is first
@@ -54,7 +53,7 @@ state, and automation paths are resolved from that file's directory.
 max_active_tasks = 1
 workspace_dir = "~/.gh-dispatch/workspaces"
 state_db_path = "~/.gh-dispatch/state.sqlite3"
-# Endpoint opcional de traces OTLP/HTTP; omita para desativar a telemetria.
+# Optional OTLP/HTTP trace endpoint; omit it to disable telemetry.
 # otlp_endpoint = "http://localhost:4318/v1/traces"
 
 [settings.polling]
@@ -171,11 +170,11 @@ Without `start_date`, the window starts when the automation is first recorded.
 
 ### OpenTelemetry
 
-Defina `settings.otlp_endpoint` com o endpoint OTLP/HTTP de traces (por exemplo,
-`http://localhost:4318/v1/traces`) para exportar um span por issue, pull request ou
-ocorrência cron despachada. Cada span inclui repositório, tipo, identificador e resultado
-(sucesso ou falha); falhas também incluem `error.message`. O endpoint deve aceitar
-OTLP sobre HTTP/protobuf. Se o campo for omitido, nenhuma telemetria será exportada.
+Set `settings.otlp_endpoint` to an OTLP/HTTP trace endpoint (for example,
+`http://localhost:4318/v1/traces`) to export one span for each dispatched issue, pull
+request, or cron occurrence. Each span includes the repository, type, identifier, and
+result (success or failure); failures also include `error.message`. The endpoint must
+accept OTLP over HTTP/protobuf. If the field is omitted, no telemetry is exported.
 
 ### State files
 
@@ -189,12 +188,12 @@ and `run` resumes the saved session of the task it selects. If the file exists b
 a compatible database, the application exits with an error instead of deleting it —
 delete or move the file yourself to start fresh.
 
-### Arquivo de logs
+### Log file
 
-Os comandos `run` e `watch` acrescentam registros a
-`~/.gh-dispatch/logs/gh-dispatch.log`; reiniciar o processo não apaga o conteúdo anterior.
-Cada tarefa registra início e conclusão com horário, repositório, tipo e identificador. Se
-a tarefa falhar, o registro inclui o erro.
+The `run` and `watch` commands append records to
+`~/.gh-dispatch/logs/gh-dispatch.log`; restarting the process does not erase existing
+content. Each task records its start and completion time, repository, type, and
+identifier. If a task fails, the record includes the error.
 
 ## Usage
 
