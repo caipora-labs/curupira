@@ -1,12 +1,31 @@
 """CLI validation, argument contracts, and user-facing failure statuses."""
 
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
 
-from opscli.cli import CliOptions, _build_parser, async_main
+from opscli.cli import CliOptions, _batch_stream, _build_parser, async_main
 from opscli.config import load_settings
+from opscli.models import Task
 from opscli.runtime import DispatchInstanceLock, dispatch_home
+from opscli.tasks.base import TaskFeed
+from tests.helpers import issue_task
+
+
+class SequenceFeed(TaskFeed):
+    """Return finite batches in order for batch-mode tests."""
+
+    def __init__(self, batches: list[list[Task]]) -> None:
+        self.batches = batches
+
+    async def poll(self, *, preview: bool = False) -> list[Task]:
+        return self.batches.pop(0) if self.batches else []
+
+    async def stream(self) -> AsyncIterator[Task]:
+        for batch in self.batches:
+            for task in batch:
+                yield task
 
 
 def test_parser_supports_source_independent_commands(tmp_path: Path) -> None:
@@ -17,6 +36,32 @@ def test_parser_supports_source_independent_commands(tmp_path: Path) -> None:
     assert options.command == "run"
     assert options.dry_run
     assert _build_parser().parse_args(["watch"]).command == "watch"
+    batch = _build_parser().parse_args(["batch", "--size", "2"])
+    assert CliOptions.model_validate(vars(batch)).size == 2
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "nope"])
+def test_batch_size_must_be_a_positive_integer(value: str) -> None:
+    with pytest.raises(SystemExit):
+        _build_parser().parse_args(["batch", "--size", value])
+
+
+async def test_batch_stream_drains_each_feed_until_empty(tmp_path: Path) -> None:
+    first, second = issue_task(tmp_path, 1), issue_task(tmp_path, 2)
+    feed = SequenceFeed([[first], [second]])
+
+    assert [task async for task in _batch_stream([feed], None)] == [first, second]
+
+
+async def test_batch_stream_stops_at_size_even_when_more_tasks_exist(tmp_path: Path) -> None:
+    tasks = [issue_task(tmp_path, number) for number in range(1, 4)]
+    feed = SequenceFeed([tasks])
+
+    assert [task async for task in _batch_stream([feed], 2)] == tasks[:2]
+
+
+async def test_batch_stream_exits_cleanly_for_empty_queue() -> None:
+    assert [task async for task in _batch_stream([SequenceFeed([])], None)] == []
 
 
 def test_parser_defaults_to_central_settings_path(

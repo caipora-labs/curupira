@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import logging
 import sys
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -12,10 +12,11 @@ from pydantic import ValidationError
 
 from opscli import __version__
 from opscli.clients.gh import GhClient
-from opscli.config import load_settings
+from opscli.config import ApplicationSettings, load_settings
 from opscli.dispatcher import create_task_feeds, dispatch_next_task
 from opscli.errors import DispatchError
 from opscli.executor import TaskExecutor
+from opscli.models import Task
 from opscli.models.base import ValidatedModel
 from opscli.runtime import (
     DispatchInstanceLock,
@@ -28,6 +29,7 @@ from opscli.runtime import (
 from opscli.scheduler import TaskScheduler
 from opscli.status import TerminalTaskStatus
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
+from opscli.tasks.base import TaskFeed
 from opscli.tasks.feed import merge_task_streams
 from opscli.telemetry import TaskTelemetry
 
@@ -35,9 +37,10 @@ from opscli.telemetry import TaskTelemetry
 class CliOptions(ValidatedModel):
     """Validated command-line options."""
 
-    command: Literal["validate", "run", "watch"]
+    command: Literal["validate", "run", "watch", "batch"]
     config: Path
     dry_run: bool = False
+    size: int | None = None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -63,7 +66,35 @@ def _build_parser() -> argparse.ArgumentParser:
         help="preview a task without reserving, persisting, cloning, or executing",
     )
     subcommands.add_parser("watch", help="poll all automations using the shared bounded scheduler")
+    batch = subcommands.add_parser("batch", help="drain currently available automation tasks")
+    batch.add_argument("--size", type=_positive_int, help="process at most N tasks")
     return parser
+
+
+def _positive_int(value: str) -> int:
+    """Parse a positive integer for bounded batch execution."""
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be a positive integer") from error
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
+async def _batch_stream(feeds: Sequence[TaskFeed], size: int | None) -> AsyncIterator[Task]:
+    """Poll each feed until it has no newly available work, optionally capping admissions."""
+    admitted = 0
+    for feed in feeds:
+        while size is None or admitted < size:
+            tasks = await feed.poll()
+            if not tasks:
+                break
+            for task in tasks:
+                if size is not None and admitted >= size:
+                    return
+                admitted += 1
+                yield task
 
 
 async def async_main(options: CliOptions) -> int:
@@ -73,7 +104,7 @@ async def async_main(options: CliOptions) -> int:
         config_path = options.config.expanduser().resolve()
         if config_path == default_config_path().resolve():
             config_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        if options.command in {"run", "watch"} and not options.dry_run:
+        if options.command in {"run", "watch", "batch"} and not options.dry_run:
             instance_lock = DispatchInstanceLock(dispatch_home() / "dispatch.lock")
             instance_lock.acquire()
             ensure_runtime_directories()
@@ -116,7 +147,7 @@ async def _execute_command(options: CliOptions) -> int:
     root_logger = logging.getLogger()
     try:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-        if options.command == "watch" or not options.dry_run:
+        if options.command in {"watch", "batch"} or not options.dry_run:
             log_handler = create_execution_log_handler()
             root_logger.setLevel(logging.INFO)
             root_logger.addHandler(log_handler)
@@ -154,27 +185,7 @@ async def _execute_command(options: CliOptions) -> int:
                     print(outcome.process.stderr, file=sys.stderr)
                 return outcome.process.returncode
             return 0
-        sessions = RunningSessionRepository(settings.settings.state_db_path)
-        recovered = await sessions.list_all()
-        cron = CronScheduleRepository(settings.settings.state_db_path)
-        feeds = create_task_feeds(settings, gh, cron)
-        executor = TaskExecutor(settings.settings, gh, sessions, cron, telemetry=telemetry)
-        status = TerminalTaskStatus(show_idle=True)
-        scheduler = TaskScheduler(
-            settings.settings,
-            executor,
-            on_active_tasks_changed=lambda tasks: status.update(
-                tasks, settings.settings.max_active_tasks
-            ),
-        )
-        tasks = merge_task_streams(
-            [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
-        )
-        try:
-            await scheduler.run(tasks, resume_sessions=recovered)
-        finally:
-            status.clear()
-        return 1 if scheduler.failed_tasks else 0
+        return await _execute_scheduled_command(settings, gh, telemetry, options)
     except (DispatchError, OSError, ValidationError) as error:
         print(f"Dispatch error: {error}", file=sys.stderr)
         return 1
@@ -185,6 +196,36 @@ async def _execute_command(options: CliOptions) -> int:
             if log_handler is not None:
                 root_logger.removeHandler(log_handler)
                 log_handler.close()
+
+
+async def _execute_scheduled_command(
+    settings: ApplicationSettings, gh: GhClient, telemetry: TaskTelemetry, options: CliOptions
+) -> int:
+    """Execute finite batch or continuous watch work through the shared scheduler."""
+    sessions = RunningSessionRepository(settings.settings.state_db_path)
+    recovered = await sessions.list_all()
+    cron = CronScheduleRepository(settings.settings.state_db_path)
+    feeds = create_task_feeds(settings, gh, cron)
+    executor = TaskExecutor(settings.settings, gh, sessions, cron, telemetry=telemetry)
+    status = TerminalTaskStatus(show_idle=True)
+    scheduler = TaskScheduler(
+        settings.settings,
+        executor,
+        on_active_tasks_changed=lambda tasks: status.update(
+            tasks, settings.settings.max_active_tasks
+        ),
+    )
+    if options.command == "batch":
+        tasks = _batch_stream(feeds, options.size)
+    else:
+        tasks = merge_task_streams(
+            [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
+        )
+    try:
+        await scheduler.run(tasks, resume_sessions=recovered)
+    finally:
+        status.clear()
+    return 1 if scheduler.failed_tasks else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
