@@ -4,7 +4,6 @@ import asyncio
 import logging
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Sequence
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from croniter import croniter
@@ -23,21 +22,10 @@ from gh_dispatch.models import (
     TaskIdentity,
 )
 from gh_dispatch.repositories import CronScheduleRepository
+from gh_dispatch.tasks.base import TaskFeed
 
 logger = logging.getLogger(__name__)
 MAX_POLL_INTERVAL_SECONDS = 300.0
-
-
-class TaskFeed(Protocol):
-    """Discovery interface shared by one-shot dispatch and continuous polling."""
-
-    async def poll(self, *, preview: bool = False) -> list[Task]:
-        """Return tasks currently available; preview must not persist state."""
-        ...
-
-    def stream(self) -> AsyncIterator[Task]:
-        """Yield new tasks continuously with source-appropriate waits."""
-        ...
 
 
 def utc_now() -> datetime:
@@ -45,7 +33,7 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-class GitHubTaskFeed:
+class GitHubTaskFeed(TaskFeed):
     """One issue or pull request automation with shared polling behavior."""
 
     def __init__(
@@ -124,7 +112,7 @@ class GitHubTaskFeed:
                 yield task
 
 
-class CronTaskFeed:
+class CronTaskFeed(TaskFeed):
     """Coalesce overdue ticks into one persisted pending occurrence."""
 
     def __init__(
