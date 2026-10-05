@@ -142,11 +142,26 @@ two automations may process the same issue with different prompts.
 Polls that use the `project:` search qualifier keep the `open` state and filter board
 items to the `Todo` status automatically.
 
-`max_active_tasks` bounds concurrently running coding agents (default 1). Checkouts are
-exclusive: tasks sharing a workspace path run serially while unrelated workspaces run
-concurrently. Checkouts are created on demand with `gh repo clone` under
-`workspace_dir/owner/repo`. Nothing creates branches or worktrees, and nothing modifies
-issues or pull requests.
+`max_active_tasks` bounds concurrently running coding agents (default 1). By default,
+each task runs in a new worktree beside its base checkout, so tasks for the same repository
+can run concurrently without sharing edits. The worktree branch is created from the
+fetched remote default branch and is not pushed. Set `checkout = "main"` to use the
+shared checkout instead (this means the shared checkout, not a branch named `main`, and
+restores the previous exclusive behavior). `path` continues to select the base checkout.
+Checkouts are created on demand with `gh repo clone` under `workspace_dir/owner/repo`.
+Nothing modifies issues or pull requests.
+
+An optional `setup_script` is a repository-relative executable path (no absolute paths
+or `..`). It runs directly, with the checkout root as its working directory, only when
+the base checkout has just been cloned. It does not run for an existing checkout or in
+the task worktree, so files or dependencies installed there are not available to the
+agent. Use `checkout = "main"` when the agent must run where setup wrote files. A nonzero
+setup exit prevents the agent from starting; the newly cloned checkout is removed, while
+an existing checkout is preserved. `validate` checks the path syntax but does not require
+the script to exist. `run --dry-run` does not fetch, clone, create a worktree, or run setup,
+so it cannot verify that the script or worktree will work. Existing automation TOML remains
+valid, but now uses a worktree by default; configure `checkout = "main"` to keep the old
+shared-checkout behavior.
 
 Each cron automation coalesces overdue ticks into a single pending occurrence; the same
 automation never runs concurrently with itself. `schedule` is a five-field cron
@@ -210,7 +225,8 @@ gh-dispatch watch
 `validate` exits `0` when the configuration is valid and `2` on configuration errors.
 `run` exits with the agent process status, `0` when no task is available, and `1` on
 dispatch errors. `watch` exits `1` when any executed task failed, otherwise `0`.
-`run --dry-run` never reserves or persists cron occurrences.
+`run --dry-run` never reserves or persists cron occurrences and does not perform checkout,
+worktree, or setup operations.
 
 `watch` runs every CLI non-interactively so concurrent workers never contend for the
 terminal UI. Transient `gh` failures are retried with backoff; authentication,

@@ -128,6 +128,22 @@ class TaskExecutor:
                 repo=task.identity.repo, destination=task.automation.workspace_path
             )
         )
+        setup_script = task.automation.configuration.setup_script
+        if checkout.cloned and setup_script is not None:
+            result = await self._gh.run_setup_script(
+                checkout,
+                setup_script,
+                timeout_seconds=self._settings.task_timeout_seconds,
+                max_output_bytes=self._settings.max_output_bytes,
+            )
+            if result.returncode:
+                logger.error(
+                    "Setup script failed path=%s code=%s stderr=%s",
+                    setup_script,
+                    result.returncode,
+                    result.stderr,
+                )
+                return result
         original_message = resumed.message if resumed is not None else render_task_prompt(task)
 
         async def persist(session_id: str) -> None:
@@ -137,19 +153,40 @@ class TaskExecutor:
 
         if task.identity.task_type == "cron":
             await self._cron.mark_started(task.identity.automation_id, datetime.now(UTC))
-        result = await adapter.run_task(
-            CodingTaskRequest(
-                cwd=checkout.path,
-                profile=profile,
-                message=RESUME_SESSION_PROMPT if resumed is not None else original_message,
-                session_id=resumed.session_id if resumed is not None else None,
-                timeout=self._settings.task_timeout_seconds,
-                max_output_bytes=self._settings.max_output_bytes,
-            ),
-            on_session_started=persist,
-        )
-        if task.identity.task_type == "cron":
-            await self._cron.complete_run(task, self._sessions)
-        else:
-            await self._sessions.delete(task)
-        return result
+        is_worktree = task.automation.configuration.checkout == "worktree"
+        cwd = checkout.path
+        if is_worktree:
+            cwd = await self._gh.ensure_worktree(
+                checkout,
+                automation_id=task.identity.automation_id,
+                task_type=task.identity.task_type,
+                number=task.identity.number,
+            )
+        try:
+            result = await adapter.run_task(
+                CodingTaskRequest(
+                    cwd=cwd,
+                    profile=profile,
+                    message=RESUME_SESSION_PROMPT if resumed is not None else original_message,
+                    session_id=resumed.session_id if resumed is not None else None,
+                    timeout=self._settings.task_timeout_seconds,
+                    max_output_bytes=self._settings.max_output_bytes,
+                ),
+                on_session_started=persist,
+            )
+            if task.identity.task_type == "cron":
+                await self._cron.complete_run(task, self._sessions)
+            else:
+                await self._sessions.delete(task)
+            return result
+        finally:
+            if is_worktree:
+                try:
+                    await self._gh.remove_worktree(
+                        checkout,
+                        automation_id=task.identity.automation_id,
+                        task_type=task.identity.task_type,
+                        number=task.identity.number,
+                    )
+                except Exception:
+                    logger.exception("Could not clean up worktree for %s", task.identity.key)

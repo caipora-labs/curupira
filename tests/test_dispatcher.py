@@ -4,11 +4,20 @@ import logging
 from pathlib import Path
 
 import pytest
+from typing_extensions import override
 
 from gh_dispatch.config import ApplicationSettings
 from gh_dispatch.dispatcher import dispatch_next_task
 from gh_dispatch.executor import render_task_prompt
-from gh_dispatch.models import GhIssue, GhPullRequest, RunningCodingSession
+from gh_dispatch.models import (
+    CommandRequest,
+    GhIssue,
+    GhPullRequest,
+    GhRepositoryCheckout,
+    GhRepositoryCloneRequest,
+    ProcessResult,
+    RunningCodingSession,
+)
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.runtime import create_execution_log_handler
 from tests.fakes import FakeGitHub, RecordingAdapter
@@ -51,6 +60,9 @@ async def test_dispatch_renders_the_task_prompt_and_uses_shared_executor(
     assert outcome.process.returncode == 0
     assert adapter.requests[0].message == "Handle 42: Fix"
     assert gh.checkouts == [tmp_path]
+    assert len(gh.worktrees) == 1
+    assert gh.removed_worktrees == gh.worktrees
+    assert adapter.requests[0].cwd == gh.worktrees[0]
     assert await RunningSessionRepository(configured.settings.state_db_path).list_all() == []
     assert "Starting task repo=acme/api type=issue id=42" in caplog.text
     assert "Completed task repo=acme/api type=issue id=42 result=success" in caplog.text
@@ -149,6 +161,79 @@ async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
     assert result.selected == original
     assert adapter.requests[0].session_id == "original"
     assert "Continue the interrupted task" in adapter.requests[0].message
+
+
+async def test_checkout_main_uses_shared_checkout_without_worktree(tmp_path: Path) -> None:
+    configured = settings(tmp_path)
+    data = configured.model_dump()
+    data["coding_agents"]["automations"]["work"]["checkout"] = "main"
+    configured = ApplicationSettings.model_validate(data)
+    gh = FakeGitHub(
+        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    )
+    adapter = RecordingAdapter()
+
+    await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
+
+    assert adapter.requests[0].cwd == tmp_path
+    assert not gh.worktrees
+    assert not gh.removed_worktrees
+
+
+async def test_existing_checkout_does_not_rerun_setup(tmp_path: Path) -> None:
+    configured = settings(tmp_path)
+    data = configured.model_dump()
+    data["coding_agents"]["automations"]["work"]["setup_script"] = "scripts/setup.sh"
+    configured = ApplicationSettings.model_validate(data)
+    gh = FakeGitHub(
+        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    )
+
+    await dispatch_next_task(configured, gh, adapter_factory=lambda _: RecordingAdapter())
+
+    assert not gh.setup_scripts
+
+
+async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FailedSetupRunner:
+        def __init__(self) -> None:
+            self.requests: list[CommandRequest] = []
+
+        async def run(self, request: CommandRequest) -> ProcessResult:
+            self.requests.append(request)
+            return ProcessResult(returncode=7, stderr="setup failed")
+
+    class FreshCloneGitHub(FakeGitHub):
+        @override
+        async def ensure_repository(
+            self, request: GhRepositoryCloneRequest
+        ) -> GhRepositoryCheckout:
+            self.checkouts.append(request.destination)
+            return GhRepositoryCheckout(repo=request.repo, path=request.destination, cloned=True)
+
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    configured = settings(checkout)
+    data = configured.model_dump()
+    data["coding_agents"]["automations"]["work"]["setup_script"] = "setup.sh"
+    configured = ApplicationSettings.model_validate(data)
+    gh = FreshCloneGitHub(
+        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    )
+    runner = FailedSetupRunner()
+    monkeypatch.setattr(gh, "_runner", runner)
+    adapter = RecordingAdapter()
+
+    outcome = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
+
+    assert outcome.process is not None
+    assert outcome.process.returncode == 7
+    assert outcome.process.stderr == "setup failed"
+    assert not adapter.requests
+    assert not checkout.exists()
+    assert runner.requests[0].executable == str(checkout / "setup.sh")
 
 
 def test_common_placeholders_use_the_task_source(tmp_path: Path) -> None:

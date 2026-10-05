@@ -88,7 +88,31 @@ prompt = "Faça a manutenção semanal de ${repo}."</code></pre>
         <p>
           Salve o arquivo como <code>~/.gh-dispatch/settings.toml</code>. Os nomes depois de
           <code>profiles.</code> e <code>automations.</code> são identificadores escolhidos por
-          você; <code>profile</code> liga cada automação a um perfil existente.
+          você; <code>profile</code> liga cada automação a um perfil existente. Por padrão,
+          cada tarefa escreve em uma worktree própria, não no checkout compartilhado. O campo
+          <code>checkout = "main"</code> significa usar o checkout compartilhado — não trocar
+          para uma branch chamada <code>main</code> — e restaura o comportamento exclusivo
+          anterior. O campo <code>path</code> continua escolhendo o checkout base.
+        </p>
+      </section>
+
+      <section class="content-section">
+        <h2>Checkout e setup</h2>
+        <p>
+          <code>checkout</code> aceita <code>"worktree"</code> (padrão) ou <code>"main"</code>.
+          Worktrees usam uma branch local baseada no default branch remoto e não fazem push.
+          Automações antigas continuam válidas, mas passam a usar worktrees se não declararem
+          o campo.
+        </p>
+        <p>
+          <code>setup_script</code> é um caminho relativo à raiz do repositório, sem caminho
+          absoluto nem <code>..</code>. Ele roda diretamente só quando o checkout base acabou
+          de ser clonado, nunca em um checkout existente nem dentro da worktree. Assim, o que
+          o script instala no checkout base não aparece para o agente na worktree; use
+          <code>checkout = "main"</code> se o agente precisar executar onde o script escreveu.
+          Uma falha impede o agente e remove o clone criado nesta tentativa. A validação não
+          exige que o arquivo exista. O dry-run não busca, clona, cria worktree nem roda o
+          script, portanto não comprova que eles funcionarão.
         </p>
       </section>
 

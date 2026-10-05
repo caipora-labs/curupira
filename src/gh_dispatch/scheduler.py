@@ -67,6 +67,8 @@ class TaskScheduler:
         for _ in range(len(pending)):
             selected, resumed = pending.popleft()
             path = selected.automation.workspace_path
+            if selected.automation.configuration.checkout == "worktree":
+                path = path.with_name(f"{path.name}.worktrees") / selected.identity.key
             if len(active) >= self._settings.max_active_tasks or path in occupied:
                 pending.append((selected, resumed))
                 continue

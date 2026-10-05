@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import shutil
+from asyncio import to_thread
 from pathlib import Path
 from typing import cast
 
@@ -27,6 +29,7 @@ from gh_dispatch.models import (
     GhPullRequestSearchRequest,
     GhRepositoryCheckout,
     GhRepositoryCloneRequest,
+    ProcessResult,
 )
 
 _PROJECT_ITEM_JSON_FIELDS = ("number", "title", "url", "projectItems")
@@ -68,7 +71,94 @@ class GhClient:
     def __init__(self, runner: AsyncProcessRunner | None = None) -> None:
         self._runner = runner or AsyncProcessRunner()
         self._clone_locks: dict[Path, asyncio.Lock] = {}
+        self._worktree_locks: dict[Path, asyncio.Lock] = {}
         self._search_lock = asyncio.Lock()
+
+    async def run_setup_script(
+        self,
+        checkout: GhRepositoryCheckout,
+        script: str,
+        *,
+        timeout_seconds: float | None = None,
+        max_output_bytes: int = 1_000_000,
+    ) -> ProcessResult:
+        """Execute a repository-relative setup executable directly after a fresh clone."""
+        try:
+            result = await self._runner.run(
+                CommandRequest(
+                    executable=str(checkout.path / script),
+                    cwd=checkout.path,
+                    timeout=timeout_seconds,
+                    max_output_bytes=max_output_bytes,
+                )
+            )
+        except Exception:
+            if checkout.cloned:
+                await to_thread(shutil.rmtree, checkout.path, True)
+            raise
+        if result.returncode and checkout.cloned:
+            await to_thread(shutil.rmtree, checkout.path, True)
+        return result
+
+    async def ensure_worktree(
+        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, number: int
+    ) -> Path:
+        """Create or reuse the task's deterministic worktree from origin's default branch."""
+        base = checkout.path
+        lock = self._worktree_locks.setdefault(base, asyncio.Lock())
+        async with lock:
+            target = (
+                base.with_name(f"{base.name}.worktrees") / automation_id / f"{task_type}-{number}"
+            )
+            if target.is_dir():
+                return target
+            fetch = await self._runner.run(
+                CommandRequest(executable="git", arguments=("fetch", "origin"), cwd=base)
+            )
+            if fetch.returncode:
+                raise CliExecutionError("git fetch", fetch.returncode, fetch.stderr)
+            default = await self._runner.run(
+                CommandRequest(
+                    executable="git",
+                    arguments=("symbolic-ref", "refs/remotes/origin/HEAD"),
+                    cwd=base,
+                )
+            )
+            if default.returncode:
+                raise CliExecutionError("git symbolic-ref", default.returncode, default.stderr)
+            ref = default.stdout.strip()
+            branch = f"gh-dispatch/{automation_id}/{task_type}-{number}"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            result = await self._runner.run(
+                CommandRequest(
+                    executable="git",
+                    arguments=("worktree", "add", "-b", branch, str(target), ref),
+                    cwd=base,
+                )
+            )
+            if result.returncode:
+                raise CliExecutionError("git worktree add", result.returncode, result.stderr)
+            return target
+
+    async def remove_worktree(
+        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, number: int
+    ) -> None:
+        """Remove a task worktree and its local branch; cleanup failures are best effort."""
+        base = checkout.path
+        lock = self._worktree_locks.setdefault(base, asyncio.Lock())
+        async with lock:
+            target = (
+                base.with_name(f"{base.name}.worktrees") / automation_id / f"{task_type}-{number}"
+            )
+            for arguments in (
+                ("worktree", "remove", "--force", str(target)),
+                ("branch", "-D", f"gh-dispatch/{automation_id}/{task_type}-{number}"),
+            ):
+                result = await self._runner.run(
+                    CommandRequest(executable="git", arguments=arguments, cwd=base)
+                )
+                if result.returncode:
+                    raise CliExecutionError("git " + arguments[0], result.returncode, result.stderr)
 
     async def ensure_repository(self, request: GhRepositoryCloneRequest) -> GhRepositoryCheckout:
         """Reuse a local checkout or clone it into its workspace using ``gh``."""
