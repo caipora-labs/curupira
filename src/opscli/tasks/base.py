@@ -6,12 +6,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
-from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.models import PollingSettings, ResolvedAutomation, Task
-from gh_dispatch.repositories import CronScheduleRepository
+from opscli.clients.gh import GhClient
+from opscli.models import PollingSettings, ResolvedAutomation, Task
+from opscli.repositories import CronScheduleRepository
 
 if TYPE_CHECKING:
-    from gh_dispatch.feeds import TaskFeed
+    from opscli.feeds import TaskFeed
 
 
 @dataclass(frozen=True)

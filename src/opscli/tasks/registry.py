@@ -1,6 +1,6 @@
 """Registry for trigger implementations."""
 
-from gh_dispatch.tasks.base import Trigger
+from opscli.tasks.base import Trigger
 
 _TRIGGERS: dict[str, Trigger] = {}
 
