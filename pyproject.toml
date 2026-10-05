@@ -89,7 +89,7 @@ max-complexity = 12
 # Native executable discovery is intentional; arguments never pass through a shell.
 "src/gh_dispatch/clients/process.py" = ["S603", "S607"]
 # SQL identifiers are private constants; all externally supplied values are bound parameters.
-"src/gh_dispatch/repositories/*.py" = ["S608"]
+"src/gh_dispatch/storage/*.py" = ["S608"]
 
 [tool.pyrefly]
 project-includes = ["src", "tests"]

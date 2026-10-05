@@ -9,7 +9,7 @@ import pytest
 
 from gh_dispatch.errors import StateDatabaseError
 from gh_dispatch.models import RunningCodingSession
-from gh_dispatch.repositories import RunningSessionRepository
+from gh_dispatch.storage import RunningSessionRepository
 from tests.helpers import issue_task
 
 

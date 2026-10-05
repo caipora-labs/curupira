@@ -8,7 +8,7 @@ from gh_dispatch.config import ApplicationSettings
 from gh_dispatch.executor import TaskExecutor
 from gh_dispatch.feeds import CronTaskFeed, GitHubTaskFeed, TaskFeed
 from gh_dispatch.models import CronAutomationConfiguration, DispatchOutcome, Task
-from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+from gh_dispatch.storage import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.telemetry import TaskTelemetry
 
 

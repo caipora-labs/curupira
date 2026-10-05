@@ -18,8 +18,8 @@ from gh_dispatch.models import (
     ProcessResult,
     RunningCodingSession,
 )
-from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.runtime import create_execution_log_handler
+from gh_dispatch.storage import CronScheduleRepository, RunningSessionRepository
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task
 

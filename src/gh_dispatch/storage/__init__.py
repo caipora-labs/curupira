@@ -1,6 +1,6 @@
 """Local persistence repositories."""
 
-from gh_dispatch.repositories.cron import CronScheduleRepository
-from gh_dispatch.repositories.sessions import RunningSessionRepository
+from gh_dispatch.storage.cron import CronScheduleRepository
+from gh_dispatch.storage.sessions import RunningSessionRepository
 
 __all__ = ["CronScheduleRepository", "RunningSessionRepository"]

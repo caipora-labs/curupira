@@ -22,7 +22,7 @@ from gh_dispatch.models import (
     Task,
     TaskIdentity,
 )
-from gh_dispatch.repositories import CronScheduleRepository
+from gh_dispatch.storage import CronScheduleRepository
 
 logger = logging.getLogger(__name__)
 MAX_POLL_INTERVAL_SECONDS = 300.0

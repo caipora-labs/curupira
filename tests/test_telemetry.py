@@ -18,7 +18,7 @@ from gh_dispatch.models import (
     Task,
     TaskIdentity,
 )
-from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+from gh_dispatch.storage import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.telemetry import TaskTelemetry
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task, pull_request_task, resolved_automation

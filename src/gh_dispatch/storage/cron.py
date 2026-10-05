@@ -6,8 +6,8 @@ from contextlib import closing
 from datetime import datetime
 
 from gh_dispatch.models import CronRunState, Task
-from gh_dispatch.repositories.key_value import _SQLiteJsonRepository
-from gh_dispatch.repositories.sessions import RunningSessionRepository
+from gh_dispatch.storage.key_value import _SQLiteJsonRepository
+from gh_dispatch.storage.sessions import RunningSessionRepository
 
 
 class CronScheduleRepository(_SQLiteJsonRepository[CronRunState]):

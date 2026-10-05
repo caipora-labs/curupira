@@ -11,7 +11,7 @@ from gh_dispatch.models import (
     PollingSettings,
     RunningCodingSession,
 )
-from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+from gh_dispatch.storage import CronScheduleRepository, RunningSessionRepository
 from tests.helpers import resolved_automation
 
 

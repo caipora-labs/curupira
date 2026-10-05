@@ -1,7 +1,7 @@
 """Typed SQLite storage for resumable native coding-agent sessions."""
 
 from gh_dispatch.models import RunningCodingSession, Task
-from gh_dispatch.repositories.key_value import _SQLiteJsonRepository
+from gh_dispatch.storage.key_value import _SQLiteJsonRepository
 
 
 class RunningSessionRepository(_SQLiteJsonRepository[RunningCodingSession]):

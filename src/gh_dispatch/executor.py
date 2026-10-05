@@ -21,7 +21,7 @@ from gh_dispatch.models import (
     RunningCodingSession,
     Task,
 )
-from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
+from gh_dispatch.storage import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.telemetry import TaskTelemetry
 
 logger = logging.getLogger(__name__)

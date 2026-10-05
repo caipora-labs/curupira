@@ -18,7 +18,6 @@ from gh_dispatch.errors import DispatchError
 from gh_dispatch.executor import TaskExecutor
 from gh_dispatch.feeds import merge_task_streams
 from gh_dispatch.models.base import ValidatedModel
-from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.runtime import (
     DispatchInstanceLock,
     InstanceAlreadyRunningError,
@@ -29,6 +28,7 @@ from gh_dispatch.runtime import (
 )
 from gh_dispatch.scheduler import TaskScheduler
 from gh_dispatch.status import TerminalTaskStatus
+from gh_dispatch.storage import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.telemetry import TaskTelemetry
 
 
