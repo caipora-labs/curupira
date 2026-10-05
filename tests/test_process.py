@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from gh_dispatch.clients.process import AsyncProcessRunner
-from gh_dispatch.errors import CliLaunchError, CliNotFoundError, CliTimeoutError
-from gh_dispatch.models import CommandRequest
+from opscli.clients.process import AsyncProcessRunner
+from opscli.errors import CliLaunchError, CliNotFoundError, CliTimeoutError
+from opscli.models import CommandRequest
 
 
 async def test_arguments_are_literal_and_stdin_is_disconnected() -> None:

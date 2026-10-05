@@ -35,8 +35,8 @@
         <p>Este exemplo configura os três tipos de automação e perfis para os quatro providers:</p>
         <pre><code>[settings]
 max_active_tasks = 2
-workspace_dir = "~/.gh-dispatch/workspaces"
-state_db_path = "~/.gh-dispatch/state.sqlite3"
+workspace_dir = "~/.opscli/workspaces"
+state_db_path = "~/.opscli/state.sqlite3"
 
 [coding_agents.defaults]
 profile = "opencode"
@@ -86,7 +86,7 @@ schedule = "0 9 * * 1"
 profile = "codex"
 prompt = "Faça a manutenção semanal de ${repo}."</code></pre>
         <p>
-          Salve o arquivo como <code>~/.gh-dispatch/settings.toml</code>. Os nomes depois de
+          Salve o arquivo como <code>~/.opscli/settings.toml</code>. Os nomes depois de
           <code>profiles.</code> e <code>automations.</code> são identificadores escolhidos por
           você; <code>profile</code> liga cada automação a um perfil existente. Por padrão,
           cada tarefa escreve em uma worktree própria, não no checkout compartilhado. O campo
@@ -142,7 +142,7 @@ prompt = "Faça a manutenção semanal de ${repo}."</code></pre>
           <h2>Valide antes de executar</h2>
           <p>O comando verifica o TOML sem chamar providers, criar checkouts ou gravar estado.</p>
         </div>
-        <code class="inline-command">gh-dispatch validate</code>
+        <code class="inline-command">opscli validate</code>
       </section>
     </main>
 

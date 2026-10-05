@@ -5,16 +5,18 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 import pytest
-from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.clients.process import AsyncProcessRunner
-from gh_dispatch.coding_agents import CodingAgentCliAdapter, create_cli_adapter
-from gh_dispatch.errors import (
+from typing_extensions import override
+
+from opscli.clients.gh import GhClient
+from opscli.clients.process import AsyncProcessRunner
+from opscli.coding_agents import CodingAgentCliAdapter, create_cli_adapter
+from opscli.errors import (
     CliExecutionError,
     CliOutputError,
     UnsupportedCodingAgentError,
     WorkspacePathError,
 )
-from gh_dispatch.models import (
+from opscli.models import (
     ClaudeCodeCliProfile,
     CliProfile,
     CodexCliProfile,
@@ -27,7 +29,6 @@ from gh_dispatch.models import (
     OpenCodeCliProfile,
     ProcessResult,
 )
-from typing_extensions import override
 
 
 class RecordingRunner(AsyncProcessRunner):

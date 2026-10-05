@@ -33,25 +33,25 @@ installation, automation configuration, providers, and operational commands.
 
 ## Configuration
 
-The default settings file is `~/.gh-dispatch/settings.toml`. Download the example
+The default settings file is `~/.opscli/settings.toml`. Download the example
 configuration directly to that location, then adjust repositories, paths, queries, and
 prompts:
 
 ```bash
-mkdir -p ~/.gh-dispatch
-curl -fsSL https://raw.githubusercontent.com/mariotaddeucci/gh-dispatch/main/gh-dispatch.example.toml \
-  -o ~/.gh-dispatch/settings.toml
+mkdir -p ~/.opscli
+curl -fsSL https://raw.githubusercontent.com/mariotaddeucci/gh-dispatch/main/opscli.example.toml \
+  -o ~/.opscli/settings.toml
 ```
 
-The `~/.gh-dispatch` directory is created automatically when the default file is first
+The `~/.opscli` directory is created automatically when the default file is first
 loaded. Pass `--config path/to/settings.toml` to use a different file; relative workspace,
 state, and automation paths are resolved from that file's directory.
 
 ```toml
 [settings]
 max_active_tasks = 1
-workspace_dir = "~/.gh-dispatch/workspaces"
-state_db_path = "~/.gh-dispatch/state.sqlite3"
+workspace_dir = "~/.opscli/workspaces"
+state_db_path = "~/.opscli/state.sqlite3"
 # Optional OTLP/HTTP trace endpoint; omit it to disable telemetry.
 # otlp_endpoint = "http://localhost:4318/v1/traces"
 
@@ -178,9 +178,9 @@ accept OTLP over HTTP/protobuf. If the field is omitted, no telemetry is exporte
 ### State files
 
 Running sessions and cron schedule state live in `state_db_path` (default
-`~/.gh-dispatch/state.sqlite3`). The per-user dispatch lock is stored in
-`~/.gh-dispatch/dispatch.lock`, and the dedicated log directory is
-`~/.gh-dispatch/logs`. Only one `run` or `watch` process can dispatch at a time; a second
+`~/.opscli/state.sqlite3`). The per-user dispatch lock is stored in
+`~/.opscli/dispatch.lock`, and the dedicated log directory is
+`~/.opscli/logs`. Only one `run` or `watch` process can dispatch at a time; a second
 process exits with an error rather than running tasks in parallel. Session records are
 removed when the agent process ends; `watch` resumes all saved sessions after a restart,
 and `run` resumes the saved session of the task it selects. If the file exists but is not
@@ -190,7 +190,7 @@ delete or move the file yourself to start fresh.
 ### Log file
 
 The `run` and `watch` commands append records to
-`~/.gh-dispatch/logs/gh-dispatch.log`; restarting the process does not erase existing
+`~/.opscli/logs/opscli.log`; restarting the process does not erase existing
 content. Each task records its start and completion time, repository, type, and
 identifier. If a task fails, the record includes the error.
 
@@ -199,25 +199,25 @@ identifier. If a task fails, the record includes the error.
 Validate configuration without calling external CLIs or writing state:
 
 ```bash
-gh-dispatch validate
+opscli validate
 ```
 
 Execute one currently available task and wait for the agent to finish:
 
 ```bash
-gh-dispatch run
+opscli run
 ```
 
 Preview the selected task without reserving, persisting, cloning, or executing:
 
 ```bash
-gh-dispatch run --dry-run
+opscli run --dry-run
 ```
 
 Poll all automations with the shared bounded scheduler until interrupted:
 
 ```bash
-gh-dispatch watch
+opscli watch
 ```
 
 `validate` exits `0` when the configuration is valid and `2` on configuration errors.
@@ -232,8 +232,8 @@ configuration, output-format, and agent-task failures are not retried automatica
 
 ## Public interface
 
-`gh-dispatch` is CLI-first. The only supported programmatic surface is
-`gh_dispatch.__version__`; all other modules are internal implementation details that
+`opscli` is CLI-first. The only supported programmatic surface is
+`opscli.__version__`; all other modules are internal implementation details that
 may change without notice.
 
 ## Development and validation

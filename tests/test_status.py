@@ -6,8 +6,8 @@ from pathlib import Path
 
 from typing_extensions import override
 
-from gh_dispatch.models import Task
-from gh_dispatch.status import TerminalTaskStatus, format_task_status
+from opscli.models import Task
+from opscli.status import TerminalTaskStatus, format_task_status
 from tests.helpers import issue_task
 
 
