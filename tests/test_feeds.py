@@ -64,7 +64,7 @@ async def test_github_feed_requests_tasks_through_source_contract(tmp_path: Path
     source: TaskSource = FakeSource()
     feed = GitHubTaskFeed(resolved_automation(tmp_path), PollingSettings(batch_size=6), source)
 
-    assert [task.identity.number for task in await feed.poll()] == [42]
+    assert [task.identity.id for task in await feed.poll()] == ["42"]
     assert isinstance(source, FakeSource)
     assert source.requested == ("issues", 6)
 
@@ -111,7 +111,7 @@ async def test_empty_cycles_back_off_and_reset_after_discovery(tmp_path: Path) -
         sleep=sleep,
     )
     stream = feed.stream()
-    assert (await anext(stream)).identity.number == 1
+    assert (await anext(stream)).identity.id == "1"
     with pytest.raises(StopPollingError):
         await anext(stream)
     assert waits == [17, 34, 17, 34]

@@ -31,7 +31,7 @@ def issue_task(path: Path, number: int = 42, name: str = "issues") -> Task:
     automation = resolved_automation(path, name)
     return Task(
         identity=TaskIdentity(
-            automation_id=name, repo="acme/api", task_type="issue", number=number
+            automation_id=name, repo="acme/api", task_type="issue", id=str(number)
         ),
         automation=automation,
         title=f"Task {number}",
@@ -44,7 +44,7 @@ def pull_request_task(path: Path, number: int = 12, name: str = "reviews") -> Ta
     """Create a pull request snapshot with its native branch metadata."""
     return Task(
         identity=TaskIdentity(
-            automation_id=name, repo="acme/api", task_type="pull_request", number=number
+            automation_id=name, repo="acme/api", task_type="pull_request", id=str(number)
         ),
         automation=resolved_automation(path, name, "pull_request"),
         title="Review",
