@@ -92,7 +92,8 @@ prompt = "Faça a manutenção semanal de ${repo}."</code></pre>
           cada tarefa escreve em uma worktree própria, não no checkout compartilhado. O campo
           <code>checkout = "main"</code> significa usar o checkout compartilhado — não trocar
           para uma branch chamada <code>main</code> — e restaura o comportamento exclusivo
-          anterior. O campo <code>path</code> continua escolhendo o checkout base.
+          anterior. Nesse modo o agente roda no checkout como ele está, sem fetch, pull nem troca de branch.
+          O campo <code>path</code> continua escolhendo o checkout base.
         </p>
       </section>
 
