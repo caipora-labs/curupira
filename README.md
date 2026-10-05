@@ -146,6 +146,7 @@ can run concurrently without sharing edits. The worktree branch is created from 
 fetched remote default branch and is not pushed. Set `checkout = "main"` to use the
 shared checkout instead (this means the shared checkout, not a branch named `main`, and
 restores the previous exclusive behavior). `path` continues to select the base checkout.
+With `checkout = "main"`, the agent runs on the shared checkout exactly as it is: OpsCli does not fetch, pull, or switch branches there.
 Checkouts are created on demand with `gh repo clone` under `workspace_dir/owner/repo`.
 Nothing modifies issues or pull requests.
 
