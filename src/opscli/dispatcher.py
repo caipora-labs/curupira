@@ -6,9 +6,10 @@ from opscli.agents import CliAdapterFactory, create_cli_adapter
 from opscli.clients.gh import GhClient
 from opscli.config import ApplicationSettings
 from opscli.executor import TaskExecutor
-from opscli.feeds import CronTaskFeed, GitHubTaskFeed, GitHubTaskSource, TaskFeed
+from opscli.feeds import GitHubTaskFeed, GitHubTaskSource, TaskFeed
 from opscli.models import CronAutomationConfiguration, DispatchOutcome, Task
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
+from opscli.tasks.cron import CronTaskFeed
 from opscli.telemetry import TaskTelemetry
 
 
