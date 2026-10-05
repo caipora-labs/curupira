@@ -117,7 +117,7 @@ def create_cli_adapter(
 ) -> CodingAgentCliAdapter:
     """Construct the native adapter for a supported provider."""
     from gh_dispatch.clients.claude import ClaudeCodeCliAdapter
-    from gh_dispatch.clients.codex import CodexCliAdapter
+    from gh_dispatch.agents.codex import CodexCliAdapter
     from gh_dispatch.clients.cursor import CursorCliAdapter
     from gh_dispatch.clients.opencode import OpenCodeCliAdapter
 
