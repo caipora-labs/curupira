@@ -46,6 +46,29 @@ def test_discriminator_supports_independent_source_types(trigger: str, expected:
     assert settings.resolve_automations()["daily"].profile.provider == "opencode"
 
 
+def test_github_automation_provider_defaults_to_github_cli() -> None:
+    automation = configuration().coding_agents.automations["daily"]
+    assert isinstance(automation, IssueAutomationConfiguration)
+    assert automation.provider == "github-cli"
+
+    explicit = configuration(provider="github-cli").coding_agents.automations["daily"]
+    assert isinstance(explicit, IssueAutomationConfiguration)
+    assert explicit.provider == "github-cli"
+
+
+@pytest.mark.parametrize("provider", ["github", "trello", "other-provider"])
+def test_github_automation_rejects_unsupported_provider(provider: str) -> None:
+    with pytest.raises(ValidationError) as error:
+        configuration(provider=provider)
+
+    assert provider in str(error.value)
+
+
+def test_cron_automation_rejects_provider_field() -> None:
+    with pytest.raises(ValidationError, match="provider"):
+        configuration("cron", provider="github-cli")
+
+
 @pytest.mark.parametrize(
     "overrides",
     [

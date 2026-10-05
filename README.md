@@ -91,6 +91,8 @@ profile applies. Optional `path` pins the automation to an existing checkout or 
 alternative clone destination; relative paths resolve from the TOML directory, as do
 `workspace_dir` and `state_db_path`. Different repositories cannot share one workspace
 path. Automations keep file order, and one-shot selection follows that order.
+For issue and pull-request automations, omitting `provider` keeps GitHub; its accepted
+value is `github-cli`.
 
 ### Providers and native options
 
