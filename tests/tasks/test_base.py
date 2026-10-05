@@ -1,7 +1,8 @@
 """Tests for the abstract task discovery contracts."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -21,11 +22,11 @@ class FakeFeed(TaskFeed):
     """Minimal concrete task feed."""
 
     async def poll(self, *, preview: bool = False) -> list[Task]:
-        return [issue_task(Path("."))]
+        return [issue_task(Path())]
 
     def stream(self) -> AsyncIterator[Task]:
         async def tasks() -> AsyncIterator[Task]:
-            yield issue_task(Path("."))
+            yield issue_task(Path())
 
         return tasks()
 
@@ -38,13 +39,13 @@ class FakeSource(TaskSource):
     """Minimal concrete task source."""
 
     async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
-        return [issue_task(Path("."))][:limit]
+        return [issue_task(Path())][:limit]
 
 
 def test_feed_requires_all_abstract_methods() -> None:
     """A TaskFeed subclass cannot omit a required method."""
     with pytest.raises(TypeError, match="stream"):
-        IncompleteFeed()
+        cast(Callable[[], object], IncompleteFeed)()
 
 
 def test_fake_feed_implements_contract() -> None:
@@ -55,7 +56,7 @@ def test_fake_feed_implements_contract() -> None:
 def test_source_requires_discover_method() -> None:
     """A TaskSource subclass cannot omit discovery."""
     with pytest.raises(TypeError, match="discover"):
-        IncompleteSource()
+        cast(Callable[[], object], IncompleteSource)()
 
 
 async def test_fake_source_implements_contract(tmp_path: Path) -> None:
