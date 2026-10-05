@@ -17,7 +17,13 @@ class TaskIdentity(ValidatedModel):
     automation_id: Identifier
     repo: NonEmptyString
     task_type: Literal["issue", "pull_request", "cron"]
-    number: int = Field(gt=0)
+    number: int = Field(
+        gt=0,
+        description=(
+            "Positive integer from the source. Trello card IDs are strings and do not fit "
+            "this contract; Trello is not a supported provider."
+        ),
+    )
 
     @property
     def key(self) -> str:
