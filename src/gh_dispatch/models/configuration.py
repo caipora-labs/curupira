@@ -113,6 +113,7 @@ class AutomationConfigurationBase(ValidatedModel):
 class GitHubAutomationConfiguration(AutomationConfigurationBase):
     """Query options shared by issue and pull request discovery."""
 
+    provider: Literal["github-cli"] = "github-cli"
     query: NonEmptyString
 
 
