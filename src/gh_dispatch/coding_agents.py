@@ -119,7 +119,7 @@ def create_cli_adapter(
     from gh_dispatch.clients.claude import ClaudeCodeCliAdapter
     from gh_dispatch.clients.codex import CodexCliAdapter
     from gh_dispatch.clients.cursor import CursorCliAdapter
-    from gh_dispatch.clients.opencode import OpenCodeCliAdapter
+    from gh_dispatch.agents.opencode import OpenCodeCliAdapter
 
     adapters: dict[str, type[CodingAgentCliAdapter]] = {
         "opencode": OpenCodeCliAdapter,
