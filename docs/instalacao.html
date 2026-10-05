@@ -31,7 +31,7 @@
         <h2>Requisitos</h2>
         <ul class="check-list">
           <li>Python 3.11 ou mais recente.</li>
-          <li><a href="https://docs.astral.sh/uv/">uv</a> ou <a href="https://pipx.pypa.io/">pipx</a> para instalar a aplicação.</li>
+          <li><a href="https://docs.astral.sh/uv/">uv</a> para instalar a aplicação.</li>
           <li><a href="https://cli.github.com/">GitHub CLI (<code>gh</code>)</a> instalado e autenticado.</li>
           <li>A CLI usada no perfil selecionado: <code>opencode</code>, <code>codex</code>, <code>claude</code> ou <code>agent</code> (Cursor).</li>
         </ul>
@@ -40,10 +40,8 @@
 
       <section class="content-section">
         <h2>Instale o gh-dispatch</h2>
-        <p>Com uv, instale como ferramenta isolada:</p>
-        <pre><code>uv tool install gh-dispatch</code></pre>
-        <p>Ou use pipx:</p>
-        <pre><code>pipx install gh-dispatch</code></pre>
+        <p>O pacote ainda não está publicado no PyPI. Instale diretamente do repositório com uv:</p>
+        <pre><code>uv tool install git+https://github.com/mariotaddeucci/gh-dispatch.git</code></pre>
         <p>Confirme que o comando está disponível:</p>
         <pre><code>gh-dispatch --version</code></pre>
       </section>
