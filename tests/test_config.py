@@ -119,6 +119,14 @@ def test_cursor_rejects_unknown_agent_modes() -> None:
         ApplicationSettings.model_validate(data)
 
 
+def test_trello_provider_is_rejected() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {"provider": "trello"}
+
+    with pytest.raises(ValidationError):
+        ApplicationSettings.model_validate(data)
+
+
 def test_cursor_rejects_effort_and_codex_accepts_optional_effort() -> None:
     data = configuration().model_dump()
     data["coding_agents"]["profiles"]["opencode"] = {"provider": "cursor", "effort": "high"}
