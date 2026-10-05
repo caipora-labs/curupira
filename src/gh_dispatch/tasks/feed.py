@@ -51,7 +51,7 @@ class PollingTaskFeed(TaskFeed):
                 discovered = await self.poll()
             except DispatchError as error:
                 logger.warning("Discovery failed for %s: %s", self.automation.automation_id, error)
-                discovered = []
+                discovered: list[Task] = []
             if not discovered:
                 await self._sleep(interval)
                 interval = min(interval * 2, MAX_POLL_INTERVAL_SECONDS)
