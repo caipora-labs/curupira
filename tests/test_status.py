@@ -4,6 +4,8 @@ from collections.abc import Sequence
 from io import StringIO
 from pathlib import Path
 
+from typing_extensions import override
+
 from gh_dispatch.models import Task
 from gh_dispatch.status import TerminalTaskStatus, format_task_status
 from tests.helpers import issue_task
@@ -12,6 +14,7 @@ from tests.helpers import issue_task
 class TerminalBuffer(StringIO):
     """String buffer that behaves like an interactive terminal."""
 
+    @override
     def isatty(self) -> bool:
         return True
 
