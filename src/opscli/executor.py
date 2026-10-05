@@ -159,7 +159,7 @@ class TaskExecutor:
                 checkout,
                 automation_id=task.identity.automation_id,
                 task_type=task.identity.task_type,
-                number=task.identity.id,
+                task_id=task.identity.id,
             )
         try:
             result = await adapter.run_task(
@@ -185,7 +185,7 @@ class TaskExecutor:
                         checkout,
                         automation_id=task.identity.automation_id,
                         task_type=task.identity.task_type,
-                        number=task.identity.id,
+                        task_id=task.identity.id,
                     )
                 except Exception:
                     logger.exception("Could not clean up worktree for %s", task.identity.key)
