@@ -13,14 +13,13 @@ from gh_dispatch.models import (
     CommandRequest,
     GhIssue,
     GhPullRequest,
-    GhRepositoryCheckout,
-    GhRepositoryCloneRequest,
     ProcessResult,
     RunningCodingSession,
 )
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.runtime import create_execution_log_handler
-from tests.fakes import FakeGitHub, RecordingAdapter
+from gh_dispatch.vcs import Checkout, CheckoutRequest
+from tests.fakes import FakeGitHub, FakeVersionControl, RecordingAdapter
 from tests.helpers import issue_task
 
 
@@ -203,30 +202,30 @@ async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(
 
         async def run(self, request: CommandRequest) -> ProcessResult:
             self.requests.append(request)
-            return ProcessResult(returncode=7, stderr="setup failed")
+            if request.executable.endswith("setup.sh"):
+                return ProcessResult(returncode=7, stderr="setup failed")
+            return ProcessResult(returncode=0)
 
-    class FreshCloneGitHub(FakeGitHub):
+    class FreshCloneVcs(FakeVersionControl):
         @override
-        async def ensure_repository(
-            self, request: GhRepositoryCloneRequest
-        ) -> GhRepositoryCheckout:
+        async def ensure_checkout(self, request: CheckoutRequest) -> Checkout:
             self.checkouts.append(request.destination)
-            return GhRepositoryCheckout(repo=request.repo, path=request.destination, cloned=True)
+            return Checkout(repo=request.repo, path=request.destination, cloned=True)
 
     checkout = tmp_path / "checkout"
-    checkout.mkdir()
     configured = settings(checkout)
     data = configured.model_dump()
     data["coding_agents"]["automations"]["work"]["setup_script"] = "setup.sh"
     configured = ApplicationSettings.model_validate(data)
-    gh = FreshCloneGitHub(
+    gh = FakeGitHub(
         issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
     )
+    vcs = FreshCloneVcs()
     runner = FailedSetupRunner()
-    monkeypatch.setattr(gh, "_runner", runner)
+    monkeypatch.setattr(vcs, "_runner", runner)
     adapter = RecordingAdapter()
 
-    outcome = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
+    outcome = await dispatch_next_task(configured, gh, vcs=vcs, adapter_factory=lambda _: adapter)
 
     assert outcome.process is not None
     assert outcome.process.returncode == 7

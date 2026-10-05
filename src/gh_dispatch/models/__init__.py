@@ -17,8 +17,6 @@ from gh_dispatch.models.github import (
     GhLabel,
     GhPullRequest,
     GhPullRequestSearchRequest,
-    GhRepositoryCheckout,
-    GhRepositoryCloneRequest,
 )
 from gh_dispatch.models.process import (
     CodingTaskRequest,
@@ -61,8 +59,6 @@ __all__ = [
     "GhLabel",
     "GhPullRequest",
     "GhPullRequestSearchRequest",
-    "GhRepositoryCheckout",
-    "GhRepositoryCloneRequest",
     "IssueAutomationConfiguration",
     "OpenCodeCliProfile",
     "PollingSettings",

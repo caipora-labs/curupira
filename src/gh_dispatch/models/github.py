@@ -1,7 +1,5 @@
 """Validated GitHub CLI boundary payloads."""
 
-from pathlib import Path
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from gh_dispatch.models.base import NonEmptyString, ValidatedModel
@@ -19,21 +17,6 @@ class GhIssueSearchRequest(ValidatedModel):
 
 class GhPullRequestSearchRequest(GhIssueSearchRequest):
     """A GitHub pull request query."""
-
-
-class GhRepositoryCloneRequest(ValidatedModel):
-    """A requested repository checkout."""
-
-    repo: NonEmptyString
-    destination: Path
-
-
-class GhRepositoryCheckout(ValidatedModel):
-    """A prepared repository checkout."""
-
-    repo: NonEmptyString
-    path: Path
-    cloned: bool
 
 
 class GhLabel(BaseModel):

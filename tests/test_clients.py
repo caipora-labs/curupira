@@ -25,7 +25,6 @@ from gh_dispatch.models import (
     CursorCliProfile,
     GhIssueSearchRequest,
     GhPullRequestSearchRequest,
-    GhRepositoryCloneRequest,
     OpenCodeCliProfile,
     ProcessResult,
 )
@@ -359,9 +358,12 @@ async def test_transient_github_errors_are_retried() -> None:
 
 
 async def test_existing_non_git_workspace_is_preserved(tmp_path: Path) -> None:
+    from gh_dispatch.vcs import CheckoutRequest
+    from gh_dispatch.vcs.github_cli import GitHubCliVersionControl
+
     runner = RecordingRunner()
     with pytest.raises(WorkspacePathError):
-        await GhClient(runner).ensure_repository(
-            GhRepositoryCloneRequest(repo="acme/api", destination=tmp_path)
+        await GitHubCliVersionControl(runner).ensure_checkout(
+            CheckoutRequest(repo="acme/api", destination=tmp_path)
         )
     assert not runner.requests

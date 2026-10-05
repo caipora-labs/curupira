@@ -30,6 +30,7 @@ from gh_dispatch.runtime import (
 from gh_dispatch.scheduler import TaskScheduler
 from gh_dispatch.status import TerminalTaskStatus
 from gh_dispatch.telemetry import TaskTelemetry
+from gh_dispatch.vcs.github_cli import GitHubCliVersionControl
 
 
 class CliOptions(ValidatedModel):
@@ -121,12 +122,14 @@ async def _execute_command(options: CliOptions) -> int:
             root_logger.setLevel(logging.INFO)
             root_logger.addHandler(log_handler)
         gh = GhClient()
+        vcs = GitHubCliVersionControl()
         if options.command == "run":
             status = TerminalTaskStatus()
             try:
                 outcome = await dispatch_next_task(
                     settings,
                     gh,
+                    vcs=vcs,
                     dry_run=options.dry_run,
                     telemetry=telemetry,
                     on_task_selected=lambda task: status.update(
@@ -158,7 +161,7 @@ async def _execute_command(options: CliOptions) -> int:
         recovered = await sessions.list_all()
         cron = CronScheduleRepository(settings.settings.state_db_path)
         feeds = create_task_feeds(settings, gh, cron)
-        executor = TaskExecutor(settings.settings, gh, sessions, cron, telemetry=telemetry)
+        executor = TaskExecutor(settings.settings, vcs, sessions, cron, telemetry=telemetry)
         status = TerminalTaskStatus(show_idle=True)
         scheduler = TaskScheduler(
             settings.settings,

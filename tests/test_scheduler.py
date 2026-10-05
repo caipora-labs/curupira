@@ -58,7 +58,7 @@ def executor(path: Path, adapter: RecordingAdapter) -> TaskExecutor:
     database = path / "state.sqlite3"
     return TaskExecutor(
         ExecutionSettings(state_db_path=database),
-        FakeGitHub(),
+        FakeGitHub().vcs,
         RunningSessionRepository(database),
         CronScheduleRepository(database),
         adapter_factory=lambda _: adapter,

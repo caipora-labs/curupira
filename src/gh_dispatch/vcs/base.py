@@ -98,7 +98,9 @@ class VersionControl(ABC):
         base = checkout.path
         lock = self._worktree_locks.setdefault(base, asyncio.Lock())
         async with lock:
-            target = base.with_name(f"{base.name}.worktrees") / automation_id / f"{task_type}-{number}"
+            target = (
+                base.with_name(f"{base.name}.worktrees") / automation_id / f"{task_type}-{number}"
+            )
             if target.is_dir():
                 return target
             fetch = await self._runner.run(
@@ -108,7 +110,9 @@ class VersionControl(ABC):
                 raise CliExecutionError("git fetch", fetch.returncode, fetch.stderr)
             default = await self._runner.run(
                 CommandRequest(
-                    executable="git", arguments=("symbolic-ref", "refs/remotes/origin/HEAD"), cwd=base
+                    executable="git",
+                    arguments=("symbolic-ref", "refs/remotes/origin/HEAD"),
+                    cwd=base,
                 )
             )
             if default.returncode:
@@ -118,7 +122,14 @@ class VersionControl(ABC):
             result = await self._runner.run(
                 CommandRequest(
                     executable="git",
-                    arguments=("worktree", "add", "-b", branch, str(target), default.stdout.strip()),
+                    arguments=(
+                        "worktree",
+                        "add",
+                        "-b",
+                        branch,
+                        str(target),
+                        default.stdout.strip(),
+                    ),
                     cwd=base,
                 )
             )
@@ -133,12 +144,16 @@ class VersionControl(ABC):
         base = checkout.path
         lock = self._worktree_locks.setdefault(base, asyncio.Lock())
         async with lock:
-            target = base.with_name(f"{base.name}.worktrees") / automation_id / f"{task_type}-{number}"
+            target = (
+                base.with_name(f"{base.name}.worktrees") / automation_id / f"{task_type}-{number}"
+            )
             for arguments in (
                 ("worktree", "remove", "--force", str(target)),
                 ("branch", "-D", f"gh-dispatch/{automation_id}/{task_type}-{number}"),
             ):
-                result = await self._runner.run(CommandRequest(executable="git", arguments=arguments, cwd=base))
+                result = await self._runner.run(
+                    CommandRequest(executable="git", arguments=arguments, cwd=base)
+                )
                 if result.returncode:
                     raise CliExecutionError("git " + arguments[0], result.returncode, result.stderr)
 

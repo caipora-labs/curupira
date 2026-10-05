@@ -10,6 +10,8 @@ from gh_dispatch.feeds import CronTaskFeed, GitHubTaskFeed, TaskFeed
 from gh_dispatch.models import CronAutomationConfiguration, DispatchOutcome, Task
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.telemetry import TaskTelemetry
+from gh_dispatch.vcs import VersionControl
+from gh_dispatch.vcs.github_cli import GitHubCliVersionControl
 
 
 def create_task_feeds(
@@ -29,6 +31,7 @@ async def dispatch_next_task(
     settings: ApplicationSettings,
     gh: GhClient,
     *,
+    vcs: VersionControl | None = None,
     dry_run: bool = False,
     adapter_factory: CliAdapterFactory = create_cli_adapter,
     telemetry: TaskTelemetry | None = None,
@@ -48,7 +51,7 @@ async def dispatch_next_task(
         resumed = await sessions.get(selected)
         executor = TaskExecutor(
             settings.settings,
-            gh,
+            vcs or getattr(gh, "vcs", None) or GitHubCliVersionControl(),
             sessions,
             cron,
             adapter_factory=adapter_factory,
