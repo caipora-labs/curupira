@@ -24,8 +24,9 @@ def format_task_status(tasks: Sequence[Task], limit: int) -> str:
 class TerminalTaskStatus:
     """Rewrite one status line on a terminal without sending it to log handlers."""
 
-    def __init__(self, stream: TextIO = sys.stdout) -> None:
-        self._stream = stream
+    def __init__(self, stream: TextIO | None = None, *, show_idle: bool = False) -> None:
+        self._stream = stream if stream is not None else sys.stdout
+        self._show_idle = show_idle
         self._visible = False
 
     def update(self, tasks: Sequence[Task], limit: int) -> None:
@@ -33,7 +34,12 @@ class TerminalTaskStatus:
         if not self._stream.isatty():
             return
         if not tasks:
-            self.clear()
+            if not self._show_idle:
+                self.clear()
+                return
+            self._stream.write(f"\r0/{limit}\x1b[K")
+            self._stream.flush()
+            self._visible = True
             return
         self._stream.write(f"{format_task_status(tasks, limit)}\x1b[K")
         self._stream.flush()
