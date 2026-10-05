@@ -6,10 +6,12 @@ from opscli.agents import CliAdapterFactory, create_cli_adapter
 from opscli.clients.gh import GhClient
 from opscli.config import ApplicationSettings
 from opscli.executor import TaskExecutor
-from opscli.feeds import GitHubTaskFeed, GitHubTaskSource, TaskFeed
+from opscli.feeds import GitHubTaskSource
 from opscli.models import CronAutomationConfiguration, DispatchOutcome, Task
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
+from opscli.tasks.base import TaskFeed
 from opscli.tasks.cron import CronTaskFeed
+from opscli.tasks.feed import PollingTaskFeed
 from opscli.telemetry import TaskTelemetry
 
 
@@ -23,7 +25,7 @@ def create_task_feeds(
         if isinstance(automation.configuration, CronAutomationConfiguration):
             feeds.append(CronTaskFeed(automation, settings.settings.polling, cron))
         else:
-            feeds.append(GitHubTaskFeed(automation, settings.settings.polling, github_source))
+            feeds.append(PollingTaskFeed(automation, settings.settings.polling, github_source))
     return feeds
 
 

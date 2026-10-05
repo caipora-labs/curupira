@@ -16,7 +16,6 @@ from opscli.config import load_settings
 from opscli.dispatcher import create_task_feeds, dispatch_next_task
 from opscli.errors import DispatchError
 from opscli.executor import TaskExecutor
-from opscli.feeds import merge_task_streams
 from opscli.models.base import ValidatedModel
 from opscli.runtime import (
     DispatchInstanceLock,
@@ -29,6 +28,7 @@ from opscli.runtime import (
 from opscli.scheduler import TaskScheduler
 from opscli.status import TerminalTaskStatus
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
+from opscli.tasks.feed import merge_task_streams
 from opscli.telemetry import TaskTelemetry
 
 
