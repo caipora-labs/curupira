@@ -4,9 +4,9 @@ from pathlib import Path
 
 from typing_extensions import override
 
-from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.coding_agents import CodingAgentCliAdapter, SessionStartedCallback
-from gh_dispatch.models import (
+from opscli.agents.base import CodingAgentCliAdapter, SessionStartedCallback
+from opscli.clients.gh import GhClient
+from opscli.models import (
     CodingTaskRequest,
     GhIssue,
     GhIssueSearchRequest,
@@ -28,6 +28,9 @@ class FakeGitHub(GhClient):
         self.issues = issues or []
         self.pulls = pulls or []
         self.checkouts: list[Path] = []
+        self.worktrees: list[Path] = []
+        self.removed_worktrees: list[Path] = []
+        self.setup_scripts: list[str] = []
 
     @override
     async def list_issues(self, request: GhIssueSearchRequest) -> list[GhIssue]:
@@ -41,6 +44,45 @@ class FakeGitHub(GhClient):
     async def ensure_repository(self, request: GhRepositoryCloneRequest) -> GhRepositoryCheckout:
         self.checkouts.append(request.destination)
         return GhRepositoryCheckout(repo=request.repo, path=request.destination, cloned=False)
+
+    @override
+    async def run_setup_script(
+        self,
+        checkout: GhRepositoryCheckout,
+        script: str,
+        *,
+        timeout_seconds: float | None = None,
+        max_output_bytes: int = 1_000_000,
+    ) -> ProcessResult:
+        self.setup_scripts.append(script)
+        return await super().run_setup_script(
+            checkout,
+            script,
+            timeout_seconds=timeout_seconds,
+            max_output_bytes=max_output_bytes,
+        )
+
+    @override
+    async def ensure_worktree(
+        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, number: int
+    ) -> Path:
+        path = (
+            checkout.path.with_name(f"{checkout.path.name}.worktrees")
+            / automation_id
+            / f"{task_type}-{number}"
+        )
+        self.worktrees.append(path)
+        return path
+
+    @override
+    async def remove_worktree(
+        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, number: int
+    ) -> None:
+        self.removed_worktrees.append(
+            checkout.path.with_name(f"{checkout.path.name}.worktrees")
+            / automation_id
+            / f"{task_type}-{number}"
+        )
 
 
 class RecordingAdapter(CodingAgentCliAdapter):

@@ -19,6 +19,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Renamed the product to OpsCli, the package and executable to `opscli`, and the
+  per-user runtime directory to `~/.opscli`.
 - Configuration moved to `settings` plus `coding_agents` with global polling and
   per-automation prompts; the map key is the automation ID.
 - Custom-agent names are only accepted where a verified native flag exists

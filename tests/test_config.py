@@ -6,8 +6,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from gh_dispatch.config import ApplicationSettings, load_settings
-from gh_dispatch.models import (
+from opscli.config import ApplicationSettings, load_settings
+from opscli.models import (
     CronAutomationConfiguration,
     IssueAutomationConfiguration,
     PullRequestAutomationConfiguration,
@@ -44,6 +44,24 @@ def test_discriminator_supports_independent_source_types(trigger: str, expected:
     assert isinstance(settings.coding_agents.automations["daily"], expected)
     assert settings.settings.max_active_tasks == 1
     assert settings.resolve_automations()["daily"].profile.provider == "opencode"
+    assert settings.coding_agents.automations["daily"].checkout == "worktree"
+
+
+@pytest.mark.parametrize(
+    "setup_script", ["", "/absolute/setup", "../setup", r"C:\\setup", "nested/../setup"]
+)
+def test_invalid_setup_script_path_is_rejected(setup_script: str) -> None:
+    with pytest.raises(ValidationError, match="setup_script"):
+        configuration(setup_script=setup_script)
+
+
+def test_checkout_options_and_relative_setup_script_are_validated() -> None:
+    automation = configuration(checkout="main", setup_script="scripts/setup.sh")
+    config = automation.coding_agents.automations["daily"]
+    assert config.checkout == "main"
+    assert config.setup_script == "scripts/setup.sh"
+    with pytest.raises(ValidationError, match="checkout"):
+        configuration(checkout="develop")
 
 
 @pytest.mark.parametrize(
@@ -116,6 +134,14 @@ def test_cursor_rejects_unknown_agent_modes() -> None:
     }
 
     with pytest.raises(ValidationError, match="agent"):
+        ApplicationSettings.model_validate(data)
+
+
+def test_trello_provider_is_rejected() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {"provider": "trello"}
+
+    with pytest.raises(ValidationError):
         ApplicationSettings.model_validate(data)
 
 

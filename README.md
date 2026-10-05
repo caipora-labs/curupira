@@ -1,7 +1,6 @@
-# gh-dispatch
+# OpsCli
 
-Dispatch GitHub issues, pull requests, and cron occurrences to local AI coding-agent
-CLIs with bounded concurrency and exclusive execution per checkout.
+OpsCli runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
 
 Each automation in the settings TOML watches one source (issues, pull requests, or a
 cron schedule) and carries its own prompt. All automations share one discovery,
@@ -21,40 +20,39 @@ while `watch` polls every automation continuously.
 Install as an isolated tool:
 
 ```bash
-uv tool install gh-dispatch
+uv tool install git+https://github.com/mariotaddeucci/gh-dispatch.git
 ```
 
-Or with pipx:
+The package is not yet published to PyPI. Install it directly from GitHub with `uv` as
+shown above.
 
-```bash
-pipx install gh-dispatch
-```
+## Documentation
 
-## Documentação
-
-Consulte o [guia completo em português](https://mariotaddeucci.github.io/gh-dispatch/) para
-instalação, configuração de automações, providers e comandos de operação.
+See the [full guide in Portuguese](https://mariotaddeucci.github.io/gh-dispatch/) for
+installation, automation configuration, providers, and operational commands.
 
 ## Configuration
 
-The default settings file is `~/.gh-dispatch/settings.toml`. Initialize it by copying
-the example and adjust repositories, paths, queries, and prompts:
+The default settings file is `~/.opscli/settings.toml`. Download the example
+configuration directly to that location, then adjust repositories, paths, queries, and
+prompts:
 
 ```bash
-mkdir -p ~/.gh-dispatch
-cp gh-dispatch.example.toml ~/.gh-dispatch/settings.toml
+mkdir -p ~/.opscli
+curl -fsSL https://raw.githubusercontent.com/mariotaddeucci/gh-dispatch/main/opscli.example.toml \
+  -o ~/.opscli/settings.toml
 ```
 
-The `~/.gh-dispatch` directory is created automatically when the default file is first
+The `~/.opscli` directory is created automatically when the default file is first
 loaded. Pass `--config path/to/settings.toml` to use a different file; relative workspace,
 state, and automation paths are resolved from that file's directory.
 
 ```toml
 [settings]
 max_active_tasks = 1
-workspace_dir = "~/.gh-dispatch/workspaces"
-state_db_path = "~/.gh-dispatch/state.sqlite3"
-# Endpoint opcional de traces OTLP/HTTP; omita para desativar a telemetria.
+workspace_dir = "~/.opscli/workspaces"
+state_db_path = "~/.opscli/state.sqlite3"
+# Optional OTLP/HTTP trace endpoint; omit it to disable telemetry.
 # otlp_endpoint = "http://localhost:4318/v1/traces"
 
 [settings.polling]
@@ -163,11 +161,27 @@ trello auth login
 Follow the pairing instructions printed by the CLI. This is the Scale-Flow CLI; do not
 install the unrelated npm packages also named `trello-cli`.
 
-`max_active_tasks` bounds concurrently running coding agents (default 1). Checkouts are
-exclusive: tasks sharing a workspace path run serially while unrelated workspaces run
-concurrently. Checkouts are created on demand with `gh repo clone` under
-`workspace_dir/owner/repo`. Nothing creates branches or worktrees, and nothing modifies
-issues or pull requests.
+`max_active_tasks` bounds concurrently running coding agents (default 1). By default,
+each task runs in a new worktree beside its base checkout, so tasks for the same repository
+can run concurrently without sharing edits. The worktree branch is created from the
+fetched remote default branch and is not pushed. Set `checkout = "main"` to use the
+shared checkout instead (this means the shared checkout, not a branch named `main`, and
+restores the previous exclusive behavior). `path` continues to select the base checkout.
+With `checkout = "main"`, the agent runs on the shared checkout exactly as it is: OpsCli does not fetch, pull, or switch branches there.
+Checkouts are created on demand with `gh repo clone` under `workspace_dir/owner/repo`.
+Nothing modifies issues or pull requests.
+
+An optional `setup_script` is a repository-relative executable path (no absolute paths
+or `..`). It runs directly, with the checkout root as its working directory, only when
+the base checkout has just been cloned. It does not run for an existing checkout or in
+the task worktree, so files or dependencies installed there are not available to the
+agent. Use `checkout = "main"` when the agent must run where setup wrote files. A nonzero
+setup exit prevents the agent from starting; the newly cloned checkout is removed, while
+an existing checkout is preserved. `validate` checks the path syntax but does not require
+the script to exist. `run --dry-run` does not fetch, clone, create a worktree, or run setup,
+so it cannot verify that the script or worktree will work. Existing automation TOML remains
+valid, but now uses a worktree by default; configure `checkout = "main"` to keep the old
+shared-checkout behavior.
 
 Each cron automation coalesces overdue ticks into a single pending occurrence; the same
 automation never runs concurrently with itself. `schedule` is a five-field cron
@@ -177,61 +191,62 @@ Without `start_date`, the window starts when the automation is first recorded.
 
 ### OpenTelemetry
 
-Defina `settings.otlp_endpoint` com o endpoint OTLP/HTTP de traces (por exemplo,
-`http://localhost:4318/v1/traces`) para exportar um span por issue, pull request ou
-ocorrência cron despachada. Cada span inclui repositório, tipo, identificador e resultado
-(sucesso ou falha); falhas também incluem `error.message`. O endpoint deve aceitar
-OTLP sobre HTTP/protobuf. Se o campo for omitido, nenhuma telemetria será exportada.
+Set `settings.otlp_endpoint` to an OTLP/HTTP trace endpoint (for example,
+`http://localhost:4318/v1/traces`) to export one span for each dispatched issue, pull
+request, or cron occurrence. Each span includes the repository, type, identifier, and
+result (success or failure); failures also include `error.message`. The endpoint must
+accept OTLP over HTTP/protobuf. If the field is omitted, no telemetry is exported.
 
 ### State files
 
 Running sessions and cron schedule state live in `state_db_path` (default
-`~/.gh-dispatch/state.sqlite3`). The per-user dispatch lock is stored in
-`~/.gh-dispatch/dispatch.lock`, and the dedicated log directory is
-`~/.gh-dispatch/logs`. Only one `run` or `watch` process can dispatch at a time; a second
+`~/.opscli/state.sqlite3`). The per-user dispatch lock is stored in
+`~/.opscli/dispatch.lock`, and the dedicated log directory is
+`~/.opscli/logs`. Only one `run` or `watch` process can dispatch at a time; a second
 process exits with an error rather than running tasks in parallel. Session records are
 removed when the agent process ends; `watch` resumes all saved sessions after a restart,
 and `run` resumes the saved session of the task it selects. If the file exists but is not
 a compatible database, the application exits with an error instead of deleting it —
 delete or move the file yourself to start fresh.
 
-### Arquivo de logs
+### Log file
 
-Os comandos `run` e `watch` acrescentam registros a
-`~/.gh-dispatch/logs/gh-dispatch.log`; reiniciar o processo não apaga o conteúdo anterior.
-Cada tarefa registra início e conclusão com horário, repositório, tipo e identificador. Se
-a tarefa falhar, o registro inclui o erro.
+The `run` and `watch` commands append records to
+`~/.opscli/logs/opscli.log`; restarting the process does not erase existing
+content. Each task records its start and completion time, repository, type, and
+identifier. If a task fails, the record includes the error.
 
 ## Usage
 
 Validate configuration without calling external CLIs or writing state:
 
 ```bash
-gh-dispatch validate
+opscli validate
 ```
 
 Execute one currently available task and wait for the agent to finish:
 
 ```bash
-gh-dispatch run
+opscli run
 ```
 
 Preview the selected task without reserving, persisting, cloning, or executing:
 
 ```bash
-gh-dispatch run --dry-run
+opscli run --dry-run
 ```
 
 Poll all automations with the shared bounded scheduler until interrupted:
 
 ```bash
-gh-dispatch watch
+opscli watch
 ```
 
 `validate` exits `0` when the configuration is valid and `2` on configuration errors.
 `run` exits with the agent process status, `0` when no task is available, and `1` on
 dispatch errors. `watch` exits `1` when any executed task failed, otherwise `0`.
-`run --dry-run` never reserves or persists cron occurrences.
+`run --dry-run` never reserves or persists cron occurrences and does not perform checkout,
+worktree, or setup operations.
 
 `watch` runs every CLI non-interactively so concurrent workers never contend for the
 terminal UI. Transient `gh` failures are retried with backoff; authentication,
@@ -239,8 +254,8 @@ configuration, output-format, and agent-task failures are not retried automatica
 
 ## Public interface
 
-`gh-dispatch` is CLI-first. The only supported programmatic surface is
-`gh_dispatch.__version__`; all other modules are internal implementation details that
+`opscli` is CLI-first. The only supported programmatic surface is
+`opscli.__version__`; all other modules are internal implementation details that
 may change without notice.
 
 ## Development and validation
