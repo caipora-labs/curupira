@@ -85,7 +85,7 @@ async def test_empty_cycles_back_off_and_reset_after_discovery(tmp_path: Path) -
         resolved_automation(tmp_path), PollingSettings(poll_interval_seconds=17), gh, sleep=sleep
     )
     stream = feed.stream()
-    assert (await anext(stream)).identity.number == 1
+    assert (await anext(stream)).identity.id == "1"
     with pytest.raises(StopPollingError):
         await anext(stream)
     assert waits == [17, 34, 17, 34]
