@@ -9,7 +9,7 @@ from typing_extensions import override
 
 from gh_dispatch.clients.gh import GhClient
 from gh_dispatch.errors import DispatchError
-from gh_dispatch.feeds import GitHubTaskFeed, merge_task_streams
+from gh_dispatch.feeds import GitHubTaskFeed, GitHubTaskSource, merge_task_streams
 from gh_dispatch.models import (
     GhIssue,
     GhIssueSearchRequest,
@@ -55,7 +55,7 @@ async def test_shared_polling_deduplicates_and_uses_global_batch(
 ) -> None:
     gh = FakeGitHub([[item()], [item()]])
     feed = GitHubTaskFeed(
-        resolved_automation(tmp_path, trigger=trigger), PollingSettings(batch_size=8), gh
+        resolved_automation(tmp_path, trigger=trigger), PollingSettings(batch_size=8), GitHubTaskSource(gh)
     )
     first = await feed.poll()
     assert len(first) == 1
@@ -66,8 +66,9 @@ async def test_shared_polling_deduplicates_and_uses_global_batch(
 
 async def test_different_automations_can_discover_the_same_item(tmp_path: Path) -> None:
     gh = FakeGitHub([[item()], [item()]])
-    first = GitHubTaskFeed(resolved_automation(tmp_path, "first"), PollingSettings(), gh)
-    second = GitHubTaskFeed(resolved_automation(tmp_path, "second"), PollingSettings(), gh)
+    source = GitHubTaskSource(gh)
+    first = GitHubTaskFeed(resolved_automation(tmp_path, "first"), PollingSettings(), source)
+    second = GitHubTaskFeed(resolved_automation(tmp_path, "second"), PollingSettings(), source)
     tasks = [*(await first.poll()), *(await second.poll())]
     assert len({task.identity.key for task in tasks}) == 2
 
@@ -82,7 +83,7 @@ async def test_empty_cycles_back_off_and_reset_after_discovery(tmp_path: Path) -
 
     gh = FakeGitHub([[], [], [item()], []])
     feed = GitHubTaskFeed(
-        resolved_automation(tmp_path), PollingSettings(poll_interval_seconds=17), gh, sleep=sleep
+        resolved_automation(tmp_path), PollingSettings(poll_interval_seconds=17), GitHubTaskSource(gh), sleep=sleep
     )
     stream = feed.stream()
     assert (await anext(stream)).identity.number == 1
@@ -107,7 +108,7 @@ async def test_backoff_is_bounded_and_transient_errors_do_not_stop_stream(tmp_pa
     feed = GitHubTaskFeed(
         resolved_automation(tmp_path),
         PollingSettings(poll_interval_seconds=200),
-        FailingGitHub([]),
+        GitHubTaskSource(FailingGitHub([])),
         sleep=sleep,
     )
     with pytest.raises(StopPollingError):

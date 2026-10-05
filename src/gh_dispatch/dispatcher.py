@@ -4,7 +4,7 @@ from gh_dispatch.clients.gh import GhClient
 from gh_dispatch.coding_agents import CliAdapterFactory, create_cli_adapter
 from gh_dispatch.config import ApplicationSettings
 from gh_dispatch.executor import TaskExecutor
-from gh_dispatch.feeds import CronTaskFeed, GitHubTaskFeed, TaskFeed
+from gh_dispatch.feeds import CronTaskFeed, GitHubTaskFeed, GitHubTaskSource, TaskFeed
 from gh_dispatch.models import CronAutomationConfiguration, DispatchOutcome
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.telemetry import TaskTelemetry
@@ -15,11 +15,12 @@ def create_task_feeds(
 ) -> list[TaskFeed]:
     """Build source-specific discovery using one resolved configuration snapshot."""
     feeds: list[TaskFeed] = []
+    github_source = GitHubTaskSource(gh)
     for automation in settings.resolve_automations().values():
         if isinstance(automation.configuration, CronAutomationConfiguration):
             feeds.append(CronTaskFeed(automation, settings.settings.polling, cron))
         else:
-            feeds.append(GitHubTaskFeed(automation, settings.settings.polling, gh))
+            feeds.append(GitHubTaskFeed(automation, settings.settings.polling, github_source))
     return feeds
 
 
