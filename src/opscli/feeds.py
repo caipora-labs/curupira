@@ -22,7 +22,7 @@ from opscli.models import (
     Task,
     TaskIdentity,
 )
-from opscli.repositories import CronScheduleRepository
+from opscli.storage import CronScheduleRepository
 
 logger = logging.getLogger(__name__)
 MAX_POLL_INTERVAL_SECONDS = 300.0

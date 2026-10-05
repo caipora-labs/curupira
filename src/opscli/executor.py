@@ -20,7 +20,7 @@ from opscli.models import (
     RunningCodingSession,
     Task,
 )
-from opscli.repositories import CronScheduleRepository, RunningSessionRepository
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.telemetry import TaskTelemetry
 
 logger = logging.getLogger(__name__)

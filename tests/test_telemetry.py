@@ -18,7 +18,7 @@ from opscli.models import (
     Task,
     TaskIdentity,
 )
-from opscli.repositories import CronScheduleRepository, RunningSessionRepository
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.telemetry import TaskTelemetry
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task, pull_request_task, resolved_automation

@@ -18,7 +18,6 @@ from opscli.errors import DispatchError
 from opscli.executor import TaskExecutor
 from opscli.feeds import merge_task_streams
 from opscli.models.base import ValidatedModel
-from opscli.repositories import CronScheduleRepository, RunningSessionRepository
 from opscli.runtime import (
     DispatchInstanceLock,
     InstanceAlreadyRunningError,
@@ -29,6 +28,7 @@ from opscli.runtime import (
 )
 from opscli.scheduler import TaskScheduler
 from opscli.status import TerminalTaskStatus
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.telemetry import TaskTelemetry
 
 
