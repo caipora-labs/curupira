@@ -3,7 +3,6 @@
 from opscli.clients.gh import GhClient
 from opscli.models import (
     CronAutomationConfiguration,
-    GhPullRequest,
     GhPullRequestSearchRequest,
     ResolvedAutomation,
     Task,

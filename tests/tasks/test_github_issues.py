@@ -7,11 +7,11 @@ from typing_extensions import override
 
 from opscli.clients.gh import GhClient
 from opscli.models import GhIssue, GhIssueSearchRequest, PollingSettings
+from opscli.storage import CronScheduleRepository
 from opscli.tasks.base import FeedDependencies
 from opscli.tasks.feed import PollingTaskFeed
 from opscli.tasks.github_issues import GitHubIssueSource, IssueTrigger
 from opscli.tasks.registry import get
-from opscli.storage import CronScheduleRepository
 from tests.helpers import issue_task, resolved_automation
 
 
