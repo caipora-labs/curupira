@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 from typing_extensions import override
 
-import gh_dispatch.tasks.registry as registry
-from gh_dispatch.feeds import TaskFeed
-from gh_dispatch.models import ResolvedAutomation, Task
-from gh_dispatch.tasks.base import FeedDependencies, Trigger
-from gh_dispatch.tasks.registry import get, register
+import opscli.tasks.registry as registry
+from opscli.feeds import TaskFeed
+from opscli.models import ResolvedAutomation, Task
+from opscli.tasks.base import FeedDependencies, Trigger
+from opscli.tasks.registry import get, register
 
 
 class FakeTrigger(Trigger):

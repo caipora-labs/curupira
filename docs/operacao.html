@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Valide, execute e acompanhe automações com gh-dispatch.">
-    <title>Operação · gh-dispatch</title>
+    <meta name="description" content="Valide, execute e acompanhe automações com OpsCli.">
+    <title>Operação · OpsCli</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
     <header class="site-header">
-      <a class="brand" href="index.html" aria-label="gh-dispatch, início">
-        <span class="brand-mark">gh</span> gh-dispatch
+      <a class="brand" href="index.html" aria-label="OpsCli, início">
+        <span class="brand-mark">op</span> OpsCli
       </a>
       <nav aria-label="Navegação principal">
         <a href="index.html">Início</a>
@@ -29,26 +29,26 @@
 
       <section class="command-row">
         <div><h2>Validar</h2><p>Confere TOML e referências sem executar uma automação.</p></div>
-        <pre><code>gh-dispatch validate</code></pre>
+        <pre><code>opscli validate</code></pre>
       </section>
       <section class="command-row">
         <div><h2>Executar uma tarefa</h2><p>Seleciona a primeira tarefa disponível e espera a CLI terminar. A linha de status se reescreve no terminal e não entra no arquivo de log.</p></div>
-        <pre><code>gh-dispatch run</code></pre>
+        <pre><code>opscli run</code></pre>
       </section>
       <section class="command-row">
         <div><h2>Pré-visualizar</h2><p>Mostra a seleção sem reservar cron, gravar estado, clonar ou executar.</p></div>
-        <pre><code>gh-dispatch run --dry-run</code></pre>
+        <pre><code>opscli run --dry-run</code></pre>
       </section>
       <section class="command-row">
         <div><h2>Acompanhar continuamente</h2><p>Consulta todas as automações e despacha tarefas conforme ficam disponíveis. A linha de status se reescreve no terminal e não entra no arquivo de log.</p></div>
-        <pre><code>gh-dispatch watch</code></pre>
+        <pre><code>opscli watch</code></pre>
       </section>
 
       <section class="content-section">
         <h2>Selecione outro TOML</h2>
-        <p>O padrão é <code>~/.gh-dispatch/settings.toml</code>. A opção pode vir antes do comando:</p>
-        <pre><code>gh-dispatch --config ./settings-dev.toml validate
-gh-dispatch --config ./settings-dev.toml watch</code></pre>
+        <p>O padrão é <code>~/.opscli/settings.toml</code>. A opção pode vir antes do comando:</p>
+        <pre><code>opscli --config ./settings-dev.toml validate
+opscli --config ./settings-dev.toml watch</code></pre>
       </section>
 
       <section class="content-section">
@@ -56,8 +56,8 @@ gh-dispatch --config ./settings-dev.toml watch</code></pre>
         <ul>
           <li>Somente um processo <code>run</code> ou <code>watch</code> pode despachar tarefas por vez.</li>
           <li>Checkouts são exclusivos: duas tarefas que usam o mesmo caminho rodam em sequência.</li>
-          <li>Sessões interrompidas são salvas em <code>~/.gh-dispatch/state.sqlite3</code> e retomadas por <code>watch</code> após reiniciar.</li>
-          <li>Logs de texto são acrescentados em <code>~/.gh-dispatch/logs/gh-dispatch.log</code>, com horário, repositório, tipo, ID e resultado da tarefa.</li>
+          <li>Sessões interrompidas são salvas em <code>~/.opscli/state.sqlite3</code> e retomadas por <code>watch</code> após reiniciar.</li>
+          <li>Logs de texto são acrescentados em <code>~/.opscli/logs/opscli.log</code>, com horário, repositório, tipo, ID e resultado da tarefa.</li>
           <li>O exportador de traces OTLP/HTTP é opcional; configure <code>settings.otlp_endpoint</code> para ativá-lo.</li>
         </ul>
       </section>

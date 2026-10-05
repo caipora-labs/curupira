@@ -36,8 +36,8 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Local gh-dispatch configuration and runtime state
-gh-dispatch.toml
+# Local opscli configuration and runtime state
+/*-dispatch.toml
 *.sqlite3
 *.sqlite3-journal
 workspaces/

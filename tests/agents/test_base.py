@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from gh_dispatch.agents.base import CodingAgentCliAdapter
-from gh_dispatch.clients.process import AsyncProcessRunner
-from gh_dispatch.errors import UnsupportedCodingAgentError
-from gh_dispatch.models import (
+from opscli.agents.base import CodingAgentCliAdapter
+from opscli.clients.process import AsyncProcessRunner
+from opscli.errors import UnsupportedCodingAgentError
+from opscli.models import (
     CliProfile,
     CodexCliProfile,
     CodingTaskRequest,

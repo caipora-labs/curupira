@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Configure watchers de issues, pull requests e cron no gh-dispatch.">
-    <title>Configuração · gh-dispatch</title>
+    <meta name="description" content="Configure watchers de issues, pull requests e cron no OpsCli.">
+    <title>Configuração · OpsCli</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
     <header class="site-header">
-      <a class="brand" href="index.html" aria-label="gh-dispatch, início">
-        <span class="brand-mark">gh</span> gh-dispatch
+      <a class="brand" href="index.html" aria-label="OpsCli, início">
+        <span class="brand-mark">op</span> OpsCli
       </a>
       <nav aria-label="Navegação principal">
         <a href="index.html">Início</a>
@@ -35,8 +35,8 @@
         <p>Este exemplo configura os três tipos de automação e perfis para os quatro providers:</p>
         <pre><code>[settings]
 max_active_tasks = 2
-workspace_dir = "~/.gh-dispatch/workspaces"
-state_db_path = "~/.gh-dispatch/state.sqlite3"
+workspace_dir = "~/.opscli/workspaces"
+state_db_path = "~/.opscli/state.sqlite3"
 
 [coding_agents.defaults]
 profile = "opencode"
@@ -86,7 +86,7 @@ schedule = "0 9 * * 1"
 profile = "codex"
 prompt = "Faça a manutenção semanal de ${repo}."</code></pre>
         <p>
-          Salve o arquivo como <code>~/.gh-dispatch/settings.toml</code>. Os nomes depois de
+          Salve o arquivo como <code>~/.opscli/settings.toml</code>. Os nomes depois de
           <code>profiles.</code> e <code>automations.</code> são identificadores escolhidos por
           você; <code>profile</code> liga cada automação a um perfil existente. Por padrão,
           cada tarefa escreve em uma worktree própria, não no checkout compartilhado. O campo
@@ -143,7 +143,7 @@ prompt = "Faça a manutenção semanal de ${repo}."</code></pre>
           <h2>Valide antes de executar</h2>
           <p>O comando verifica o TOML sem chamar providers, criar checkouts ou gravar estado.</p>
         </div>
-        <code class="inline-command">gh-dispatch validate</code>
+        <code class="inline-command">opscli validate</code>
       </section>
     </main>
 
