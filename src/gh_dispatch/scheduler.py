@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from collections import deque
-from collections.abc import AsyncGenerator, AsyncIterator, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
 from pathlib import Path
 
 from gh_dispatch.executor import TaskExecutor
@@ -18,9 +18,16 @@ ReaderTask = asyncio.Task[WorkItem | None]
 class TaskScheduler:
     """Run independent workspaces concurrently without concurrent checkout writers."""
 
-    def __init__(self, settings: ExecutionSettings, executor: TaskExecutor) -> None:
+    def __init__(
+        self,
+        settings: ExecutionSettings,
+        executor: TaskExecutor,
+        *,
+        on_active_tasks_changed: Callable[[Sequence[Task]], None] | None = None,
+    ) -> None:
         self._settings = settings
         self._executor = executor
+        self._on_active_tasks_changed = on_active_tasks_changed
         self.failed_tasks = 0
 
     async def run(
@@ -45,6 +52,7 @@ class TaskScheduler:
         source = incoming()
         exhausted = False
         try:
+            self._notify_active_tasks(active)
             while not exhausted or pending or active:
                 self._launch_available(pending, active)
                 reader = self._ensure_reader(reader, exhausted, pending, source)
@@ -58,6 +66,7 @@ class TaskScheduler:
                     exhausted = self._consume_reader(reader, pending, seen)
                     reader = None
                 self._reap_finished(active, finished, seen)
+                self._notify_active_tasks(active)
         finally:
             await self._cancel_all(reader, active, source)
 
@@ -77,6 +86,12 @@ class TaskScheduler:
             )
             active[worker] = selected
             occupied.add(path)
+            self._notify_active_tasks(active)
+
+    def _notify_active_tasks(self, active: ActiveTasks) -> None:
+        """Publish active task snapshots for terminal status rendering."""
+        if self._on_active_tasks_changed is not None:
+            self._on_active_tasks_changed(tuple(active.values()))
 
     def _ensure_reader(
         self,

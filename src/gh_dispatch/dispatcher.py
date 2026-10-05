@@ -1,11 +1,13 @@
 """Feed construction and source-independent one-shot dispatch."""
 
+from collections.abc import Callable
+
 from gh_dispatch.clients.gh import GhClient
 from gh_dispatch.coding_agents import CliAdapterFactory, create_cli_adapter
 from gh_dispatch.config import ApplicationSettings
 from gh_dispatch.executor import TaskExecutor
 from gh_dispatch.feeds import CronTaskFeed, GitHubTaskFeed, TaskFeed
-from gh_dispatch.models import CronAutomationConfiguration, DispatchOutcome
+from gh_dispatch.models import CronAutomationConfiguration, DispatchOutcome, Task
 from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
 from gh_dispatch.telemetry import TaskTelemetry
 
@@ -30,6 +32,7 @@ async def dispatch_next_task(
     dry_run: bool = False,
     adapter_factory: CliAdapterFactory = create_cli_adapter,
     telemetry: TaskTelemetry | None = None,
+    on_task_selected: Callable[[Task], None] | None = None,
 ) -> DispatchOutcome:
     """Run the first currently available task, or preview it without any writes."""
     cron = CronScheduleRepository(settings.settings.state_db_path)
@@ -52,6 +55,8 @@ async def dispatch_next_task(
             telemetry=telemetry,
         )
         task = resumed.task if resumed is not None else selected
+        if on_task_selected is not None:
+            on_task_selected(task)
         result = await executor.execute(task, resumed)
         return DispatchOutcome(selected=task, process=result)
     return DispatchOutcome(selected=None)

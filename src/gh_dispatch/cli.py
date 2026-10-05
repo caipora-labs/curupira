@@ -28,6 +28,7 @@ from gh_dispatch.runtime import (
     ensure_runtime_directories,
 )
 from gh_dispatch.scheduler import TaskScheduler
+from gh_dispatch.status import TerminalTaskStatus
 from gh_dispatch.telemetry import TaskTelemetry
 
 
@@ -121,9 +122,19 @@ async def _execute_command(options: CliOptions) -> int:
             root_logger.addHandler(log_handler)
         gh = GhClient()
         if options.command == "run":
-            outcome = await dispatch_next_task(
-                settings, gh, dry_run=options.dry_run, telemetry=telemetry
-            )
+            status = TerminalTaskStatus()
+            try:
+                outcome = await dispatch_next_task(
+                    settings,
+                    gh,
+                    dry_run=options.dry_run,
+                    telemetry=telemetry,
+                    on_task_selected=lambda task: status.update(
+                        (task,), settings.settings.max_active_tasks
+                    ),
+                )
+            finally:
+                status.clear()
             if outcome.selected is None:
                 print("No matching task is currently available.")
                 return 0
@@ -148,11 +159,21 @@ async def _execute_command(options: CliOptions) -> int:
         cron = CronScheduleRepository(settings.settings.state_db_path)
         feeds = create_task_feeds(settings, gh, cron)
         executor = TaskExecutor(settings.settings, gh, sessions, cron, telemetry=telemetry)
-        scheduler = TaskScheduler(settings.settings, executor)
+        status = TerminalTaskStatus(show_idle=True)
+        scheduler = TaskScheduler(
+            settings.settings,
+            executor,
+            on_active_tasks_changed=lambda tasks: status.update(
+                tasks, settings.settings.max_active_tasks
+            ),
+        )
         tasks = merge_task_streams(
             [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
         )
-        await scheduler.run(tasks, resume_sessions=recovered)
+        try:
+            await scheduler.run(tasks, resume_sessions=recovered)
+        finally:
+            status.clear()
         return 1 if scheduler.failed_tasks else 0
     except (DispatchError, OSError, ValidationError) as error:
         print(f"Dispatch error: {error}", file=sys.stderr)
