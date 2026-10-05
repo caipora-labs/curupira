@@ -6,7 +6,7 @@ from opscli.agents import CliAdapterFactory, create_cli_adapter
 from opscli.clients.gh import GhClient
 from opscli.config import ApplicationSettings
 from opscli.executor import TaskExecutor
-from opscli.feeds import CronTaskFeed, GitHubTaskFeed, TaskFeed
+from opscli.feeds import CronTaskFeed, GitHubTaskFeed, GitHubTaskSource, TaskFeed
 from opscli.models import CronAutomationConfiguration, DispatchOutcome, Task
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.telemetry import TaskTelemetry
@@ -17,11 +17,12 @@ def create_task_feeds(
 ) -> list[TaskFeed]:
     """Build source-specific discovery using one resolved configuration snapshot."""
     feeds: list[TaskFeed] = []
+    github_source = GitHubTaskSource(gh)
     for automation in settings.resolve_automations().values():
         if isinstance(automation.configuration, CronAutomationConfiguration):
             feeds.append(CronTaskFeed(automation, settings.settings.polling, cron))
         else:
-            feeds.append(GitHubTaskFeed(automation, settings.settings.polling, gh))
+            feeds.append(GitHubTaskFeed(automation, settings.settings.polling, github_source))
     return feeds
 
 
