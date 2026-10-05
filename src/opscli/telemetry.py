@@ -39,7 +39,7 @@ class TaskTelemetry:
         attributes = {
             "opscli.repo": identity.repo,
             "opscli.task.type": identity.task_type,
-            "opscli.task.id": str(identity.number),
+            "opscli.task.id": identity.id,
         }
         with self._tracer.start_as_current_span(
             f"opscli.task.{identity.task_type}",

@@ -15,8 +15,8 @@ def create_cli_adapter(
 ) -> CodingAgentCliAdapter:
     """Construct the native adapter for a supported provider."""
     from opscli.agents.codex import CodexCliAdapter
+    from opscli.agents.cursor import CursorCliAdapter
     from opscli.clients.claude import ClaudeCodeCliAdapter
-    from opscli.clients.cursor import CursorCliAdapter
     from opscli.clients.opencode import OpenCodeCliAdapter
 
     adapters: dict[str, type[CodingAgentCliAdapter]] = {

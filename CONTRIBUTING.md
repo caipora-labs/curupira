@@ -36,7 +36,7 @@ changes to `opscli.example.toml` must keep `test_example_configuration_is_valid`
 - `feeds.py` — task discovery (`GitHubTaskFeed`, `CronTaskFeed`, multiplexing).
 - `executor.py` / `scheduler.py` / `dispatcher.py` — shared execution pipeline used
   identically by every trigger type.
-- `repositories/` — SQLite persistence with validated payloads; incompatible files
+- `storage/` — SQLite persistence with validated payloads; incompatible files
   raise instead of being deleted.
 - `cli.py` — argument parsing and exit codes only.
 

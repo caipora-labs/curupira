@@ -22,7 +22,7 @@ from opscli.models import (
     Task,
     TaskIdentity,
 )
-from opscli.repositories import CronScheduleRepository
+from opscli.storage import CronScheduleRepository
 
 logger = logging.getLogger(__name__)
 MAX_POLL_INTERVAL_SECONDS = 300.0
@@ -85,7 +85,7 @@ class GitHubTaskFeed:
                 automation_id=self.automation.automation_id,
                 repo=config.repo,
                 task_type=config.trigger_type,
-                number=item.number,
+                id=str(item.number),
             )
             if identity.key in self._seen:
                 continue
@@ -167,7 +167,7 @@ class CronTaskFeed:
             automation_id=name,
             repo=config.repo,
             task_type="cron",
-            number=int(occurrence.timestamp()),
+            id=str(int(occurrence.timestamp())),
         )
         if not preview and self._emitted == identity.key:
             return []

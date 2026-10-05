@@ -11,7 +11,7 @@ from opscli.models import (
     PollingSettings,
     RunningCodingSession,
 )
-from opscli.repositories import CronScheduleRepository, RunningSessionRepository
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from tests.helpers import resolved_automation
 
 

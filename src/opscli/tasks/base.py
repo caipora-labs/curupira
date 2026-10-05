@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from opscli.clients.gh import GhClient
 from opscli.models import PollingSettings, ResolvedAutomation, Task
-from opscli.repositories import CronScheduleRepository
+from opscli.storage import CronScheduleRepository
 
 if TYPE_CHECKING:
     from opscli.feeds import TaskFeed

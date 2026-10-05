@@ -8,7 +8,7 @@ from opscli.config import ApplicationSettings
 from opscli.executor import TaskExecutor
 from opscli.feeds import CronTaskFeed, GitHubTaskFeed, TaskFeed
 from opscli.models import CronAutomationConfiguration, DispatchOutcome, Task
-from opscli.repositories import CronScheduleRepository, RunningSessionRepository
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.telemetry import TaskTelemetry
 
 
