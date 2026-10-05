@@ -5,8 +5,6 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 import pytest
-from typing_extensions import override
-
 from gh_dispatch.clients.gh import GhClient
 from gh_dispatch.clients.process import AsyncProcessRunner
 from gh_dispatch.coding_agents import CodingAgentCliAdapter, create_cli_adapter
@@ -29,6 +27,7 @@ from gh_dispatch.models import (
     OpenCodeCliProfile,
     ProcessResult,
 )
+from typing_extensions import override
 
 
 class RecordingRunner(AsyncProcessRunner):
@@ -310,12 +309,18 @@ async def test_project_query_accepts_newline_json_and_requests_board_filter() ->
     assert (
         len(
             await GhClient(runner).list_issues(
-                GhIssueSearchRequest(repo="acme/api", query="project:acme/1")
+                GhIssueSearchRequest(repo="acme/api", query="is:open project:acme/9")
             )
         )
         == 2
     )
-    assert "--jq" in runner.requests[0].arguments
+    arguments = runner.requests[0].arguments
+    assert arguments[arguments.index("--state") + 1] == "open"
+    assert "is:open project:acme/9" in arguments
+    assert "--jq" in arguments
+    assert arguments[arguments.index("--jq") + 1] == (
+        '.[] | select(any(.projectItems[]?; .status.name == "Todo"))'
+    )
 
 
 async def test_pull_request_branch_metadata_is_preserved() -> None:
