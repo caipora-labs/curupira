@@ -4,14 +4,14 @@ import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 
-from gh_dispatch.feeds import CronTaskFeed, latest_due_occurrence
-from gh_dispatch.models import (
+from opscli.feeds import CronTaskFeed, latest_due_occurrence
+from opscli.models import (
     CronAutomationConfiguration,
     CronRunState,
     PollingSettings,
     RunningCodingSession,
 )
-from gh_dispatch.storage import CronScheduleRepository, RunningSessionRepository
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from tests.helpers import resolved_automation
 
 

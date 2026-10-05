@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from gh_dispatch.config import ApplicationSettings
-from gh_dispatch.models import ResolvedAutomation, Task, TaskIdentity
+from opscli.config import ApplicationSettings
+from opscli.models import ResolvedAutomation, Task, TaskIdentity
 
 
 def resolved_automation(

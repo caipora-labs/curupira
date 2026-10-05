@@ -7,11 +7,11 @@ from pathlib import Path
 
 from typing_extensions import override
 
-from gh_dispatch.coding_agents import SessionStartedCallback
-from gh_dispatch.executor import TaskExecutor
-from gh_dispatch.models import CodingTaskRequest, ExecutionSettings, ProcessResult, Task
-from gh_dispatch.scheduler import TaskScheduler
-from gh_dispatch.storage import CronScheduleRepository, RunningSessionRepository
+from opscli.agents.base import SessionStartedCallback
+from opscli.executor import TaskExecutor
+from opscli.models import CodingTaskRequest, ExecutionSettings, ProcessResult, Task
+from opscli.scheduler import TaskScheduler
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task, pull_request_task
 
