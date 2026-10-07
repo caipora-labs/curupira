@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Rust crate `crates/opscli-core`, compiled with maturin into the `opscli._native`
+  extension shipped in the wheel. `rust_core_version()` returns the crate version.
+  The Python CLI entry point is unchanged.
 - Keyed automations with a `trigger_type` discriminator (`issue`, `pull_request`,
   `cron`) sharing one discovery, scheduling, and execution pipeline.
 - Native provider adapters for OpenCode, Codex, Claude Code, and Cursor with

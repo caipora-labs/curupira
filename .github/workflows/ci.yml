@@ -104,6 +104,10 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - run: uv sync --frozen --dev
+      # dtolnay/rust-toolchain (2026-10-01)
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+        with:
+          toolchain: stable
       - run: uv build
       - run: uv run --no-sync twine check dist/*
       - name: Smoke-test the installed wheel outside the repository
@@ -112,4 +116,15 @@ jobs:
           /tmp/smoke/bin/pip install dist/*.whl
           cd /tmp
           /tmp/smoke/bin/python -c "import opscli; print(opscli.__version__)"
+          /tmp/smoke/bin/python - <<'PY'
+          from opscli._native import rust_core_version
+          from opscli.native import rust_core_version as wrapped
+
+          version = rust_core_version()
+          if not isinstance(version, str) or not version.strip():
+              raise SystemExit(f"empty native version: {version!r}")
+          if wrapped() != version:
+              raise SystemExit("opscli.native.rust_core_version did not return the crate version")
+          print(version)
+          PY
           /tmp/smoke/bin/opscli --help

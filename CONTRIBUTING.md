@@ -3,14 +3,19 @@
 ## Environment setup
 
 Requirements: Python 3.11+, [`uv`](https://docs.astral.sh/uv/), `gh` for live
-discovery (tests use fakes and need no authentication).
+discovery (tests use fakes and need no authentication), and a stable [Rust](https://rustup.rs/)
+toolchain when building the native extension or a wheel.
 
 ```bash
 uv sync --dev
 ```
 
+`uv sync` installs the Python package and the `opscli` console script. It does not
+compile Rust, so the CLI and the Python test suite run without a toolchain.
+
 A fresh contributor verifies everything with the commands below. They must all pass
-before opening a pull request; CI runs the same steps.
+before opening a pull request; CI runs the same steps. `uv build` compiles the native
+extension and therefore needs Rust on `PATH`.
 
 ## Verification commands
 
@@ -24,6 +29,35 @@ uv run --no-sync ruff format --check .
 uv run --no-sync pyrefly check
 uv build
 uv run --no-sync twine check dist/*
+```
+
+## Native extension
+
+The Rust crate is `crates/opscli-core`. Hatchling stays the PEP 517 backend, keeps the
+version in `src/opscli/_version.py`, and keeps the `opscli` script entry point. A wheel
+build hook runs maturin (PyO3) and packs the compiled module as `opscli._native`.
+Editable installs skip that compile.
+
+Build the extension into the current environment:
+
+```bash
+uv sync --dev
+uv run maturin develop
+python -c "from opscli._native import rust_core_version; print(rust_core_version())"
+```
+
+`maturin develop` warns that the build backend is Hatchling. That warning is expected:
+Hatchling still packages the Python project and the `opscli` script, and maturin only
+compiles the extension.
+
+`rust_core_version()` returns the `opscli-core` crate version. `opscli.native.rust_core_version`
+is a thin wrapper around that function. `tests/test_native.py` runs the same check when
+the extension is already built and skips otherwise.
+
+Build a wheel that includes the extension (this is what CI and `pip install` use):
+
+```bash
+uv build
 ```
 
 When collecting coverage, it must stay at or above 85% branch coverage

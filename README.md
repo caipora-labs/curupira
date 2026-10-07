@@ -270,6 +270,11 @@ uv build
 uv run --no-sync twine check dist/*
 ```
 
+`uv sync` installs the Python package without compiling Rust. `uv build` produces a wheel
+that includes the `opscli._native` extension and needs a stable Rust toolchain. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for `maturin develop` and the crate layout under
+`crates/opscli-core`.
+
 To inspect branch coverage locally, run `uv run --no-sync pytest --cov --cov-report=term-missing`;
 the configured minimum is 85%.
 

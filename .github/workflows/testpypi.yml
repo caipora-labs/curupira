@@ -22,6 +22,10 @@ jobs:
         with:
           python-version: "3.11"
           enable-cache: true
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+        with:
+          toolchain: stable
       - name: Verify main validation checks passed for this commit
         env:
           GH_REPOSITORY: ${{ github.repository }}
@@ -106,4 +110,5 @@ jobs:
             --extra-index-url https://pypi.org/simple/ \
             "opscli==${PACKAGE_VERSION}"
           /tmp/opscli-testpypi/bin/python -c "import opscli; print(opscli.__version__)"
+          /tmp/opscli-testpypi/bin/python -c "from opscli._native import rust_core_version; version = rust_core_version(); assert isinstance(version, str) and version.strip(); print(version)"
           /tmp/opscli-testpypi/bin/opscli --version
