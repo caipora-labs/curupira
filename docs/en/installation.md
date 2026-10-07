@@ -11,7 +11,7 @@
 The package is not yet published to PyPI. Install it from GitHub:
 
 ```bash
-uv tool install git+https://github.com/mariotaddeucci/opscli.git
+uv tool install git+https://github.com/caipora-labs/opscli.git
 ```
 
 Confirm the command is available with `opscli --version`.
@@ -22,7 +22,7 @@ OpsCli reads `~/.opscli/settings.toml` by default. Download the example configur
 
 ```bash
 mkdir -p ~/.opscli
-curl -fsSL https://raw.githubusercontent.com/mariotaddeucci/opscli/main/opscli.example.toml \
+curl -fsSL https://raw.githubusercontent.com/caipora-labs/opscli/main/opscli.example.toml \
   -o ~/.opscli/settings.toml
 ```
 
@@ -31,7 +31,7 @@ On Windows PowerShell:
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\.opscli"
 Invoke-WebRequest `
-  -Uri https://raw.githubusercontent.com/mariotaddeucci/opscli/main/opscli.example.toml `
+  -Uri https://raw.githubusercontent.com/caipora-labs/opscli/main/opscli.example.toml `
   -OutFile "$HOME\.opscli\settings.toml"
 ```
 

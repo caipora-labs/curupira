@@ -61,7 +61,6 @@ theme:
     - navigation.top
     - content.code.copy
     - language.select
-  custom_dir: docs/overrides
 extra_css:
   - stylesheets/extra.css
 nav:

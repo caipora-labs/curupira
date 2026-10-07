@@ -114,6 +114,14 @@ open a follow-up pull request to synchronize the corresponding Portuguese (`docs
 Spanish (`docs/es/`) pages. Generated Pydantic reference stays canonical in English; other
 languages should link to it rather than manually translating generated fields.
 
+## Documentation brand tokens
+
+The MkDocs Material theme uses the Caipora Labs brand palette: `primary` `#F7931F`,
+`primary-deep` `#EA6114`, `skin` `#8E4F26`, `accent` `#39873B`, `neutral-0` `#FEFDFC`,
+and `neutral-900` `#1A1A1A`. Keep these canonical values in
+`docs/stylesheets/extra.css`; do not introduce additional brand colors without a new
+decision.
+
 ## Dependency audits
 
 `pip-audit` runs in CI against the synced development environment:

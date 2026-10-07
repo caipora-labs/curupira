@@ -20,7 +20,7 @@ while `watch` polls every automation continuously.
 Install as an isolated tool:
 
 ```bash
-uv tool install git+https://github.com/mariotaddeucci/opscli.git
+uv tool install git+https://github.com/caipora-labs/opscli.git
 ```
 
 The package is not yet published to PyPI. Install it directly from GitHub with `uv` as
@@ -28,7 +28,7 @@ shown above.
 
 ## Documentation
 
-See the [full guide in Portuguese](https://mariotaddeucci.github.io/opscli/) for
+See the [full guide in Portuguese](https://caipora-labs.github.io/opscli/) for
 installation, automation configuration, providers, and operational commands.
 
 ## Configuration
@@ -39,7 +39,7 @@ prompts:
 
 ```bash
 mkdir -p ~/.opscli
-curl -fsSL https://raw.githubusercontent.com/mariotaddeucci/opscli/main/opscli.example.toml \
+curl -fsSL https://raw.githubusercontent.com/caipora-labs/opscli/main/opscli.example.toml \
   -o ~/.opscli/settings.toml
 ```
 
