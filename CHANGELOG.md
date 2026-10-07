@@ -21,6 +21,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Development tags `vX.Y.Z.devN` publish that PEP 440 version to TestPyPI. Stable
+  `vX.Y.Z` tags still publish to PyPI and open a GitHub Release.
 - Renamed the installable package, primary console script, and Python import from `curupi`
   to `curupira`, and added the short CLI alias `curu`. The product name remains OpsCli.
   Configuration and state now default to `~/.curupira` (example file

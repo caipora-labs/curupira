@@ -156,15 +156,49 @@ permanent ignore.
 
 Versioning is `MAJOR.MINOR.PATCH`. The single version source is
 `src/curupira/_version.py`; the build backend reads it, and the CLI reports it.
+Built wheels and sdists use that string as-is, so the Git tag and the file match
+character for character after the tag's leading `v`.
+
+### TestPyPI development rehearsal
+
+Tag `vX.Y.Z.devN` publishes package `X.Y.Z.devN` (PEP 440) to TestPyPI. Bump the
+version in `src/curupira/_version.py`, commit that change, and tag the same commit.
+The first rehearsal is `0.1.0.dev0`.
+
+1. Set `__version__` to `0.1.0.dev0` and commit.
+2. Wait until CI is green on that commit. The tag workflow publishes only after the
+   Linux test matrix, lint, type check, and distribution build have succeeded for
+   the tagged SHA.
+3. Tag that commit and push the tag:
+
+```bash
+git tag v0.1.0.dev0
+git push origin v0.1.0.dev0
+```
+
+`testpypi.yml` builds the Rust-enabled wheel and sdist with `uv build`, checks that
+both versions equal the tag without its leading `v`, and publishes with Trusted
+Publishing (`id-token: write`, environment `testpypi`). It then installs
+`curupira==0.1.0.dev0` and runs `curupira --help`, `curupira --version`,
+`curu --help`, `curu --version`, and `rust_core_version`.
+
+Use the canonical dotted form `v0.1.0.dev0`. The next rehearsal is a new suffix,
+for example `0.1.0.dev1` and tag `v0.1.0.dev1`, because TestPyPI keeps an uploaded
+file. Tags that contain `.dev` skip PyPI (`publish.yml`) and GitHub Releases
+(`release.yml`).
+
+Stable `vX.Y.Z` tags keep the production path below. Issue #103 publishes `0.1.0`
+from a commit whose `__version__` is `0.1.0`. `workflow_dispatch` of `testpypi.yml`
+on `main` still rehearses the committed version without a tag check.
 
 To cut a release:
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` into a new version section.
-2. Bump `__version__` in `src/curupira/_version.py` to match.
+2. Bump `__version__` in `src/curupira/_version.py` to the stable `X.Y.Z` version.
 3. Run the full verification suite and confirm `uv build` plus
    `uv run --no-sync twine check dist/*` pass.
-4. Before the first production publication, run the `testpypi.yml` workflow manually
-   from `main` to rehearse the upload to TestPyPI and verify the installed package.
+4. Rehearse with a `vX.Y.Z.devN` tag (see above) before the first production
+   publication. `testpypi.yml` can also be run manually from `main`.
 5. Tag the validated commit as `vX.Y.Z` and push the tag. The `publish.yml` workflow
    publishes that version to PyPI; the `release.yml` workflow attaches the distributions
    to the matching GitHub release.
