@@ -6,8 +6,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from gh_dispatch.config import ApplicationSettings, load_settings
-from gh_dispatch.models import (
+from opscli.config import ApplicationSettings, load_settings
+from opscli.models import (
     CronAutomationConfiguration,
     IssueAutomationConfiguration,
     PullRequestAutomationConfiguration,
@@ -83,6 +83,23 @@ def test_checkout_options_and_relative_setup_script_are_validated() -> None:
 def test_invalid_automation_is_rejected(overrides: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         configuration(**overrides)
+
+
+def test_unregistered_trigger_type_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="unknown trigger type: unknown"):
+        configuration("unknown")
+
+
+def test_registered_alias_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    import opscli.tasks  # noqa: F401
+    from opscli.tasks import registry
+
+    monkeypatch.setattr(registry, "_ALIASES", {})
+    registry.register_alias("issue", "legacy_issue")
+
+    automation = configuration("legacy_issue").coding_agents.automations["daily"]
+
+    assert automation.trigger_type == "legacy_issue"
 
 
 @pytest.mark.parametrize("field", ["max_active_tasks", "max_pending_tasks"])
@@ -252,8 +269,8 @@ async def test_missing_file_and_environment_precedence(
     assert configuration().settings.max_active_tasks == 1
 
 
-def test_json_schema_describes_discriminated_map() -> None:
+def test_json_schema_keeps_the_three_supported_configuration_shapes() -> None:
     schema = ApplicationSettings.model_json_schema()
     automations = schema["$defs"]["CodingAgentsSettings"]["properties"]["automations"]
     values = next(iter(automations["patternProperties"].values()))
-    assert values["discriminator"]["propertyName"] == "trigger_type"
+    assert len(values["anyOf"]) == 3

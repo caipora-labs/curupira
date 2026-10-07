@@ -11,4 +11,4 @@
 ## Documentation
 
 - [ ] README/CONTRIBUTING/CHANGELOG updated if user-facing behavior changed
-- [ ] `gh-dispatch.example.toml` still validates if configuration changed
+- [ ] `opscli.example.toml` still validates if configuration changed

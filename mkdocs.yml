@@ -1,0 +1,36 @@
+site_name: OpsCli
+site_url: https://mariotaddeucci.github.io/opscli/
+site_description: Run GitHub and cron automations with local coding-agent CLIs.
+repo_url: https://github.com/mariotaddeucci/opscli
+docs_dir: docs
+plugins:
+  - search
+  - macros:
+      module_name: main
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            extensions:
+              - griffe_pydantic:
+                  schema: true
+            docstring_style: google
+            inherited_members: true
+            members_order: source
+            show_if_no_docstring: true
+            show_root_heading: true
+            show_source: false
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Configuration: configuration.md
+  - Operations: operations.md
+  - Providers and agents: providers.md

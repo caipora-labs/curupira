@@ -4,22 +4,19 @@ import logging
 from pathlib import Path
 
 import pytest
-from typing_extensions import override
 
-from gh_dispatch.config import ApplicationSettings
-from gh_dispatch.dispatcher import dispatch_next_task
-from gh_dispatch.executor import render_task_prompt
-from gh_dispatch.models import (
+from opscli.config import ApplicationSettings
+from opscli.dispatcher import dispatch_next_task
+from opscli.executor import render_task_prompt
+from opscli.models import (
     CommandRequest,
     GhIssue,
     GhPullRequest,
-    GhRepositoryCheckout,
-    GhRepositoryCloneRequest,
     ProcessResult,
     RunningCodingSession,
 )
-from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
-from gh_dispatch.runtime import create_execution_log_handler
+from opscli.runtime import create_execution_log_handler
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task
 
@@ -53,7 +50,9 @@ async def test_dispatch_renders_the_task_prompt_and_uses_shared_executor(
         issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
     )
     adapter = RecordingAdapter()
-    outcome = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
+    outcome = await dispatch_next_task(
+        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
     assert outcome.selected is not None
     assert outcome.selected.identity.automation_id == "work"
     assert outcome.process is not None
@@ -78,7 +77,10 @@ async def test_dispatch_logs_failed_task_with_identity_and_error(
     )
 
     outcome = await dispatch_next_task(
-        configured, gh, adapter_factory=lambda _: RecordingAdapter(returncode=7)
+        configured,
+        gh,
+        adapter_factory=lambda _: RecordingAdapter(returncode=7),
+        version_control=gh.vcs,
     )
 
     assert outcome.process is not None
@@ -104,14 +106,17 @@ async def test_failed_dispatch_is_appended_to_the_central_log_file(
 
     try:
         await dispatch_next_task(
-            configured, gh, adapter_factory=lambda _: RecordingAdapter(returncode=7)
+            configured,
+            gh,
+            adapter_factory=lambda _: RecordingAdapter(returncode=7),
+            version_control=gh.vcs,
         )
     finally:
         root_logger.removeHandler(handler)
         handler.close()
         root_logger.setLevel(previous_level)
 
-    log_path = tmp_path / ".gh-dispatch" / "logs" / "gh-dispatch.log"
+    log_path = tmp_path / ".opscli" / "logs" / "opscli.log"
     lines = log_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
     assert "Starting task repo=acme/api type=issue id=42" in lines[0]
@@ -130,7 +135,7 @@ async def test_dry_run_has_no_state_checkout_or_process_side_effects(
     )
     adapter = RecordingAdapter()
     outcome = await dispatch_next_task(
-        configured, gh, dry_run=True, adapter_factory=lambda _: adapter
+        configured, gh, dry_run=True, adapter_factory=lambda _: adapter, version_control=gh.vcs
     )
     assert outcome.selected is not None
     assert outcome.process is None
@@ -157,7 +162,9 @@ async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
     gh = FakeGitHub(
         issues=[GhIssue(number=42, title="Changed", url="https://github.com/acme/api/issues/42")]
     )
-    result = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
+    result = await dispatch_next_task(
+        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
     assert result.selected == original
     assert adapter.requests[0].session_id == "original"
     assert "Continue the interrupted task" in adapter.requests[0].message
@@ -173,7 +180,9 @@ async def test_checkout_main_uses_shared_checkout_without_worktree(tmp_path: Pat
     )
     adapter = RecordingAdapter()
 
-    await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
+    await dispatch_next_task(
+        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
 
     assert adapter.requests[0].cwd == tmp_path
     assert not gh.worktrees
@@ -189,7 +198,9 @@ async def test_existing_checkout_does_not_rerun_setup(tmp_path: Path) -> None:
         issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
     )
 
-    await dispatch_next_task(configured, gh, adapter_factory=lambda _: RecordingAdapter())
+    await dispatch_next_task(
+        configured, gh, adapter_factory=lambda _: RecordingAdapter(), version_control=gh.vcs
+    )
 
     assert not gh.setup_scripts
 
@@ -205,28 +216,23 @@ async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(
             self.requests.append(request)
             return ProcessResult(returncode=7, stderr="setup failed")
 
-    class FreshCloneGitHub(FakeGitHub):
-        @override
-        async def ensure_repository(
-            self, request: GhRepositoryCloneRequest
-        ) -> GhRepositoryCheckout:
-            self.checkouts.append(request.destination)
-            return GhRepositoryCheckout(repo=request.repo, path=request.destination, cloned=True)
-
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     configured = settings(checkout)
     data = configured.model_dump()
     data["coding_agents"]["automations"]["work"]["setup_script"] = "setup.sh"
     configured = ApplicationSettings.model_validate(data)
-    gh = FreshCloneGitHub(
+    gh = FakeGitHub(
         issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
     )
     runner = FailedSetupRunner()
-    monkeypatch.setattr(gh, "_runner", runner)
+    gh.vcs.cloned = True
+    monkeypatch.setattr(gh.vcs, "_runner", runner)
     adapter = RecordingAdapter()
 
-    outcome = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
+    outcome = await dispatch_next_task(
+        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
 
     assert outcome.process is not None
     assert outcome.process.returncode == 7
@@ -269,7 +275,9 @@ async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
     assert outcome.selected.identity.task_type == "issue"
     gh.issues = []
     adapter = RecordingAdapter()
-    outcome = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
+    outcome = await dispatch_next_task(
+        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
     assert outcome.selected is not None
     assert outcome.selected.identity.task_type == "pull_request"
     assert adapter.requests[0].message == "Review feature -> main"
@@ -279,8 +287,9 @@ async def test_cron_execution_completes_claimed_state_through_shared_executor(
     tmp_path: Path,
 ) -> None:
     configured = settings(tmp_path, "cron")
+    gh = FakeGitHub()
     outcome = await dispatch_next_task(
-        configured, FakeGitHub(), adapter_factory=lambda _: RecordingAdapter()
+        configured, gh, adapter_factory=lambda _: RecordingAdapter(), version_control=gh.vcs
     )
     assert outcome.selected is not None
     assert outcome.selected.identity.task_type == "cron"

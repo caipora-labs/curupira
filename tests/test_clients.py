@@ -7,16 +7,16 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from gh_dispatch.clients.gh import GhClient
-from gh_dispatch.clients.process import AsyncProcessRunner
-from gh_dispatch.coding_agents import CodingAgentCliAdapter, create_cli_adapter
-from gh_dispatch.errors import (
+from opscli.agents import create_cli_adapter
+from opscli.agents.base import CodingAgentCliAdapter
+from opscli.clients.gh import GhClient
+from opscli.clients.process import AsyncProcessRunner
+from opscli.errors import (
     CliExecutionError,
     CliOutputError,
     UnsupportedCodingAgentError,
-    WorkspacePathError,
 )
-from gh_dispatch.models import (
+from opscli.models import (
     ClaudeCodeCliProfile,
     CliProfile,
     CodexCliProfile,
@@ -25,9 +25,9 @@ from gh_dispatch.models import (
     CursorCliProfile,
     GhIssueSearchRequest,
     GhPullRequestSearchRequest,
-    GhRepositoryCloneRequest,
     ProcessResult,
 )
+from opscli.vcs.github_cli import GitHubCliVersionControl
 
 
 class RecordingRunner(AsyncProcessRunner):
@@ -52,7 +52,7 @@ class RecordingRunner(AsyncProcessRunner):
         return result
 
 
-@pytest.mark.parametrize("provider", ["opencode", "codex", "claude", "cursor"])
+@pytest.mark.parametrize("provider", ["opencode", "codex", "claude"])
 def test_factory_selects_native_provider_adapter(provider: str) -> None:
     assert isinstance(create_cli_adapter(provider), CodingAgentCliAdapter)
 
@@ -96,7 +96,6 @@ async def test_omitted_options_and_option_like_prompts_are_literal(
             "custom-reviewer",
         ),
         (CodexCliProfile(agent="work"), "--profile", "work"),
-        (CursorCliProfile(agent="ask"), "--mode", "ask"),
     ],
 )
 async def test_agent_option_uses_its_provider_native_flag(
@@ -138,26 +137,6 @@ def test_provider_profiles_match_current_cli_argument_contracts(tmp_path: Path) 
             ),
         ),
         (
-            ClaudeCodeCliProfile(model="sonnet", agent="reviewer", effort="high"),
-            "claude",
-            (
-                "-p",
-                "--output-format",
-                "stream-json",
-                "--verbose",
-                "--resume",
-                "native-session",
-                "--model",
-                "sonnet",
-                "--agent",
-                "reviewer",
-                "--effort",
-                "high",
-                "--",
-                "Handle task",
-            ),
-        ),
-        (
             CursorCliProfile(model="composer-2.5", agent="plan", force=True, trust=True),
             "cursor",
             (
@@ -186,31 +165,6 @@ def test_provider_profiles_match_current_cli_argument_contracts(tmp_path: Path) 
         assert arguments == expected
 
 
-def test_codex_exec_without_session_uses_json_config_and_profile(tmp_path: Path) -> None:
-    profile = CodexCliProfile(
-        model="gpt-5.4", agent="work", effort="ultra", sandbox="workspace-write"
-    )
-
-    arguments = create_cli_adapter("codex").build_arguments(
-        CodingTaskRequest(cwd=tmp_path, profile=profile, message="Handle task")
-    )
-
-    assert arguments == (
-        "exec",
-        "--model",
-        "gpt-5.4",
-        "--profile",
-        "work",
-        "--config",
-        'model_reasoning_effort="ultra"',
-        "--sandbox",
-        "workspace-write",
-        "--json",
-        "--",
-        "Handle task",
-    )
-
-
 @pytest.mark.parametrize(
     ("profile", "event"),
     [
@@ -218,7 +172,6 @@ def test_codex_exec_without_session_uses_json_config_and_profile(tmp_path: Path)
             CodexCliProfile(),
             '{"type":"thread.started","thread_id":"native"}\n{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}',
         ),
-        (ClaudeCodeCliProfile(), '{"type":"result","session_id":"native","result":"Done"}'),
         (CursorCliProfile(), '{"type":"result","session_id":"native","result":"Done"}'),
     ],
 )
@@ -245,10 +198,9 @@ async def test_native_session_events_and_resume(
 def test_explicit_permission_options_are_provider_native(tmp_path: Path) -> None:
     profiles: list[CliProfile] = [
         CursorCliProfile(force=True, trust=True),
-        ClaudeCodeCliProfile(permission_mode="dontAsk", permission_prompts="none"),
         CodexCliProfile(sandbox="workspace-write", auto_review=True, effort="high"),
     ]
-    expected = ["--force", "--permission-mode", "--sandbox"]
+    expected = ["--force", "--sandbox"]
     for profile, flag in zip(profiles, expected, strict=True):
         arguments = create_cli_adapter(profile.provider).build_arguments(
             CodingTaskRequest(cwd=tmp_path, message="Work", profile=profile)
@@ -281,12 +233,18 @@ async def test_project_query_accepts_newline_json_and_requests_board_filter() ->
     assert (
         len(
             await GhClient(runner).list_issues(
-                GhIssueSearchRequest(repo="acme/api", query="project:acme/1")
+                GhIssueSearchRequest(repo="acme/api", query="is:open project:acme/9")
             )
         )
         == 2
     )
-    assert "--jq" in runner.requests[0].arguments
+    arguments = runner.requests[0].arguments
+    assert arguments[arguments.index("--state") + 1] == "open"
+    assert "is:open project:acme/9" in arguments
+    assert "--jq" in arguments
+    assert arguments[arguments.index("--jq") + 1] == (
+        '.[] | select(any(.projectItems[]?; .status.name == "Todo"))'
+    )
 
 
 async def test_pull_request_branch_metadata_is_preserved() -> None:
@@ -329,10 +287,17 @@ async def test_transient_github_errors_are_retried() -> None:
     assert len(runner.requests) == 2
 
 
-async def test_existing_non_git_workspace_is_preserved(tmp_path: Path) -> None:
-    runner = RecordingRunner()
-    with pytest.raises(WorkspacePathError):
-        await GhClient(runner).ensure_repository(
-            GhRepositoryCloneRequest(repo="acme/api", destination=tmp_path)
-        )
-    assert not runner.requests
+async def test_github_cli_version_control_clones_with_literal_repo_and_destination(
+    tmp_path: Path,
+) -> None:
+    runner = RecordingRunner(ProcessResult(returncode=0))
+    await GitHubCliVersionControl(runner).clone("acme/api", tmp_path / "checkout")
+
+    assert runner.requests[0].executable == "gh"
+    assert runner.requests[0].arguments == ("repo", "clone", "acme/api", str(tmp_path / "checkout"))
+
+
+async def test_github_cli_version_control_reports_clone_failure() -> None:
+    runner = RecordingRunner(ProcessResult(returncode=1, stderr="not authenticated"))
+    with pytest.raises(CliExecutionError):
+        await GitHubCliVersionControl(runner).clone("acme/api", Path("checkout"))

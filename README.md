@@ -1,6 +1,6 @@
-# gh-dispatch
+# OpsCli
 
-gh-dispatch runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
+OpsCli runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
 
 Each automation in the settings TOML watches one source (issues, pull requests, or a
 cron schedule) and carries its own prompt. All automations share one discovery,
@@ -20,7 +20,7 @@ while `watch` polls every automation continuously.
 Install as an isolated tool:
 
 ```bash
-uv tool install git+https://github.com/mariotaddeucci/gh-dispatch.git
+uv tool install git+https://github.com/mariotaddeucci/opscli.git
 ```
 
 The package is not yet published to PyPI. Install it directly from GitHub with `uv` as
@@ -28,30 +28,30 @@ shown above.
 
 ## Documentation
 
-See the [full guide in Portuguese](https://mariotaddeucci.github.io/gh-dispatch/) for
+See the [full guide in Portuguese](https://mariotaddeucci.github.io/opscli/) for
 installation, automation configuration, providers, and operational commands.
 
 ## Configuration
 
-The default settings file is `~/.gh-dispatch/settings.toml`. Download the example
+The default settings file is `~/.opscli/settings.toml`. Download the example
 configuration directly to that location, then adjust repositories, paths, queries, and
 prompts:
 
 ```bash
-mkdir -p ~/.gh-dispatch
-curl -fsSL https://raw.githubusercontent.com/mariotaddeucci/gh-dispatch/main/gh-dispatch.example.toml \
-  -o ~/.gh-dispatch/settings.toml
+mkdir -p ~/.opscli
+curl -fsSL https://raw.githubusercontent.com/mariotaddeucci/opscli/main/opscli.example.toml \
+  -o ~/.opscli/settings.toml
 ```
 
-The `~/.gh-dispatch` directory is created automatically when the default file is first
+The `~/.opscli` directory is created automatically when the default file is first
 loaded. Pass `--config path/to/settings.toml` to use a different file; relative workspace,
 state, and automation paths are resolved from that file's directory.
 
 ```toml
 [settings]
 max_active_tasks = 1
-workspace_dir = "~/.gh-dispatch/workspaces"
-state_db_path = "~/.gh-dispatch/state.sqlite3"
+workspace_dir = "~/.opscli/workspaces"
+state_db_path = "~/.opscli/state.sqlite3"
 # Optional OTLP/HTTP trace endpoint; omit it to disable telemetry.
 # otlp_endpoint = "http://localhost:4318/v1/traces"
 
@@ -140,12 +140,34 @@ two automations may process the same issue with different prompts.
 Polls that use the `project:` search qualifier keep the `open` state and filter board
 items to the `Todo` status automatically.
 
+### Trello listener
+
+The Trello listener is named `trello-cli` and uses the Scale-Flow CLI at
+<https://github.com/Scale-Flow/trello-cli>. If `trello` is not already installed,
+install it from that repository's [GitHub Releases](https://github.com/Scale-Flow/trello-cli/releases)
+or with Homebrew:
+
+```bash
+brew tap Scale-Flow/tap
+brew install trello-cli
+```
+
+Authenticate with the CLI Connector Power-Up on the Trello board:
+
+```bash
+trello auth login
+```
+
+Follow the pairing instructions printed by the CLI. This is the Scale-Flow CLI; do not
+install the unrelated npm packages also named `trello-cli`.
+
 `max_active_tasks` bounds concurrently running coding agents (default 1). By default,
 each task runs in a new worktree beside its base checkout, so tasks for the same repository
 can run concurrently without sharing edits. The worktree branch is created from the
 fetched remote default branch and is not pushed. Set `checkout = "main"` to use the
 shared checkout instead (this means the shared checkout, not a branch named `main`, and
 restores the previous exclusive behavior). `path` continues to select the base checkout.
+With `checkout = "main"`, the agent runs on the shared checkout exactly as it is: OpsCli does not fetch, pull, or switch branches there.
 Checkouts are created on demand with `gh repo clone` under `workspace_dir/owner/repo`.
 Nothing modifies issues or pull requests.
 
@@ -178,9 +200,9 @@ accept OTLP over HTTP/protobuf. If the field is omitted, no telemetry is exporte
 ### State files
 
 Running sessions and cron schedule state live in `state_db_path` (default
-`~/.gh-dispatch/state.sqlite3`). The per-user dispatch lock is stored in
-`~/.gh-dispatch/dispatch.lock`, and the dedicated log directory is
-`~/.gh-dispatch/logs`. Only one `run` or `watch` process can dispatch at a time; a second
+`~/.opscli/state.sqlite3`). The per-user dispatch lock is stored in
+`~/.opscli/dispatch.lock`, and the dedicated log directory is
+`~/.opscli/logs`. Only one `run` or `watch` process can dispatch at a time; a second
 process exits with an error rather than running tasks in parallel. Session records are
 removed when the agent process ends; `watch` resumes all saved sessions after a restart,
 and `run` resumes the saved session of the task it selects. If the file exists but is not
@@ -190,7 +212,7 @@ delete or move the file yourself to start fresh.
 ### Log file
 
 The `run` and `watch` commands append records to
-`~/.gh-dispatch/logs/gh-dispatch.log`; restarting the process does not erase existing
+`~/.opscli/logs/opscli.log`; restarting the process does not erase existing
 content. Each task records its start and completion time, repository, type, and
 identifier. If a task fails, the record includes the error.
 
@@ -199,25 +221,25 @@ identifier. If a task fails, the record includes the error.
 Validate configuration without calling external CLIs or writing state:
 
 ```bash
-gh-dispatch validate
+opscli validate
 ```
 
 Execute one currently available task and wait for the agent to finish:
 
 ```bash
-gh-dispatch run
+opscli run
 ```
 
 Preview the selected task without reserving, persisting, cloning, or executing:
 
 ```bash
-gh-dispatch run --dry-run
+opscli run --dry-run
 ```
 
 Poll all automations with the shared bounded scheduler until interrupted:
 
 ```bash
-gh-dispatch watch
+opscli watch
 ```
 
 `validate` exits `0` when the configuration is valid and `2` on configuration errors.
@@ -232,8 +254,8 @@ configuration, output-format, and agent-task failures are not retried automatica
 
 ## Public interface
 
-`gh-dispatch` is CLI-first. The only supported programmatic surface is
-`gh_dispatch.__version__`; all other modules are internal implementation details that
+`opscli` is CLI-first. The only supported programmatic surface is
+`opscli.__version__`; all other modules are internal implementation details that
 may change without notice.
 
 ## Development and validation
