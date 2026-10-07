@@ -61,7 +61,9 @@ async def test_source_searches_pull_requests_and_builds_tasks(tmp_path: Path) ->
 
 
 def test_pull_request_trigger_is_registered_and_provides_prompt_context(tmp_path: Path) -> None:
-    trigger = get("pull_request")
+    trigger = get("github-cli-pull-requests")
+    assert get("pull_request") is trigger
+    assert trigger.trigger_type == "github-cli-pull-requests"
     task = pull_request_task(tmp_path, number=54)
 
     assert isinstance(trigger, PullRequestTrigger)

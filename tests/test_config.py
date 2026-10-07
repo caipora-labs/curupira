@@ -36,6 +36,7 @@ def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettin
     [
         ("issue", IssueAutomationConfiguration),
         ("pull_request", PullRequestAutomationConfiguration),
+        ("github-cli-pull-requests", PullRequestAutomationConfiguration),
         ("cron", CronAutomationConfiguration),
     ],
 )
