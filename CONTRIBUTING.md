@@ -1,6 +1,6 @@
 # Contributing
 
-**OpsCli** (by Caipora Labs) is the product name. The installable package, console script, and Python import are `curupi`.
+**OpsCli** (by Caipora Labs) is the product name. The installable package, primary console script, and Python import are `curupira`. The short CLI alias is `curu`.
 
 ## Environment setup
 
@@ -12,7 +12,7 @@ toolchain when building the native extension or a wheel.
 uv sync --dev
 ```
 
-`uv sync` installs the Python package and the `curupi` console script. It does not
+`uv sync` installs the Python package and the `curupira` and `curu` console scripts. It does not
 compile Rust, so the CLI and the Python test suite run without a toolchain.
 
 A fresh contributor verifies everything with the commands below. They must all pass
@@ -35,10 +35,10 @@ uv run --no-sync twine check dist/*
 
 ## Native extension
 
-The Rust crate is `crates/curupi-core`, matching the `curupi` distribution name.
-Hatchling stays the PEP 517 backend, keeps the version in `src/curupi/_version.py`,
-and keeps the `curupi` script entry point. A wheel build hook runs maturin (PyO3)
-and packs the compiled module as `curupi._native`.
+The Rust crate is `crates/curupira-core`, matching the `curupira` distribution name.
+Hatchling stays the PEP 517 backend, keeps the version in `src/curupira/_version.py`,
+and keeps the `curupira` and `curu` script entry points. A wheel build hook runs maturin (PyO3)
+and packs the compiled module as `curupira._native`.
 Editable installs skip that compile.
 
 Build the extension into the current environment:
@@ -46,14 +46,14 @@ Build the extension into the current environment:
 ```bash
 uv sync --dev
 uv run maturin develop
-python -c "from curupi._native import rust_core_version; print(rust_core_version())"
+python -c "from curupira._native import rust_core_version; print(rust_core_version())"
 ```
 
 `maturin develop` warns that the build backend is Hatchling. That warning is expected:
-Hatchling still packages the Python project and the `curupi` script, and maturin only
+Hatchling still packages the Python project and the `curupira` and `curu` scripts, and maturin only
 compiles the extension.
 
-`rust_core_version()` returns the `curupi-core` crate version. `curupi.native.rust_core_version`
+`rust_core_version()` returns the `curupira-core` crate version. `curupira.native.rust_core_version`
 is a thin wrapper around that function. `tests/test_native.py` runs the same check when
 the extension is already built and skips otherwise.
 
@@ -65,31 +65,31 @@ uv build
 
 When collecting coverage, it must stay at or above 85% branch coverage
 (`fail_under = 85` in `pyproject.toml`). The example configuration is covered by tests:
-changes to `curupi.example.toml` must keep `test_example_configuration_is_valid` green.
+changes to `curupira.example.toml` must keep `test_example_configuration_is_valid` green.
 
 ## Architecture boundaries
 
 OpsCli separates task discovery, repository version control, and coding-agent CLI
 invocation into three layers. Each layer owns a contract in its `base.py`:
 
-- `src/curupi/tasks/` discovers work. `tasks/base.py` defines `TaskFeed` (polling
+- `src/curupira/tasks/` discovers work. `tasks/base.py` defines `TaskFeed` (polling
   and streaming discovered tasks), `TaskSource` (discovering tasks for an automation),
   `Trigger` (trigger-specific prompt data and feed construction), and
   `FeedDependencies`. `tasks/feed.py` provides the reusable `PollingTaskFeed`, while
   `tasks/registry.py` registers trigger types and aliases. Current sources/triggers
   are implemented in `tasks/cron.py`, `tasks/github_issues.py`, and
   `tasks/github_pull_requests.py`.
-- `src/curupi/vcs/` prepares repositories. `vcs/base.py` defines `VersionControl`;
+- `src/curupira/vcs/` prepares repositories. `vcs/base.py` defines `VersionControl`;
   providers implement its `clone(repo, destination)` operation, while shared checkout,
   worktree, and setup behavior stays in the base class. `vcs/github_cli.py` implements
   cloning through the GitHub CLI.
-- `src/curupi/agents/` invokes coding-agent CLIs. `agents/base.py` defines
+- `src/curupira/agents/` invokes coding-agent CLIs. `agents/base.py` defines
   `CodingAgentCliAdapter`; an adapter implements `build_arguments(request)` to map a
   validated task request to that CLI's native arguments. The factory
   `create_cli_adapter` in `agents/__init__.py` constructs supported adapters:
   `opencode.py`, `codex.py`, `claude.py`, and `cursor.py`.
 
-`src/curupi/storage/` is local SQLite persistence, not a version-control provider.
+`src/curupira/storage/` is local SQLite persistence, not a version-control provider.
 OpsCli does not manage authentication: provider CLIs and the user's environment provide
 their own authentication.
 
@@ -107,7 +107,7 @@ Cover new behavior with fakes in `tests/` — never start authenticated agents o
 network in tests.
 
 When adding a provider or CLI, update `docs/data/requirements.toml` and the corresponding
-adapter in `src/curupi/agents/`; the English installation requirements are rendered from
+adapter in `src/curupira/agents/`; the English installation requirements are rendered from
 that TOML file during the MkDocs build.
 
 ## Documentation translations
@@ -155,12 +155,12 @@ permanent ignore.
 ## Releases
 
 Versioning is `MAJOR.MINOR.PATCH`. The single version source is
-`src/curupi/_version.py`; the build backend reads it, and the CLI reports it.
+`src/curupira/_version.py`; the build backend reads it, and the CLI reports it.
 
 To cut a release:
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` into a new version section.
-2. Bump `__version__` in `src/curupi/_version.py` to match.
+2. Bump `__version__` in `src/curupira/_version.py` to match.
 3. Run the full verification suite and confirm `uv build` plus
    `uv run --no-sync twine check dist/*` pass.
 4. Before the first production publication, run the `testpypi.yml` workflow manually
@@ -171,7 +171,7 @@ To cut a release:
 
 PyPI publishing uses Trusted Publishing (OIDC), so no API tokens are stored. Before
 publishing, a PyPI maintainer registers this repository as a trusted publisher for the
-`curupi` project with GitHub owner `caipora-labs`, repository `curupi`, workflow
+`curupira` project with GitHub owner `caipora-labs`, repository `curupira`, workflow
 filename `publish.yml`, and environment `pypi`. The TestPyPI rehearsal uses a separate
 `testpypi` environment and trusted publisher with workflow filename `testpypi.yml` and
 audience `testpypi`. It uploads to `https://test.pypi.org/legacy/` and smoke-tests the

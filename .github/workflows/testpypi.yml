@@ -104,11 +104,13 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.package_version.outputs.version }}
         run: |
-          python -m venv /tmp/curupi-testpypi
-          /tmp/curupi-testpypi/bin/pip install \
+          python -m venv /tmp/curupira-testpypi
+          /tmp/curupira-testpypi/bin/pip install \
             --index-url https://test.pypi.org/simple/ \
             --extra-index-url https://pypi.org/simple/ \
-            "curupi==${PACKAGE_VERSION}"
-          /tmp/curupi-testpypi/bin/python -c "import curupi; print(curupi.__version__)"
-          /tmp/curupi-testpypi/bin/python -c "from curupi._native import rust_core_version; version = rust_core_version(); assert isinstance(version, str) and version.strip(); print(version)"
-          /tmp/curupi-testpypi/bin/curupi --version
+            "curupira==${PACKAGE_VERSION}"
+          /tmp/curupira-testpypi/bin/python -c "import curupira; print(curupira.__version__)"
+          /tmp/curupira-testpypi/bin/python -c "from curupira._native import rust_core_version; version = rust_core_version(); assert isinstance(version, str) and version.strip(); print(version)"
+          /tmp/curupira-testpypi/bin/curupira --version
+          /tmp/curupira-testpypi/bin/curu --help
+          /tmp/curupira-testpypi/bin/curu --version

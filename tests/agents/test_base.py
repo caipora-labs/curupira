@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from curupi.agents.base import CodingAgentCliAdapter
-from curupi.clients.process import AsyncProcessRunner
-from curupi.errors import UnsupportedCodingAgentError
-from curupi.models import (
+from curupira.agents.base import CodingAgentCliAdapter
+from curupira.clients.process import AsyncProcessRunner
+from curupira.errors import UnsupportedCodingAgentError
+from curupira.models import (
     CliProfile,
     CodexCliProfile,
     CodingTaskRequest,

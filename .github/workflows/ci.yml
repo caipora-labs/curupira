@@ -56,7 +56,7 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen --dev
       - run: uv run --no-sync pytest
-      - run: uv run --no-sync curupi --config curupi.example.toml validate
+      - run: uv run --no-sync curupira --config curupira.example.toml validate
 
   test-portable:
     name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
@@ -76,7 +76,7 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen --dev
       - run: uv run --no-sync pytest
-      - run: uv run --no-sync curupi --config curupi.example.toml validate
+      - run: uv run --no-sync curupira --config curupira.example.toml validate
 
   audit:
     name: Dependency audit
@@ -115,17 +115,19 @@ jobs:
           python -m venv /tmp/smoke
           /tmp/smoke/bin/pip install dist/*.whl
           cd /tmp
-          /tmp/smoke/bin/python -c "import curupi; print(curupi.__version__)"
+          /tmp/smoke/bin/python -c "import curupira; print(curupira.__version__)"
           /tmp/smoke/bin/python - <<'PY'
-          from curupi._native import rust_core_version
-          from curupi.native import rust_core_version as wrapped
+          from curupira._native import rust_core_version
+          from curupira.native import rust_core_version as wrapped
 
           version = rust_core_version()
           if not isinstance(version, str) or not version.strip():
               raise SystemExit(f"empty native version: {version!r}")
           if wrapped() != version:
-              raise SystemExit("curupi.native.rust_core_version did not return the crate version")
+              raise SystemExit("curupira.native.rust_core_version did not return the crate version")
           print(version)
           PY
-          /tmp/smoke/bin/curupi --help
-          /tmp/smoke/bin/curupi --version
+          /tmp/smoke/bin/curupira --help | grep -q 'usage: curupira'
+          /tmp/smoke/bin/curupira --version | grep -q '^curupira '
+          /tmp/smoke/bin/curu --help | grep -q 'usage: curu'
+          /tmp/smoke/bin/curu --version | grep -q '^curu '
