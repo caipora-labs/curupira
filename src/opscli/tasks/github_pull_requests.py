@@ -28,7 +28,9 @@ class GitHubPullRequestSource(TaskSource):
         if not isinstance(config, PullRequestAutomationConfiguration):
             raise ValueError("GitHub pull-request source requires a pull-request configuration")
         items = await self._gh.list_pull_requests(
-            GhPullRequestSearchRequest(repo=config.repo, query=config.query, limit=limit)
+            GhPullRequestSearchRequest(
+                repo=config.repo, query=config.query, limit=limit, jq=config.jq
+            )
         )
         return [
             Task(

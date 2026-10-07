@@ -44,11 +44,21 @@ async def test_source_searches_pull_requests_and_builds_tasks(tmp_path: Path) ->
             )
         ]
     )
-    automation = resolved_automation(tmp_path, "reviews", "pull_request")
+    automation = resolved_automation(
+        tmp_path,
+        "reviews",
+        "pull_request",
+        jq='.[] | select(.mergeable == "MERGEABLE")',
+    )
 
     tasks = await GitHubPullRequestSource(gh).discover(automation, 7)
 
-    assert gh.request == GhPullRequestSearchRequest(repo="acme/api", query="is:open", limit=7)
+    assert gh.request == GhPullRequestSearchRequest(
+        repo="acme/api",
+        query="is:open",
+        limit=7,
+        jq='.[] | select(.mergeable == "MERGEABLE")',
+    )
     assert len(tasks) == 1
     assert tasks[0].identity.id == "42"
     assert tasks[0].identity.task_type == "pull_request"
