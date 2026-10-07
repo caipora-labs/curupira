@@ -1,17 +1,26 @@
 """MkDocs macros for rendering versioned documentation data."""
 
-from pathlib import Path
 import tomllib
+from collections.abc import Callable
+from pathlib import Path
+from typing import Protocol
 
 
-def define_env(env):
+class MacroEnvironment(Protocol):
+    """Interface provided by the MkDocs macros plugin."""
+
+    def macro(self, function: Callable[[], str]) -> Callable[[], str]:
+        """Register a zero-argument string-producing macro."""
+
+
+def define_env(env: MacroEnvironment) -> None:
     """Register macros used by the documentation pages."""
     requirements_path = Path(__file__).parent / "docs" / "data" / "requirements.toml"
     with requirements_path.open("rb") as requirements_file:
         requirements = tomllib.load(requirements_file)
 
     @env.macro
-    def requirements_list():
+    def requirements_list() -> str:
         """Render the installation requirements from the TOML source."""
         python = requirements["python"]
         lines = [
