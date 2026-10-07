@@ -24,9 +24,7 @@ class FakeGhClient(GhClient):
         self.request: GhPullRequestSearchRequest | None = None
 
     @override
-    async def list_pull_requests(
-        self, request: GhPullRequestSearchRequest
-    ) -> list[GhPullRequest]:
+    async def list_pull_requests(self, request: GhPullRequestSearchRequest) -> list[GhPullRequest]:
         self.request = request
         return self.pull_requests
 

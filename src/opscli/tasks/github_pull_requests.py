@@ -70,7 +70,9 @@ class PullRequestTrigger(Trigger):
             "pull_request_title": task.title,
             "pull_request_body": task.body or "",
             "pull_request_url": task.url,
-            "pull_request_is_draft": str(task.is_draft).lower() if task.is_draft is not None else "",
+            "pull_request_is_draft": (
+                str(task.is_draft).lower() if task.is_draft is not None else ""
+            ),
             "pull_request_head_ref": task.head_ref_name or "",
             "pull_request_base_ref": task.base_ref_name or "",
         }
