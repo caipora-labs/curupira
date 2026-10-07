@@ -10,16 +10,16 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
-from opscli.executor import TaskExecutor
-from opscli.models import (
+from curupira.executor import TaskExecutor
+from curupira.models import (
     ExecutionSettings,
     ProcessResult,
     RunningCodingSession,
     Task,
     TaskIdentity,
 )
-from opscli.storage import CronScheduleRepository, RunningSessionRepository
-from opscli.telemetry import TaskTelemetry
+from curupira.storage import CronScheduleRepository, RunningSessionRepository
+from curupira.telemetry import TaskTelemetry
 from tests.fakes import FakeVersionControl, RecordingAdapter
 from tests.helpers import issue_task, pull_request_task, resolved_automation
 
@@ -72,10 +72,10 @@ def test_task_spans_export_success_for_issues_pull_requests_and_cron(tmp_path: P
         assert len(spans) == 3
         for span, task in zip(spans, tasks, strict=True):
             attributes = span.attributes or {}
-            assert attributes["opscli.repo"] == "acme/api"
-            assert attributes["opscli.task.type"] == task.identity.task_type
-            assert attributes["opscli.task.id"] == task.identity.id
-            assert attributes["opscli.result"] == "success"
+            assert attributes["curupira.repo"] == "acme/api"
+            assert attributes["curupira.task.type"] == task.identity.task_type
+            assert attributes["curupira.task.id"] == task.identity.id
+            assert attributes["curupira.result"] == "success"
             assert span.status.status_code == StatusCode.UNSET
     finally:
         provider.shutdown()
@@ -99,10 +99,10 @@ async def test_executor_exports_the_real_task_outcome(tmp_path: Path) -> None:
         assert result.returncode == 0
         [span] = exporter.get_finished_spans()
         attributes = span.attributes or {}
-        assert attributes["opscli.repo"] == "acme/api"
-        assert attributes["opscli.task.type"] == "issue"
-        assert attributes["opscli.task.id"] == "42"
-        assert attributes["opscli.result"] == "success"
+        assert attributes["curupira.repo"] == "acme/api"
+        assert attributes["curupira.task.type"] == "issue"
+        assert attributes["curupira.task.id"] == "42"
+        assert attributes["curupira.result"] == "success"
     finally:
         provider.shutdown()
 
@@ -118,7 +118,7 @@ def test_failed_process_span_contains_error_and_error_status(tmp_path: Path) -> 
 
         [span] = exporter.get_finished_spans()
         attributes = span.attributes or {}
-        assert attributes["opscli.result"] == "failure"
+        assert attributes["curupira.result"] == "failure"
         assert attributes["error.message"] == "agent exited unexpectedly"
         assert span.status.status_code == StatusCode.ERROR
     finally:
@@ -134,7 +134,7 @@ def test_task_exception_is_exported_as_failure(tmp_path: Path) -> None:
 
         [span] = exporter.get_finished_spans()
         attributes = span.attributes or {}
-        assert attributes["opscli.result"] == "failure"
+        assert attributes["curupira.result"] == "failure"
         assert attributes["error.message"] == "checkout unavailable"
         assert span.status.status_code == StatusCode.ERROR
         assert any(event.name == "exception" for event in span.events)
@@ -161,7 +161,7 @@ def test_configured_endpoint_is_given_to_otlp_exporter(
         endpoints.append(endpoint)
         return exporter
 
-    monkeypatch.setattr("opscli.telemetry.OTLPSpanExporter", create_exporter)
+    monkeypatch.setattr("curupira.telemetry.OTLPSpanExporter", create_exporter)
     endpoint = "http://collector:4318/v1/traces"
     telemetry = TaskTelemetry(endpoint)
     try:
@@ -173,7 +173,7 @@ def test_configured_endpoint_is_given_to_otlp_exporter(
     assert endpoints == [endpoint]
     [span] = exporter.get_finished_spans()
     attributes = span.attributes or {}
-    assert attributes["opscli.repo"] == "acme/api"
-    assert attributes["opscli.task.type"] == "issue"
-    assert attributes["opscli.task.id"] == "42"
-    assert attributes["opscli.result"] == "success"
+    assert attributes["curupira.repo"] == "acme/api"
+    assert attributes["curupira.task.type"] == "issue"
+    assert attributes["curupira.task.id"] == "42"
+    assert attributes["curupira.result"] == "success"

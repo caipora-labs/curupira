@@ -4,9 +4,9 @@ from pathlib import Path
 
 from typing_extensions import override
 
-from opscli.agents.base import CodingAgentCliAdapter, SessionStartedCallback
-from opscli.clients.gh import GhClient
-from opscli.models import (
+from curupira.agents.base import CodingAgentCliAdapter, SessionStartedCallback
+from curupira.clients.gh import GhClient
+from curupira.models import (
     CodingTaskRequest,
     GhIssue,
     GhIssueSearchRequest,
@@ -14,7 +14,7 @@ from opscli.models import (
     GhPullRequestSearchRequest,
     ProcessResult,
 )
-from opscli.vcs.base import Checkout, CheckoutRequest, VersionControl
+from curupira.vcs.base import Checkout, CheckoutRequest, VersionControl
 
 
 class FakeVersionControl(VersionControl):

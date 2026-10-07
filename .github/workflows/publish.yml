@@ -10,6 +10,7 @@ permissions: {}
 jobs:
   build:
     name: Build distributions
+    # Stable vX.Y.Z and rehearsal vX.Y.Z.devN tags both publish to PyPI.
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,6 +22,10 @@ jobs:
         with:
           python-version: "3.11"
           enable-cache: true
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+        with:
+          toolchain: stable
       - name: Build distributions
         run: uv build
       - name: Upload distributions

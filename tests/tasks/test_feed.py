@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from opscli.errors import DispatchError
-from opscli.models import PollingSettings, ResolvedAutomation, Task
-from opscli.tasks.base import TaskSource
-from opscli.tasks.feed import PollingTaskFeed, merge_task_streams
+from curupira.errors import DispatchError
+from curupira.models import PollingSettings, ResolvedAutomation, Task
+from curupira.tasks.base import TaskSource
+from curupira.tasks.feed import PollingTaskFeed, merge_task_streams
 from tests.helpers import issue_task, resolved_automation
 
 

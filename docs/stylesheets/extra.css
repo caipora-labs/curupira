@@ -1,0 +1,128 @@
+/* Caipora Labs brand tokens. The hex table lives in CONTRIBUTING.md. */
+
+:root > * {
+  --md-primary-fg-color: #f7931f;
+  --md-primary-fg-color--light: #f7931f;
+  --md-primary-fg-color--dark: #ea6114;
+  /* White text on #F7931F fails contrast, so header labels stay neutral-900. */
+  --md-primary-bg-color: #1a1a1a;
+  --md-primary-bg-color--light: rgb(26 26 26 / 70%);
+
+  --md-accent-fg-color: #39873b;
+  --md-accent-fg-color--transparent: rgb(57 135 59 / 12%);
+  --md-accent-bg-color: #fefdfc;
+  --md-accent-bg-color--light: rgb(254 253 252 / 70%);
+
+  --md-default-fg-color: #1a1a1a;
+  --md-default-fg-color--light: rgb(26 26 26 / 62%);
+  --md-default-fg-color--lighter: rgb(26 26 26 / 40%);
+  --md-default-fg-color--lightest: rgb(26 26 26 / 12%);
+  --md-default-bg-color: #fefdfc;
+  --md-default-bg-color--light: rgb(254 253 252 / 70%);
+  --md-default-bg-color--lighter: rgb(254 253 252 / 40%);
+  --md-default-bg-color--lightest: rgb(254 253 252 / 16%);
+
+  --md-typeset-color: var(--md-default-fg-color);
+  /* skin is the chromatic token that stays readable on neutral-0. */
+  --md-typeset-a-color: #8e4f26;
+
+  --md-code-fg-color: #1a1a1a;
+  --md-code-bg-color: rgb(26 26 26 / 6%);
+  --md-code-bg-color--light: rgb(26 26 26 / 4%);
+  --md-code-bg-color--lighter: rgb(26 26 26 / 3%);
+
+  --md-footer-fg-color: #fefdfc;
+  --md-footer-fg-color--light: rgb(254 253 252 / 72%);
+  --md-footer-fg-color--lighter: rgb(254 253 252 / 48%);
+  --md-footer-bg-color: #1a1a1a;
+  --md-footer-bg-color--dark: #8e4f26;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-fg-color: #fefdfc;
+  --md-default-fg-color--light: rgb(254 253 252 / 72%);
+  --md-default-fg-color--lighter: rgb(254 253 252 / 48%);
+  --md-default-fg-color--lightest: rgb(254 253 252 / 14%);
+  --md-default-bg-color: #1a1a1a;
+  --md-default-bg-color--light: rgb(26 26 26 / 70%);
+  --md-default-bg-color--lighter: rgb(26 26 26 / 46%);
+  --md-default-bg-color--lightest: rgb(26 26 26 / 24%);
+
+  --md-typeset-color: var(--md-default-fg-color);
+  /* primary is readable on neutral-900; skin is not. */
+  --md-typeset-a-color: #f7931f;
+
+  --md-accent-bg-color: #1a1a1a;
+  --md-accent-bg-color--light: rgb(26 26 26 / 70%);
+
+  --md-code-fg-color: #fefdfc;
+  --md-code-bg-color: rgb(254 253 252 / 8%);
+  --md-code-bg-color--light: rgb(254 253 252 / 6%);
+  --md-code-bg-color--lighter: rgb(254 253 252 / 4%);
+
+  --md-footer-fg-color: #fefdfc;
+  --md-footer-fg-color--light: rgb(254 253 252 / 72%);
+  --md-footer-fg-color--lighter: rgb(254 253 252 / 48%);
+  --md-footer-bg-color: #8e4f26;
+  --md-footer-bg-color--dark: #1a1a1a;
+
+  color-scheme: dark;
+}
+
+/* Leaf on neutral-900 is too faint for text, so dark-scheme hover uses primary-deep. */
+[data-md-color-scheme="slate"] .md-typeset a:is(:focus, :hover),
+[data-md-color-scheme="slate"] .md-nav__link:is(:focus, :hover) {
+  color: #ea6114;
+}
+
+.md-typeset .md-button--primary {
+  background-color: #ea6114;
+  border-color: #ea6114;
+  color: #1a1a1a;
+}
+
+.md-typeset .md-button--primary:is(:focus, :hover) {
+  background-color: #f7931f;
+  border-color: #f7931f;
+  color: #1a1a1a;
+}
+
+/* The header search well is a dark fill on the orange bar, so its label is neutral-0. */
+@media screen and (min-width: 60em) {
+  .md-search__form {
+    background-color: rgb(26 26 26 / 78%);
+  }
+
+  .md-search__form:hover {
+    background-color: rgb(26 26 26 / 88%);
+  }
+
+  .md-search__input {
+    color: #fefdfc;
+  }
+
+  .md-search__input::placeholder {
+    color: rgb(254 253 252 / 72%);
+  }
+
+  .md-search__input + .md-search__icon {
+    color: #fefdfc;
+  }
+
+  [data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+    background-color: var(--md-default-bg-color);
+    color: var(--md-default-fg-color);
+  }
+
+  [data-md-toggle="search"]:checked ~ .md-header .md-search__input {
+    color: var(--md-default-fg-color);
+  }
+
+  [data-md-toggle="search"]:checked ~ .md-header .md-search__input + .md-search__icon {
+    color: var(--md-default-fg-color--light);
+  }
+
+  [data-md-toggle="search"]:checked ~ .md-header .md-search__input::placeholder {
+    color: transparent;
+  }
+}

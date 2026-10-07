@@ -11,4 +11,4 @@
 ## Documentation
 
 - [ ] README/CONTRIBUTING/CHANGELOG updated if user-facing behavior changed
-- [ ] `opscli.example.toml` still validates if configuration changed
+- [ ] `curupira.example.toml` still validates if configuration changed

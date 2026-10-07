@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from opscli.config import ApplicationSettings
-from opscli.models import ResolvedAutomation, Task, TaskIdentity
+from curupira.config import ApplicationSettings
+from curupira.models import ResolvedAutomation, Task, TaskIdentity
 
 
 def resolved_automation(

@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from opscli.agents.opencode import OpenCodeCliAdapter
-from opscli.models import CodingTaskRequest, OpenCodeCliProfile
+from curupira.agents.opencode import OpenCodeCliAdapter
+from curupira.models import CodingTaskRequest, OpenCodeCliProfile
 
 
 def test_opencode_arguments_preserve_session_and_profile(tmp_path: Path) -> None:

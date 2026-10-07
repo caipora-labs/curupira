@@ -5,10 +5,10 @@ from pathlib import Path
 
 from typing_extensions import override
 
-from opscli.agents import create_cli_adapter
-from opscli.agents.cursor import CursorCliAdapter
-from opscli.clients.process import AsyncProcessRunner
-from opscli.models import (
+from curupira.agents import create_cli_adapter
+from curupira.agents.cursor import CursorCliAdapter
+from curupira.clients.process import AsyncProcessRunner
+from curupira.models import (
     CodingTaskRequest,
     CommandRequest,
     CursorCliProfile,

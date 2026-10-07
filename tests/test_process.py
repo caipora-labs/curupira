@@ -1,14 +1,15 @@
 """Real local subprocess tests for bounded capture and resource cleanup."""
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
 import pytest
 
-from opscli.clients.process import AsyncProcessRunner
-from opscli.errors import CliLaunchError, CliNotFoundError, CliTimeoutError
-from opscli.models import CommandRequest
+from curupira.clients.process import AsyncProcessRunner
+from curupira.errors import CliLaunchError, CliNotFoundError, CliTimeoutError
+from curupira.models import CommandRequest
 
 
 async def test_arguments_are_literal_and_stdin_is_disconnected() -> None:
@@ -76,6 +77,25 @@ async def test_timeout_terminates_process() -> None:
         )
 
 
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX-specific")
+async def test_timeout_kills_descendant_process_group(tmp_path: Path) -> None:
+    marker = tmp_path / "orphan-survived"
+    descendant = (
+        f"import pathlib, time; time.sleep(0.5); pathlib.Path({str(marker)!r}).write_text('alive')"
+    )
+    parent = (
+        "import subprocess, sys, time; "
+        f"subprocess.Popen([sys.executable, '-c', {descendant!r}]); "
+        "time.sleep(20)"
+    )
+    with pytest.raises(CliTimeoutError):
+        await AsyncProcessRunner().run(
+            CommandRequest(executable=sys.executable, arguments=("-c", parent), timeout=0.05)
+        )
+    await asyncio.sleep(0.7)
+    assert not marker.exists()
+
+
 async def test_callback_failure_reaps_process() -> None:
     async def fail(line: str) -> None:
         raise RuntimeError("callback failed")
@@ -114,9 +134,39 @@ async def test_cancellation_reaps_process() -> None:
         await asyncio.wait_for(running, 2)
 
 
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX-specific")
+async def test_cancellation_kills_descendant_process_group(tmp_path: Path) -> None:
+    marker = tmp_path / "orphan-survived-cancel"
+    descendant = (
+        f"import pathlib, time; time.sleep(0.5); pathlib.Path({str(marker)!r}).write_text('alive')"
+    )
+    parent = (
+        "import subprocess, sys, time; "
+        f"subprocess.Popen([sys.executable, '-c', {descendant!r}]); "
+        "print('running', flush=True); time.sleep(20)"
+    )
+    started = asyncio.Event()
+
+    async def callback(line: str) -> None:
+        started.set()
+
+    running = asyncio.create_task(
+        AsyncProcessRunner().run(
+            CommandRequest(executable=sys.executable, arguments=("-c", parent)),
+            on_stdout_line=callback,
+        )
+    )
+    await asyncio.wait_for(started.wait(), 2)
+    running.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(running, 2)
+    await asyncio.sleep(0.7)
+    assert not marker.exists()
+
+
 async def test_missing_executable_and_working_directory(tmp_path: Path) -> None:
     with pytest.raises(CliNotFoundError):
-        await AsyncProcessRunner().run(CommandRequest(executable="opscli-not-installed"))
+        await AsyncProcessRunner().run(CommandRequest(executable="curupira-not-installed"))
     with pytest.raises(CliLaunchError, match="working directory"):
         await AsyncProcessRunner().run(
             CommandRequest(executable=sys.executable, cwd=tmp_path / "absent")
