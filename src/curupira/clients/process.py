@@ -5,6 +5,12 @@ import logging
 import os
 import signal
 from collections.abc import Awaitable, Callable
+from typing import Protocol
+
+try:
+    from curupira._native import spawn_process
+except ImportError:
+    spawn_process = None
 
 from curupira.errors import CliLaunchError, CliNotFoundError, CliTimeoutError
 from curupira.models import CommandRequest, ProcessResult
@@ -12,6 +18,18 @@ from curupira.models import CommandRequest, ProcessResult
 logger = logging.getLogger(__name__)
 MAX_EVENT_LINE_BYTES = 1_000_000
 READ_CHUNK_BYTES = 16_384
+
+
+class _NativeProcess(Protocol):
+    """Python-facing surface of the compiled process supervisor."""
+
+    def read_stdout(self) -> bytes | None: ...
+
+    def read_stderr(self) -> bytes | None: ...
+
+    def wait(self) -> int: ...
+
+    def kill(self) -> None: ...
 
 
 class _OutputBuffer:
@@ -43,6 +61,15 @@ class AsyncProcessRunner:
         on_stdout_line: Callable[[str], Awaitable[None]] | None = None,
     ) -> ProcessResult:
         """Reap the process and helper tasks on timeout, cancellation, or callback failure."""
+        if spawn_process is not None:
+            return await self._run_native(request, on_stdout_line)
+        return await self._run_python(request, on_stdout_line)
+
+    async def _run_python(
+        self,
+        request: CommandRequest,
+        on_stdout_line: Callable[[str], Awaitable[None]] | None,
+    ) -> ProcessResult:
         capture = request.capture_output or on_stdout_line is not None
         try:
             process = await asyncio.create_subprocess_exec(
@@ -87,6 +114,107 @@ class AsyncProcessRunner:
         except BaseException:
             await self._cleanup(process, workers)
             raise
+
+    async def _run_native(
+        self,
+        request: CommandRequest,
+        on_stdout_line: Callable[[str], Awaitable[None]] | None,
+    ) -> ProcessResult:
+        """Stream native pipe chunks while retaining the existing Python output contract."""
+        capture = request.capture_output or on_stdout_line is not None
+        try:
+            if spawn_process is None:
+                raise RuntimeError("native process support is unavailable")
+            process = spawn_process(
+                request.executable,
+                request.arguments,
+                str(request.cwd) if request.cwd is not None else None,
+                capture,
+            )
+        except OSError as error:
+            if request.cwd is not None and not request.cwd.is_dir():
+                raise CliLaunchError(
+                    request.executable, f"working directory does not exist: {request.cwd}"
+                ) from error
+            if isinstance(error, FileNotFoundError):
+                raise CliNotFoundError(request.executable) from error
+            raise CliLaunchError(request.executable, str(error)) from error
+
+        stdout = _OutputBuffer(request.max_output_bytes)
+        stderr = _OutputBuffer(request.max_output_bytes)
+        workers: list[asyncio.Task[object]] = []
+        workers.append(
+            asyncio.create_task(self._collect_native(process.read_stdout, stdout, on_stdout_line))
+        )
+        workers.append(asyncio.create_task(self._collect_native(process.read_stderr, stderr, None)))
+        wait = asyncio.create_task(asyncio.to_thread(process.wait))
+        workers.append(wait)
+        try:
+            await asyncio.wait_for(asyncio.gather(*workers), timeout=request.timeout)
+            return ProcessResult(
+                returncode=wait.result(),
+                stdout=stdout.text(),
+                stderr=stderr.text(),
+                output_truncated=stdout.truncated or stderr.truncated,
+            )
+        except TimeoutError as error:
+            await self._cleanup_native(process, workers)
+            raise CliTimeoutError(request.executable, request.timeout or 0.0) from error
+        except BaseException:
+            await self._cleanup_native(process, workers)
+            raise
+
+    async def _collect_native(
+        self,
+        read_chunk: Callable[[], bytes | None],
+        output: _OutputBuffer,
+        callback: Callable[[str], Awaitable[None]] | None,
+    ) -> None:
+        """Consume one native pipe on a worker thread at a time."""
+        pending = bytearray()
+        discarding = False
+        while chunk := await asyncio.to_thread(read_chunk):
+            output.append(chunk)
+            if callback is None:
+                continue
+            pending, discarding = await self._callback_chunk(chunk, callback, pending, discarding)
+        if callback is not None and pending and not discarding:
+            await callback(pending.decode(errors="replace"))
+
+    @staticmethod
+    async def _callback_chunk(
+        chunk: bytes,
+        callback: Callable[[str], Awaitable[None]],
+        pending: bytearray,
+        discarding: bool,
+    ) -> tuple[bytearray, bool]:
+        """Split callback lines consistently for both native and asyncio streams."""
+        for fragment in chunk.splitlines(keepends=True):
+            ends_line = fragment.endswith(b"\n")
+            if not discarding:
+                pending.extend(fragment)
+                if len(pending) > MAX_EVENT_LINE_BYTES:
+                    pending.clear()
+                    discarding = True
+                    logger.warning("Ignoring oversized CLI event line")
+            if ends_line:
+                if not discarding:
+                    await callback(pending.decode(errors="replace").rstrip("\r\n"))
+                pending.clear()
+                discarding = False
+        return pending, discarding
+
+    @staticmethod
+    async def _cleanup_native(process: _NativeProcess, workers: list[asyncio.Task[object]]) -> None:
+        """Kill and reap the native process before releasing reader tasks."""
+        try:
+            process.kill()
+        except OSError:
+            logger.debug("Process already exited during cleanup")
+        for worker in workers:
+            worker.cancel()
+        await asyncio.gather(*workers, return_exceptions=True)
+        await asyncio.to_thread(process.wait)
 
     async def _collect(
         self,

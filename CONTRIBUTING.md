@@ -41,6 +41,12 @@ and keeps the `curupira` and `curu` script entry points. A wheel build hook runs
 and packs the compiled module as `curupira._native`.
 Editable installs skip that compile.
 
+When the extension is unavailable (including an editable install that has not run
+`maturin develop`), `AsyncProcessRunner` explicitly keeps using its asyncio
+implementation with the same output and cleanup semantics. Built wheels use the
+native supervisor. To exercise the native runner locally, build the extension with
+the command below before running the process tests.
+
 Build the extension into the current environment:
 
 ```bash
