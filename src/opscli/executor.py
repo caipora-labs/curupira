@@ -10,12 +10,10 @@ from opscli.agents.base import (
     RESUME_SESSION_PROMPT,
     CodingAgentCliAdapter,
 )
-from opscli.clients.gh import GhClient
 from opscli.errors import PromptRenderError
 from opscli.models import (
     CodingTaskRequest,
     ExecutionSettings,
-    GhRepositoryCloneRequest,
     ProcessResult,
     RunningCodingSession,
     Task,
@@ -23,6 +21,7 @@ from opscli.models import (
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.tasks.registry import get as get_trigger
 from opscli.telemetry import TaskTelemetry
+from opscli.vcs.base import CheckoutRequest, VersionControl
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,7 @@ class TaskExecutor:
     def __init__(
         self,
         settings: ExecutionSettings,
-        gh: GhClient,
+        version_control: VersionControl,
         sessions: RunningSessionRepository,
         cron: CronScheduleRepository,
         *,
@@ -62,7 +61,7 @@ class TaskExecutor:
         telemetry: TaskTelemetry | None = None,
     ) -> None:
         self._settings = settings
-        self._gh = gh
+        self._version_control = version_control
         self._sessions = sessions
         self._cron = cron
         self._adapter_factory = adapter_factory
@@ -115,14 +114,12 @@ class TaskExecutor:
         if adapter is None:
             adapter = self._adapter_factory(provider)
             self._adapters[provider] = adapter
-        checkout = await self._gh.ensure_repository(
-            GhRepositoryCloneRequest(
-                repo=task.identity.repo, destination=task.automation.workspace_path
-            )
+        checkout = await self._version_control.ensure_checkout(
+            CheckoutRequest(repo=task.identity.repo, destination=task.automation.workspace_path)
         )
         setup_script = task.automation.configuration.setup_script
         if checkout.cloned and setup_script is not None:
-            result = await self._gh.run_setup_script(
+            result = await self._version_control.run_setup_script(
                 checkout,
                 setup_script,
                 timeout_seconds=self._settings.task_timeout_seconds,
@@ -148,7 +145,7 @@ class TaskExecutor:
         is_worktree = task.automation.configuration.checkout == "worktree"
         cwd = checkout.path
         if is_worktree:
-            cwd = await self._gh.ensure_worktree(
+            cwd = await self._version_control.ensure_worktree(
                 checkout,
                 automation_id=task.identity.automation_id,
                 task_type=task.identity.task_type,
@@ -174,7 +171,7 @@ class TaskExecutor:
         finally:
             if is_worktree:
                 try:
-                    await self._gh.remove_worktree(
+                    await self._version_control.remove_worktree(
                         checkout,
                         automation_id=task.identity.automation_id,
                         task_type=task.identity.task_type,

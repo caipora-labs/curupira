@@ -14,6 +14,8 @@ from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.tasks.base import FeedDependencies, TaskFeed
 from opscli.tasks.registry import get as get_trigger
 from opscli.telemetry import TaskTelemetry
+from opscli.vcs.base import VersionControl
+from opscli.vcs.github_cli import GitHubCliVersionControl
 
 
 def create_task_feeds(
@@ -35,6 +37,7 @@ async def dispatch_next_task(
     *,
     dry_run: bool = False,
     adapter_factory: CliAdapterFactory = create_cli_adapter,
+    version_control: VersionControl | None = None,
     telemetry: TaskTelemetry | None = None,
     on_task_selected: Callable[[Task], None] | None = None,
 ) -> DispatchOutcome:
@@ -52,7 +55,7 @@ async def dispatch_next_task(
         resumed = await sessions.get(selected)
         executor = TaskExecutor(
             settings.settings,
-            gh,
+            version_control or GitHubCliVersionControl(),
             sessions,
             cron,
             adapter_factory=adapter_factory,

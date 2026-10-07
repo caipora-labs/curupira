@@ -32,6 +32,8 @@ from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.tasks.base import TaskFeed
 from opscli.tasks.feed import merge_task_streams
 from opscli.telemetry import TaskTelemetry
+from opscli.vcs.base import VersionControl
+from opscli.vcs.github_cli import GitHubCliVersionControl
 
 
 class CliOptions(ValidatedModel):
@@ -185,7 +187,9 @@ async def _execute_command(options: CliOptions) -> int:
                     print(outcome.process.stderr, file=sys.stderr)
                 return outcome.process.returncode
             return 0
-        return await _execute_scheduled_command(settings, gh, telemetry, options)
+        return await _execute_scheduled_command(
+            settings, gh, GitHubCliVersionControl(), telemetry, options
+        )
     except (DispatchError, OSError, ValidationError) as error:
         print(f"Dispatch error: {error}", file=sys.stderr)
         return 1
@@ -199,14 +203,18 @@ async def _execute_command(options: CliOptions) -> int:
 
 
 async def _execute_scheduled_command(
-    settings: ApplicationSettings, gh: GhClient, telemetry: TaskTelemetry, options: CliOptions
+    settings: ApplicationSettings,
+    gh: GhClient,
+    version_control: VersionControl,
+    telemetry: TaskTelemetry,
+    options: CliOptions,
 ) -> int:
     """Execute finite batch or continuous watch work through the shared scheduler."""
     sessions = RunningSessionRepository(settings.settings.state_db_path)
     recovered = await sessions.list_all()
     cron = CronScheduleRepository(settings.settings.state_db_path)
     feeds = create_task_feeds(settings, gh, cron)
-    executor = TaskExecutor(settings.settings, gh, sessions, cron, telemetry=telemetry)
+    executor = TaskExecutor(settings.settings, version_control, sessions, cron, telemetry=telemetry)
     status = TerminalTaskStatus(show_idle=True)
     scheduler = TaskScheduler(
         settings.settings,
