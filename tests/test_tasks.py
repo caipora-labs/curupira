@@ -28,6 +28,14 @@ def test_task_identity_accepts_string_card_ids_and_serializes_the_string() -> No
     ]
 
 
+def test_task_identity_accepts_registered_extension_type_and_keeps_key_format() -> None:
+    identity = TaskIdentity(
+        automation_id="board", repo="acme/api", task_type="github-cli-pull-requests", id="42"
+    )
+
+    assert identity.key == '["board","acme/api","github-cli-pull-requests","42"]'
+
+
 def test_task_identity_rejects_an_empty_id() -> None:
     with pytest.raises(ValidationError):
         TaskIdentity(automation_id="board", repo="acme/api", task_type="issue", id=" ")

@@ -51,5 +51,29 @@ def test_register_duplicate_trigger_type_raises(monkeypatch: pytest.MonkeyPatch)
 
 def test_get_unknown_trigger_type_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(registry, "_TRIGGERS", {})
+    monkeypatch.setattr(registry, "_ALIASES", {})
     with pytest.raises(ValueError, match="unknown trigger type: missing"):
         get("missing")
+
+
+def test_alias_resolves_to_registered_trigger(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(registry, "_TRIGGERS", {})
+    monkeypatch.setattr(registry, "_ALIASES", {})
+    trigger = FakeTrigger()
+    register(trigger)
+
+    registry.register_alias("fake", "legacy_fake")
+
+    assert get("legacy_fake") is trigger
+
+
+def test_duplicate_alias_and_canonical_collision_raise(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(registry, "_TRIGGERS", {})
+    monkeypatch.setattr(registry, "_ALIASES", {})
+    register(FakeTrigger())
+    registry.register_alias("fake", "legacy_fake")
+
+    with pytest.raises(ValueError, match="trigger alias already registered: legacy_fake"):
+        registry.register_alias("fake", "legacy_fake")
+    with pytest.raises(ValueError, match="trigger alias already registered: fake"):
+        registry.register_alias("fake", "fake")
