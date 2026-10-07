@@ -10,16 +10,16 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
-from gh_dispatch.executor import TaskExecutor
-from gh_dispatch.models import (
+from opscli.executor import TaskExecutor
+from opscli.models import (
     ExecutionSettings,
     ProcessResult,
     RunningCodingSession,
     Task,
     TaskIdentity,
 )
-from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
-from gh_dispatch.telemetry import TaskTelemetry
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
+from opscli.telemetry import TaskTelemetry
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task, pull_request_task, resolved_automation
 
@@ -32,7 +32,7 @@ def cron_task(path: Path) -> Task:
             automation_id="maintenance",
             repo="acme/api",
             task_type="cron",
-            number=int(scheduled_for.timestamp()),
+            id=str(int(scheduled_for.timestamp())),
         ),
         automation=resolved_automation(path, "maintenance", "cron"),
         title="Scheduled maintenance",
@@ -72,10 +72,10 @@ def test_task_spans_export_success_for_issues_pull_requests_and_cron(tmp_path: P
         assert len(spans) == 3
         for span, task in zip(spans, tasks, strict=True):
             attributes = span.attributes or {}
-            assert attributes["gh_dispatch.repo"] == "acme/api"
-            assert attributes["gh_dispatch.task.type"] == task.identity.task_type
-            assert attributes["gh_dispatch.task.id"] == str(task.identity.number)
-            assert attributes["gh_dispatch.result"] == "success"
+            assert attributes["opscli.repo"] == "acme/api"
+            assert attributes["opscli.task.type"] == task.identity.task_type
+            assert attributes["opscli.task.id"] == task.identity.id
+            assert attributes["opscli.result"] == "success"
             assert span.status.status_code == StatusCode.UNSET
     finally:
         provider.shutdown()
@@ -86,7 +86,7 @@ async def test_executor_exports_the_real_task_outcome(tmp_path: Path) -> None:
     database = tmp_path / "state.sqlite3"
     executor = TaskExecutor(
         ExecutionSettings(state_db_path=database),
-        FakeGitHub().vcs,
+        FakeGitHub(),
         cast(RunningSessionRepository, MemorySessionRepository()),
         CronScheduleRepository(database),
         adapter_factory=lambda _: RecordingAdapter(),
@@ -99,10 +99,10 @@ async def test_executor_exports_the_real_task_outcome(tmp_path: Path) -> None:
         assert result.returncode == 0
         [span] = exporter.get_finished_spans()
         attributes = span.attributes or {}
-        assert attributes["gh_dispatch.repo"] == "acme/api"
-        assert attributes["gh_dispatch.task.type"] == "issue"
-        assert attributes["gh_dispatch.task.id"] == "42"
-        assert attributes["gh_dispatch.result"] == "success"
+        assert attributes["opscli.repo"] == "acme/api"
+        assert attributes["opscli.task.type"] == "issue"
+        assert attributes["opscli.task.id"] == "42"
+        assert attributes["opscli.result"] == "success"
     finally:
         provider.shutdown()
 
@@ -118,7 +118,7 @@ def test_failed_process_span_contains_error_and_error_status(tmp_path: Path) -> 
 
         [span] = exporter.get_finished_spans()
         attributes = span.attributes or {}
-        assert attributes["gh_dispatch.result"] == "failure"
+        assert attributes["opscli.result"] == "failure"
         assert attributes["error.message"] == "agent exited unexpectedly"
         assert span.status.status_code == StatusCode.ERROR
     finally:
@@ -134,7 +134,7 @@ def test_task_exception_is_exported_as_failure(tmp_path: Path) -> None:
 
         [span] = exporter.get_finished_spans()
         attributes = span.attributes or {}
-        assert attributes["gh_dispatch.result"] == "failure"
+        assert attributes["opscli.result"] == "failure"
         assert attributes["error.message"] == "checkout unavailable"
         assert span.status.status_code == StatusCode.ERROR
         assert any(event.name == "exception" for event in span.events)
@@ -161,7 +161,7 @@ def test_configured_endpoint_is_given_to_otlp_exporter(
         endpoints.append(endpoint)
         return exporter
 
-    monkeypatch.setattr("gh_dispatch.telemetry.OTLPSpanExporter", create_exporter)
+    monkeypatch.setattr("opscli.telemetry.OTLPSpanExporter", create_exporter)
     endpoint = "http://collector:4318/v1/traces"
     telemetry = TaskTelemetry(endpoint)
     try:
@@ -173,7 +173,7 @@ def test_configured_endpoint_is_given_to_otlp_exporter(
     assert endpoints == [endpoint]
     [span] = exporter.get_finished_spans()
     attributes = span.attributes or {}
-    assert attributes["gh_dispatch.repo"] == "acme/api"
-    assert attributes["gh_dispatch.task.type"] == "issue"
-    assert attributes["gh_dispatch.task.id"] == "42"
-    assert attributes["gh_dispatch.result"] == "success"
+    assert attributes["opscli.repo"] == "acme/api"
+    assert attributes["opscli.task.type"] == "issue"
+    assert attributes["opscli.task.id"] == "42"
+    assert attributes["opscli.result"] == "success"

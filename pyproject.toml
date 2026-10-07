@@ -1,5 +1,5 @@
 [project]
-name = "gh-dispatch"
+name = "opscli"
 dynamic = ["version"]
 description = "Dispatch GitHub and cron tasks to local AI coding agents"
 readme = "README.md"
@@ -37,7 +37,7 @@ Issues = "https://github.com/mariotaddeucci/gh-dispatch/issues"
 Changelog = "https://github.com/mariotaddeucci/gh-dispatch/blob/main/CHANGELOG.md"
 
 [project.scripts]
-gh-dispatch = "gh_dispatch.cli:main"
+opscli = "opscli.cli:main"
 
 [dependency-groups]
 dev = [
@@ -51,19 +51,22 @@ dev = [
   "twine>=7,<8",
   "pip-audit>=2.9,<3",
 ]
+docs = [
+  "mkdocs-material>=9.6,<10",
+]
 
 [build-system]
 requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gh_dispatch"]
+packages = ["src/opscli"]
 
 [tool.hatch.version]
-path = "src/gh_dispatch/_version.py"
+path = "src/opscli/_version.py"
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "pyproject.toml", "uv.lock", "README.md", "LICENSE", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "gh-dispatch.example.toml"]
+include = ["src", "tests", "pyproject.toml", "uv.lock", "README.md", "LICENSE", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "opscli.example.toml"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -87,9 +90,9 @@ max-complexity = 12
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["D", "S101", "ASYNC240", "ANN401"]
 # Native executable discovery is intentional; arguments never pass through a shell.
-"src/gh_dispatch/clients/process.py" = ["S603", "S607"]
+"src/opscli/clients/process.py" = ["S603", "S607"]
 # SQL identifiers are private constants; all externally supplied values are bound parameters.
-"src/gh_dispatch/repositories/*.py" = ["S608"]
+"src/opscli/storage/*.py" = ["S608"]
 
 [tool.pyrefly]
 project-includes = ["src", "tests"]
@@ -102,7 +105,7 @@ min-severity = "warn"
 
 [tool.coverage.run]
 branch = true
-source = ["gh_dispatch"]
+source = ["opscli"]
 
 [tool.coverage.report]
 show_missing = true

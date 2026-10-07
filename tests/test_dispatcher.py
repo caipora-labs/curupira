@@ -6,20 +6,21 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from gh_dispatch.config import ApplicationSettings
-from gh_dispatch.dispatcher import dispatch_next_task
-from gh_dispatch.executor import render_task_prompt
-from gh_dispatch.models import (
+from opscli.config import ApplicationSettings
+from opscli.dispatcher import dispatch_next_task
+from opscli.executor import render_task_prompt
+from opscli.models import (
     CommandRequest,
     GhIssue,
     GhPullRequest,
+    GhRepositoryCheckout,
+    GhRepositoryCloneRequest,
     ProcessResult,
     RunningCodingSession,
 )
-from gh_dispatch.repositories import CronScheduleRepository, RunningSessionRepository
-from gh_dispatch.runtime import create_execution_log_handler
-from gh_dispatch.vcs import Checkout, CheckoutRequest
-from tests.fakes import FakeGitHub, FakeVersionControl, RecordingAdapter
+from opscli.runtime import create_execution_log_handler
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
+from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task
 
 
@@ -110,7 +111,7 @@ async def test_failed_dispatch_is_appended_to_the_central_log_file(
         handler.close()
         root_logger.setLevel(previous_level)
 
-    log_path = tmp_path / ".gh-dispatch" / "logs" / "gh-dispatch.log"
+    log_path = tmp_path / ".opscli" / "logs" / "opscli.log"
     lines = log_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
     assert "Starting task repo=acme/api type=issue id=42" in lines[0]
@@ -202,30 +203,30 @@ async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(
 
         async def run(self, request: CommandRequest) -> ProcessResult:
             self.requests.append(request)
-            if request.executable.endswith("setup.sh"):
-                return ProcessResult(returncode=7, stderr="setup failed")
-            return ProcessResult(returncode=0)
+            return ProcessResult(returncode=7, stderr="setup failed")
 
-    class FreshCloneVcs(FakeVersionControl):
+    class FreshCloneGitHub(FakeGitHub):
         @override
-        async def ensure_checkout(self, request: CheckoutRequest) -> Checkout:
+        async def ensure_repository(
+            self, request: GhRepositoryCloneRequest
+        ) -> GhRepositoryCheckout:
             self.checkouts.append(request.destination)
-            return Checkout(repo=request.repo, path=request.destination, cloned=True)
+            return GhRepositoryCheckout(repo=request.repo, path=request.destination, cloned=True)
 
     checkout = tmp_path / "checkout"
+    checkout.mkdir()
     configured = settings(checkout)
     data = configured.model_dump()
     data["coding_agents"]["automations"]["work"]["setup_script"] = "setup.sh"
     configured = ApplicationSettings.model_validate(data)
-    gh = FakeGitHub(
+    gh = FreshCloneGitHub(
         issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
     )
-    vcs = FreshCloneVcs()
     runner = FailedSetupRunner()
-    monkeypatch.setattr(vcs, "_runner", runner)
+    monkeypatch.setattr(gh, "_runner", runner)
     adapter = RecordingAdapter()
 
-    outcome = await dispatch_next_task(configured, gh, vcs=vcs, adapter_factory=lambda _: adapter)
+    outcome = await dispatch_next_task(configured, gh, adapter_factory=lambda _: adapter)
 
     assert outcome.process is not None
     assert outcome.process.returncode == 7

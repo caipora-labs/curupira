@@ -2,14 +2,14 @@
 
 ## Supported versions
 
-Only the latest released version of `gh-dispatch` receives security fixes.
+Only the latest released version of OpsCli receives security fixes.
 
 ## Reporting a vulnerability
 
 Open a GitHub Security Advisory on this repository
 (`Security` → `Advisories` → `New draft advisory`) or, if that is unavailable,
 open a minimal issue titled "Security report" with no exploit details and request a
-private contact channel. Please include the `gh-dispatch` version, the provider CLI in
+private contact channel. Please include the OpsCli version, the provider CLI in
 use, and steps to reproduce.
 
 We aim to acknowledge reports within 7 days and will coordinate a fix and release
@@ -23,5 +23,5 @@ automations, and unsafe handling of the local state database.
 
 Out of scope: vulnerabilities in the provider CLIs themselves (`opencode`, `codex`,
 `claude`, `agent`, `gh`), in GitHub, or in the repositories the agents check out.
-`gh-dispatch` executes prompts with local CLIs that can read and modify your
+OpsCli executes prompts with local CLIs that can read and modify your
 checkouts — review automation prompts and only run automations you trust.
