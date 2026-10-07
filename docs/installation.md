@@ -2,10 +2,9 @@
 
 ## Requirements
 
-- Python 3.11 or newer (Linux, macOS, and Windows).
+{{ requirements_list() }}
+
 - [`uv`](https://docs.astral.sh/uv/) to install the application.
-- [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated (`gh auth login`).
-- Only the CLIs used by configured profiles: [OpenCode](https://opencode.ai/), [Codex](https://developers.openai.com/codex/cli/), [Claude Code](https://code.claude.com/docs/en/cli-reference), or Cursor CLI (`agent`).
 
 ## Install
 

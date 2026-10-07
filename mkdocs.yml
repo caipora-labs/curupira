@@ -5,6 +5,8 @@ repo_url: https://github.com/mariotaddeucci/opscli
 docs_dir: docs
 plugins:
   - search
+  - macros:
+      module_name: main
   - mkdocstrings:
       handlers:
         python:
