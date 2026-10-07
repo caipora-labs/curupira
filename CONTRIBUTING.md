@@ -55,6 +55,13 @@ When adding a provider or CLI, update `docs/data/requirements.toml` and the corr
 adapter in `src/opscli/agents/`; the English installation requirements are rendered from
 that TOML file during the MkDocs build.
 
+## Documentation translations
+
+Edit the canonical English pages in `docs/en/` first. When English documentation changes,
+open a follow-up pull request to synchronize the corresponding Portuguese (`docs/pt/`) and
+Spanish (`docs/es/`) pages. Generated Pydantic reference stays canonical in English; other
+languages should link to it rather than manually translating generated fields.
+
 ## Dependency audits
 
 `pip-audit` runs in CI against the synced development environment:
