@@ -10,7 +10,6 @@ from opscli.models import (
     Task,
     TaskIdentity,
 )
-from opscli.models.configuration import ISSUE_PROMPT_FIELDS
 from opscli.tasks.base import FeedDependencies, TaskFeed, TaskSource, Trigger
 from opscli.tasks.feed import PollingTaskFeed
 from opscli.tasks.registry import register
@@ -57,7 +56,7 @@ class IssueTrigger(Trigger):
     @override
     def prompt_fields(cls) -> frozenset[str]:
         """Return the issue-specific prompt placeholders."""
-        return ISSUE_PROMPT_FIELDS
+        return frozenset({"issue_number", "issue_title", "issue_body", "issue_url"})
 
     @override
     def prompt_context(self, task: Task) -> dict[str, str]:
