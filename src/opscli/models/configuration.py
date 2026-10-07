@@ -267,7 +267,7 @@ class CodingAgentsSettings(ValidatedModel):
             unknown = set(Template(automation.prompt).get_identifiers()) - allowed
             if unknown:
                 raise ValueError(f"unsupported prompt placeholders for {name!r}: {sorted(unknown)}")
-            if automation.trigger_type == "cron":
+            if isinstance(automation, CronAutomationConfiguration):
                 timezone = ZoneInfo(automation.timezone or self.defaults.timezone)
                 start = normalize_date(automation.start_date, timezone)
                 end = normalize_date(automation.end_date, timezone)
