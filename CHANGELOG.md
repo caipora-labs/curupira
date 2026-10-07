@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.1.0] - 2026-10-07
 
 ### Added
 
@@ -18,6 +18,9 @@ All notable changes to this project are documented here. The format follows
 - Non-destructive SQLite state: incompatible files raise instead of being deleted.
 - `validate`, `run` (with `--dry-run`), and `watch` commands with documented exit
   codes.
+- Local dispatch for GitHub issues, pull requests, and cron tasks, with isolated
+  task worktrees and persistent SQLite scheduling state.
+- User and contributor guides at <https://caipora-labs.github.io/curupira/>.
 
 ### Changed
 
@@ -41,3 +44,5 @@ All notable changes to this project are documented here. The format follows
   per-automation prompts; the map key is the automation ID.
 - Custom-agent names are only accepted where a verified native flag exists
   (`--agent` for OpenCode and Claude Code).
+
+## [Unreleased]
