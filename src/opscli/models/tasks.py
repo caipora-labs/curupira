@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from typing import Literal
 
 from pydantic import AwareDatetime, model_validator
 
@@ -16,7 +15,7 @@ class TaskIdentity(ValidatedModel):
 
     automation_id: Identifier
     repo: NonEmptyString
-    task_type: Literal["issue", "pull_request", "cron"]
+    task_type: NonEmptyString
     id: NonEmptyString
 
     @property

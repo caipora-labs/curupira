@@ -85,6 +85,11 @@ def test_invalid_automation_is_rejected(overrides: dict[str, Any]) -> None:
         configuration(**overrides)
 
 
+def test_unregistered_trigger_type_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="unknown trigger type: unknown"):
+        configuration("unknown")
+
+
 @pytest.mark.parametrize("field", ["max_active_tasks", "max_pending_tasks"])
 @pytest.mark.parametrize("value", [0, -1, True, 1.5])
 def test_execution_counts_require_positive_integers(field: str, value: object) -> None:
@@ -252,8 +257,8 @@ async def test_missing_file_and_environment_precedence(
     assert configuration().settings.max_active_tasks == 1
 
 
-def test_json_schema_describes_discriminated_map() -> None:
+def test_json_schema_keeps_the_three_supported_configuration_shapes() -> None:
     schema = ApplicationSettings.model_json_schema()
     automations = schema["$defs"]["CodingAgentsSettings"]["properties"]["automations"]
     values = next(iter(automations["patternProperties"].values()))
-    assert values["discriminator"]["propertyName"] == "trigger_type"
+    assert len(values["anyOf"]) == 3

@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
-from pydantic import AnyHttpUrl, Field, field_validator, model_validator
+from pydantic import AnyHttpUrl, BeforeValidator, Field, field_validator, model_validator
 
 from opscli.models.base import Identifier, NonEmptyString, PositiveSeconds, ValidatedModel
 from opscli.models.profiles import CliProfile, OpenCodeCliProfile
@@ -170,13 +170,13 @@ class GitHubAutomationConfiguration(AutomationConfigurationBase):
 class IssueAutomationConfiguration(GitHubAutomationConfiguration):
     """Discover issues matching a GitHub Search query."""
 
-    trigger_type: Literal["issue"] = "issue"
+    trigger_type: NonEmptyString = "issue"
 
 
 class PullRequestAutomationConfiguration(GitHubAutomationConfiguration):
     """Discover pull requests matching a GitHub Search query."""
 
-    trigger_type: Literal["pull_request"] = "pull_request"
+    trigger_type: NonEmptyString = "pull_request"
 
 
 class CronAutomationConfiguration(AutomationConfigurationBase):
@@ -189,7 +189,7 @@ class CronAutomationConfiguration(AutomationConfigurationBase):
         end_date: Optional inclusive latest occurrence; naive values use the effective timezone.
     """
 
-    trigger_type: Literal["cron"] = "cron"
+    trigger_type: NonEmptyString = "cron"
     schedule: NonEmptyString
     timezone: NonEmptyString | None = None
     start_date: datetime | None = None
@@ -210,9 +210,27 @@ class CronAutomationConfiguration(AutomationConfigurationBase):
         return validate_timezone(value) if value is not None else None
 
 
+def parse_automation_configuration(value: object) -> object:
+    """Validate registered trigger names and select one of the supported config shapes."""
+    if not isinstance(value, dict):
+        return value
+    trigger_type = value.get("trigger_type")
+    if not isinstance(trigger_type, str):
+        return value
+    import opscli.tasks  # noqa: F401
+    from opscli.tasks.registry import get
+
+    get(trigger_type)
+    if trigger_type == "pull_request":
+        return PullRequestAutomationConfiguration.model_validate(value)
+    if trigger_type == "cron" or "schedule" in value:
+        return CronAutomationConfiguration.model_validate(value)
+    return IssueAutomationConfiguration.model_validate(value)
+
+
 AutomationConfiguration = Annotated[
     IssueAutomationConfiguration | PullRequestAutomationConfiguration | CronAutomationConfiguration,
-    Field(discriminator="trigger_type"),
+    BeforeValidator(parse_automation_configuration),
 ]
 
 
