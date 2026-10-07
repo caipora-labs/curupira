@@ -21,8 +21,8 @@ from opscli.models import (
     Task,
 )
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
-from opscli.telemetry import TaskTelemetry
 from opscli.tasks.registry import get as get_trigger
+from opscli.telemetry import TaskTelemetry
 
 logger = logging.getLogger(__name__)
 

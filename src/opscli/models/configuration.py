@@ -16,6 +16,8 @@ from opscli.models.profiles import CliProfile, OpenCodeCliProfile
 COMMON_PROMPT_FIELDS = frozenset(
     {"repo", "automation_id", "task_type", "task_number", "task_title", "task_body", "task_url"}
 )
+
+
 def validate_timezone(value: str) -> str:
     """Validate an IANA timezone without inventing a fallback."""
     try:
@@ -185,17 +187,17 @@ class CodingAgentsSettings(ValidatedModel):
         """Check profile references and prompt placeholders."""
         if self.defaults.profile not in self.profiles:
             raise ValueError(f"default profile does not exist: {self.defaults.profile}")
+        from opscli.tasks.registry import get
+
         for name, automation in self.automations.items():
             profile = automation.profile or self.defaults.profile
             if profile not in self.profiles:
                 raise ValueError(f"profile {profile!r} for automation {name!r} does not exist")
-            from opscli.tasks.registry import get
-
             allowed = COMMON_PROMPT_FIELDS | get(automation.trigger_type).prompt_fields()
             unknown = set(Template(automation.prompt).get_identifiers()) - allowed
             if unknown:
                 raise ValueError(f"unsupported prompt placeholders for {name!r}: {sorted(unknown)}")
-            if isinstance(automation, CronAutomationConfiguration):
+            if automation.trigger_type == "cron":
                 timezone = ZoneInfo(automation.timezone or self.defaults.timezone)
                 start = normalize_date(automation.start_date, timezone)
                 end = normalize_date(automation.end_date, timezone)

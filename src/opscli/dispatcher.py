@@ -23,7 +23,9 @@ def create_task_feeds(
     feeds: list[TaskFeed] = []
     for automation in settings.resolve_automations().values():
         dependencies = FeedDependencies(settings.settings.polling, gh, cron)
-        feeds.append(get_trigger(automation.configuration.trigger_type).build_feed(automation, dependencies))
+        feeds.append(
+            get_trigger(automation.configuration.trigger_type).build_feed(automation, dependencies)
+        )
     return feeds
 
 
