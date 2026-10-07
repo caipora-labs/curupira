@@ -8,13 +8,24 @@ from opscli.models.base import NonEmptyString, ValidatedModel
 
 
 class CliProfileBase(ValidatedModel):
-    """Options common to every supported CLI."""
+    """Options common to every supported CLI.
+
+    Attributes:
+        model: Optional provider-specific model identifier.
+    """
 
     model: NonEmptyString | None = None
 
 
 class OpenCodeCliProfile(CliProfileBase):
-    """OpenCode options, including native custom-agent selection."""
+    """OpenCode options, including native custom-agent selection.
+
+    Attributes:
+        provider: Discriminator identifying the OpenCode CLI.
+        agent: Optional configured OpenCode agent name.
+        effort: Optional provider-specific effort level.
+        auto_approve: Whether OpenCode runs with approval prompts disabled.
+    """
 
     provider: Literal["opencode"] = "opencode"
     agent: NonEmptyString | None = None
@@ -30,7 +41,15 @@ class OpenCodeCliProfile(CliProfileBase):
 
 
 class CodexCliProfile(CliProfileBase):
-    """Codex options, including selection of an existing CLI configuration profile."""
+    """Codex options, including selection of an existing CLI configuration profile.
+
+    Attributes:
+        provider: Discriminator identifying the Codex CLI.
+        agent: Optional configured Codex agent name.
+        effort: Optional Codex reasoning effort.
+        sandbox: Optional Codex sandbox permission level.
+        auto_review: Whether Codex should review changes automatically.
+    """
 
     provider: Literal["codex"] = "codex"
     agent: NonEmptyString | None = None
@@ -47,7 +66,15 @@ class CodexCliProfile(CliProfileBase):
 
 
 class ClaudeCodeCliProfile(CliProfileBase):
-    """Claude Code options, including native custom-agent selection."""
+    """Claude Code options, including native custom-agent selection.
+
+    Attributes:
+        provider: Discriminator identifying the Claude Code CLI.
+        agent: Optional configured Claude Code agent name.
+        effort: Optional Claude model effort level.
+        permission_mode: Optional Claude Code permission mode.
+        permission_prompts: Whether permission prompts are handled by the host or disabled.
+    """
 
     provider: Literal["claude"] = "claude"
     agent: NonEmptyString | None = None
@@ -59,7 +86,14 @@ class ClaudeCodeCliProfile(CliProfileBase):
 
 
 class CursorCliProfile(CliProfileBase):
-    """Cursor options, including native agent/ask/plan mode selection."""
+    """Cursor options, including native agent/ask/plan mode selection.
+
+    Attributes:
+        provider: Discriminator identifying the Cursor CLI.
+        agent: Optional Cursor execution mode.
+        force: Whether to force execution in a non-interactive environment.
+        trust: Whether to trust the current workspace.
+    """
 
     provider: Literal["cursor"] = "cursor"
     agent: Literal["agent", "ask", "plan"] | None = None

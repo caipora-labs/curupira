@@ -1,5 +1,51 @@
 # Configuration
 
+## Generated model reference
+
+The model reference below is generated from the public Pydantic models. Field types,
+defaults, and constraints come directly from the source models; update those models rather
+than maintaining a parallel field table here.
+
+### Runtime settings
+
+::: opscli.models.configuration.ExecutionSettings
+    options:
+      members:
+        - max_active_tasks
+        - max_pending_tasks
+        - workspace_dir
+        - state_db_path
+        - otlp_endpoint
+        - task_timeout_seconds
+        - max_output_bytes
+        - polling
+
+::: opscli.models.configuration.PollingSettings
+    options:
+      show_root_heading: true
+
+### Coding-agent defaults and automations
+
+::: opscli.models.configuration.CodingAgentDefaults
+
+::: opscli.models.configuration.CodingAgentsSettings
+
+::: opscli.models.configuration.IssueAutomationConfiguration
+
+::: opscli.models.configuration.PullRequestAutomationConfiguration
+
+::: opscli.models.configuration.CronAutomationConfiguration
+
+### CLI profiles
+
+::: opscli.models.profiles.OpenCodeCliProfile
+
+::: opscli.models.profiles.CodexCliProfile
+
+::: opscli.models.profiles.ClaudeCodeCliProfile
+
+::: opscli.models.profiles.CursorCliProfile
+
 One TOML file contains global limits, coding-agent profiles, and automations. An automation watches issues, pull requests, or a cron schedule.
 
 ```toml
