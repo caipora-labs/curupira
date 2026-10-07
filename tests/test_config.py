@@ -90,6 +90,18 @@ def test_unregistered_trigger_type_is_rejected() -> None:
         configuration("unknown")
 
 
+def test_registered_alias_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    import opscli.tasks  # noqa: F401
+    from opscli.tasks import registry
+
+    monkeypatch.setattr(registry, "_ALIASES", {})
+    registry.register_alias("issue", "legacy_issue")
+
+    automation = configuration("legacy_issue").coding_agents.automations["daily"]
+
+    assert automation.trigger_type == "legacy_issue"
+
+
 @pytest.mark.parametrize("field", ["max_active_tasks", "max_pending_tasks"])
 @pytest.mark.parametrize("value", [0, -1, True, 1.5])
 def test_execution_counts_require_positive_integers(field: str, value: object) -> None:
