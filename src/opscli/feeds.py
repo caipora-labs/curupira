@@ -3,8 +3,6 @@
 from opscli.clients.gh import GhClient
 from opscli.models import (
     CronAutomationConfiguration,
-    GhIssueSearchRequest,
-    GhPullRequest,
     GhPullRequestSearchRequest,
     ResolvedAutomation,
     Task,
@@ -14,7 +12,7 @@ from opscli.tasks.base import TaskSource
 
 
 class GitHubTaskSource(TaskSource):
-    """Discover issue and pull-request tasks through the GitHub client contract."""
+    """Discover pull-request tasks through the GitHub client contract."""
 
     def __init__(self, gh: GhClient) -> None:
         self._gh = gh
@@ -24,14 +22,11 @@ class GitHubTaskSource(TaskSource):
         config = automation.configuration
         if isinstance(config, CronAutomationConfiguration):
             raise ValueError("GitHub source cannot consume a cron configuration")
-        if config.trigger_type == "issue":
-            items = await self._gh.list_issues(
-                GhIssueSearchRequest(repo=config.repo, query=config.query, limit=limit)
-            )
-        else:
-            items = await self._gh.list_pull_requests(
-                GhPullRequestSearchRequest(repo=config.repo, query=config.query, limit=limit)
-            )
+        if config.trigger_type != "pull_request":
+            raise ValueError("GitHub task source requires a pull-request configuration")
+        items = await self._gh.list_pull_requests(
+            GhPullRequestSearchRequest(repo=config.repo, query=config.query, limit=limit)
+        )
         return [
             Task(
                 identity=TaskIdentity(
@@ -44,9 +39,9 @@ class GitHubTaskSource(TaskSource):
                 title=item.title,
                 body=item.body,
                 url=item.url,
-                is_draft=item.is_draft if isinstance(item, GhPullRequest) else None,
-                head_ref_name=item.head_ref_name if isinstance(item, GhPullRequest) else None,
-                base_ref_name=item.base_ref_name if isinstance(item, GhPullRequest) else None,
+                is_draft=item.is_draft,
+                head_ref_name=item.head_ref_name,
+                base_ref_name=item.base_ref_name,
             )
             for item in items
         ]
