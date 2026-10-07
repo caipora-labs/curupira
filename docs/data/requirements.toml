@@ -1,0 +1,24 @@
+[python]
+range = ">=3.11"
+platforms = "Linux, macOS, and Windows"
+
+[[required_tools]]
+name = "GitHub CLI (`gh`)"
+url = "https://cli.github.com/"
+detail = "Install and authenticate with `gh auth login`."
+
+[[optional_profiles]]
+name = "OpenCode (`opencode`)"
+url = "https://opencode.ai/"
+
+[[optional_profiles]]
+name = "Codex (`codex`)"
+url = "https://developers.openai.com/codex/cli/"
+
+[[optional_profiles]]
+name = "Claude Code (`claude`)"
+url = "https://code.claude.com/docs/en/cli-reference"
+
+[[optional_profiles]]
+name = "Cursor CLI (`agent`)"
+url = "https://docs.cursor.com/en/cli/overview"

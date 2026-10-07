@@ -51,6 +51,10 @@ exists, reject configured `agent` values during validation instead of reinterpre
 them. Cover new behavior with fakes in `tests/` — never start authenticated agents or
 hit the network in tests.
 
+When adding a provider or CLI, update `docs/data/requirements.toml` and the corresponding
+adapter in `src/opscli/agents/`; the English installation requirements are rendered from
+that TOML file during the MkDocs build.
+
 ## Dependency audits
 
 `pip-audit` runs in CI against the synced development environment:

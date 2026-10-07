@@ -3,6 +3,10 @@ site_url: https://mariotaddeucci.github.io/opscli/
 site_description: Run GitHub and cron automations with local coding-agent CLIs.
 repo_url: https://github.com/mariotaddeucci/opscli
 docs_dir: docs
+plugins:
+  - search
+  - macros:
+      module_name: main
 theme:
   name: material
   language: en
