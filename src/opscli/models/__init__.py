@@ -17,8 +17,6 @@ from opscli.models.github import (
     GhLabel,
     GhPullRequest,
     GhPullRequestSearchRequest,
-    GhRepositoryCheckout,
-    GhRepositoryCloneRequest,
 )
 from opscli.models.process import (
     CodingTaskRequest,
@@ -61,8 +59,6 @@ __all__ = [
     "GhLabel",
     "GhPullRequest",
     "GhPullRequestSearchRequest",
-    "GhRepositoryCheckout",
-    "GhRepositoryCloneRequest",
     "IssueAutomationConfiguration",
     "OpenCodeCliProfile",
     "PollingSettings",

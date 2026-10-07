@@ -15,7 +15,6 @@ from opscli.errors import (
     CliExecutionError,
     CliOutputError,
     UnsupportedCodingAgentError,
-    WorkspacePathError,
 )
 from opscli.models import (
     CliProfile,
@@ -25,10 +24,10 @@ from opscli.models import (
     CursorCliProfile,
     GhIssueSearchRequest,
     GhPullRequestSearchRequest,
-    GhRepositoryCloneRequest,
     OpenCodeCliProfile,
     ProcessResult,
 )
+from opscli.vcs.github_cli import GitHubCliVersionControl
 
 
 class RecordingRunner(AsyncProcessRunner):
@@ -309,10 +308,17 @@ async def test_transient_github_errors_are_retried() -> None:
     assert len(runner.requests) == 2
 
 
-async def test_existing_non_git_workspace_is_preserved(tmp_path: Path) -> None:
-    runner = RecordingRunner()
-    with pytest.raises(WorkspacePathError):
-        await GhClient(runner).ensure_repository(
-            GhRepositoryCloneRequest(repo="acme/api", destination=tmp_path)
-        )
-    assert not runner.requests
+async def test_github_cli_version_control_clones_with_literal_repo_and_destination(
+    tmp_path: Path,
+) -> None:
+    runner = RecordingRunner(ProcessResult(returncode=0))
+    await GitHubCliVersionControl(runner).clone("acme/api", tmp_path / "checkout")
+
+    assert runner.requests[0].executable == "gh"
+    assert runner.requests[0].arguments == ("repo", "clone", "acme/api", str(tmp_path / "checkout"))
+
+
+async def test_github_cli_version_control_reports_clone_failure() -> None:
+    runner = RecordingRunner(ProcessResult(returncode=1, stderr="not authenticated"))
+    with pytest.raises(CliExecutionError):
+        await GitHubCliVersionControl(runner).clone("acme/api", Path("checkout"))

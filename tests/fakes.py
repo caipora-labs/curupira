@@ -12,43 +12,35 @@ from opscli.models import (
     GhIssueSearchRequest,
     GhPullRequest,
     GhPullRequestSearchRequest,
-    GhRepositoryCheckout,
-    GhRepositoryCloneRequest,
     ProcessResult,
 )
+from opscli.vcs.base import Checkout, CheckoutRequest, VersionControl
 
 
-class FakeGitHub(GhClient):
-    """Return configured GitHub items and record checkout requests."""
+class FakeVersionControl(VersionControl):
+    """Record checkout lifecycle calls without invoking external Git commands."""
 
-    def __init__(
-        self, *, issues: list[GhIssue] | None = None, pulls: list[GhPullRequest] | None = None
-    ) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.issues = issues or []
-        self.pulls = pulls or []
         self.checkouts: list[Path] = []
         self.worktrees: list[Path] = []
         self.removed_worktrees: list[Path] = []
         self.setup_scripts: list[str] = []
+        self.cloned = False
 
     @override
-    async def list_issues(self, request: GhIssueSearchRequest) -> list[GhIssue]:
-        return self.issues
+    async def clone(self, repo: str, destination: Path) -> None:
+        raise AssertionError("fake checkout overrides ensure_checkout")
 
     @override
-    async def list_pull_requests(self, request: GhPullRequestSearchRequest) -> list[GhPullRequest]:
-        return self.pulls
-
-    @override
-    async def ensure_repository(self, request: GhRepositoryCloneRequest) -> GhRepositoryCheckout:
+    async def ensure_checkout(self, request: CheckoutRequest) -> Checkout:
         self.checkouts.append(request.destination)
-        return GhRepositoryCheckout(repo=request.repo, path=request.destination, cloned=False)
+        return Checkout(repo=request.repo, path=request.destination, cloned=self.cloned)
 
     @override
     async def run_setup_script(
         self,
-        checkout: GhRepositoryCheckout,
+        checkout: Checkout,
         script: str,
         *,
         timeout_seconds: float | None = None,
@@ -64,7 +56,7 @@ class FakeGitHub(GhClient):
 
     @override
     async def ensure_worktree(
-        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, task_id: str
+        self, checkout: Checkout, *, automation_id: str, task_type: str, task_id: str
     ) -> Path:
         path = (
             checkout.path.with_name(f"{checkout.path.name}.worktrees")
@@ -76,13 +68,45 @@ class FakeGitHub(GhClient):
 
     @override
     async def remove_worktree(
-        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, task_id: str
+        self, checkout: Checkout, *, automation_id: str, task_type: str, task_id: str
     ) -> None:
-        self.removed_worktrees.append(
-            checkout.path.with_name(f"{checkout.path.name}.worktrees")
-            / automation_id
-            / f"{task_type}-{task_id}"
-        )
+        self.removed_worktrees.extend(self.worktrees[-1:])
+
+
+class FakeGitHub(GhClient):
+    """Return configured GitHub items and record checkout requests."""
+
+    def __init__(
+        self, *, issues: list[GhIssue] | None = None, pulls: list[GhPullRequest] | None = None
+    ) -> None:
+        super().__init__()
+        self.issues = issues or []
+        self.pulls = pulls or []
+        self.vcs = FakeVersionControl()
+
+    @property
+    def checkouts(self) -> list[Path]:
+        return self.vcs.checkouts
+
+    @property
+    def worktrees(self) -> list[Path]:
+        return self.vcs.worktrees
+
+    @property
+    def removed_worktrees(self) -> list[Path]:
+        return self.vcs.removed_worktrees
+
+    @property
+    def setup_scripts(self) -> list[str]:
+        return self.vcs.setup_scripts
+
+    @override
+    async def list_issues(self, request: GhIssueSearchRequest) -> list[GhIssue]:
+        return self.issues
+
+    @override
+    async def list_pull_requests(self, request: GhPullRequestSearchRequest) -> list[GhPullRequest]:
+        return self.pulls
 
 
 class RecordingAdapter(CodingAgentCliAdapter):

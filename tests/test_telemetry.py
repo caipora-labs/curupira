@@ -20,7 +20,7 @@ from opscli.models import (
 )
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.telemetry import TaskTelemetry
-from tests.fakes import FakeGitHub, RecordingAdapter
+from tests.fakes import FakeVersionControl, RecordingAdapter
 from tests.helpers import issue_task, pull_request_task, resolved_automation
 
 
@@ -86,7 +86,7 @@ async def test_executor_exports_the_real_task_outcome(tmp_path: Path) -> None:
     database = tmp_path / "state.sqlite3"
     executor = TaskExecutor(
         ExecutionSettings(state_db_path=database),
-        FakeGitHub(),
+        FakeVersionControl(),
         cast(RunningSessionRepository, MemorySessionRepository()),
         CronScheduleRepository(database),
         adapter_factory=lambda _: RecordingAdapter(),

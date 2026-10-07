@@ -3,12 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import re
-import shutil
-from asyncio import to_thread
-from pathlib import Path
 from typing import cast
 
 from pydantic import TypeAdapter, ValidationError
@@ -19,7 +15,6 @@ from opscli.errors import (
     CliExecutionError,
     CliOutputError,
     TransientCliError,
-    WorkspacePathError,
 )
 from opscli.models import (
     DEFAULT_ISSUE_JSON_FIELDS,
@@ -28,9 +23,6 @@ from opscli.models import (
     GhIssueSearchRequest,
     GhPullRequest,
     GhPullRequestSearchRequest,
-    GhRepositoryCheckout,
-    GhRepositoryCloneRequest,
-    ProcessResult,
 )
 
 _PROJECT_ITEM_JSON_FIELDS = ("number", "title", "url", "projectItems")
@@ -71,142 +63,7 @@ class GhClient:
 
     def __init__(self, runner: AsyncProcessRunner | None = None) -> None:
         self._runner = runner or AsyncProcessRunner()
-        self._clone_locks: dict[Path, asyncio.Lock] = {}
-        self._worktree_locks: dict[Path, asyncio.Lock] = {}
         self._search_lock = asyncio.Lock()
-
-    async def run_setup_script(
-        self,
-        checkout: GhRepositoryCheckout,
-        script: str,
-        *,
-        timeout_seconds: float | None = None,
-        max_output_bytes: int = 1_000_000,
-    ) -> ProcessResult:
-        """Execute a repository-relative setup executable directly after a fresh clone."""
-        try:
-            result = await self._runner.run(
-                CommandRequest(
-                    executable=str(checkout.path / script),
-                    cwd=checkout.path,
-                    timeout=timeout_seconds,
-                    max_output_bytes=max_output_bytes,
-                )
-            )
-        except Exception:
-            if checkout.cloned:
-                await to_thread(shutil.rmtree, checkout.path, True)
-            raise
-        if result.returncode and checkout.cloned:
-            await to_thread(shutil.rmtree, checkout.path, True)
-        return result
-
-    async def ensure_worktree(
-        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, task_id: str
-    ) -> Path:
-        """Create or reuse the task's deterministic worktree from origin's default branch."""
-        base = checkout.path
-        lock = self._worktree_locks.setdefault(base, asyncio.Lock())
-        async with lock:
-            safe_task_id = hashlib.sha256(task_id.encode()).hexdigest()
-            target = (
-                base.with_name(f"{base.name}.worktrees")
-                / automation_id
-                / f"{task_type}-{safe_task_id}"
-            )
-            if target.is_dir():
-                return target
-            fetch = await self._runner.run(
-                CommandRequest(executable="git", arguments=("fetch", "origin"), cwd=base)
-            )
-            if fetch.returncode:
-                raise CliExecutionError("git fetch", fetch.returncode, fetch.stderr)
-            default = await self._runner.run(
-                CommandRequest(
-                    executable="git",
-                    arguments=("symbolic-ref", "refs/remotes/origin/HEAD"),
-                    cwd=base,
-                )
-            )
-            if default.returncode:
-                raise CliExecutionError("git symbolic-ref", default.returncode, default.stderr)
-            ref = default.stdout.strip()
-            branch = f"opscli/{automation_id}/{task_type}-{safe_task_id}"
-            target.parent.mkdir(parents=True, exist_ok=True)
-            result = await self._runner.run(
-                CommandRequest(
-                    executable="git",
-                    arguments=("worktree", "add", "-b", branch, str(target), ref),
-                    cwd=base,
-                )
-            )
-            if result.returncode:
-                raise CliExecutionError("git worktree add", result.returncode, result.stderr)
-            return target
-
-    async def remove_worktree(
-        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, task_id: str
-    ) -> None:
-        """Remove a task worktree and its local branch; cleanup failures are best effort."""
-        base = checkout.path
-        lock = self._worktree_locks.setdefault(base, asyncio.Lock())
-        async with lock:
-            safe_task_id = hashlib.sha256(task_id.encode()).hexdigest()
-            target = (
-                base.with_name(f"{base.name}.worktrees")
-                / automation_id
-                / f"{task_type}-{safe_task_id}"
-            )
-            for arguments in (
-                ("worktree", "remove", "--force", str(target)),
-                ("branch", "-D", f"opscli/{automation_id}/{task_type}-{safe_task_id}"),
-            ):
-                result = await self._runner.run(
-                    CommandRequest(executable="git", arguments=arguments, cwd=base)
-                )
-                if result.returncode:
-                    raise CliExecutionError("git " + arguments[0], result.returncode, result.stderr)
-
-    async def ensure_repository(self, request: GhRepositoryCloneRequest) -> GhRepositoryCheckout:
-        """Reuse a local checkout or clone it into its workspace using ``gh``."""
-        destination = request.destination.expanduser().resolve()
-        lock = self._clone_locks.setdefault(destination, asyncio.Lock())
-
-        async with lock:
-            if await asyncio.to_thread(_is_git_checkout, destination):
-                return GhRepositoryCheckout(repo=request.repo, path=destination, cloned=False)
-
-            if await asyncio.to_thread(destination.exists):
-                raise WorkspacePathError(
-                    f"workspace destination exists but is not a Git checkout: {destination}"
-                )
-
-            try:
-                await asyncio.to_thread(
-                    destination.parent.mkdir,
-                    parents=True,
-                    exist_ok=True,
-                )
-            except OSError as error:
-                raise WorkspacePathError(
-                    f"cannot create workspace directory {destination.parent}: {error}"
-                ) from error
-            result = await self._runner.run(
-                CommandRequest(
-                    executable="gh",
-                    arguments=("repo", "clone", request.repo, str(destination)),
-                    timeout=None,
-                )
-            )
-            if result.returncode != 0:
-                raise CliExecutionError("gh", result.returncode, result.stderr)
-            if not await asyncio.to_thread(_is_git_checkout, destination):
-                raise CliOutputError(
-                    f"gh reported a successful clone, but no Git checkout was created at "
-                    f"{destination}"
-                )
-
-            return GhRepositoryCheckout(repo=request.repo, path=destination, cloned=True)
 
     async def list_issues(self, request: GhIssueSearchRequest) -> list[GhIssue]:
         """List issues through the resilient gh boundary."""
@@ -310,10 +167,6 @@ class GhClient:
             return payload
         except (json.JSONDecodeError, TypeError) as error:
             raise CliOutputError(f"gh returned invalid {command} JSON: {error}") from error
-
-
-def _is_git_checkout(path: Path) -> bool:
-    return path.is_dir() and (path / ".git").exists()
 
 
 def _is_project_query(query: str) -> bool:

@@ -12,7 +12,7 @@ from opscli.executor import TaskExecutor
 from opscli.models import CodingTaskRequest, ExecutionSettings, ProcessResult, Task
 from opscli.scheduler import TaskScheduler
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
-from tests.fakes import FakeGitHub, RecordingAdapter
+from tests.fakes import FakeVersionControl, RecordingAdapter
 from tests.helpers import issue_task, pull_request_task
 
 
@@ -58,7 +58,7 @@ def executor(path: Path, adapter: RecordingAdapter) -> TaskExecutor:
     database = path / "state.sqlite3"
     return TaskExecutor(
         ExecutionSettings(state_db_path=database),
-        FakeGitHub(),
+        FakeVersionControl(),
         RunningSessionRepository(database),
         CronScheduleRepository(database),
         adapter_factory=lambda _: adapter,
