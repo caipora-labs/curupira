@@ -37,6 +37,7 @@ jobs:
   publish:
     name: Publish distributions
     needs: build
+    if: ${{ !contains(github.ref_name, '.dev') }}
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

@@ -2,13 +2,18 @@ name: TestPyPI rehearsal
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "v*.dev*"
 
 permissions: {}
 
 jobs:
   rehearse:
     name: Build, publish, and install from TestPyPI
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
@@ -79,8 +84,12 @@ jobs:
         run: uv build
       - name: Read built package version
         id: package_version
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
+          import os
+          import re
           import zipfile
           from email.parser import Parser
           from pathlib import Path
@@ -94,6 +103,15 @@ jobs:
               )
               metadata = Parser().parsestr(archive.read(metadata_name).decode())
           print(f"version={metadata['Version']}")
+          tag = os.environ["RELEASE_TAG"]
+          if tag:
+              if re.fullmatch(r"v\d+\.\d+\.\d+\.dev\d+", tag) is None:
+                  raise SystemExit(f"Expected a PEP 440 development tag, got {tag!r}")
+              expected = tag.removeprefix("v")
+              if metadata["Version"] != expected:
+                  raise SystemExit(
+                      f"Tag version {expected!r} does not match wheel: {metadata['Version']!r}"
+                  )
           PY
       - name: Publish rehearsal to TestPyPI
         # pypa/gh-action-pypi-publish v1.14.2; it creates attestations before upload.
@@ -110,5 +128,6 @@ jobs:
             --extra-index-url https://pypi.org/simple/ \
             "curupi==${PACKAGE_VERSION}"
           /tmp/curupi-testpypi/bin/python -c "import curupi; print(curupi.__version__)"
+          /tmp/curupi-testpypi/bin/curupi --help
           /tmp/curupi-testpypi/bin/python -c "from curupi._native import rust_core_version; version = rust_core_version(); assert isinstance(version, str) and version.strip(); print(version)"
           /tmp/curupi-testpypi/bin/curupi --version

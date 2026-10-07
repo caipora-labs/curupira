@@ -157,14 +157,34 @@ permanent ignore.
 Versioning is `MAJOR.MINOR.PATCH`. The single version source is
 `src/curupi/_version.py`; the build backend reads it, and the CLI reports it.
 
+### TestPyPI development rehearsal
+
+For the pre-release rehearsal, set `__version__` in `src/curupi/_version.py` to the
+exact PEP 440 version to publish (for example, `0.1.0.dev0`) and commit that change.
+From that commit, create and push the matching tag:
+
+```bash
+git tag v0.1.0.dev0
+git push origin v0.1.0.dev0
+```
+
+The `testpypi.yml` workflow builds the Rust-enabled wheel and sdist, verifies that
+their version matches the tag without its `v` prefix, publishes to TestPyPI using
+Trusted Publishing, then installs the exact version and smoke-tests `curupi --help`,
+`curupi --version`, and the native `rust_core_version`. Development tags do not publish
+to PyPI or create a GitHub Release. TestPyPI does not allow replacing an existing
+version, so use a new `.devN` version and matching tag for another rehearsal. Stable
+`vX.Y.Z` publication remains a separate release flow.
+
 To cut a release:
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` into a new version section.
 2. Bump `__version__` in `src/curupi/_version.py` to match.
 3. Run the full verification suite and confirm `uv build` plus
    `uv run --no-sync twine check dist/*` pass.
-4. Before the first production publication, run the `testpypi.yml` workflow manually
-   from `main` to rehearse the upload to TestPyPI and verify the installed package.
+4. Before the first production publication, complete the tag-driven TestPyPI
+   development rehearsal described above. The workflow can also still be run manually
+   from `main` for a non-tagged rehearsal.
 5. Tag the validated commit as `vX.Y.Z` and push the tag. The `publish.yml` workflow
    publishes that version to PyPI; the `release.yml` workflow attaches the distributions
    to the matching GitHub release.
