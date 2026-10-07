@@ -2,13 +2,15 @@
 
 import hashlib
 import subprocess
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 import pytest
 from typing_extensions import override
 
+from opscli.clients.process import AsyncProcessRunner
 from opscli.errors import WorkspacePathError
-from opscli.models import CommandRequest
+from opscli.models import CommandRequest, ProcessResult
 from opscli.vcs import Checkout, CheckoutRequest, VersionControl
 
 
@@ -129,9 +131,18 @@ async def test_failed_setup_removes_new_clone(tmp_path: Path, local_repository: 
     checkout = await vcs.ensure_checkout(
         CheckoutRequest(repo=str(local_repository), destination=tmp_path / "checkout")
     )
-    script = checkout.path / "setup.sh"
-    script.write_text("#!/bin/sh\nexit 7\n")
-    script.chmod(0o755)
+
+    class FailedSetupRunner(AsyncProcessRunner):
+        @override
+        async def run(
+            self,
+            request: CommandRequest,
+            *,
+            on_stdout_line: Callable[[str], Awaitable[None]] | None = None,
+        ) -> ProcessResult:
+            return ProcessResult(returncode=7, stderr="setup failed")
+
+    vcs._runner = FailedSetupRunner()
 
     result = await vcs.run_setup_script(checkout, "setup.sh")
 
