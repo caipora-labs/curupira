@@ -3,11 +3,11 @@
 All commands use the same configuration file and execution pipeline.
 
 ```bash
-opscli validate
-opscli run
-opscli run --dry-run
-opscli watch
-opscli batch [--size N]
+curupi validate
+curupi run
+curupi run --dry-run
+curupi watch
+curupi batch [--size N]
 ```
 
 - `validate` checks TOML and references without running an automation, calling external CLIs, or writing state. It exits `0` for valid configuration and `2` for configuration errors.
@@ -19,8 +19,8 @@ opscli batch [--size N]
 Select another TOML by placing the option before the command:
 
 ```bash
-opscli --config ./settings-dev.toml validate
-opscli --config ./settings-dev.toml watch
+curupi --config ./settings-dev.toml validate
+curupi --config ./settings-dev.toml watch
 ```
 
-`run` and `watch` append task records to `~/.opscli/logs/opscli.log`. Sessions interrupted by process restarts are stored in the state database; `watch` resumes saved sessions after restart. Transient `gh` failures retry with backoff. Authentication, configuration, output-format, and agent-task failures are not automatically retried.
+`run` and `watch` append task records to `~/.curupi/logs/curupi.log`. Sessions interrupted by process restarts are stored in the state database; `watch` resumes saved sessions after restart. Transient `gh` failures retry with backoff. Authentication, configuration, output-format, and agent-task failures are not automatically retried.

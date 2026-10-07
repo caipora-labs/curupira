@@ -6,8 +6,8 @@ from typing import cast
 
 import pytest
 
-from opscli.models import ResolvedAutomation, Task
-from opscli.tasks.base import TaskFeed, TaskSource
+from curupi.models import ResolvedAutomation, Task
+from curupi.tasks.base import TaskFeed, TaskSource
 from tests.helpers import issue_task, resolved_automation
 
 

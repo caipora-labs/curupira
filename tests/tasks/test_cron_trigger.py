@@ -3,12 +3,12 @@
 from pathlib import Path
 from typing import cast
 
-from opscli.clients.gh import GhClient
-from opscli.models import PollingSettings
-from opscli.storage import CronScheduleRepository
-from opscli.tasks.base import FeedDependencies
-from opscli.tasks.cron import CronTaskFeed, CronTrigger
-from opscli.tasks.registry import get
+from curupi.clients.gh import GhClient
+from curupi.models import PollingSettings
+from curupi.storage import CronScheduleRepository
+from curupi.tasks.base import FeedDependencies
+from curupi.tasks.cron import CronTaskFeed, CronTrigger
+from curupi.tasks.registry import get
 from tests.helpers import issue_task, resolved_automation
 
 

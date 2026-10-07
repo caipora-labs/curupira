@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from opscli.models import Task, TaskIdentity
+from curupi.models import Task, TaskIdentity
 from tests.helpers import resolved_automation
 
 

@@ -36,7 +36,7 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Local opscli configuration and runtime state
+# Local curupi configuration and runtime state
 /*-dispatch.toml
 *.sqlite3
 *.sqlite3-journal

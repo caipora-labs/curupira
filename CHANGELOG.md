@@ -7,9 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- Rust crate `crates/opscli-core`, compiled with maturin into the `opscli._native`
+- Rust crate `crates/curupi-core`, compiled with maturin into the `curupi._native`
   extension shipped in the wheel. `rust_core_version()` returns the crate version.
-  The Python CLI entry point is unchanged.
 - Keyed automations with a `trigger_type` discriminator (`issue`, `pull_request`,
   `cron`) sharing one discovery, scheduling, and execution pipeline.
 - Native provider adapters for OpenCode, Codex, Claude Code, and Cursor with
@@ -22,6 +21,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Renamed the installable package, console script, and Python import from `opscli`
+  to `curupi`. The product name remains OpsCli. Configuration and state now default
+  to `~/.curupi` (example file `curupi.example.toml`, log `logs/curupi.log`). Task
+  worktree branches use the `curupi/` prefix. The native crate is `crates/curupi-core`,
+  imported as `curupi._native`.
 - Renamed the product to OpsCli, the package and executable to `opscli`, and the
   per-user runtime directory to `~/.opscli`.
 - Configuration moved to `settings` plus `coding_agents` with global polling and

@@ -12,16 +12,16 @@ labels: bug
 ## Reproduction
 
 ```toml
-# Minimal ~/.opscli/settings.toml (redact private repository names)
+# Minimal ~/.curupi/settings.toml (redact private repository names)
 ```
 
 ```bash
-# Exact command, e.g. opscli --config ~/.opscli/settings.toml run
+# Exact command, e.g. curupi --config ~/.curupi/settings.toml run
 ```
 
 ## Environment
 
-- opscli version (`opscli --version`):
+- curupi version (`curupi --version`):
 - Python version:
 - Platform (Linux/macOS/Windows):
 - Provider CLI and version (if relevant):

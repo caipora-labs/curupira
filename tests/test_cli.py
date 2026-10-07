@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from opscli.cli import CliOptions, _batch_stream, _build_parser, async_main
-from opscli.config import load_settings
-from opscli.models import Task
-from opscli.runtime import DispatchInstanceLock, dispatch_home
-from opscli.tasks.base import TaskFeed
+from curupi.cli import CliOptions, _batch_stream, _build_parser, async_main
+from curupi.config import load_settings
+from curupi.models import Task
+from curupi.runtime import DispatchInstanceLock, dispatch_home
+from curupi.tasks.base import TaskFeed
 from tests.helpers import issue_task
 
 
@@ -72,7 +72,7 @@ def test_parser_defaults_to_central_settings_path(
 
     parsed = _build_parser().parse_args(["validate"])
 
-    assert parsed.config == tmp_path / ".opscli" / "settings.toml"
+    assert parsed.config == tmp_path / ".curupi" / "settings.toml"
 
 
 async def test_default_configuration_is_loaded_from_user_home(
@@ -80,7 +80,7 @@ async def test_default_configuration_is_loaded_from_user_home(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    config = tmp_path / ".opscli" / "settings.toml"
+    config = tmp_path / ".curupi" / "settings.toml"
     config.parent.mkdir()
     config.write_text(
         '[coding_agents.automations.daily]\ntrigger_type="cron"\nrepo="acme/api"\n'
@@ -104,7 +104,7 @@ async def test_dispatch_refuses_to_run_when_another_instance_holds_lock(
         options = CliOptions(command="run", config=tmp_path / "missing.toml")
 
         assert await async_main(options) == 1
-        assert "another opscli process is already running" in capsys.readouterr().err
+        assert "another curupi process is already running" in capsys.readouterr().err
     finally:
         lock.release()
 
@@ -125,7 +125,7 @@ async def test_validate_is_side_effect_free_for_cron_only_configuration(
 
 
 async def test_example_configuration_is_valid(tmp_path: Path) -> None:
-    example = Path(__file__).resolve().parents[1] / "opscli.example.toml"
+    example = Path(__file__).resolve().parents[1] / "curupi.example.toml"
     settings = await load_settings(example)
     assert sorted(settings.resolve_automations()) == [
         "resolve-ready-issues",

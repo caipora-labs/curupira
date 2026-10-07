@@ -1,5 +1,5 @@
 [project]
-name = "opscli"
+name = "curupi"
 dynamic = ["version"]
 description = "Dispatch GitHub and cron tasks to local AI coding agents"
 readme = "README.md"
@@ -32,13 +32,13 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/caipora-labs/opscli"
-Repository = "https://github.com/caipora-labs/opscli"
-Issues = "https://github.com/caipora-labs/opscli/issues"
-Changelog = "https://github.com/caipora-labs/opscli/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/caipora-labs/curupi"
+Repository = "https://github.com/caipora-labs/curupi"
+Issues = "https://github.com/caipora-labs/curupi/issues"
+Changelog = "https://github.com/caipora-labs/curupi/blob/main/CHANGELOG.md"
 
 [project.scripts]
-opscli = "opscli.cli:main"
+curupi = "curupi.cli:main"
 
 [dependency-groups]
 dev = [
@@ -67,16 +67,16 @@ requires = ["hatchling>=1.27,<2", "maturin>=1.8,<2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/opscli"]
+packages = ["src/curupi"]
 
 [tool.hatch.version]
-path = "src/opscli/_version.py"
+path = "src/curupi/_version.py"
 
 [tool.hatch.build.targets.wheel.hooks.custom]
 
 [tool.maturin]
-manifest-path = "crates/opscli-core/Cargo.toml"
-module-name = "opscli._native"
+manifest-path = "crates/curupi-core/Cargo.toml"
+module-name = "curupi._native"
 python-source = "src"
 bindings = "pyo3"
 
@@ -93,7 +93,7 @@ include = [
   "CHANGELOG.md",
   "CONTRIBUTING.md",
   "SECURITY.md",
-  "opscli.example.toml",
+  "curupi.example.toml",
 ]
 
 [tool.pytest.ini_options]
@@ -118,9 +118,9 @@ max-complexity = 12
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["D", "S101", "ASYNC240", "ANN401"]
 # Native executable discovery is intentional; arguments never pass through a shell.
-"src/opscli/clients/process.py" = ["S603", "S607"]
+"src/curupi/clients/process.py" = ["S603", "S607"]
 # SQL identifiers are private constants; all externally supplied values are bound parameters.
-"src/opscli/storage/*.py" = ["S608"]
+"src/curupi/storage/*.py" = ["S608"]
 
 [tool.pyrefly]
 project-includes = ["src", "tests"]
@@ -133,7 +133,7 @@ min-severity = "warn"
 
 [tool.coverage.run]
 branch = true
-source = ["opscli"]
+source = ["curupi"]
 
 [tool.coverage.report]
 show_missing = true
