@@ -6,8 +6,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from curupi.config import ApplicationSettings, load_settings
-from curupi.models import (
+from curupira.config import ApplicationSettings, load_settings
+from curupira.models import (
     CronAutomationConfiguration,
     IssueAutomationConfiguration,
     PullRequestAutomationConfiguration,
@@ -92,8 +92,8 @@ def test_unregistered_trigger_type_is_rejected() -> None:
 
 
 def test_registered_alias_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
-    import curupi.tasks  # noqa: F401
-    from curupi.tasks import registry
+    import curupira.tasks  # noqa: F401
+    from curupira.tasks import registry
 
     monkeypatch.setattr(registry, "_ALIASES", {})
     registry.register_alias("issue", "legacy_issue")

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from curupi.runtime import (
+from curupira.runtime import (
     DispatchInstanceLock,
     InstanceAlreadyRunningError,
     create_execution_log_handler,
@@ -19,8 +19,8 @@ def test_default_paths_use_the_user_home(monkeypatch: pytest.MonkeyPatch, tmp_pa
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
 
-    assert dispatch_home() == tmp_path / ".curupi"
-    assert default_config_path() == tmp_path / ".curupi" / "settings.toml"
+    assert dispatch_home() == tmp_path / ".curupira"
+    assert default_config_path() == tmp_path / ".curupira" / "settings.toml"
 
 
 def test_runtime_directories_create_central_logs_directory(
@@ -31,7 +31,7 @@ def test_runtime_directories_create_central_logs_directory(
 
     ensure_runtime_directories()
 
-    assert (tmp_path / ".curupi" / "logs").is_dir()
+    assert (tmp_path / ".curupira" / "logs").is_dir()
 
 
 def test_execution_log_handler_appends_to_central_file(
@@ -39,7 +39,7 @@ def test_execution_log_handler_appends_to_central_file(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    logger = logging.getLogger("curupi.runtime_test")
+    logger = logging.getLogger("curupira.runtime_test")
     logger.setLevel(logging.INFO)
     logger.propagate = False
 
@@ -52,7 +52,7 @@ def test_execution_log_handler_appends_to_central_file(
             logger.removeHandler(handler)
             handler.close()
 
-    log_path = tmp_path / ".curupi" / "logs" / "curupi.log"
+    log_path = tmp_path / ".curupira" / "logs" / "curupira.log"
     lines = log_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
     assert "first task entry" in lines[0]

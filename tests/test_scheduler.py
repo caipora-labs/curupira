@@ -7,11 +7,11 @@ from pathlib import Path
 
 from typing_extensions import override
 
-from curupi.agents.base import SessionStartedCallback
-from curupi.executor import TaskExecutor
-from curupi.models import CodingTaskRequest, ExecutionSettings, ProcessResult, Task
-from curupi.scheduler import TaskScheduler
-from curupi.storage import CronScheduleRepository, RunningSessionRepository
+from curupira.agents.base import SessionStartedCallback
+from curupira.executor import TaskExecutor
+from curupira.models import CodingTaskRequest, ExecutionSettings, ProcessResult, Task
+from curupira.scheduler import TaskScheduler
+from curupira.storage import CronScheduleRepository, RunningSessionRepository
 from tests.fakes import FakeVersionControl, RecordingAdapter
 from tests.helpers import issue_task, pull_request_task
 

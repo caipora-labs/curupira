@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from curupi.errors import StateDatabaseError
-from curupi.models import RunningCodingSession
-from curupi.storage import RunningSessionRepository
+from curupira.errors import StateDatabaseError
+from curupira.models import RunningCodingSession
+from curupira.storage import RunningSessionRepository
 from tests.helpers import issue_task
 
 

@@ -12,16 +12,16 @@ labels: bug
 ## Reproduction
 
 ```toml
-# Minimal ~/.curupi/settings.toml (redact private repository names)
+# Minimal ~/.curupira/settings.toml (redact private repository names)
 ```
 
 ```bash
-# Exact command, e.g. curupi --config ~/.curupi/settings.toml run
+# Exact command, e.g. curupira --config ~/.curupira/settings.toml run
 ```
 
 ## Environment
 
-- curupi version (`curupi --version`):
+- curupira version (`curupira --version`):
 - Python version:
 - Platform (Linux/macOS/Windows):
 - Provider CLI and version (if relevant):

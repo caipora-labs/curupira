@@ -6,8 +6,8 @@ from typing import cast
 
 import pytest
 
-from curupi.models import ResolvedAutomation, Task
-from curupi.tasks.base import TaskFeed, TaskSource
+from curupira.models import ResolvedAutomation, Task
+from curupira.tasks.base import TaskFeed, TaskSource
 from tests.helpers import issue_task, resolved_automation
 
 

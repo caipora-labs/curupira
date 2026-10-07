@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from curupi.errors import DispatchError
-from curupi.models import PollingSettings, ResolvedAutomation, Task
-from curupi.tasks.base import TaskSource
-from curupi.tasks.feed import PollingTaskFeed, merge_task_streams
+from curupira.errors import DispatchError
+from curupira.models import PollingSettings, ResolvedAutomation, Task
+from curupira.tasks.base import TaskSource
+from curupira.tasks.feed import PollingTaskFeed, merge_task_streams
 from tests.helpers import issue_task, resolved_automation
 
 

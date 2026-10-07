@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from curupi.agents.claude import ClaudeCodeCliAdapter
-from curupi.models import ClaudeCodeCliProfile, CodingTaskRequest
+from curupira.agents.claude import ClaudeCodeCliAdapter
+from curupira.models import ClaudeCodeCliProfile, CodingTaskRequest
 
 
 def test_build_arguments_uses_claude_native_options(tmp_path: Path) -> None:
@@ -62,7 +62,7 @@ def test_build_arguments_keeps_prompt_literal_and_omits_missing_options(tmp_path
 
 
 def test_build_arguments_rejects_non_claude_profile(tmp_path: Path) -> None:
-    from curupi.models import CodexCliProfile
+    from curupira.models import CodexCliProfile
 
     request = CodingTaskRequest(cwd=tmp_path, profile=CodexCliProfile(), message="Review")
 

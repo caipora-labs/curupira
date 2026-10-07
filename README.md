@@ -1,6 +1,6 @@
 # OpsCli
 
-**OpsCli** (by Caipora Labs) is the product name. The PyPI project, console script, and Python import are `curupi`.
+**OpsCli** (by Caipora Labs) is the product name. The PyPI project, primary console script, and Python import are `curupira`. The short command `curu` is the same entry point.
 
 OpsCli runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
 
@@ -22,7 +22,7 @@ while `watch` polls every automation continuously.
 Install as an isolated tool:
 
 ```bash
-uv tool install git+https://github.com/caipora-labs/curupi.git
+uv tool install git+https://github.com/caipora-labs/curupira.git
 ```
 
 The package is not yet published to PyPI. Install it directly from GitHub with `uv` as
@@ -30,30 +30,30 @@ shown above.
 
 ## Documentation
 
-See the [full guide in Portuguese](https://caipora-labs.github.io/curupi/) for
+See the [full guide in Portuguese](https://caipora-labs.github.io/curupira/) for
 installation, automation configuration, providers, and operational commands.
 
 ## Configuration
 
-The default settings file is `~/.curupi/settings.toml`. Download the example
+The default settings file is `~/.curupira/settings.toml`. Download the example
 configuration directly to that location, then adjust repositories, paths, queries, and
 prompts:
 
 ```bash
-mkdir -p ~/.curupi
-curl -fsSL https://raw.githubusercontent.com/caipora-labs/curupi/main/curupi.example.toml \
-  -o ~/.curupi/settings.toml
+mkdir -p ~/.curupira
+curl -fsSL https://raw.githubusercontent.com/caipora-labs/curupira/main/curupira.example.toml \
+  -o ~/.curupira/settings.toml
 ```
 
-The `~/.curupi` directory is created automatically when the default file is first
+The `~/.curupira` directory is created automatically when the default file is first
 loaded. Pass `--config path/to/settings.toml` to use a different file; relative workspace,
 state, and automation paths are resolved from that file's directory.
 
 ```toml
 [settings]
 max_active_tasks = 1
-workspace_dir = "~/.curupi/workspaces"
-state_db_path = "~/.curupi/state.sqlite3"
+workspace_dir = "~/.curupira/workspaces"
+state_db_path = "~/.curupira/state.sqlite3"
 # Optional OTLP/HTTP trace endpoint; omit it to disable telemetry.
 # otlp_endpoint = "http://localhost:4318/v1/traces"
 
@@ -202,9 +202,9 @@ accept OTLP over HTTP/protobuf. If the field is omitted, no telemetry is exporte
 ### State files
 
 Running sessions and cron schedule state live in `state_db_path` (default
-`~/.curupi/state.sqlite3`). The per-user dispatch lock is stored in
-`~/.curupi/dispatch.lock`, and the dedicated log directory is
-`~/.curupi/logs`. Only one `run` or `watch` process can dispatch at a time; a second
+`~/.curupira/state.sqlite3`). The per-user dispatch lock is stored in
+`~/.curupira/dispatch.lock`, and the dedicated log directory is
+`~/.curupira/logs`. Only one `run` or `watch` process can dispatch at a time; a second
 process exits with an error rather than running tasks in parallel. Session records are
 removed when the agent process ends; `watch` resumes all saved sessions after a restart,
 and `run` resumes the saved session of the task it selects. If the file exists but is not
@@ -214,7 +214,7 @@ delete or move the file yourself to start fresh.
 ### Log file
 
 The `run` and `watch` commands append records to
-`~/.curupi/logs/curupi.log`; restarting the process does not erase existing
+`~/.curupira/logs/curupira.log`; restarting the process does not erase existing
 content. Each task records its start and completion time, repository, type, and
 identifier. If a task fails, the record includes the error.
 
@@ -223,26 +223,28 @@ identifier. If a task fails, the record includes the error.
 Validate configuration without calling external CLIs or writing state:
 
 ```bash
-curupi validate
+curupira validate
 ```
 
 Execute one currently available task and wait for the agent to finish:
 
 ```bash
-curupi run
+curupira run
 ```
 
 Preview the selected task without reserving, persisting, cloning, or executing:
 
 ```bash
-curupi run --dry-run
+curupira run --dry-run
 ```
 
 Poll all automations with the shared bounded scheduler until interrupted:
 
 ```bash
-curupi watch
+curupira watch
 ```
+
+The short alias `curu` accepts the same subcommands (`curu validate`, `curu run`, `curu watch`).
 
 `validate` exits `0` when the configuration is valid and `2` on configuration errors.
 `run` exits with the agent process status, `0` when no task is available, and `1` on
@@ -257,7 +259,7 @@ configuration, output-format, and agent-task failures are not retried automatica
 ## Public interface
 
 OpsCli is CLI-first. The only supported programmatic surface is
-`curupi.__version__`; all other modules are internal implementation details that
+`curupira.__version__`; all other modules are internal implementation details that
 may change without notice.
 
 ## Development and validation
@@ -273,9 +275,9 @@ uv run --no-sync twine check dist/*
 ```
 
 `uv sync` installs the Python package without compiling Rust. `uv build` produces a wheel
-that includes the `curupi._native` extension and needs a stable Rust toolchain. See
+that includes the `curupira._native` extension and needs a stable Rust toolchain. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for `maturin develop` and the crate layout under
-`crates/curupi-core`.
+`crates/curupira-core`.
 
 To inspect branch coverage locally, run `uv run --no-sync pytest --cov --cov-report=term-missing`;
 the configured minimum is 85%.

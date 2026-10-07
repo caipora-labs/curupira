@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from curupi.config import ApplicationSettings
-from curupi.models import ResolvedAutomation, Task, TaskIdentity
+from curupira.config import ApplicationSettings
+from curupira.models import ResolvedAutomation, Task, TaskIdentity
 
 
 def resolved_automation(

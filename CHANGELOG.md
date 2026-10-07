@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- Rust crate `crates/curupi-core`, compiled with maturin into the `curupi._native`
+- Rust crate `crates/curupira-core`, compiled with maturin into the `curupira._native`
   extension shipped in the wheel. `rust_core_version()` returns the crate version.
 - Keyed automations with a `trigger_type` discriminator (`issue`, `pull_request`,
   `cron`) sharing one discovery, scheduling, and execution pipeline.
@@ -21,6 +21,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Renamed the installable package, primary console script, and Python import from `curupi`
+  to `curupira`, and added the short CLI alias `curu`. The product name remains OpsCli.
+  Configuration and state now default to `~/.curupira` (example file
+  `curupira.example.toml`, log `logs/curupira.log`). Task worktree branches use the
+  `curupira/` prefix. The native crate is `crates/curupira-core`, imported as
+  `curupira._native`.
 - Renamed the installable package, console script, and Python import from `opscli`
   to `curupi`. The product name remains OpsCli. Configuration and state now default
   to `~/.curupi` (example file `curupi.example.toml`, log `logs/curupi.log`). Task
