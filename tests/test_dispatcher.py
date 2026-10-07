@@ -18,8 +18,8 @@ from opscli.models import (
     ProcessResult,
     RunningCodingSession,
 )
-from opscli.repositories import CronScheduleRepository, RunningSessionRepository
 from opscli.runtime import create_execution_log_handler
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task
 

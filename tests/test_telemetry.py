@@ -18,7 +18,7 @@ from opscli.models import (
     Task,
     TaskIdentity,
 )
-from opscli.repositories import CronScheduleRepository, RunningSessionRepository
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.telemetry import TaskTelemetry
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task, pull_request_task, resolved_automation
@@ -32,7 +32,7 @@ def cron_task(path: Path) -> Task:
             automation_id="maintenance",
             repo="acme/api",
             task_type="cron",
-            number=int(scheduled_for.timestamp()),
+            id=str(int(scheduled_for.timestamp())),
         ),
         automation=resolved_automation(path, "maintenance", "cron"),
         title="Scheduled maintenance",
@@ -74,7 +74,7 @@ def test_task_spans_export_success_for_issues_pull_requests_and_cron(tmp_path: P
             attributes = span.attributes or {}
             assert attributes["opscli.repo"] == "acme/api"
             assert attributes["opscli.task.type"] == task.identity.task_type
-            assert attributes["opscli.task.id"] == str(task.identity.number)
+            assert attributes["opscli.task.id"] == task.identity.id
             assert attributes["opscli.result"] == "success"
             assert span.status.status_code == StatusCode.UNSET
     finally:

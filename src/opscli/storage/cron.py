@@ -6,8 +6,8 @@ from contextlib import closing
 from datetime import datetime
 
 from opscli.models import CronRunState, Task
-from opscli.repositories.key_value import _SQLiteJsonRepository
-from opscli.repositories.sessions import RunningSessionRepository
+from opscli.storage.key_value import _SQLiteJsonRepository
+from opscli.storage.sessions import RunningSessionRepository
 
 
 class CronScheduleRepository(_SQLiteJsonRepository[CronRunState]):

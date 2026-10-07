@@ -18,7 +18,6 @@ from opscli.errors import (
     WorkspacePathError,
 )
 from opscli.models import (
-    ClaudeCodeCliProfile,
     CliProfile,
     CodexCliProfile,
     CodingTaskRequest,
@@ -54,7 +53,7 @@ class RecordingRunner(AsyncProcessRunner):
         return result
 
 
-@pytest.mark.parametrize("provider", ["opencode", "codex", "claude", "cursor"])
+@pytest.mark.parametrize("provider", ["opencode", "codex", "claude"])
 def test_factory_selects_native_provider_adapter(provider: str) -> None:
     assert isinstance(create_cli_adapter(provider), CodingAgentCliAdapter)
 
@@ -64,9 +63,7 @@ def test_factory_rejects_unknown_provider() -> None:
         create_cli_adapter("unknown")
 
 
-@pytest.mark.parametrize(
-    "profile", [OpenCodeCliProfile(), CodexCliProfile(), ClaudeCodeCliProfile(), CursorCliProfile()]
-)
+@pytest.mark.parametrize("profile", [OpenCodeCliProfile(), CodexCliProfile(), CursorCliProfile()])
 async def test_omitted_options_and_option_like_prompts_are_literal(
     tmp_path: Path, profile: CliProfile
 ) -> None:
@@ -99,13 +96,7 @@ async def test_omitted_options_and_option_like_prompts_are_literal(
             "--agent",
             "custom-reviewer",
         ),
-        (
-            ClaudeCodeCliProfile(agent="custom-reviewer", model="sonnet", effort="high"),
-            "--agent",
-            "custom-reviewer",
-        ),
         (CodexCliProfile(agent="work"), "--profile", "work"),
-        (CursorCliProfile(agent="ask"), "--mode", "ask"),
     ],
 )
 async def test_agent_option_uses_its_provider_native_flag(
@@ -166,26 +157,6 @@ def test_provider_profiles_match_current_cli_argument_contracts(tmp_path: Path) 
             ),
         ),
         (
-            ClaudeCodeCliProfile(model="sonnet", agent="reviewer", effort="high"),
-            "claude",
-            (
-                "-p",
-                "--output-format",
-                "stream-json",
-                "--verbose",
-                "--resume",
-                "native-session",
-                "--model",
-                "sonnet",
-                "--agent",
-                "reviewer",
-                "--effort",
-                "high",
-                "--",
-                "Handle task",
-            ),
-        ),
-        (
             CursorCliProfile(model="composer-2.5", agent="plan", force=True, trust=True),
             "cursor",
             (
@@ -214,31 +185,6 @@ def test_provider_profiles_match_current_cli_argument_contracts(tmp_path: Path) 
         assert arguments == expected
 
 
-def test_codex_exec_without_session_uses_json_config_and_profile(tmp_path: Path) -> None:
-    profile = CodexCliProfile(
-        model="gpt-5.4", agent="work", effort="ultra", sandbox="workspace-write"
-    )
-
-    arguments = create_cli_adapter("codex").build_arguments(
-        CodingTaskRequest(cwd=tmp_path, profile=profile, message="Handle task")
-    )
-
-    assert arguments == (
-        "exec",
-        "--model",
-        "gpt-5.4",
-        "--profile",
-        "work",
-        "--config",
-        'model_reasoning_effort="ultra"',
-        "--sandbox",
-        "workspace-write",
-        "--json",
-        "--",
-        "Handle task",
-    )
-
-
 @pytest.mark.parametrize(
     ("profile", "event"),
     [
@@ -247,7 +193,6 @@ def test_codex_exec_without_session_uses_json_config_and_profile(tmp_path: Path)
             CodexCliProfile(),
             '{"type":"thread.started","thread_id":"native"}\n{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}',
         ),
-        (ClaudeCodeCliProfile(), '{"type":"result","session_id":"native","result":"Done"}'),
         (CursorCliProfile(), '{"type":"result","session_id":"native","result":"Done"}'),
     ],
 )
@@ -275,10 +220,9 @@ def test_explicit_permission_options_are_provider_native(tmp_path: Path) -> None
     profiles: list[CliProfile] = [
         OpenCodeCliProfile(auto_approve=True),
         CursorCliProfile(force=True, trust=True),
-        ClaudeCodeCliProfile(permission_mode="dontAsk", permission_prompts="none"),
         CodexCliProfile(sandbox="workspace-write", auto_review=True, effort="high"),
     ]
-    expected = ["--auto", "--force", "--permission-mode", "--sandbox"]
+    expected = ["--auto", "--force", "--sandbox"]
     for profile, flag in zip(profiles, expected, strict=True):
         arguments = create_cli_adapter(profile.provider).build_arguments(
             CodingTaskRequest(cwd=tmp_path, message="Work", profile=profile)

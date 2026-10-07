@@ -1,0 +1,60 @@
+# Configuration
+
+One TOML file contains global limits, coding-agent profiles, and automations. An automation watches issues, pull requests, or a cron schedule.
+
+```toml
+[settings]
+max_active_tasks = 1
+workspace_dir = "~/.opscli/workspaces"
+state_db_path = "~/.opscli/state.sqlite3"
+
+[settings.polling]
+poll_interval_seconds = 30
+batch_size = 100
+cron_poll_interval_seconds = 1
+
+[coding_agents.defaults]
+profile = "opencode-default"
+timezone = "UTC"
+
+[coding_agents.profiles.opencode-default]
+provider = "opencode"
+
+[coding_agents.automations.resolve-ready-issues]
+trigger_type = "issue"
+repo = "acme/api"
+query = "is:open label:agent-ready sort:created-asc"
+prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
+```
+
+Save this as `~/.opscli/settings.toml`. The keys under `profiles` and `automations` are user-chosen identifiers; `profile` connects an automation to an existing profile.
+
+## Automations
+
+`trigger_type` selects the source:
+
+- `issue` discovers matching issues using GitHub Search syntax in `query`.
+- `pull_request` discovers matching pull requests using `query`.
+- `cron` produces occurrences from a five-field `schedule` instead of querying GitHub.
+
+Each automation requires `repo`, `prompt`, and either `query` or `schedule`. Optional `profile` selects a CLI profile. Optional `path` pins the automation to an existing checkout or an alternative clone destination. Relative paths are resolved from the TOML file's directory. Different repositories cannot share one workspace path. Automations keep file order, and one-shot selection follows that order.
+
+Placeholders use `${name}` syntax and are validated when the configuration loads. Common placeholders include `${repo}`, `${automation_id}`, `${task_type}`, `${task_number}`, `${task_title}`, `${task_body}`, and `${task_url}`. Issues and pull requests provide their respective number, title, body, and URL placeholders; pull requests also provide `${pull_request_is_draft}`, `${pull_request_head_ref}`, and `${pull_request_base_ref}`. For cron tasks, `${task_number}` is the occurrence timestamp.
+
+## Checkout and setup
+
+Each task uses its own worktree by default, created from the fetched remote default branch. Set `checkout = "main"` to use the shared checkout as-is; OpsCli does not fetch, pull, or switch branches in that mode. `path` continues to select the base checkout.
+
+`setup_script` is a repository-relative executable path with no absolute path or `..`. It runs directly only after a base checkout is freshly cloned, not for an existing checkout or in a task worktree. A nonzero exit prevents the agent from starting and removes the newly cloned checkout. Validation checks path syntax but does not require the script to exist. `run --dry-run` does not fetch, clone, create worktrees, or run setup.
+
+## Scheduling and state
+
+Polls fetch up to `batch_size` items (default 100, maximum 1000). Empty poll cycles back off from `poll_interval_seconds` (default 30 seconds) up to five minutes; discovery resets the wait. Automations deduplicate independently. Project queries keep the open state and filter board items to `Todo`.
+
+`max_active_tasks` bounds concurrent agents. Checkouts using the same path run sequentially. Cron automations coalesce overdue ticks into one pending occurrence and never run themselves concurrently. `schedule` uses five cron fields; `timezone` is an IANA zone (default UTC), and optional `start_date`/`end_date` define an inclusive window. Without `start_date`, the window starts when the automation is first recorded.
+
+State is stored in `state_db_path` (default `~/.opscli/state.sqlite3`), the dispatch lock in `~/.opscli/dispatch.lock`, and logs in `~/.opscli/logs`. An incompatible database causes an error rather than automatic deletion. Only one `run`, `batch`, or `watch` process may dispatch at a time.
+
+## Telemetry
+
+Set `settings.otlp_endpoint` to an OTLP/HTTP trace endpoint (for example, `http://localhost:4318/v1/traces`) to export one span per dispatched task. If omitted, no telemetry is exported.

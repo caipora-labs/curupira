@@ -14,6 +14,9 @@ before opening a pull request; CI runs the same steps.
 
 ## Verification commands
 
+Install the documentation tools with `uv sync --group docs`, then preview the site with
+`uv run mkdocs serve`.
+
 ```bash
 uv run --no-sync pytest
 uv run --no-sync ruff check .
@@ -36,7 +39,7 @@ changes to `opscli.example.toml` must keep `test_example_configuration_is_valid`
 - `feeds.py` — task discovery (`GitHubTaskFeed`, `CronTaskFeed`, multiplexing).
 - `executor.py` / `scheduler.py` / `dispatcher.py` — shared execution pipeline used
   identically by every trigger type.
-- `repositories/` — SQLite persistence with validated payloads; incompatible files
+- `storage/` — SQLite persistence with validated payloads; incompatible files
   raise instead of being deleted.
 - `cli.py` — argument parsing and exit codes only.
 

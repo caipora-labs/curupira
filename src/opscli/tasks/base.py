@@ -3,15 +3,33 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
 from opscli.clients.gh import GhClient
 from opscli.models import PollingSettings, ResolvedAutomation, Task
-from opscli.repositories import CronScheduleRepository
+from opscli.storage import CronScheduleRepository
 
-if TYPE_CHECKING:
-    from opscli.feeds import TaskFeed
+
+class TaskFeed(ABC):
+    """Discovery interface shared by one-shot dispatch and continuous polling."""
+
+    @abstractmethod
+    async def poll(self, *, preview: bool = False) -> list[Task]:
+        """Return tasks currently available; preview must not persist state."""
+
+    @abstractmethod
+    def stream(self) -> AsyncIterator[Task]:
+        """Yield new tasks continuously with source-appropriate waits."""
+
+
+class TaskSource(ABC):
+    """Discover tasks for one automation without exposing provider commands."""
+
+    @abstractmethod
+    async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
+        """Return currently available tasks from this source."""
 
 
 @dataclass(frozen=True)

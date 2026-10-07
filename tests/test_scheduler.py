@@ -10,8 +10,8 @@ from typing_extensions import override
 from opscli.agents.base import SessionStartedCallback
 from opscli.executor import TaskExecutor
 from opscli.models import CodingTaskRequest, ExecutionSettings, ProcessResult, Task
-from opscli.repositories import CronScheduleRepository, RunningSessionRepository
 from opscli.scheduler import TaskScheduler
+from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task, pull_request_task
 

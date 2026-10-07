@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 import shutil
@@ -101,14 +102,17 @@ class GhClient:
         return result
 
     async def ensure_worktree(
-        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, number: int
+        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, task_id: str
     ) -> Path:
         """Create or reuse the task's deterministic worktree from origin's default branch."""
         base = checkout.path
         lock = self._worktree_locks.setdefault(base, asyncio.Lock())
         async with lock:
+            safe_task_id = hashlib.sha256(task_id.encode()).hexdigest()
             target = (
-                base.with_name(f"{base.name}.worktrees") / automation_id / f"{task_type}-{number}"
+                base.with_name(f"{base.name}.worktrees")
+                / automation_id
+                / f"{task_type}-{safe_task_id}"
             )
             if target.is_dir():
                 return target
@@ -127,7 +131,7 @@ class GhClient:
             if default.returncode:
                 raise CliExecutionError("git symbolic-ref", default.returncode, default.stderr)
             ref = default.stdout.strip()
-            branch = f"opscli/{automation_id}/{task_type}-{number}"
+            branch = f"opscli/{automation_id}/{task_type}-{safe_task_id}"
             target.parent.mkdir(parents=True, exist_ok=True)
             result = await self._runner.run(
                 CommandRequest(
@@ -141,18 +145,21 @@ class GhClient:
             return target
 
     async def remove_worktree(
-        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, number: int
+        self, checkout: GhRepositoryCheckout, *, automation_id: str, task_type: str, task_id: str
     ) -> None:
         """Remove a task worktree and its local branch; cleanup failures are best effort."""
         base = checkout.path
         lock = self._worktree_locks.setdefault(base, asyncio.Lock())
         async with lock:
+            safe_task_id = hashlib.sha256(task_id.encode()).hexdigest()
             target = (
-                base.with_name(f"{base.name}.worktrees") / automation_id / f"{task_type}-{number}"
+                base.with_name(f"{base.name}.worktrees")
+                / automation_id
+                / f"{task_type}-{safe_task_id}"
             )
             for arguments in (
                 ("worktree", "remove", "--force", str(target)),
-                ("branch", "-D", f"opscli/{automation_id}/{task_type}-{number}"),
+                ("branch", "-D", f"opscli/{automation_id}/{task_type}-{safe_task_id}"),
             ):
                 result = await self._runner.run(
                     CommandRequest(executable="git", arguments=arguments, cwd=base)
