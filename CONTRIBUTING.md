@@ -159,37 +159,37 @@ Versioning is `MAJOR.MINOR.PATCH`. The single version source is
 Built wheels and sdists use that string as-is, so the Git tag and the file match
 character for character after the tag's leading `v`.
 
-### TestPyPI development rehearsal
+### PyPI development rehearsal
 
-Tag `vX.Y.Z.devN` publishes package `X.Y.Z.devN` (PEP 440) to TestPyPI. Bump the
-version in `src/curupira/_version.py`, commit that change, and tag the same commit.
-The first rehearsal is `0.1.0.dev0`.
+Tag `vX.Y.Z.devN` publishes package `X.Y.Z.devN` (PEP 440) to PyPI. Bump the version
+in `src/curupira/_version.py`, commit that change, and tag the same commit. Tag
+`v0.1.0.dev0` already exists and must not be reused. The next rehearsal is
+`0.1.0.dev1` with tag `v0.1.0.dev1`.
 
-1. Set `__version__` to `0.1.0.dev0` and commit.
+1. Set `__version__` to the next unused `X.Y.Z.devN` and commit.
 2. Wait until CI is green on that commit. The tag workflow publishes only after the
    Linux test matrix, lint, type check, and distribution build have succeeded for
    the tagged SHA.
 3. Tag that commit and push the tag:
 
 ```bash
-git tag v0.1.0.dev0
-git push origin v0.1.0.dev0
+git tag v0.1.0.dev1
+git push origin v0.1.0.dev1
 ```
 
-`testpypi.yml` builds the Rust-enabled wheel and sdist with `uv build`, checks that
-both versions equal the tag without its leading `v`, and publishes with Trusted
-Publishing (`id-token: write`, environment `testpypi`). It then installs
-`curupira==0.1.0.dev0` and runs `curupira --help`, `curupira --version`,
-`curu --help`, `curu --version`, and `rust_core_version`.
+`publish.yml` builds the Rust-enabled wheel and sdist with `uv build`, checks that
+the distribution version equals the tag without its leading `v`, and publishes with
+Trusted Publishing (`id-token: write`, environment `pypi`). Use the canonical dotted
+form `vX.Y.Z.devN`. PyPI keeps an uploaded file, so each rehearsal needs a new
+suffix.
 
-Use the canonical dotted form `v0.1.0.dev0`. The next rehearsal is a new suffix,
-for example `0.1.0.dev1` and tag `v0.1.0.dev1`, because TestPyPI keeps an uploaded
-file. Tags that contain `.dev` skip PyPI (`publish.yml`) and GitHub Releases
-(`release.yml`).
+Tags that contain `.dev` do not open a GitHub Release (`release.yml` still skips
+them). `testpypi.yml` is unchanged: the same `v*.dev*` tags, and a manual
+`workflow_dispatch` from `main`, still target TestPyPI. The rehearsal that gates the
+first stable publish is the real PyPI upload from `publish.yml`.
 
 Stable `vX.Y.Z` tags keep the production path below. Issue #103 publishes `0.1.0`
-from a commit whose `__version__` is `0.1.0`. `workflow_dispatch` of `testpypi.yml`
-on `main` still rehearses the committed version without a tag check.
+from a commit whose `__version__` is `0.1.0`.
 
 To cut a release:
 
@@ -197,8 +197,8 @@ To cut a release:
 2. Bump `__version__` in `src/curupira/_version.py` to the stable `X.Y.Z` version.
 3. Run the full verification suite and confirm `uv build` plus
    `uv run --no-sync twine check dist/*` pass.
-4. Rehearse with a `vX.Y.Z.devN` tag (see above) before the first production
-   publication. `testpypi.yml` can also be run manually from `main`.
+4. Rehearse with a `vX.Y.Z.devN` tag on PyPI (see above) before the first production
+   publication.
 5. Tag the validated commit as `vX.Y.Z` and push the tag. The `publish.yml` workflow
    publishes that version to PyPI; the `release.yml` workflow attaches the distributions
    to the matching GitHub release.
@@ -206,11 +206,12 @@ To cut a release:
 PyPI publishing uses Trusted Publishing (OIDC), so no API tokens are stored. Before
 publishing, a PyPI maintainer registers this repository as a trusted publisher for the
 `curupira` project with GitHub owner `caipora-labs`, repository `curupira`, workflow
-filename `publish.yml`, and environment `pypi`. The TestPyPI rehearsal uses a separate
-`testpypi` environment and trusted publisher with workflow filename `testpypi.yml` and
-audience `testpypi`. It uploads to `https://test.pypi.org/legacy/` and smoke-tests the
-installation. The publish workflow checks that the full Linux test matrix, lint, type
-check, and distribution build succeeded for the commit.
+filename `publish.yml`, and environment `pypi`. Development tags `vX.Y.Z.devN` use
+that same publisher. `testpypi.yml` remains a separate workflow with environment
+`testpypi`, workflow filename `testpypi.yml`, and audience `testpypi`. It uploads to
+`https://test.pypi.org/legacy/` and smoke-tests that installation. The publish
+workflow checks that the full Linux test matrix, lint, type check, and distribution
+build succeeded for the commit.
 
 ## Style
 

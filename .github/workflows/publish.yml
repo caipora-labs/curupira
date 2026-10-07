@@ -10,8 +10,7 @@ permissions: {}
 jobs:
   build:
     name: Build distributions
-    # vX.Y.Z.devN tags are published by testpypi.yml. Stable vX.Y.Z tags stay here.
-    if: ${{ !contains(github.ref_name, '.dev') }}
+    # Stable vX.Y.Z and rehearsal vX.Y.Z.devN tags both publish to PyPI.
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,7 +38,6 @@ jobs:
   publish:
     name: Publish distributions
     needs: build
-    if: ${{ !contains(github.ref_name, '.dev') }}
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

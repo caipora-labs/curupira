@@ -11,7 +11,7 @@ permissions:
 jobs:
   release:
     name: Build and attach GitHub release
-    # Development tags stay off GitHub Releases; testpypi.yml publishes them.
+    # Development tags stay off GitHub Releases. publish.yml uploads them to PyPI.
     if: ${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '.dev') }}
     runs-on: ubuntu-latest
     steps:
