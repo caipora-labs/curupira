@@ -5,6 +5,29 @@ repo_url: https://github.com/mariotaddeucci/opscli
 docs_dir: docs
 plugins:
   - search
+  - i18n:
+      docs_structure: folder
+      fallback_to_default: true
+      languages:
+        - locale: en
+          name: English
+          default: true
+        - locale: pt
+          name: Português
+          nav:
+            - Início: index.md
+            - Instalação: installation.md
+            - Configuração: configuration.md
+            - Operação: operations.md
+            - Providers e agentes: providers.md
+        - locale: es
+          name: Español
+          nav:
+            - Inicio: index.md
+            - Instalación: installation.md
+            - Configuración: configuration.md
+            - Operaciones: operations.md
+            - Proveedores y agentes: providers.md
   - macros:
       module_name: main
   - mkdocstrings:
@@ -28,6 +51,7 @@ theme:
     - navigation.sections
     - navigation.top
     - content.code.copy
+    - language.select
 nav:
   - Home: index.md
   - Installation: installation.md
