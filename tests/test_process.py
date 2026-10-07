@@ -1,6 +1,7 @@
 """Real local subprocess tests for bounded capture and resource cleanup."""
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -74,6 +75,25 @@ async def test_timeout_terminates_process() -> None:
                 timeout=0.05,
             )
         )
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX-specific")
+async def test_timeout_kills_descendant_process_group(tmp_path: Path) -> None:
+    marker = tmp_path / "orphan-survived"
+    descendant = (
+        f"import pathlib, time; time.sleep(0.5); pathlib.Path({str(marker)!r}).write_text('alive')"
+    )
+    parent = (
+        "import subprocess, sys, time; "
+        f"subprocess.Popen([sys.executable, '-c', {descendant!r}]); "
+        "time.sleep(20)"
+    )
+    with pytest.raises(CliTimeoutError):
+        await AsyncProcessRunner().run(
+            CommandRequest(executable=sys.executable, arguments=("-c", parent), timeout=0.05)
+        )
+    await asyncio.sleep(0.7)
+    assert not marker.exists()
 
 
 async def test_callback_failure_reaps_process() -> None:
