@@ -17,6 +17,7 @@ from opscli.errors import (
     UnsupportedCodingAgentError,
 )
 from opscli.models import (
+    ClaudeCodeCliProfile,
     CliProfile,
     CodexCliProfile,
     CodingTaskRequest,
@@ -24,7 +25,6 @@ from opscli.models import (
     CursorCliProfile,
     GhIssueSearchRequest,
     GhPullRequestSearchRequest,
-    OpenCodeCliProfile,
     ProcessResult,
 )
 from opscli.vcs.github_cli import GitHubCliVersionControl
@@ -62,7 +62,7 @@ def test_factory_rejects_unknown_provider() -> None:
         create_cli_adapter("unknown")
 
 
-@pytest.mark.parametrize("profile", [OpenCodeCliProfile(), CodexCliProfile(), CursorCliProfile()])
+@pytest.mark.parametrize("profile", [CodexCliProfile(), ClaudeCodeCliProfile(), CursorCliProfile()])
 async def test_omitted_options_and_option_like_prompts_are_literal(
     tmp_path: Path, profile: CliProfile
 ) -> None:
@@ -91,7 +91,7 @@ async def test_omitted_options_and_option_like_prompts_are_literal(
     ("profile", "flag", "value"),
     [
         (
-            OpenCodeCliProfile(agent="custom-reviewer", model="vendor/model", effort="high"),
+            ClaudeCodeCliProfile(agent="custom-reviewer", model="sonnet", effort="high"),
             "--agent",
             "custom-reviewer",
         ),
@@ -111,25 +111,6 @@ async def test_agent_option_uses_its_provider_native_flag(
 
 def test_provider_profiles_match_current_cli_argument_contracts(tmp_path: Path) -> None:
     requests = [
-        (
-            OpenCodeCliProfile(model="vendor/model", agent="reviewer", effort="high"),
-            "opencode",
-            (
-                "run",
-                "--format",
-                "json",
-                "--session",
-                "native-session",
-                "--model",
-                "vendor/model",
-                "--agent",
-                "reviewer",
-                "--variant",
-                "high",
-                "--",
-                "Handle task",
-            ),
-        ),
         (
             CodexCliProfile(
                 model="gpt-5.4",
@@ -187,7 +168,6 @@ def test_provider_profiles_match_current_cli_argument_contracts(tmp_path: Path) 
 @pytest.mark.parametrize(
     ("profile", "event"),
     [
-        (OpenCodeCliProfile(), '{"type":"text","sessionID":"native","part":{"text":"Done"}}'),
         (
             CodexCliProfile(),
             '{"type":"thread.started","thread_id":"native"}\n{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}',
@@ -217,11 +197,10 @@ async def test_native_session_events_and_resume(
 
 def test_explicit_permission_options_are_provider_native(tmp_path: Path) -> None:
     profiles: list[CliProfile] = [
-        OpenCodeCliProfile(auto_approve=True),
         CursorCliProfile(force=True, trust=True),
         CodexCliProfile(sandbox="workspace-write", auto_review=True, effort="high"),
     ]
-    expected = ["--auto", "--force", "--sandbox"]
+    expected = ["--force", "--sandbox"]
     for profile, flag in zip(profiles, expected, strict=True):
         arguments = create_cli_adapter(profile.provider).build_arguments(
             CodingTaskRequest(cwd=tmp_path, message="Work", profile=profile)

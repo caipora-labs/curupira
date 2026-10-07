@@ -17,7 +17,7 @@ def create_cli_adapter(
     from opscli.agents.claude import ClaudeCodeCliAdapter
     from opscli.agents.codex import CodexCliAdapter
     from opscli.agents.cursor import CursorCliAdapter
-    from opscli.clients.opencode import OpenCodeCliAdapter
+    from opscli.agents.opencode import OpenCodeCliAdapter
 
     adapters: dict[str, type[CodingAgentCliAdapter]] = {
         "opencode": OpenCodeCliAdapter,
