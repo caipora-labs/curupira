@@ -16,20 +16,6 @@ from opscli.models.profiles import CliProfile, OpenCodeCliProfile
 COMMON_PROMPT_FIELDS = frozenset(
     {"repo", "automation_id", "task_type", "task_number", "task_title", "task_body", "task_url"}
 )
-ISSUE_PROMPT_FIELDS = frozenset({"issue_number", "issue_title", "issue_body", "issue_url"})
-PULL_REQUEST_PROMPT_FIELDS = frozenset(
-    {
-        "pull_request_number",
-        "pull_request_title",
-        "pull_request_body",
-        "pull_request_url",
-        "pull_request_is_draft",
-        "pull_request_head_ref",
-        "pull_request_base_ref",
-    }
-)
-
-
 def validate_timezone(value: str) -> str:
     """Validate an IANA timezone without inventing a fallback."""
     try:
@@ -203,11 +189,9 @@ class CodingAgentsSettings(ValidatedModel):
             profile = automation.profile or self.defaults.profile
             if profile not in self.profiles:
                 raise ValueError(f"profile {profile!r} for automation {name!r} does not exist")
-            allowed = COMMON_PROMPT_FIELDS
-            if automation.trigger_type == "issue":
-                allowed = allowed | ISSUE_PROMPT_FIELDS
-            elif automation.trigger_type == "pull_request":
-                allowed = allowed | PULL_REQUEST_PROMPT_FIELDS
+            from opscli.tasks.registry import get
+
+            allowed = COMMON_PROMPT_FIELDS | get(automation.trigger_type).prompt_fields()
             unknown = set(Template(automation.prompt).get_identifiers()) - allowed
             if unknown:
                 raise ValueError(f"unsupported prompt placeholders for {name!r}: {sorted(unknown)}")

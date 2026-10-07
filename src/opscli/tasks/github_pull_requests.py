@@ -10,7 +10,6 @@ from opscli.models import (
     Task,
     TaskIdentity,
 )
-from opscli.models.configuration import PULL_REQUEST_PROMPT_FIELDS
 from opscli.tasks.base import FeedDependencies, TaskFeed, TaskSource, Trigger
 from opscli.tasks.feed import PollingTaskFeed
 from opscli.tasks.registry import register
@@ -60,7 +59,17 @@ class PullRequestTrigger(Trigger):
     @override
     def prompt_fields(cls) -> frozenset[str]:
         """Return the pull-request-specific prompt placeholders."""
-        return PULL_REQUEST_PROMPT_FIELDS
+        return frozenset(
+            {
+                "pull_request_number",
+                "pull_request_title",
+                "pull_request_body",
+                "pull_request_url",
+                "pull_request_is_draft",
+                "pull_request_head_ref",
+                "pull_request_base_ref",
+            }
+        )
 
     @override
     def prompt_context(self, task: Task) -> dict[str, str]:
