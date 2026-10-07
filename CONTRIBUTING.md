@@ -201,7 +201,8 @@ To cut a release:
    publication. `testpypi.yml` can also be run manually from `main`.
 5. Tag the validated commit as `vX.Y.Z` and push the tag. The `publish.yml` workflow
    publishes that version to PyPI; the `release.yml` workflow attaches the distributions
-   to the matching GitHub release.
+   to the matching GitHub release. For the first stable release, this means tagging
+   `v0.1.0` only after the release PR is merged and CI is green on that exact commit.
 
 PyPI publishing uses Trusted Publishing (OIDC), so no API tokens are stored. Before
 publishing, a PyPI maintainer registers this repository as a trusted publisher for the

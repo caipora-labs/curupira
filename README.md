@@ -19,14 +19,15 @@ while `watch` polls every automation continuously.
 
 ## Installation
 
-Install as an isolated tool:
+Install the published package from PyPI:
 
 ```bash
-uv tool install git+https://github.com/caipora-labs/curupira.git
+python -m pip install curupira==0.1.0
 ```
 
-The package is not yet published to PyPI. Install it directly from GitHub with `uv` as
-shown above.
+The project is hosted at [caipora-labs/curupira](https://github.com/caipora-labs/curupira)
+and its [documentation](https://caipora-labs.github.io/curupira/) includes the full
+installation and configuration guide.
 
 ## Documentation
 

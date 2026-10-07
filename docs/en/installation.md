@@ -8,13 +8,15 @@
 
 ## Install
 
-The package is not yet published to PyPI. Install it from GitHub:
+Install the published package from PyPI:
 
 ```bash
-uv tool install git+https://github.com/caipora-labs/curupira.git
+python -m pip install curupira==0.1.0
 ```
 
-Confirm the command is available with `curupira --version`. The short alias `curu --version` runs the same program.
+The source repository is [caipora-labs/curupira](https://github.com/caipora-labs/curupira).
+Confirm the command is available with `curupira --version`. The short alias
+`curu --version` runs the same program.
 
 ## Create a configuration
 
