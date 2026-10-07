@@ -31,10 +31,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/mariotaddeucci/gh-dispatch"
-Repository = "https://github.com/mariotaddeucci/gh-dispatch"
-Issues = "https://github.com/mariotaddeucci/gh-dispatch/issues"
-Changelog = "https://github.com/mariotaddeucci/gh-dispatch/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/mariotaddeucci/opscli"
+Repository = "https://github.com/mariotaddeucci/opscli"
+Issues = "https://github.com/mariotaddeucci/opscli/issues"
+Changelog = "https://github.com/mariotaddeucci/opscli/blob/main/CHANGELOG.md"
 
 [project.scripts]
 opscli = "opscli.cli:main"
@@ -53,7 +53,10 @@ dev = [
 ]
 docs = [
   "mkdocs-macros-plugin>=1.3,<2",
+  "griffe-pydantic>=1,<2",
   "mkdocs-material>=9.6,<10",
+  "mkdocstrings[python]>=0.29,<1",
+  "mkdocstrings-python>=1,<2",
 ]
 
 [build-system]

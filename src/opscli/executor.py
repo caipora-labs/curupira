@@ -21,6 +21,7 @@ from opscli.models import (
     Task,
 )
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
+from opscli.tasks.registry import get as get_trigger
 from opscli.telemetry import TaskTelemetry
 
 logger = logging.getLogger(__name__)
@@ -38,15 +39,7 @@ def render_task_prompt(task: Task) -> str:
         "task_body": task.body or "",
         "task_url": task.url,
     }
-    if identity.task_type in {"issue", "pull_request"}:
-        for suffix in ("number", "title", "body", "url"):
-            context[f"{identity.task_type}_{suffix}"] = context[f"task_{suffix}"]
-    if identity.task_type == "pull_request":
-        context.update(
-            pull_request_is_draft=str(task.is_draft).lower() if task.is_draft is not None else "",
-            pull_request_head_ref=task.head_ref_name or "",
-            pull_request_base_ref=task.base_ref_name or "",
-        )
+    context.update(get_trigger(identity.task_type).prompt_context(task))
     try:
         return Template(task.automation.configuration.prompt).substitute(context)
     except (KeyError, ValueError) as error:

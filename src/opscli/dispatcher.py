@@ -7,17 +7,12 @@ from opscli.clients.gh import GhClient
 from opscli.config import ApplicationSettings
 from opscli.executor import TaskExecutor
 from opscli.models import (
-    CronAutomationConfiguration,
     DispatchOutcome,
-    IssueAutomationConfiguration,
-    PullRequestAutomationConfiguration,
     Task,
 )
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.tasks.base import FeedDependencies, TaskFeed
-from opscli.tasks.cron import CronTaskFeed
-from opscli.tasks.github_issues import IssueTrigger
-from opscli.tasks.github_pull_requests import PullRequestTrigger
+from opscli.tasks.registry import get as get_trigger
 from opscli.telemetry import TaskTelemetry
 
 
@@ -27,24 +22,10 @@ def create_task_feeds(
     """Build source-specific discovery using one resolved configuration snapshot."""
     feeds: list[TaskFeed] = []
     for automation in settings.resolve_automations().values():
-        if isinstance(automation.configuration, CronAutomationConfiguration):
-            feeds.append(CronTaskFeed(automation, settings.settings.polling, cron))
-        elif isinstance(automation.configuration, IssueAutomationConfiguration):
-            feeds.append(
-                IssueTrigger().build_feed(
-                    automation,
-                    FeedDependencies(settings.settings.polling, gh, cron),
-                )
-            )
-        elif isinstance(automation.configuration, PullRequestAutomationConfiguration):
-            feeds.append(
-                PullRequestTrigger().build_feed(
-                    automation,
-                    FeedDependencies(settings.settings.polling, gh, cron),
-                )
-            )
-        else:
-            raise ValueError(f"unsupported trigger type: {automation.configuration.trigger_type}")
+        dependencies = FeedDependencies(settings.settings.polling, gh, cron)
+        feeds.append(
+            get_trigger(automation.configuration.trigger_type).build_feed(automation, dependencies)
+        )
     return feeds
 
 
