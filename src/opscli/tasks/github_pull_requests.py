@@ -12,7 +12,7 @@ from opscli.models import (
 )
 from opscli.tasks.base import FeedDependencies, TaskFeed, TaskSource, Trigger
 from opscli.tasks.feed import PollingTaskFeed
-from opscli.tasks.registry import register
+from opscli.tasks.registry import register, register_alias
 
 
 class GitHubPullRequestSource(TaskSource):
@@ -53,7 +53,7 @@ class GitHubPullRequestSource(TaskSource):
 class PullRequestTrigger(Trigger):
     """Trigger implementation for GitHub pull-request automations."""
 
-    trigger_type = "pull_request"
+    trigger_type = "github-cli-pull-requests"
 
     @classmethod
     @override
@@ -97,3 +97,4 @@ class PullRequestTrigger(Trigger):
 
 
 register(PullRequestTrigger())
+register_alias("github-cli-pull-requests", "pull_request")

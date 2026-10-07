@@ -176,7 +176,7 @@ class IssueAutomationConfiguration(GitHubAutomationConfiguration):
 class PullRequestAutomationConfiguration(GitHubAutomationConfiguration):
     """Discover pull requests matching a GitHub Search query."""
 
-    trigger_type: NonEmptyString = "pull_request"
+    trigger_type: NonEmptyString = "github-cli-pull-requests"
 
 
 class CronAutomationConfiguration(AutomationConfigurationBase):
@@ -221,7 +221,7 @@ def parse_automation_configuration(value: object) -> object:
     from opscli.tasks.registry import get
 
     get(trigger_type)
-    if trigger_type == "pull_request":
+    if trigger_type in {"github-cli-pull-requests", "pull_request"}:
         return PullRequestAutomationConfiguration.model_validate(value)
     if trigger_type == "cron" or "schedule" in value:
         return CronAutomationConfiguration.model_validate(value)
