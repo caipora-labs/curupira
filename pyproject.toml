@@ -32,10 +32,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/mariotaddeucci/opscli"
-Repository = "https://github.com/mariotaddeucci/opscli"
-Issues = "https://github.com/mariotaddeucci/opscli/issues"
-Changelog = "https://github.com/mariotaddeucci/opscli/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/caipora-labs/opscli"
+Repository = "https://github.com/caipora-labs/opscli"
+Issues = "https://github.com/caipora-labs/opscli/issues"
+Changelog = "https://github.com/caipora-labs/opscli/blob/main/CHANGELOG.md"
 
 [project.scripts]
 opscli = "opscli.cli:main"
