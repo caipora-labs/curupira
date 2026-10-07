@@ -6,18 +6,18 @@ from opscli.agents import CliAdapterFactory, create_cli_adapter
 from opscli.clients.gh import GhClient
 from opscli.config import ApplicationSettings
 from opscli.executor import TaskExecutor
-from opscli.feeds import GitHubTaskSource
 from opscli.models import (
     CronAutomationConfiguration,
     DispatchOutcome,
     IssueAutomationConfiguration,
+    PullRequestAutomationConfiguration,
     Task,
 )
 from opscli.storage import CronScheduleRepository, RunningSessionRepository
 from opscli.tasks.base import FeedDependencies, TaskFeed
 from opscli.tasks.cron import CronTaskFeed
-from opscli.tasks.feed import PollingTaskFeed
 from opscli.tasks.github_issues import IssueTrigger
+from opscli.tasks.github_pull_requests import PullRequestTrigger
 from opscli.telemetry import TaskTelemetry
 
 
@@ -26,7 +26,6 @@ def create_task_feeds(
 ) -> list[TaskFeed]:
     """Build source-specific discovery using one resolved configuration snapshot."""
     feeds: list[TaskFeed] = []
-    github_source = GitHubTaskSource(gh)
     for automation in settings.resolve_automations().values():
         if isinstance(automation.configuration, CronAutomationConfiguration):
             feeds.append(CronTaskFeed(automation, settings.settings.polling, cron))
@@ -37,8 +36,15 @@ def create_task_feeds(
                     FeedDependencies(settings.settings.polling, gh, cron),
                 )
             )
+        elif isinstance(automation.configuration, PullRequestAutomationConfiguration):
+            feeds.append(
+                PullRequestTrigger().build_feed(
+                    automation,
+                    FeedDependencies(settings.settings.polling, gh, cron),
+                )
+            )
         else:
-            feeds.append(PollingTaskFeed(automation, settings.settings.polling, github_source))
+            raise ValueError(f"unsupported trigger type: {automation.configuration.trigger_type}")
     return feeds
 
 
