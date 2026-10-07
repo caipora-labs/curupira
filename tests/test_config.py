@@ -65,6 +65,14 @@ def test_checkout_options_and_relative_setup_script_are_validated() -> None:
         configuration(checkout="develop")
 
 
+def test_pull_request_automation_accepts_jq_filter() -> None:
+    settings = configuration("pull_request", jq='.[] | select(.mergeable == "MERGEABLE")')
+
+    automation = settings.coding_agents.automations["daily"]
+    assert isinstance(automation, PullRequestAutomationConfiguration)
+    assert automation.jq == '.[] | select(.mergeable == "MERGEABLE")'
+
+
 @pytest.mark.parametrize(
     "overrides",
     [

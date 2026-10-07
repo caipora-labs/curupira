@@ -18,6 +18,8 @@ class GhIssueSearchRequest(ValidatedModel):
 class GhPullRequestSearchRequest(GhIssueSearchRequest):
     """A GitHub pull request query."""
 
+    jq: NonEmptyString | None = None
+
 
 class GhLabel(BaseModel):
     """A GitHub label; tolerate additional upstream response fields."""

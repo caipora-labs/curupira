@@ -261,6 +261,23 @@ async def test_pull_request_branch_metadata_is_preserved() -> None:
     assert pulls[0].head_ref_name == "feature"
 
 
+async def test_pull_request_jq_filter_is_passed_to_gh() -> None:
+    runner = RecordingRunner(
+        ProcessResult(
+            returncode=0,
+            stdout='[{"number":12,"title":"Review","url":"https://github.com/acme/api/pull/12"}]',
+        )
+    )
+    await GhClient(runner).list_pull_requests(
+        GhPullRequestSearchRequest(
+            repo="acme/api", query="is:open", jq='.[] | select(.mergeable == "MERGEABLE")'
+        )
+    )
+
+    arguments = runner.requests[0].arguments
+    assert arguments[arguments.index("--jq") + 1] == '.[] | select(.mergeable == "MERGEABLE")'
+
+
 @pytest.mark.parametrize("output", ["not JSON", "42", '[{"number":0}]'])
 async def test_invalid_github_payloads_fail(output: str) -> None:
     with pytest.raises(CliOutputError):

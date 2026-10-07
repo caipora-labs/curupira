@@ -177,6 +177,7 @@ class PullRequestAutomationConfiguration(GitHubAutomationConfiguration):
     """Discover pull requests matching a GitHub Search query."""
 
     trigger_type: NonEmptyString = "github-cli-pull-requests"
+    jq: NonEmptyString | None = None
 
 
 class CronAutomationConfiguration(AutomationConfigurationBase):

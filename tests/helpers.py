@@ -7,7 +7,7 @@ from curupira.models import ResolvedAutomation, Task, TaskIdentity
 
 
 def resolved_automation(
-    path: Path, name: str = "issues", trigger: str = "issue"
+    path: Path, name: str = "issues", trigger: str = "issue", **overrides: object
 ) -> ResolvedAutomation:
     """Resolve one automation through the real configuration boundary."""
     config: dict[str, object] = {
@@ -20,6 +20,7 @@ def resolved_automation(
         config.update(schedule="0 9 * * *", start_date="2026-10-01T00:00:00+00:00")
     else:
         config["query"] = "is:open"
+    config.update(overrides)
     settings = ApplicationSettings.model_validate(
         {"coding_agents": {"automations": {name: config}}}
     )

@@ -37,6 +37,8 @@ _DEFAULT_PULL_REQUEST_JSON_FIELDS = (
     "isDraft",
     "headRefName",
     "baseRefName",
+    "mergeable",
+    "mergeStateStatus",
 )
 _TRANSIENT_ERROR_MARKERS = (
     "rate limit",
@@ -119,6 +121,7 @@ class GhClient:
             request.query,
             request.limit,
             _DEFAULT_PULL_REQUEST_JSON_FIELDS,
+            request.jq,
         )
 
     async def _search_items(
@@ -128,6 +131,7 @@ class GhClient:
         query: str,
         limit: int,
         default_fields: tuple[str, ...],
+        jq: str | None = None,
     ) -> list[object]:
         arguments = [
             command,
@@ -143,8 +147,11 @@ class GhClient:
             "--json",
             ",".join(_PROJECT_ITEM_JSON_FIELDS if _is_project_query(query) else default_fields),
         ]
-        if _is_project_query(query):
-            arguments.extend(("--jq", _PROJECT_ITEM_JQ_FILTER))
+        jq_filter = _PROJECT_ITEM_JQ_FILTER if _is_project_query(query) else None
+        if jq is not None:
+            jq_filter = f"({jq_filter}) | ({jq})" if jq_filter is not None else jq
+        if jq_filter is not None:
+            arguments.extend(("--jq", jq_filter))
 
         async with self._search_lock:
             result = await self._runner.run(
