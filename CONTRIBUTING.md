@@ -14,6 +14,9 @@ before opening a pull request; CI runs the same steps.
 
 ## Verification commands
 
+Install the documentation tools with `uv sync --group docs`, then preview the site with
+`uv run mkdocs serve`.
+
 ```bash
 uv run --no-sync pytest
 uv run --no-sync ruff check .
