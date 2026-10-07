@@ -32,24 +32,42 @@ changes to `opscli.example.toml` must keep `test_example_configuration_is_valid`
 
 ## Architecture boundaries
 
-- `models/` — validated Pydantic contracts only; no I/O.
-- `clients/` — one native CLI adapter per provider plus the `gh` boundary and the
-  async process runner. Adapters translate typed profiles into literal argument
-  vectors; they never pass commands through a shell.
-- `feeds.py` — task discovery (`GitHubTaskFeed`, `CronTaskFeed`, multiplexing).
-- `executor.py` / `scheduler.py` / `dispatcher.py` — shared execution pipeline used
-  identically by every trigger type.
-- `storage/` — SQLite persistence with validated payloads; incompatible files
-  raise instead of being deleted.
-- `cli.py` — argument parsing and exit codes only.
+OpsCli separates task discovery, repository version control, and coding-agent CLI
+invocation into three layers. Each layer owns a contract in its `base.py`:
 
-To add a feed, implement the `TaskFeed` protocol (`poll` + `stream`) and wire it in
-`dispatcher.create_task_feeds`. To add a provider, subclass `CodingAgentCliAdapter`,
-add a profile model in `models/profiles.py`, and register the provider in
-`create_cli_adapter`. Custom-agent selection must use a verified native flag; when none
-exists, reject configured `agent` values during validation instead of reinterpreting
-them. Cover new behavior with fakes in `tests/` — never start authenticated agents or
-hit the network in tests.
+- `src/opscli/tasks/` discovers work. `tasks/base.py` defines `TaskFeed` (polling
+  and streaming discovered tasks), `TaskSource` (discovering tasks for an automation),
+  `Trigger` (trigger-specific prompt data and feed construction), and
+  `FeedDependencies`. `tasks/feed.py` provides the reusable `PollingTaskFeed`, while
+  `tasks/registry.py` registers trigger types and aliases. Current sources/triggers
+  are implemented in `tasks/cron.py`, `tasks/github_issues.py`, and
+  `tasks/github_pull_requests.py`.
+- `src/opscli/vcs/` prepares repositories. `vcs/base.py` defines `VersionControl`;
+  providers implement its `clone(repo, destination)` operation, while shared checkout,
+  worktree, and setup behavior stays in the base class. `vcs/github_cli.py` implements
+  cloning through the GitHub CLI.
+- `src/opscli/agents/` invokes coding-agent CLIs. `agents/base.py` defines
+  `CodingAgentCliAdapter`; an adapter implements `build_arguments(request)` to map a
+  validated task request to that CLI's native arguments. The factory
+  `create_cli_adapter` in `agents/__init__.py` constructs supported adapters:
+  `opencode.py`, `codex.py`, `claude.py`, and `cursor.py`.
+
+`src/opscli/storage/` is local SQLite persistence, not a version-control provider.
+OpsCli does not manage authentication: provider CLIs and the user's environment provide
+their own authentication.
+
+To add a task source, implement `TaskSource`, provide a `Trigger`, and register its
+`trigger_type` in `tasks/registry.py`; use a dedicated issue/PR after the task layer's
+`base.py` contract. A new version-control provider implements `VersionControl.clone`
+and belongs in its own issue/PR after `vcs/base.py`. A new coding-agent adapter
+implements `CodingAgentCliAdapter.build_arguments` and is wired into
+`create_cli_adapter`; it belongs in its own issue/PR after `agents/base.py`. Trello,
+Azure DevOps, and Monday are examples of services where a future task source could
+belong; they are not currently supported providers. Configuration accepts only the
+trigger types and agent profiles defined by the current registry and models.
+
+Cover new behavior with fakes in `tests/` — never start authenticated agents or hit the
+network in tests.
 
 When adding a provider or CLI, update `docs/data/requirements.toml` and the corresponding
 adapter in `src/opscli/agents/`; the English installation requirements are rendered from
