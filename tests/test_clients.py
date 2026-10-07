@@ -7,16 +7,16 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from opscli.agents import create_cli_adapter
-from opscli.agents.base import CodingAgentCliAdapter
-from opscli.clients.gh import GhClient
-from opscli.clients.process import AsyncProcessRunner
-from opscli.errors import (
+from curupira.agents import create_cli_adapter
+from curupira.agents.base import CodingAgentCliAdapter
+from curupira.clients.gh import GhClient
+from curupira.clients.process import AsyncProcessRunner
+from curupira.errors import (
     CliExecutionError,
     CliOutputError,
     UnsupportedCodingAgentError,
 )
-from opscli.models import (
+from curupira.models import (
     ClaudeCodeCliProfile,
     CliProfile,
     CodexCliProfile,
@@ -27,7 +27,7 @@ from opscli.models import (
     GhPullRequestSearchRequest,
     ProcessResult,
 )
-from opscli.vcs.github_cli import GitHubCliVersionControl
+from curupira.vcs.github_cli import GitHubCliVersionControl
 
 
 class RecordingRunner(AsyncProcessRunner):

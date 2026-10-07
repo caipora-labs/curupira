@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from opscli.errors import StateDatabaseError
-from opscli.models import RunningCodingSession
-from opscli.storage import RunningSessionRepository
+from curupira.errors import StateDatabaseError
+from curupira.models import RunningCodingSession
+from curupira.storage import RunningSessionRepository
 from tests.helpers import issue_task
 
 

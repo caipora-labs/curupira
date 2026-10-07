@@ -1,5 +1,5 @@
 [project]
-name = "opscli"
+name = "curupira"
 dynamic = ["version"]
 description = "Dispatch GitHub and cron tasks to local AI coding agents"
 readme = "README.md"
@@ -32,13 +32,14 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/mariotaddeucci/opscli"
-Repository = "https://github.com/mariotaddeucci/opscli"
-Issues = "https://github.com/mariotaddeucci/opscli/issues"
-Changelog = "https://github.com/mariotaddeucci/opscli/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/caipora-labs/curupira"
+Repository = "https://github.com/caipora-labs/curupira"
+Issues = "https://github.com/caipora-labs/curupira/issues"
+Changelog = "https://github.com/caipora-labs/curupira/blob/main/CHANGELOG.md"
 
 [project.scripts]
-opscli = "opscli.cli:main"
+curupira = "curupira.cli:main"
+curu = "curupira.cli:main"
 
 [dependency-groups]
 dev = [
@@ -67,16 +68,16 @@ requires = ["hatchling>=1.27,<2", "maturin>=1.8,<2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/opscli"]
+packages = ["src/curupira"]
 
 [tool.hatch.version]
-path = "src/opscli/_version.py"
+path = "src/curupira/_version.py"
 
 [tool.hatch.build.targets.wheel.hooks.custom]
 
 [tool.maturin]
-manifest-path = "crates/opscli-core/Cargo.toml"
-module-name = "opscli._native"
+manifest-path = "crates/curupira-core/Cargo.toml"
+module-name = "curupira._native"
 python-source = "src"
 bindings = "pyo3"
 
@@ -93,7 +94,7 @@ include = [
   "CHANGELOG.md",
   "CONTRIBUTING.md",
   "SECURITY.md",
-  "opscli.example.toml",
+  "curupira.example.toml",
 ]
 
 [tool.pytest.ini_options]
@@ -118,12 +119,12 @@ max-complexity = 12
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["D", "S101", "ASYNC240", "ANN401"]
 # Native executable discovery is intentional; arguments never pass through a shell.
-"src/opscli/clients/process.py" = ["S603", "S607"]
+"src/curupira/clients/process.py" = ["S603", "S607"]
 # SQL identifiers are private constants; all externally supplied values are bound parameters.
-"src/opscli/storage/*.py" = ["S608"]
+"src/curupira/storage/*.py" = ["S608"]
 
 [tool.pyrefly]
-project-includes = ["src", "tests"]
+project-includes = ["src", "tests", "scripts"]
 search-path = ["src", "."]
 python-version = "3.11"
 python-platform = ["linux", "darwin", "win32"]
@@ -133,7 +134,7 @@ min-severity = "warn"
 
 [tool.coverage.run]
 branch = true
-source = ["opscli"]
+source = ["curupira"]
 
 [tool.coverage.report]
 show_missing = true

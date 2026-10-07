@@ -2,13 +2,18 @@ name: TestPyPI rehearsal
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "v*.dev*"
 
 permissions: {}
 
 jobs:
   rehearse:
     name: Build, publish, and install from TestPyPI
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
@@ -26,7 +31,7 @@ jobs:
         uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
         with:
           toolchain: stable
-      - name: Verify main validation checks passed for this commit
+      - name: Verify CI validation checks passed for this commit
         env:
           GH_REPOSITORY: ${{ github.repository }}
           RELEASE_SHA: ${{ github.sha }}
@@ -76,25 +81,21 @@ jobs:
               raise SystemExit(f"CI validation is incomplete or unsuccessful; missing={missing}, failed={failed}")
           PY
       - name: Build distributions
-        run: uv build
-      - name: Read built package version
-        id: package_version
         run: |
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import zipfile
-          from email.parser import Parser
-          from pathlib import Path
-
-          wheels = list(Path("dist").glob("*.whl"))
-          if len(wheels) != 1:
-              raise SystemExit(f"Expected one wheel, found {wheels}")
-          with zipfile.ZipFile(wheels[0]) as archive:
-              metadata_name = next(
-                  name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
-              )
-              metadata = Parser().parsestr(archive.read(metadata_name).decode())
-          print(f"version={metadata['Version']}")
-          PY
+          rm -rf dist
+          uv build
+      - name: Verify distribution version and tag
+        id: package_version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          args=(--dist dist)
+          if [ "$EVENT_NAME" = "push" ]; then
+            args+=(--tag "$REF_NAME" --require-dev)
+          fi
+          version="$(python scripts/verify_dist_version.py "${args[@]}")"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
       - name: Publish rehearsal to TestPyPI
         # pypa/gh-action-pypi-publish v1.14.2; it creates attestations before upload.
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
@@ -104,11 +105,43 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.package_version.outputs.version }}
         run: |
-          python -m venv /tmp/opscli-testpypi
-          /tmp/opscli-testpypi/bin/pip install \
-            --index-url https://test.pypi.org/simple/ \
-            --extra-index-url https://pypi.org/simple/ \
-            "opscli==${PACKAGE_VERSION}"
-          /tmp/opscli-testpypi/bin/python -c "import opscli; print(opscli.__version__)"
-          /tmp/opscli-testpypi/bin/python -c "from opscli._native import rust_core_version; version = rust_core_version(); assert isinstance(version, str) and version.strip(); print(version)"
-          /tmp/opscli-testpypi/bin/opscli --version
+          python -m venv /tmp/curupira-testpypi
+          installed=0
+          for _attempt in 1 2 3 4 5 6; do
+            if /tmp/curupira-testpypi/bin/pip install \
+              --index-url https://test.pypi.org/simple/ \
+              --extra-index-url https://pypi.org/simple/ \
+              "curupira==${PACKAGE_VERSION}"; then
+              installed=1
+              break
+            fi
+            sleep 15
+          done
+          if [ "$installed" -ne 1 ]; then
+            echo "TestPyPI install of curupira==${PACKAGE_VERSION} failed" >&2
+            exit 1
+          fi
+          cd /tmp
+          /tmp/curupira-testpypi/bin/python - <<'PY'
+          import os
+
+          import curupira
+          from curupira._native import rust_core_version
+          from curupira.native import rust_core_version as wrapped
+
+          expected = os.environ["PACKAGE_VERSION"]
+          if curupira.__version__ != expected:
+              raise SystemExit(f"installed version {curupira.__version__!r} != {expected!r}")
+          version = rust_core_version()
+          if not isinstance(version, str) or not version.strip():
+              raise SystemExit(f"empty native version: {version!r}")
+          if wrapped() != version:
+              raise SystemExit("curupira.native.rust_core_version did not return the crate version")
+          print(version)
+          PY
+          /tmp/curupira-testpypi/bin/curupira --help >/tmp/curupira-help.txt
+          grep -q 'usage: curupira' /tmp/curupira-help.txt
+          test "$(/tmp/curupira-testpypi/bin/curupira --version)" = "curupira ${PACKAGE_VERSION}"
+          /tmp/curupira-testpypi/bin/curu --help >/tmp/curu-help.txt
+          grep -q 'usage: curu' /tmp/curu-help.txt
+          test "$(/tmp/curupira-testpypi/bin/curu --version)" = "curu ${PACKAGE_VERSION}"

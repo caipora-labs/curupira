@@ -3,12 +3,12 @@
 from pathlib import Path
 from typing import cast
 
-from opscli.clients.gh import GhClient
-from opscli.models import PollingSettings
-from opscli.storage import CronScheduleRepository
-from opscli.tasks.base import FeedDependencies
-from opscli.tasks.cron import CronTaskFeed, CronTrigger
-from opscli.tasks.registry import get
+from curupira.clients.gh import GhClient
+from curupira.models import PollingSettings
+from curupira.storage import CronScheduleRepository
+from curupira.tasks.base import FeedDependencies
+from curupira.tasks.cron import CronTaskFeed, CronTrigger
+from curupira.tasks.registry import get
 from tests.helpers import issue_task, resolved_automation
 
 

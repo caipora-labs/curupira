@@ -6,8 +6,8 @@ from pathlib import Path
 
 from typing_extensions import override
 
-from opscli.models import Task
-from opscli.status import TerminalTaskStatus, format_task_status
+from curupira.models import Task
+from curupira.status import TerminalTaskStatus, format_task_status
 from tests.helpers import issue_task
 
 

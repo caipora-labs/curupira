@@ -1,4 +1,4 @@
-"""Compile ``opscli._native`` into Hatchling wheels with maturin."""
+"""Compile ``curupira._native`` into Hatchling wheels with maturin."""
 
 from __future__ import annotations
 
@@ -17,11 +17,11 @@ class CustomBuildHook(BuildHookInterface):
     """Package the PyO3 extension for standard wheels and skip editable installs."""
 
     def initialize(self, version: str, build_data: dict[str, Any]) -> None:
-        """Compile ``opscli-core`` unless this is an editable install."""
+        """Compile ``curupira-core`` unless this is an editable install."""
         if version == "editable":
             return
 
-        artifact_dir = Path(tempfile.mkdtemp(prefix="opscli-native-"))
+        artifact_dir = Path(tempfile.mkdtemp(prefix="curupira-native-"))
         self._artifact_dir = artifact_dir
         wheel_tag, artifacts = _compile_native_extension(Path(self.root), artifact_dir)
         build_data["pure_python"] = False
@@ -91,10 +91,10 @@ def _extract_native_files(wheel: Path, destination: Path) -> dict[str, str]:
                 shutil.copyfileobj(source, sink)
             included[str(target)] = name
     if not included:
-        message = f"Maturin wheel {wheel.name} did not contain opscli._native"
+        message = f"Maturin wheel {wheel.name} did not contain curupira._native"
         raise RuntimeError(message)
     return included
 
 
 def _is_native_artifact(name: str) -> bool:
-    return name.startswith(("opscli/_native", "opscli.libs/", "opscli/.libs/"))
+    return name.startswith(("curupira/_native", "curupira.libs/", "curupira/.libs/"))

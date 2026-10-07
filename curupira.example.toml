@@ -1,0 +1,92 @@
+# Only the CLIs used by your profiles need to be installed and authenticated.
+[settings]
+max_active_tasks = 1
+max_pending_tasks = 100
+workspace_dir = "~/.curupira/workspaces"
+state_db_path = "~/.curupira/state.sqlite3"
+# Endpoint opcional de traces OTLP/HTTP; omita para desativar a telemetria.
+# otlp_endpoint = "http://localhost:4318/v1/traces"
+# task_timeout_seconds = 3600 # omitted: no task deadline
+max_output_bytes = 1000000 # retained tail per stdout/stderr stream
+
+[settings.polling]
+poll_interval_seconds = 30
+batch_size = 100
+cron_poll_interval_seconds = 1
+
+[coding_agents.defaults]
+profile = "opencode-default"
+timezone = "UTC"
+
+[coding_agents.profiles.opencode-default]
+provider = "opencode"
+# agent = "issue-resolver" # existing native OpenCode custom agent
+# model = "provider/model"
+# effort = "high"
+# auto_approve = true # explicit native permission override
+
+[coding_agents.profiles.claude-reviewer]
+provider = "claude"
+# agent = "pull-request-reviewer" # existing native Claude Code custom agent
+# model = "sonnet"
+# effort = "high"
+# permission_mode = "dontAsk"
+# permission_prompts = "none"
+
+[coding_agents.profiles.codex]
+provider = "codex"
+# model = "gpt-5.4"
+# agent = "work" # existing Codex CLI configuration profile (--profile)
+# effort = "high"
+# sandbox = "workspace-write"
+# auto_review = true
+# Native custom-agent selection is not supported by a verified flag.
+
+[coding_agents.profiles.cursor]
+provider = "cursor"
+# agent = "ask" # native mode: agent, ask, or plan
+# model = "composer-2.5"
+# trust = true
+# force = true
+# Standalone effort is not supported by this adapter.
+
+[coding_agents.automations.resolve-ready-issues]
+trigger_type = "issue"
+repo = "acme/api"
+query = "is:open label:agent-ready sort:created-asc"
+# path = "~/code/api" # optional existing checkout or alternative clone destination
+prompt = """
+Resolve issue ${issue_number}: ${issue_title}
+
+${issue_body}
+
+Repository: ${repo}
+URL: ${issue_url}
+"""
+
+[coding_agents.automations.review-pull-requests]
+trigger_type = "pull_request"
+repo = "acme/api"
+query = "is:open label:review-needed"
+profile = "claude-reviewer"
+prompt = """
+Review pull request ${pull_request_number}: ${pull_request_title}
+
+${pull_request_body}
+
+Repository: ${repo}
+URL: ${pull_request_url}
+Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
+"""
+
+[coding_agents.automations.weekly-maintenance]
+trigger_type = "cron"
+repo = "acme/api"
+schedule = "0 9 * * 1"
+# timezone = "Europe/Rome" # overrides coding_agents.defaults.timezone
+# start_date = 2026-10-05T00:00:00+02:00
+# end_date = 2026-12-31T23:59:00+01:00
+prompt = "Perform weekly maintenance for ${repo} (occurrence ${task_number})."
+
+# Project queries retain open items and filter the board's Todo status.
+# Add an independent automation using query = "project:owner/5" as needed.

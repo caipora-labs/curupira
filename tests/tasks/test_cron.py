@@ -4,14 +4,14 @@ import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 
-from opscli.models import (
+from curupira.models import (
     CronAutomationConfiguration,
     CronRunState,
     PollingSettings,
     RunningCodingSession,
 )
-from opscli.storage import CronScheduleRepository, RunningSessionRepository
-from opscli.tasks.cron import CronTaskFeed, latest_due_occurrence
+from curupira.storage import CronScheduleRepository, RunningSessionRepository
+from curupira.tasks.cron import CronTaskFeed, latest_due_occurrence
 from tests.helpers import resolved_automation
 
 

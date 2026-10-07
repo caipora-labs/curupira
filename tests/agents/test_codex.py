@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from opscli.agents.codex import CodexCliAdapter
-from opscli.models import CodexCliProfile, CodingTaskRequest
+from curupira.agents.codex import CodexCliAdapter
+from curupira.models import CodexCliProfile, CodingTaskRequest
 
 
 def test_codex_exec_arguments_preserve_profile_and_session(tmp_path: Path) -> None:

@@ -5,10 +5,10 @@ from __future__ import annotations
 import pytest
 from typing_extensions import override
 
-import opscli.tasks.registry as registry
-from opscli.models import ResolvedAutomation, Task
-from opscli.tasks.base import FeedDependencies, TaskFeed, Trigger
-from opscli.tasks.registry import get, register
+import curupira.tasks.registry as registry
+from curupira.models import ResolvedAutomation, Task
+from curupira.tasks.base import FeedDependencies, TaskFeed, Trigger
+from curupira.tasks.registry import get, register
 
 
 class FakeTrigger(Trigger):

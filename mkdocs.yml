@@ -1,7 +1,9 @@
 site_name: OpsCli
-site_url: https://mariotaddeucci.github.io/opscli/
+site_url: https://caipora-labs.github.io/curupira/
 site_description: Run GitHub and cron automations with local coding-agent CLIs.
-repo_url: https://github.com/mariotaddeucci/opscli
+repo_name: caipora-labs/curupira
+repo_url: https://github.com/caipora-labs/curupira
+edit_uri: edit/main/docs/
 docs_dir: docs
 plugins:
   - search
@@ -47,11 +49,29 @@ plugins:
 theme:
   name: material
   language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   features:
     - navigation.sections
     - navigation.top
+    - content.action.edit
     - content.code.copy
     - language.select
+extra_css:
+  - stylesheets/extra.css
 nav:
   - Home: index.md
   - Installation: installation.md
