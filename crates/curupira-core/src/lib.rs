@@ -2,7 +2,7 @@ use pyo3::exceptions::{PyFileNotFoundError, PyOSError, PyRuntimeError};
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use std::io::Read;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -45,7 +45,7 @@ impl NativeProcess {
                 .try_wait()
                 .map_err(|error| PyOSError::new_err(error.to_string()))?;
             if let Some(status) = result {
-                return Ok(status.code().unwrap_or(-1));
+                return Ok(exit_code(status));
             }
             std::thread::sleep(Duration::from_millis(5));
         })
@@ -98,6 +98,21 @@ fn receive_chunk(receiver: &ChunkReceiver) -> PyResult<Option<Vec<u8>>> {
         .map_err(|_| PyRuntimeError::new_err("pipe reader lock poisoned"))?
         .recv()
         .map_err(|_| PyRuntimeError::new_err("pipe reader stopped unexpectedly"))
+}
+
+fn exit_code(status: ExitStatus) -> i32 {
+    if let Some(code) = status.code() {
+        return code;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        return status.signal().map_or(-1, |signal| -signal);
+    }
+    #[cfg(not(unix))]
+    {
+        -1
+    }
 }
 
 fn reader(pipe: impl Read + Send + 'static) -> Receiver<Option<Vec<u8>>> {
