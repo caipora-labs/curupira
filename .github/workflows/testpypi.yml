@@ -104,11 +104,11 @@ jobs:
         env:
           PACKAGE_VERSION: ${{ steps.package_version.outputs.version }}
         run: |
-          python -m venv /tmp/opscli-testpypi
-          /tmp/opscli-testpypi/bin/pip install \
+          python -m venv /tmp/curupi-testpypi
+          /tmp/curupi-testpypi/bin/pip install \
             --index-url https://test.pypi.org/simple/ \
             --extra-index-url https://pypi.org/simple/ \
-            "opscli==${PACKAGE_VERSION}"
-          /tmp/opscli-testpypi/bin/python -c "import opscli; print(opscli.__version__)"
-          /tmp/opscli-testpypi/bin/python -c "from opscli._native import rust_core_version; version = rust_core_version(); assert isinstance(version, str) and version.strip(); print(version)"
-          /tmp/opscli-testpypi/bin/opscli --version
+            "curupi==${PACKAGE_VERSION}"
+          /tmp/curupi-testpypi/bin/python -c "import curupi; print(curupi.__version__)"
+          /tmp/curupi-testpypi/bin/python -c "from curupi._native import rust_core_version; version = rust_core_version(); assert isinstance(version, str) and version.strip(); print(version)"
+          /tmp/curupi-testpypi/bin/curupi --version

@@ -5,13 +5,13 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from opscli.clients.gh import GhClient
-from opscli.models import GhIssue, GhIssueSearchRequest, PollingSettings
-from opscli.storage import CronScheduleRepository
-from opscli.tasks.base import FeedDependencies
-from opscli.tasks.feed import PollingTaskFeed
-from opscli.tasks.github_issues import GitHubIssueSource, IssueTrigger
-from opscli.tasks.registry import get
+from curupi.clients.gh import GhClient
+from curupi.models import GhIssue, GhIssueSearchRequest, PollingSettings
+from curupi.storage import CronScheduleRepository
+from curupi.tasks.base import FeedDependencies
+from curupi.tasks.feed import PollingTaskFeed
+from curupi.tasks.github_issues import GitHubIssueSource, IssueTrigger
+from curupi.tasks.registry import get
 from tests.helpers import issue_task, resolved_automation
 
 

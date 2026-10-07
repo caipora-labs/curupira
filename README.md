@@ -1,5 +1,7 @@
 # OpsCli
 
+**OpsCli** (by Caipora Labs) is the product name. The PyPI project, console script, and Python import are `curupi`.
+
 OpsCli runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
 
 Each automation in the settings TOML watches one source (issues, pull requests, or a
@@ -20,7 +22,7 @@ while `watch` polls every automation continuously.
 Install as an isolated tool:
 
 ```bash
-uv tool install git+https://github.com/caipora-labs/opscli.git
+uv tool install git+https://github.com/caipora-labs/curupi.git
 ```
 
 The package is not yet published to PyPI. Install it directly from GitHub with `uv` as
@@ -28,30 +30,30 @@ shown above.
 
 ## Documentation
 
-See the [full guide in Portuguese](https://caipora-labs.github.io/opscli/) for
+See the [full guide in Portuguese](https://caipora-labs.github.io/curupi/) for
 installation, automation configuration, providers, and operational commands.
 
 ## Configuration
 
-The default settings file is `~/.opscli/settings.toml`. Download the example
+The default settings file is `~/.curupi/settings.toml`. Download the example
 configuration directly to that location, then adjust repositories, paths, queries, and
 prompts:
 
 ```bash
-mkdir -p ~/.opscli
-curl -fsSL https://raw.githubusercontent.com/caipora-labs/opscli/main/opscli.example.toml \
-  -o ~/.opscli/settings.toml
+mkdir -p ~/.curupi
+curl -fsSL https://raw.githubusercontent.com/caipora-labs/curupi/main/curupi.example.toml \
+  -o ~/.curupi/settings.toml
 ```
 
-The `~/.opscli` directory is created automatically when the default file is first
+The `~/.curupi` directory is created automatically when the default file is first
 loaded. Pass `--config path/to/settings.toml` to use a different file; relative workspace,
 state, and automation paths are resolved from that file's directory.
 
 ```toml
 [settings]
 max_active_tasks = 1
-workspace_dir = "~/.opscli/workspaces"
-state_db_path = "~/.opscli/state.sqlite3"
+workspace_dir = "~/.curupi/workspaces"
+state_db_path = "~/.curupi/state.sqlite3"
 # Optional OTLP/HTTP trace endpoint; omit it to disable telemetry.
 # otlp_endpoint = "http://localhost:4318/v1/traces"
 
@@ -200,9 +202,9 @@ accept OTLP over HTTP/protobuf. If the field is omitted, no telemetry is exporte
 ### State files
 
 Running sessions and cron schedule state live in `state_db_path` (default
-`~/.opscli/state.sqlite3`). The per-user dispatch lock is stored in
-`~/.opscli/dispatch.lock`, and the dedicated log directory is
-`~/.opscli/logs`. Only one `run` or `watch` process can dispatch at a time; a second
+`~/.curupi/state.sqlite3`). The per-user dispatch lock is stored in
+`~/.curupi/dispatch.lock`, and the dedicated log directory is
+`~/.curupi/logs`. Only one `run` or `watch` process can dispatch at a time; a second
 process exits with an error rather than running tasks in parallel. Session records are
 removed when the agent process ends; `watch` resumes all saved sessions after a restart,
 and `run` resumes the saved session of the task it selects. If the file exists but is not
@@ -212,7 +214,7 @@ delete or move the file yourself to start fresh.
 ### Log file
 
 The `run` and `watch` commands append records to
-`~/.opscli/logs/opscli.log`; restarting the process does not erase existing
+`~/.curupi/logs/curupi.log`; restarting the process does not erase existing
 content. Each task records its start and completion time, repository, type, and
 identifier. If a task fails, the record includes the error.
 
@@ -221,25 +223,25 @@ identifier. If a task fails, the record includes the error.
 Validate configuration without calling external CLIs or writing state:
 
 ```bash
-opscli validate
+curupi validate
 ```
 
 Execute one currently available task and wait for the agent to finish:
 
 ```bash
-opscli run
+curupi run
 ```
 
 Preview the selected task without reserving, persisting, cloning, or executing:
 
 ```bash
-opscli run --dry-run
+curupi run --dry-run
 ```
 
 Poll all automations with the shared bounded scheduler until interrupted:
 
 ```bash
-opscli watch
+curupi watch
 ```
 
 `validate` exits `0` when the configuration is valid and `2` on configuration errors.
@@ -254,8 +256,8 @@ configuration, output-format, and agent-task failures are not retried automatica
 
 ## Public interface
 
-`opscli` is CLI-first. The only supported programmatic surface is
-`opscli.__version__`; all other modules are internal implementation details that
+OpsCli is CLI-first. The only supported programmatic surface is
+`curupi.__version__`; all other modules are internal implementation details that
 may change without notice.
 
 ## Development and validation
@@ -271,9 +273,9 @@ uv run --no-sync twine check dist/*
 ```
 
 `uv sync` installs the Python package without compiling Rust. `uv build` produces a wheel
-that includes the `opscli._native` extension and needs a stable Rust toolchain. See
+that includes the `curupi._native` extension and needs a stable Rust toolchain. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for `maturin develop` and the crate layout under
-`crates/opscli-core`.
+`crates/curupi-core`.
 
 To inspect branch coverage locally, run `uv run --no-sync pytest --cov --cov-report=term-missing`;
 the configured minimum is 85%.

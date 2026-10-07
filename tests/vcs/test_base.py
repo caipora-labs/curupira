@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from opscli.clients.process import AsyncProcessRunner
-from opscli.errors import WorkspacePathError
-from opscli.models import CommandRequest, ProcessResult
-from opscli.vcs import Checkout, CheckoutRequest, VersionControl
+from curupi.clients.process import AsyncProcessRunner
+from curupi.errors import WorkspacePathError
+from curupi.models import CommandRequest, ProcessResult
+from curupi.vcs import Checkout, CheckoutRequest, VersionControl
 
 
 class LocalGitVersionControl(VersionControl):
@@ -55,7 +55,7 @@ def local_repository(tmp_path: Path) -> Path:
     repository.mkdir()
     _git(repository, "init", "--initial-branch=main")
     _git(repository, "config", "user.name", "OpsCli tests")
-    _git(repository, "config", "user.email", "opscli-tests@example.invalid")
+    _git(repository, "config", "user.email", "curupi-tests@example.invalid")
     (repository / "README.md").write_text("temporary repository\n")
     _git(repository, "add", "README.md")
     _git(repository, "commit", "-m", "initial commit")
@@ -117,7 +117,7 @@ async def test_worktree_is_created_reused_and_removed(
             arguments=(
                 "branch",
                 "--list",
-                f"opscli/automation/issue-{hashlib.sha256(b'42').hexdigest()}",
+                f"curupi/automation/issue-{hashlib.sha256(b'42').hexdigest()}",
             ),
             cwd=checkout.path,
         )

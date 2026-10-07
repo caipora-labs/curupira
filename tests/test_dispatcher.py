@@ -5,18 +5,18 @@ from pathlib import Path
 
 import pytest
 
-from opscli.config import ApplicationSettings
-from opscli.dispatcher import dispatch_next_task
-from opscli.executor import render_task_prompt
-from opscli.models import (
+from curupi.config import ApplicationSettings
+from curupi.dispatcher import dispatch_next_task
+from curupi.executor import render_task_prompt
+from curupi.models import (
     CommandRequest,
     GhIssue,
     GhPullRequest,
     ProcessResult,
     RunningCodingSession,
 )
-from opscli.runtime import create_execution_log_handler
-from opscli.storage import CronScheduleRepository, RunningSessionRepository
+from curupi.runtime import create_execution_log_handler
+from curupi.storage import CronScheduleRepository, RunningSessionRepository
 from tests.fakes import FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task
 
@@ -116,7 +116,7 @@ async def test_failed_dispatch_is_appended_to_the_central_log_file(
         handler.close()
         root_logger.setLevel(previous_level)
 
-    log_path = tmp_path / ".opscli" / "logs" / "opscli.log"
+    log_path = tmp_path / ".curupi" / "logs" / "curupi.log"
     lines = log_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
     assert "Starting task repo=acme/api type=issue id=42" in lines[0]

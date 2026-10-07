@@ -1,7 +1,7 @@
 site_name: OpsCli
-site_url: https://caipora-labs.github.io/opscli/
+site_url: https://caipora-labs.github.io/curupi/
 site_description: Run GitHub and cron automations with local coding-agent CLIs.
-repo_url: https://github.com/caipora-labs/opscli
+repo_url: https://github.com/caipora-labs/curupi
 docs_dir: docs
 plugins:
   - search

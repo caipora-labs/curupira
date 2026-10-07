@@ -8,7 +8,7 @@ than maintaining a parallel field table here.
 
 ### Runtime settings
 
-::: opscli.models.configuration.ExecutionSettings
+::: curupi.models.configuration.ExecutionSettings
     options:
       members:
         - max_active_tasks
@@ -20,39 +20,39 @@ than maintaining a parallel field table here.
         - max_output_bytes
         - polling
 
-::: opscli.models.configuration.PollingSettings
+::: curupi.models.configuration.PollingSettings
     options:
       show_root_heading: true
 
 ### Coding-agent defaults and automations
 
-::: opscli.models.configuration.CodingAgentDefaults
+::: curupi.models.configuration.CodingAgentDefaults
 
-::: opscli.models.configuration.CodingAgentsSettings
+::: curupi.models.configuration.CodingAgentsSettings
 
-::: opscli.models.configuration.IssueAutomationConfiguration
+::: curupi.models.configuration.IssueAutomationConfiguration
 
-::: opscli.models.configuration.PullRequestAutomationConfiguration
+::: curupi.models.configuration.PullRequestAutomationConfiguration
 
-::: opscli.models.configuration.CronAutomationConfiguration
+::: curupi.models.configuration.CronAutomationConfiguration
 
 ### CLI profiles
 
-::: opscli.models.profiles.OpenCodeCliProfile
+::: curupi.models.profiles.OpenCodeCliProfile
 
-::: opscli.models.profiles.CodexCliProfile
+::: curupi.models.profiles.CodexCliProfile
 
-::: opscli.models.profiles.ClaudeCodeCliProfile
+::: curupi.models.profiles.ClaudeCodeCliProfile
 
-::: opscli.models.profiles.CursorCliProfile
+::: curupi.models.profiles.CursorCliProfile
 
 One TOML file contains global limits, coding-agent profiles, and automations. An automation watches issues, pull requests, or a cron schedule.
 
 ```toml
 [settings]
 max_active_tasks = 1
-workspace_dir = "~/.opscli/workspaces"
-state_db_path = "~/.opscli/state.sqlite3"
+workspace_dir = "~/.curupi/workspaces"
+state_db_path = "~/.curupi/state.sqlite3"
 
 [settings.polling]
 poll_interval_seconds = 30
@@ -73,7 +73,7 @@ query = "is:open label:agent-ready sort:created-asc"
 prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 ```
 
-Save this as `~/.opscli/settings.toml`. The keys under `profiles` and `automations` are user-chosen identifiers; `profile` connects an automation to an existing profile.
+Save this as `~/.curupi/settings.toml`. The keys under `profiles` and `automations` are user-chosen identifiers; `profile` connects an automation to an existing profile.
 
 ## Automations
 
@@ -99,7 +99,7 @@ Polls fetch up to `batch_size` items (default 100, maximum 1000). Empty poll cyc
 
 `max_active_tasks` bounds concurrent agents. Checkouts using the same path run sequentially. Cron automations coalesce overdue ticks into one pending occurrence and never run themselves concurrently. `schedule` uses five cron fields; `timezone` is an IANA zone (default UTC), and optional `start_date`/`end_date` define an inclusive window. Without `start_date`, the window starts when the automation is first recorded.
 
-State is stored in `state_db_path` (default `~/.opscli/state.sqlite3`), the dispatch lock in `~/.opscli/dispatch.lock`, and logs in `~/.opscli/logs`. An incompatible database causes an error rather than automatic deletion. Only one `run`, `batch`, or `watch` process may dispatch at a time.
+State is stored in `state_db_path` (default `~/.curupi/state.sqlite3`), the dispatch lock in `~/.curupi/dispatch.lock`, and logs in `~/.curupi/logs`. An incompatible database causes an error rather than automatic deletion. Only one `run`, `batch`, or `watch` process may dispatch at a time.
 
 ## Telemetry
 
