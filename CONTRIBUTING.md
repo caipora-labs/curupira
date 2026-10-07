@@ -119,11 +119,24 @@ languages should link to it rather than manually translating generated fields.
 
 ## Documentation brand tokens
 
-The MkDocs Material theme uses the Caipora Labs brand palette: `primary` `#F7931F`,
-`primary-deep` `#EA6114`, `skin` `#8E4F26`, `accent` `#39873B`, `neutral-0` `#FEFDFC`,
-and `neutral-900` `#1A1A1A`. Keep these canonical values in
-`docs/stylesheets/extra.css`; do not introduce additional brand colors without a new
-decision.
+The docs theme uses the Caipora Labs palette. These hex values are the brand tokens.
+Do not add other brand colors without a new decision. The Material overrides live in
+`docs/stylesheets/extra.css`.
+
+| Token | Hex | Role |
+| --- | --- | --- |
+| `primary` | `#F7931F` | orange brand |
+| `primary-deep` | `#EA6114` | contrast / CTAs |
+| `skin` | `#8E4F26` | Caipora brown |
+| `accent` | `#39873B` | leaf / success |
+| `neutral-0` | `#FEFDFC` | background |
+| `neutral-900` | `#1A1A1A` | text |
+
+On the light scheme, the header uses `primary` with `neutral-900` text, and primary
+buttons use `primary-deep`. Body links use `skin`, which stays readable on `neutral-0`.
+The leaf `accent` is the hover color. The dark scheme swaps the neutrals and uses
+`primary` for links. The optional OpsCli product accent (`#014FC9` / `#011E58`) is not
+applied on the docs theme.
 
 ## Dependency audits
 

@@ -1,7 +1,9 @@
 site_name: OpsCli
 site_url: https://caipora-labs.github.io/curupi/
 site_description: Run GitHub and cron automations with local coding-agent CLIs.
+repo_name: caipora-labs/curupi
 repo_url: https://github.com/caipora-labs/curupi
+edit_uri: edit/main/docs/
 docs_dir: docs
 plugins:
   - search
@@ -52,13 +54,20 @@ theme:
       scheme: default
       primary: custom
       accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: custom
       accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   features:
     - navigation.sections
     - navigation.top
+    - content.action.edit
     - content.code.copy
     - language.select
 extra_css:
