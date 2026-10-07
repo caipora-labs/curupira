@@ -1,7 +1,7 @@
 site_name: OpsCli
-site_url: https://mariotaddeucci.github.io/opscli/
+site_url: https://caipora-labs.github.io/opscli/
 site_description: Run GitHub and cron automations with local coding-agent CLIs.
-repo_url: https://github.com/mariotaddeucci/opscli
+repo_url: https://github.com/caipora-labs/opscli
 docs_dir: docs
 plugins:
   - search
@@ -47,11 +47,23 @@ plugins:
 theme:
   name: material
   language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
   features:
     - navigation.sections
     - navigation.top
     - content.code.copy
     - language.select
+  custom_dir: docs/overrides
+extra_css:
+  - stylesheets/extra.css
 nav:
   - Home: index.md
   - Installation: installation.md
