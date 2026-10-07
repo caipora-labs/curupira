@@ -5,9 +5,13 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import shutil
+import stat
 from abc import ABC, abstractmethod
 from asyncio import to_thread
+from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
+from types import TracebackType
 
 from opscli.clients.process import AsyncProcessRunner
 from opscli.errors import CliExecutionError, CliOutputError, WorkspacePathError
@@ -168,12 +172,29 @@ class VersionControl(ABC):
             )
         except Exception:
             if checkout.cloned:
-                await to_thread(shutil.rmtree, checkout.path, True)
+                await to_thread(_remove_checkout, checkout.path)
             raise
         if result.returncode and checkout.cloned:
-            await to_thread(shutil.rmtree, checkout.path, True)
+            await to_thread(_remove_checkout, checkout.path)
         return result
 
 
 def _is_git_checkout(path: Path) -> bool:
     return path.is_dir() and (path / ".git").exists()
+
+
+def _remove_checkout(path: Path) -> None:
+    """Remove a failed fresh clone, retrying filesystem read-only failures."""
+
+    def retry_writable(
+        function: Callable[..., object],
+        target: str,
+        error: tuple[type[BaseException], BaseException, TracebackType | None],
+    ) -> None:
+        del error
+        target_path = Path(target)
+        target_path.chmod(target_path.stat().st_mode | stat.S_IWRITE)
+        function(target)
+
+    with suppress(OSError):
+        shutil.rmtree(path, onerror=retry_writable)
