@@ -15,6 +15,12 @@ All notable changes to this project are documented here. The format follows
   register through the same registry (`curupira.agents.registry`).
 - `curu plugins list` appends one `agent:<provider>` line per coding-agent provider with
   its distribution and executable; trigger lines are unchanged.
+- Coding-agent adapters can declare how they obtain session IDs and final answers without
+  reimplementing process handling: override `session_id_from_line` to parse a different
+  session record, set `assigns_session_id = True` to have Curupira generate a UUID that is
+  persisted before the process starts and passed as `CodingTaskRequest.new_session_id`,
+  or override `render_output` for a different final-answer shape. Built-in adapters keep
+  their arguments and output unchanged.
 
 ### Changed
 

@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import ClassVar
+from uuid import uuid4
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
@@ -57,6 +58,10 @@ class CodingAgentCliAdapter(ABC):
         display_name: Human-readable provider name shown in the dashboard.
         install_url: Where users install or learn about the native CLI.
         api_version: Plugin API version the implementation was written against.
+        assigns_session_id: When ``True``, Curupira generates a UUID for each new run,
+            reports it before the process starts, and passes it to ``build_arguments``
+            as ``request.new_session_id``. Use it for CLIs that accept a caller-chosen
+            session identifier instead of printing their own.
     """
 
     executable: ClassVar[str]
@@ -65,6 +70,7 @@ class CodingAgentCliAdapter(ABC):
     display_name: ClassVar[str]
     install_url: ClassVar[str]
     api_version: ClassVar[int] = PLUGIN_API_VERSION
+    assigns_session_id: ClassVar[bool] = False
 
     def __init__(self, runner: AsyncProcessRunner | None = None) -> None:
         self._runner = runner or AsyncProcessRunner()
@@ -73,26 +79,54 @@ class CodingAgentCliAdapter(ABC):
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
         """Translate a validated profile into native CLI arguments."""
 
+    def session_id_from_line(self, line: str) -> str | None:
+        """Return the native session identifier announced by one stdout line, if any.
+
+        The default reads ``sessionID``, ``session_id``, or ``thread_id`` from a JSON
+        event. Override it for CLIs that report their session in another shape. Each
+        distinct identifier is reported once per run, however often it repeats.
+
+        Args:
+            line: One line of the CLI's standard output.
+
+        Returns:
+            The session identifier, or ``None`` when the line does not announce one.
+        """
+        event = parse_event(line)
+        return event.session_id if event is not None else None
+
     async def run_task(
         self,
         request: CodingTaskRequest,
         *,
         on_session_started: SessionStartedCallback | None = None,
     ) -> ProcessResult:
-        """Run headlessly and report native session identifiers while streaming."""
+        """Run headlessly and report native session identifiers while streaming.
+
+        Adapters with ``assigns_session_id`` get a fresh UUID on new runs; it is reported
+        through ``on_session_started`` before the process starts, so it is persisted even
+        if the process dies early.
+        """
         if request.profile.provider != self.provider:
             raise UnsupportedCodingAgentError(
                 f"{self.provider} adapter cannot use {request.profile.provider} profile"
             )
         reported: set[str] = set()
 
+        async def report(session_id: str) -> None:
+            reported.add(session_id)
+            if on_session_started is not None:
+                await on_session_started(session_id)
+
+        if self.assigns_session_id and request.session_id is None:
+            new_session_id = str(uuid4())
+            await report(new_session_id)
+            request = request.model_copy(update={"new_session_id": new_session_id})
+
         async def handle(line: str) -> None:
-            nonlocal reported
-            event = parse_event(line)
-            if event is not None and event.session_id and event.session_id not in reported:
-                reported.add(event.session_id)
-                if on_session_started is not None:
-                    await on_session_started(event.session_id)
+            session_id = self.session_id_from_line(line)
+            if session_id and session_id not in reported:
+                await report(session_id)
 
         result = await self._runner.run(
             CommandRequest(
@@ -107,7 +141,18 @@ class CodingAgentCliAdapter(ABC):
         return result.model_copy(update={"stdout": self.render_output(result.stdout)})
 
     def render_output(self, output: str) -> str:
-        """Extract human-readable text from provider-native JSONL output."""
+        """Extract the final answer from provider-native JSONL output.
+
+        The default joins OpenCode ``text`` parts, Codex ``agent_message`` items, and
+        Claude Code or Cursor ``result`` events. Adapters whose CLI emits a different
+        final-answer shape override this method.
+
+        Args:
+            output: Captured standard output of the CLI.
+
+        Returns:
+            Human-readable text shown to users and stored as the task result.
+        """
         parts: list[str] = []
         for line in output.splitlines():
             event = parse_event(line)
