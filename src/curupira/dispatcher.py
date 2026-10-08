@@ -12,7 +12,7 @@ from curupira.models import (
 )
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
 from curupira.tasks.base import FeedDependencies, TaskFeed
-from curupira.tasks.registry import get as get_trigger
+from curupira.tasks.registry import for_configuration
 from curupira.telemetry import TaskTelemetry
 from curupira.vcs.base import VersionControl
 from curupira.vcs.github_cli import GitHubCliVersionControl
@@ -26,7 +26,7 @@ def create_task_feeds(
     for automation in settings.resolve_automations().values():
         dependencies = FeedDependencies(settings.settings.polling, gh, cron)
         feeds.append(
-            get_trigger(automation.configuration.trigger_type).build_feed(automation, dependencies)
+            for_configuration(automation.configuration).build_feed(automation, dependencies)
         )
     return feeds
 

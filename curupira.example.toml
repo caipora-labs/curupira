@@ -51,7 +51,7 @@ provider = "cursor"
 # Standalone effort is not supported by this adapter.
 
 [coding_agents.automations.resolve-ready-issues]
-trigger_type = "issue"
+trigger_type = "github_issues"
 repo = "acme/api"
 query = "is:open label:agent-ready sort:created-asc"
 # path = "~/code/api" # optional existing checkout or alternative clone destination
@@ -65,7 +65,7 @@ URL: ${issue_url}
 """
 
 [coding_agents.automations.review-pull-requests]
-trigger_type = "pull_request"
+trigger_type = "github_pull_requests"
 repo = "acme/api"
 query = "is:open label:review-needed"
 profile = "claude-reviewer"

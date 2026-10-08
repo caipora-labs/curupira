@@ -7,7 +7,7 @@ from curupira.models import ResolvedAutomation, Task, TaskIdentity
 
 
 def resolved_automation(
-    path: Path, name: str = "issues", trigger: str = "issue", **overrides: object
+    path: Path, name: str = "issues", trigger: str = "github_issues", **overrides: object
 ) -> ResolvedAutomation:
     """Resolve one automation through the real configuration boundary."""
     config: dict[str, object] = {
@@ -32,7 +32,7 @@ def issue_task(path: Path, number: int = 42, name: str = "issues") -> Task:
     automation = resolved_automation(path, name)
     return Task(
         identity=TaskIdentity(
-            automation_id=name, repo="acme/api", task_type="issue", id=str(number)
+            automation_id=name, repo="acme/api", task_type="github_issues", id=str(number)
         ),
         automation=automation,
         title=f"Task {number}",
@@ -45,9 +45,9 @@ def pull_request_task(path: Path, number: int = 12, name: str = "reviews") -> Ta
     """Create a pull request snapshot with its native branch metadata."""
     return Task(
         identity=TaskIdentity(
-            automation_id=name, repo="acme/api", task_type="pull_request", id=str(number)
+            automation_id=name, repo="acme/api", task_type="github_pull_requests", id=str(number)
         ),
-        automation=resolved_automation(path, name, "pull_request"),
+        automation=resolved_automation(path, name, "github_pull_requests"),
         title="Review",
         url=f"https://github.com/acme/api/pull/{number}",
         is_draft=True,

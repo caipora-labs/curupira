@@ -70,7 +70,7 @@ timezone = "UTC"
 provider = "opencode"
 
 [coding_agents.automations.resolve-ready-issues]
-trigger_type = "issue"
+trigger_type = "github_issues"
 repo = "acme/api"
 query = "is:open label:agent-ready sort:created-asc"
 prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
@@ -79,10 +79,10 @@ prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 ### Automations
 
 `[coding_agents.automations.<name>]` is a keyed map; the map key is the automation ID
-and is carried into every task identity. `trigger_type` selects the source:
+and is carried into every task identity. `trigger_type` selects a specific source:
 
-- `"issue"` — discovers matching issues with `query`
-- `"pull_request"` — discovers matching pull requests with `query`
+- `"github_issues"` — discovers matching issues with `query`
+- `"github_pull_requests"` — discovers matching pull requests with `query`
 - `"cron"` — produces occurrences from `schedule` instead of querying GitHub
 
 Every automation requires `repo`, `prompt`, and — depending on the trigger — `query`

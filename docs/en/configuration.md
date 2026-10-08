@@ -67,7 +67,7 @@ timezone = "UTC"
 provider = "opencode"
 
 [coding_agents.automations.resolve-ready-issues]
-trigger_type = "issue"
+trigger_type = "github_issues"
 repo = "acme/api"
 query = "is:open label:agent-ready sort:created-asc"
 prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
@@ -77,10 +77,10 @@ Save this as `~/.curupira/settings.toml`. The keys under `profiles` and `automat
 
 ## Automations
 
-`trigger_type` selects the source:
+`trigger_type` selects a specific automation shape (and its bound trigger):
 
-- `issue` discovers matching issues using GitHub Search syntax in `query`.
-- `pull_request` discovers matching pull requests using `query`.
+- `github_issues` discovers matching issues using GitHub Search syntax in `query`.
+- `github_pull_requests` discovers matching pull requests using `query`.
 - `cron` produces occurrences from a five-field `schedule` instead of querying GitHub.
 
 Each automation requires `repo`, `prompt`, and either `query` or `schedule`. Optional `profile` selects a CLI profile. Optional `path` pins the automation to an existing checkout or an alternative clone destination. Relative paths are resolved from the TOML file's directory. Different repositories cannot share one workspace path. Automations keep file order, and one-shot selection follows that order.

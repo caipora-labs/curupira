@@ -12,7 +12,7 @@ from curupira.models import (
 )
 from curupira.tasks.base import FeedDependencies, TaskFeed, TaskSource, Trigger
 from curupira.tasks.feed import PollingTaskFeed
-from curupira.tasks.registry import register, register_alias
+from curupira.tasks.registry import register
 
 
 class GitHubPullRequestSource(TaskSource):
@@ -37,7 +37,7 @@ class GitHubPullRequestSource(TaskSource):
                 identity=TaskIdentity(
                     automation_id=automation.automation_id,
                     repo=config.repo,
-                    task_type="pull_request",
+                    task_type="github_pull_requests",
                     id=str(item.number),
                 ),
                 automation=automation,
@@ -55,7 +55,8 @@ class GitHubPullRequestSource(TaskSource):
 class PullRequestTrigger(Trigger):
     """Trigger implementation for GitHub pull-request automations."""
 
-    trigger_type = "github-cli-pull-requests"
+    trigger_type = "github_pull_requests"
+    configuration_type = PullRequestAutomationConfiguration
 
     @classmethod
     @override
@@ -99,4 +100,3 @@ class PullRequestTrigger(Trigger):
 
 
 register(PullRequestTrigger())
-register_alias("github-cli-pull-requests", "pull_request")

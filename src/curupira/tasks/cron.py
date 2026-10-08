@@ -124,6 +124,7 @@ class CronTrigger(Trigger):
     """Trigger implementation for locally scheduled cron automations."""
 
     trigger_type = "cron"
+    configuration_type = CronAutomationConfiguration
 
     @classmethod
     def prompt_fields(cls) -> frozenset[str]:

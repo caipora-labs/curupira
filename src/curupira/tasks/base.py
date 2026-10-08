@@ -5,11 +5,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from curupira.clients.gh import GhClient
 from curupira.models import PollingSettings, ResolvedAutomation, Task
 from curupira.storage import CronScheduleRepository
+
+if TYPE_CHECKING:
+    from curupira.models.configuration import AutomationConfigurationBase
 
 
 class TaskFeed(ABC):
@@ -42,9 +45,10 @@ class FeedDependencies:
 
 
 class Trigger(ABC):
-    """Contract for a registered automation trigger type."""
+    """Contract for one automation configuration shape and its task discovery."""
 
     trigger_type: ClassVar[str]
+    configuration_type: ClassVar[type[AutomationConfigurationBase]]
 
     @classmethod
     @abstractmethod

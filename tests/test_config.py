@@ -14,7 +14,7 @@ from curupira.models import (
 )
 
 
-def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettings:
+def configuration(trigger: str = "github_issues", **overrides: Any) -> ApplicationSettings:
     """Build one independently named automation for boundary tests."""
     automation: dict[str, object] = {
         "trigger_type": trigger,
@@ -34,15 +34,15 @@ def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettin
 @pytest.mark.parametrize(
     ("trigger", "expected"),
     [
-        ("issue", IssueAutomationConfiguration),
-        ("pull_request", PullRequestAutomationConfiguration),
-        ("github-cli-pull-requests", PullRequestAutomationConfiguration),
+        ("github_issues", IssueAutomationConfiguration),
+        ("github_pull_requests", PullRequestAutomationConfiguration),
         ("cron", CronAutomationConfiguration),
     ],
 )
 def test_discriminator_supports_independent_source_types(trigger: str, expected: type) -> None:
     settings = configuration(trigger)
     assert isinstance(settings.coding_agents.automations["daily"], expected)
+    assert settings.coding_agents.automations["daily"].trigger_type == trigger
     assert settings.settings.max_active_tasks == 1
     assert settings.resolve_automations()["daily"].profile.provider == "opencode"
     assert settings.coding_agents.automations["daily"].checkout == "worktree"
@@ -66,7 +66,7 @@ def test_checkout_options_and_relative_setup_script_are_validated() -> None:
 
 
 def test_pull_request_automation_accepts_jq_filter() -> None:
-    settings = configuration("pull_request", jq='.[] | select(.mergeable == "MERGEABLE")')
+    settings = configuration("github_pull_requests", jq='.[] | select(.mergeable == "MERGEABLE")')
 
     automation = settings.coding_agents.automations["daily"]
     assert isinstance(automation, PullRequestAutomationConfiguration)
@@ -94,21 +94,18 @@ def test_invalid_automation_is_rejected(overrides: dict[str, Any]) -> None:
         configuration(**overrides)
 
 
-def test_unregistered_trigger_type_is_rejected() -> None:
-    with pytest.raises(ValidationError, match="unknown trigger type: unknown"):
+def test_unknown_trigger_type_is_rejected() -> None:
+    with pytest.raises(ValidationError):
         configuration("unknown")
 
 
-def test_registered_alias_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
-    import curupira.tasks  # noqa: F401
-    from curupira.tasks import registry
-
-    monkeypatch.setattr(registry, "_ALIASES", {})
-    registry.register_alias("issue", "legacy_issue")
-
-    automation = configuration("legacy_issue").coding_agents.automations["daily"]
-
-    assert automation.trigger_type == "legacy_issue"
+def test_legacy_short_trigger_names_are_rejected() -> None:
+    with pytest.raises(ValidationError):
+        configuration("issue")
+    with pytest.raises(ValidationError):
+        configuration("pull_request")
+    with pytest.raises(ValidationError):
+        configuration("github-cli-pull-requests")
 
 
 @pytest.mark.parametrize("field", ["max_active_tasks", "max_pending_tasks"])
@@ -282,4 +279,10 @@ def test_json_schema_keeps_the_three_supported_configuration_shapes() -> None:
     schema = ApplicationSettings.model_json_schema()
     automations = schema["$defs"]["CodingAgentsSettings"]["properties"]["automations"]
     values = next(iter(automations["patternProperties"].values()))
-    assert len(values["anyOf"]) == 3
+    assert values["discriminator"]["propertyName"] == "trigger_type"
+    assert set(values["discriminator"]["mapping"]) == {
+        "github_issues",
+        "github_pull_requests",
+        "cron",
+    }
+    assert len(values["oneOf"]) == 3

@@ -48,14 +48,14 @@ async def test_source_searches_issues_and_builds_tasks(tmp_path: Path) -> None:
     assert gh.request == GhIssueSearchRequest(repo="acme/api", query="is:open", limit=7)
     assert len(tasks) == 1
     assert tasks[0].identity.id == "42"
-    assert tasks[0].identity.task_type == "issue"
+    assert tasks[0].identity.task_type == "github_issues"
     assert tasks[0].title == "Improve discovery"
     assert tasks[0].body == "Details"
     assert tasks[0].url == "https://github.com/acme/api/issues/42"
 
 
 def test_issue_trigger_is_registered_and_provides_prompt_context(tmp_path: Path) -> None:
-    trigger = get("issue")
+    trigger = get("github_issues")
     task = issue_task(tmp_path, number=54)
 
     assert isinstance(trigger, IssueTrigger)

@@ -35,7 +35,7 @@ class GitHubIssueSource(TaskSource):
                 identity=TaskIdentity(
                     automation_id=automation.automation_id,
                     repo=config.repo,
-                    task_type="issue",
+                    task_type="github_issues",
                     id=str(issue.number),
                 ),
                 automation=automation,
@@ -50,7 +50,8 @@ class GitHubIssueSource(TaskSource):
 class IssueTrigger(Trigger):
     """Trigger implementation for GitHub issue automations."""
 
-    trigger_type = "issue"
+    trigger_type = "github_issues"
+    configuration_type = IssueAutomationConfiguration
 
     @classmethod
     @override

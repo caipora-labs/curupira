@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
-from pydantic import AnyHttpUrl, BeforeValidator, Field, field_validator, model_validator
+from pydantic import AnyHttpUrl, Field, field_validator, model_validator
 
 from curupira.models.base import Identifier, NonEmptyString, PositiveSeconds, ValidatedModel
 from curupira.models.profiles import CliProfile, OpenCodeCliProfile
@@ -168,15 +168,24 @@ class GitHubAutomationConfiguration(AutomationConfigurationBase):
 
 
 class IssueAutomationConfiguration(GitHubAutomationConfiguration):
-    """Discover issues matching a GitHub Search query."""
+    """Discover issues matching a GitHub Search query.
 
-    trigger_type: NonEmptyString = "issue"
+    Attributes:
+        trigger_type: Discriminator identifying the GitHub issues trigger.
+    """
+
+    trigger_type: Literal["github_issues"] = "github_issues"
 
 
 class PullRequestAutomationConfiguration(GitHubAutomationConfiguration):
-    """Discover pull requests matching a GitHub Search query."""
+    """Discover pull requests matching a GitHub Search query.
 
-    trigger_type: NonEmptyString = "github-cli-pull-requests"
+    Attributes:
+        trigger_type: Discriminator identifying the GitHub pull-requests trigger.
+        jq: Optional jq filter applied to the pull-request search payload.
+    """
+
+    trigger_type: Literal["github_pull_requests"] = "github_pull_requests"
     jq: NonEmptyString | None = None
 
 
@@ -184,13 +193,14 @@ class CronAutomationConfiguration(AutomationConfigurationBase):
     """Discover cron occurrences within an optional inclusive date window.
 
     Attributes:
+        trigger_type: Discriminator identifying the local cron trigger.
         schedule: Five-field cron expression defining the occurrence schedule.
         timezone: Optional IANA timezone overriding the inherited default.
         start_date: Optional inclusive earliest occurrence; naive values use the effective timezone.
         end_date: Optional inclusive latest occurrence; naive values use the effective timezone.
     """
 
-    trigger_type: NonEmptyString = "cron"
+    trigger_type: Literal["cron"] = "cron"
     schedule: NonEmptyString
     timezone: NonEmptyString | None = None
     start_date: datetime | None = None
@@ -211,27 +221,9 @@ class CronAutomationConfiguration(AutomationConfigurationBase):
         return validate_timezone(value) if value is not None else None
 
 
-def parse_automation_configuration(value: object) -> object:
-    """Validate registered trigger names and select one of the supported config shapes."""
-    if not isinstance(value, dict):
-        return value
-    trigger_type = value.get("trigger_type")
-    if not isinstance(trigger_type, str):
-        return value
-    import curupira.tasks  # noqa: F401
-    from curupira.tasks.registry import get
-
-    get(trigger_type)
-    if trigger_type in {"github-cli-pull-requests", "pull_request"}:
-        return PullRequestAutomationConfiguration.model_validate(value)
-    if trigger_type == "cron" or "schedule" in value:
-        return CronAutomationConfiguration.model_validate(value)
-    return IssueAutomationConfiguration.model_validate(value)
-
-
 AutomationConfiguration = Annotated[
     IssueAutomationConfiguration | PullRequestAutomationConfiguration | CronAutomationConfiguration,
-    BeforeValidator(parse_automation_configuration),
+    Field(discriminator="trigger_type"),
 ]
 
 
@@ -258,13 +250,14 @@ class CodingAgentsSettings(ValidatedModel):
         """Check profile references and prompt placeholders."""
         if self.defaults.profile not in self.profiles:
             raise ValueError(f"default profile does not exist: {self.defaults.profile}")
-        from curupira.tasks.registry import get
+        import curupira.tasks  # noqa: F401
+        from curupira.tasks.registry import for_configuration
 
         for name, automation in self.automations.items():
             profile = automation.profile or self.defaults.profile
             if profile not in self.profiles:
                 raise ValueError(f"profile {profile!r} for automation {name!r} does not exist")
-            allowed = COMMON_PROMPT_FIELDS | get(automation.trigger_type).prompt_fields()
+            allowed = COMMON_PROMPT_FIELDS | for_configuration(automation).prompt_fields()
             unknown = set(Template(automation.prompt).get_identifiers()) - allowed
             if unknown:
                 raise ValueError(f"unsupported prompt placeholders for {name!r}: {sorted(unknown)}")

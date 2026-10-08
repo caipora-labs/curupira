@@ -18,6 +18,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Automations use specific `trigger_type` Literals (`github_issues`,
+  `github_pull_requests`, `cron`), each bound to one configuration class and trigger.
+  Short names (`issue`, `pull_request`) and the `github-cli-pull-requests` alias are
+  no longer accepted.
 - Use Curupira as the sole product name across documentation and branding. Remove
   the legacy source-checkout module shim that reused the previous package name.
 - CI runs the test suite and wheel install smoke tests across the same multi-platform,

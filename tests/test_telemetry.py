@@ -100,7 +100,7 @@ async def test_executor_exports_the_real_task_outcome(tmp_path: Path) -> None:
         [span] = exporter.get_finished_spans()
         attributes = span.attributes or {}
         assert attributes["curupira.repo"] == "acme/api"
-        assert attributes["curupira.task.type"] == "issue"
+        assert attributes["curupira.task.type"] == "github_issues"
         assert attributes["curupira.task.id"] == "42"
         assert attributes["curupira.result"] == "success"
     finally:
@@ -174,6 +174,6 @@ def test_configured_endpoint_is_given_to_otlp_exporter(
     [span] = exporter.get_finished_spans()
     attributes = span.attributes or {}
     assert attributes["curupira.repo"] == "acme/api"
-    assert attributes["curupira.task.type"] == "issue"
+    assert attributes["curupira.task.type"] == "github_issues"
     assert attributes["curupira.task.id"] == "42"
     assert attributes["curupira.result"] == "success"

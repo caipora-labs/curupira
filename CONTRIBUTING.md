@@ -99,15 +99,17 @@ invocation into three layers. Each layer owns a contract in its `base.py`:
 Curupira does not manage authentication: provider CLIs and the user's environment provide
 their own authentication.
 
-To add a task source, implement `TaskSource`, provide a `Trigger`, and register its
-`trigger_type` in `tasks/registry.py`; use a dedicated issue/PR after the task layer's
-`base.py` contract. A new version-control provider implements `VersionControl.clone`
-and belongs in its own issue/PR after `vcs/base.py`. A new coding-agent adapter
-implements `CodingAgentCliAdapter.build_arguments` and is wired into
-`create_cli_adapter`; it belongs in its own issue/PR after `agents/base.py`. Trello,
-Azure DevOps, and Monday are examples of services where a future task source could
-belong; they are not currently supported providers. Configuration accepts only the
-trigger types and agent profiles defined by the current registry and models.
+To add a task source, add a specific automation configuration class, implement
+`TaskSource`, provide a `Trigger` bound to that configuration via
+`configuration_type`, and register it in `tasks/registry.py`; use a dedicated
+issue/PR after the task layer's `base.py` contract. A new version-control provider
+implements `VersionControl.clone` and belongs in its own issue/PR after
+`vcs/base.py`. A new coding-agent adapter implements
+`CodingAgentCliAdapter.build_arguments` and is wired into `create_cli_adapter`; it
+belongs in its own issue/PR after `agents/base.py`. Trello, Azure DevOps, and Monday
+are examples of services where a future task source could belong; they are not
+currently supported providers. Configuration accepts only the specific
+`trigger_type` Literals and agent profiles defined by the current models and registry.
 
 Cover new behavior with fakes in `tests/` — never start authenticated agents or hit the
 network in tests.
