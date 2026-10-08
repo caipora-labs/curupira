@@ -27,6 +27,7 @@ uv run --no-sync ruff check .                              # lint (add --fix for
 uv run --no-sync ruff format --check .                     # formatting
 uv run --no-sync pyrefly check                             # strict type check
 uv run --no-sync curupira --config curupira.example.toml validate
+uv run --no-sync pre-commit run --all-files                # hooks: whitespace, secrets, uv.lock, Ruff
 uv build && uv run --no-sync twine check dist/*            # packaging
 ```
 
