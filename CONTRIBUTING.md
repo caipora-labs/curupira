@@ -65,7 +65,8 @@ trigger types and agent providers registered by built-ins and installed plugins.
 
 When adding a provider, add its adapter in `src/curupira/agents/`, a page at
 `docs/en/providers/<provider>.md`, and one line under "Providers and agents" in the
-`mkdocs.yml` nav. The provider table on `docs/en/providers.md` and the coding-agent CLIs
+`mkdocs.yml` nav. Keep that nav line and the provider's entry in the README "Providers and
+native options" list in alphabetical order by display name. The provider table on `docs/en/providers.md` and the coding-agent CLIs
 in the installation requirements are generated from the agent registry (`display_name`,
 `executable`, and `install_url`) during the MkDocs build, so they update automatically.
 Other tools, such as forge CLIs, are listed by hand in `docs/data/requirements.toml`.

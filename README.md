@@ -102,10 +102,10 @@ path. Automations keep file order, and one-shot selection follows that order.
 
 Curupira supports these coding-agent CLIs, selected with `provider` in a profile:
 
-- OpenCode (`opencode`)
-- Codex (`codex`)
 - Claude Code (`claude`)
+- Codex (`codex`)
 - Cursor (`cursor`)
+- OpenCode (`opencode`)
 
 How `model`, `effort`, `agent`, and permission options map to each CLI's native
 arguments is documented on the

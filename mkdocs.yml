@@ -81,8 +81,8 @@ nav:
   - Operations: operations.md
   - Providers and agents:
       - Overview: providers.md
-      - OpenCode: providers/opencode.md
-      - Codex: providers/codex.md
       - Claude Code: providers/claude.md
+      - Codex: providers/codex.md
       - Cursor: providers/cursor.md
+      - OpenCode: providers/opencode.md
   - Plugins: plugins.md
