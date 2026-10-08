@@ -50,14 +50,18 @@ company belong in a separate distribution that registers the trigger under the
 `tasks/`, is imported by `tasks/__init__.py`, and deserves a dedicated issue/PR after the
 task layer's `base.py` contract. A new version-control provider implements `VersionControl.clone`
 and belongs in its own issue/PR after `vcs/base.py`. A new coding-agent adapter
-implements `CodingAgentCliAdapter.build_arguments` and is wired into
-`create_cli_adapter`; it belongs in its own issue/PR after `agents/base.py`. A trigger can
+implements `CodingAgentCliAdapter.build_arguments`, declares its `provider`,
+`profile_model`, `display_name`, and `install_url`, and calls `register` from
+`agents/registry.py` at the bottom of its module. A built-in adapter lives in its own
+module under `agents/` and is imported by `agents/__init__.py`, so `create_cli_adapter`
+and profile validation find it through the registry; it belongs in its own issue/PR after
+`agents/base.py`. Third-party adapters register under the `curupira.agents` entry-point
+group instead. A trigger can
 supply its own clone mechanism through `Trigger.create_version_control`. Azure DevOps
 pull-request listing is supported via `azure-cli-pull-requests`; cloning still uses the
 GitHub CLI version-control adapter unless `path` points at an existing checkout. Trello
 and Monday are examples of services that fit a plugin. Configuration accepts only the
-trigger types registered by built-ins and installed plugins, and the agent profiles
-defined by the current models.
+trigger types and agent providers registered by built-ins and installed plugins.
 
 When adding a provider or CLI, update `docs/data/requirements.toml` and the corresponding
 adapter in `src/curupira/agents/`; the English installation requirements are rendered from

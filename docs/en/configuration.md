@@ -77,6 +77,8 @@ prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 
 Save this as `~/.curupira/settings.toml`. The keys under `profiles` and `automations` are user-chosen identifiers; `profile` connects an automation to an existing profile.
 
+Each profile's `provider` selects a registered coding agent: `opencode`, `codex`, `claude`, or `cursor`, plus any provider added by an installed [agent plugin](plugins.md#agent-plugins). `curu plugins list` shows every available provider and its executable.
+
 ## Automations
 
 `trigger_type` selects the source:

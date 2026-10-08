@@ -5,6 +5,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Coding-agent plugins: installed distributions register new coding-agent adapters under
+  the `curupira.agents` entry-point group, using the public `curupira.plugins` API. Each
+  adapter declares its own `profile_model`, `display_name`, and `install_url`, so plugin
+  profile options are validated by `curu validate` and select the adapter with
+  `provider = "<name>"`. OpenCode, Codex, Claude Code, and Cursor stay built in and
+  register through the same registry (`curupira.agents.registry`).
+- `curu plugins list` appends one `agent:<provider>` line per coding-agent provider with
+  its distribution and executable; trigger lines are unchanged.
+
 ## [0.2.0] - 2026-10-08
 
 ### Added
