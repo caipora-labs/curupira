@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Trigger plugins: installed distributions register new automation sources under the
+  `curupira.triggers` entry-point group, using the public `curupira.plugins` API. Each
+  trigger declares its own Pydantic `configuration_model`, so plugin options and prompt
+  placeholders are validated by `curu validate`. Triggers can also provide lifecycle
+  hooks (`validate_task`, `on_task_started`, `on_task_finished`) and their own
+  version-control clone mechanism.
+- `curu plugins list` shows every registered trigger type, its distribution, and its
+  prompt placeholders.
+- `Task.attributes` carries source-specific string values that are persisted with the
+  task and available to trigger prompt context.
+
 - Interactive orchestrator dashboard via `curu tui` (Textual): system metrics,
   running agents with elapsed timers, and live orchestrator logs.
 - Azure DevOps pull-request discovery through the Azure CLI under the explicit
@@ -16,6 +27,15 @@ All notable changes to this project are documented here. The format follows
 - `AGENTS.md` operating manual for coding agents (commands, repository map, code style,
   testing, security, and boundaries); `CONTRIBUTING.md` now links to it instead of
   duplicating those sections, and `CLAUDE.md` imports it.
+
+### Changed
+
+- Automation configuration is validated by the model of the registered trigger instead
+  of a fixed union; existing TOML files keep working, including automations without
+  `trigger_type`. The generated JSON schema now describes the shared
+  `AutomationConfigurationBase` contract.
+- The cron lifecycle (start timestamp and occurrence completion) moved from the executor
+  into the cron trigger's hooks.
 
 ### Removed
 

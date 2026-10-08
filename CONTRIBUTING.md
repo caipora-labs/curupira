@@ -36,17 +36,22 @@ coding-agent CLI invocation (`agents/`) into layers whose contracts live in each
 `base.py`; see the repository map in [AGENTS.md](AGENTS.md). Curupira does not manage
 authentication: provider CLIs and the user's environment provide their own.
 
-To add a task source, implement `TaskSource`, provide a `Trigger`, and register its
-`trigger_type` in `tasks/registry.py`; use a dedicated issue/PR after the task layer's
-`base.py` contract. A new version-control provider implements `VersionControl.clone`
+To add a task source, implement `TaskSource` and a `Trigger` that declares its
+`trigger_type` and Pydantic `configuration_model`. Sources specific to one service or
+company belong in a separate distribution that registers the trigger under the
+`curupira.triggers` entry-point group and imports only `curupira.plugins`; see the
+[plugin guide](docs/en/plugins.md). A built-in trigger lives in its own module under
+`tasks/`, is imported by `tasks/__init__.py`, and deserves a dedicated issue/PR after the
+task layer's `base.py` contract. A new version-control provider implements `VersionControl.clone`
 and belongs in its own issue/PR after `vcs/base.py`. A new coding-agent adapter
 implements `CodingAgentCliAdapter.build_arguments` and is wired into
-`create_cli_adapter`; it belongs in its own issue/PR after `agents/base.py`. Azure
-DevOps pull-request listing is supported via `azure-cli-pull-requests`; cloning still
-uses the GitHub CLI version-control adapter unless `path` points at an existing
-checkout. Trello and Monday remain examples of services where a future task source
-could belong. Configuration accepts only the trigger types and agent profiles defined
-by the current registry and models.
+`create_cli_adapter`; it belongs in its own issue/PR after `agents/base.py`. A trigger can
+supply its own clone mechanism through `Trigger.create_version_control`. Azure DevOps
+pull-request listing is supported via `azure-cli-pull-requests`; cloning still uses the
+GitHub CLI version-control adapter unless `path` points at an existing checkout. Trello
+and Monday are examples of services that fit a plugin. Configuration accepts only the
+trigger types registered by built-ins and installed plugins, and the agent profiles
+defined by the current models.
 
 When adding a provider or CLI, update `docs/data/requirements.toml` and the corresponding
 adapter in `src/curupira/agents/`; the English installation requirements are rendered from

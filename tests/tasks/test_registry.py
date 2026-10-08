@@ -2,19 +2,31 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 from typing_extensions import override
 
 import curupira.tasks.registry as registry
 from curupira.models import ResolvedAutomation, Task
+from curupira.models.configuration import AutomationConfigurationBase
 from curupira.tasks.base import FeedDependencies, TaskFeed, Trigger
 from curupira.tasks.registry import get, register
+
+
+class FakeConfiguration(AutomationConfigurationBase):
+    trigger_type: str = "fake"
+
+
+class MismatchedConfiguration(AutomationConfigurationBase):
+    trigger_type: str = "other"
 
 
 class FakeTrigger(Trigger):
     """Minimal implementation used to exercise the trigger registry."""
 
     trigger_type = "fake"
+    configuration_model = FakeConfiguration
 
     @classmethod
     @override
@@ -77,3 +89,31 @@ def test_duplicate_alias_and_canonical_collision_raise(monkeypatch: pytest.Monke
         registry.register_alias("fake", "legacy_fake")
     with pytest.raises(ValueError, match="trigger alias already registered: fake"):
         registry.register_alias("fake", "fake")
+
+
+def test_register_requires_a_configuration_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(registry, "_TRIGGERS", {})
+
+    class Unconfigured(FakeTrigger):
+        configuration_model = cast("type[AutomationConfigurationBase]", dict)
+
+    with pytest.raises(ValueError, match="must declare a configuration_model"):
+        register(Unconfigured())
+
+
+def test_register_requires_matching_trigger_type_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(registry, "_TRIGGERS", {})
+
+    class Mismatched(FakeTrigger):
+        configuration_model = MismatchedConfiguration
+
+    with pytest.raises(ValueError, match="must default trigger_type to 'fake'"):
+        register(Mismatched())
+
+
+def test_registered_lists_built_in_triggers() -> None:
+    assert {"issue", "github-cli-pull-requests", "azure-cli-pull-requests", "cron"} <= set(
+        registry.registered()
+    )

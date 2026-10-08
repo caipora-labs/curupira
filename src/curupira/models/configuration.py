@@ -8,7 +8,14 @@ from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from croniter import croniter
-from pydantic import AnyHttpUrl, BeforeValidator, Field, field_validator, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    BeforeValidator,
+    Field,
+    SerializeAsAny,
+    field_validator,
+    model_validator,
+)
 
 from curupira.models.azure import AzurePullRequestStatus
 from curupira.models.base import Identifier, NonEmptyString, PositiveSeconds, ValidatedModel
@@ -93,7 +100,11 @@ class CodingAgentDefaults(ValidatedModel):
 class AutomationConfigurationBase(ValidatedModel):
     """Shared options for one automation, keyed by its enclosing TOML table name.
 
+    Trigger plugins extend this model and give ``trigger_type`` a default equal to
+    their registered type.
+
     Attributes:
+        trigger_type: Registered trigger type selecting the configuration model.
         repo: Repository identifier whose format depends on the trigger type.
         path: Optional base checkout path; relative paths are resolved from the TOML file.
         setup_script: Optional repository-relative script run after a fresh clone.
@@ -102,6 +113,7 @@ class AutomationConfigurationBase(ValidatedModel):
         profile: Optional named CLI profile overriding the configured default.
     """
 
+    trigger_type: NonEmptyString
     repo: NonEmptyString
     path: Path | None = None
     setup_script: str | None = None
@@ -255,30 +267,22 @@ class CronAutomationConfiguration(AutomationConfigurationBase):
 
 
 def parse_automation_configuration(value: object) -> object:
-    """Validate registered trigger names and select one of the supported config shapes."""
+    """Validate an automation table with the model of its registered trigger."""
     if not isinstance(value, dict):
         return value
-    trigger_type = value.get("trigger_type")
-    if not isinstance(trigger_type, str):
-        return value
-    import curupira.tasks  # noqa: F401
     from curupira.tasks.registry import get
 
-    get(trigger_type)
-    if trigger_type == "github-cli-pull-requests":
-        return PullRequestAutomationConfiguration.model_validate(value)
-    if trigger_type == "azure-cli-pull-requests":
-        return AzurePullRequestAutomationConfiguration.model_validate(value)
-    if trigger_type == "cron" or "schedule" in value:
-        return CronAutomationConfiguration.model_validate(value)
-    return IssueAutomationConfiguration.model_validate(value)
+    trigger_type = value.get("trigger_type")
+    if trigger_type is None:
+        trigger_type = "cron" if "schedule" in value else "issue"
+    if not isinstance(trigger_type, str):
+        raise ValueError("trigger_type must be a string")
+    return get(trigger_type).configuration_model.model_validate(value)
 
 
+# SerializeAsAny keeps plugin-specific fields when snapshots are dumped and revalidated.
 AutomationConfiguration = Annotated[
-    IssueAutomationConfiguration
-    | PullRequestAutomationConfiguration
-    | AzurePullRequestAutomationConfiguration
-    | CronAutomationConfiguration,
+    SerializeAsAny[AutomationConfigurationBase],
     BeforeValidator(parse_automation_configuration),
 ]
 

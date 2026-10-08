@@ -2,7 +2,6 @@
 
 import logging
 from asyncio import CancelledError
-from datetime import UTC, datetime
 from string import Template
 
 from curupira.agents import CliAdapterFactory, create_cli_adapter
@@ -10,6 +9,7 @@ from curupira.agents.base import (
     RESUME_SESSION_PROMPT,
     CodingAgentCliAdapter,
 )
+from curupira.clients.process import AsyncProcessRunner
 from curupira.errors import PromptRenderError
 from curupira.models import (
     CodingTaskRequest,
@@ -19,9 +19,11 @@ from curupira.models import (
     Task,
 )
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
+from curupira.tasks.base import TriggerState
 from curupira.tasks.registry import get as get_trigger
 from curupira.telemetry import TaskTelemetry
 from curupira.vcs.base import CheckoutRequest, VersionControl
+from curupira.vcs.github_cli import GitHubCliVersionControl
 
 logger = logging.getLogger(__name__)
 
@@ -53,17 +55,20 @@ class TaskExecutor:
     def __init__(
         self,
         settings: ExecutionSettings,
-        version_control: VersionControl,
+        version_control: VersionControl | None,
         sessions: RunningSessionRepository,
         cron: CronScheduleRepository,
         *,
         adapter_factory: CliAdapterFactory = create_cli_adapter,
         telemetry: TaskTelemetry | None = None,
+        runner: AsyncProcessRunner | None = None,
     ) -> None:
         self._settings = settings
-        self._version_control = version_control
+        self._runner = runner or AsyncProcessRunner()
+        self._default_version_control = version_control or GitHubCliVersionControl(self._runner)
+        self._version_controls: dict[str, VersionControl] = {}
         self._sessions = sessions
-        self._cron = cron
+        self._state = TriggerState(sessions=sessions, cron=cron)
         self._adapter_factory = adapter_factory
         self._telemetry = telemetry or TaskTelemetry()
         self._adapters: dict[str, CodingAgentCliAdapter] = {}
@@ -114,12 +119,14 @@ class TaskExecutor:
         if adapter is None:
             adapter = self._adapter_factory(provider)
             self._adapters[provider] = adapter
-        checkout = await self._version_control.ensure_checkout(
+        trigger = get_trigger(task.identity.task_type)
+        version_control = self._version_control_for(task)
+        checkout = await version_control.ensure_checkout(
             CheckoutRequest(repo=task.identity.repo, destination=task.automation.workspace_path)
         )
         setup_script = task.automation.configuration.setup_script
         if checkout.cloned and setup_script is not None:
-            result = await self._version_control.run_setup_script(
+            result = await version_control.run_setup_script(
                 checkout,
                 setup_script,
                 timeout_seconds=self._settings.task_timeout_seconds,
@@ -140,12 +147,11 @@ class TaskExecutor:
                 RunningCodingSession(task=task, session_id=session_id, message=original_message)
             )
 
-        if task.identity.task_type == "cron":
-            await self._cron.mark_started(task.identity.automation_id, datetime.now(UTC))
+        await trigger.on_task_started(task, self._state)
         is_worktree = task.automation.configuration.checkout == "worktree"
         cwd = checkout.path
         if is_worktree:
-            cwd = await self._version_control.ensure_worktree(
+            cwd = await version_control.ensure_worktree(
                 checkout,
                 automation_id=task.identity.automation_id,
                 task_type=task.identity.task_type,
@@ -163,15 +169,12 @@ class TaskExecutor:
                 ),
                 on_session_started=persist,
             )
-            if task.identity.task_type == "cron":
-                await self._cron.complete_run(task, self._sessions)
-            else:
-                await self._sessions.delete(task)
+            await trigger.on_task_finished(task, self._state)
             return result
         finally:
             if is_worktree:
                 try:
-                    await self._version_control.remove_worktree(
+                    await version_control.remove_worktree(
                         checkout,
                         automation_id=task.identity.automation_id,
                         task_type=task.identity.task_type,
@@ -179,3 +182,13 @@ class TaskExecutor:
                     )
                 except Exception:
                     logger.exception("Could not clean up worktree for %s", task.identity.key)
+
+    def _version_control_for(self, task: Task) -> VersionControl:
+        """Return the trigger's clone mechanism, created once per trigger type."""
+        task_type = task.identity.task_type
+        version_control = self._version_controls.get(task_type)
+        if version_control is None:
+            created = get_trigger(task_type).create_version_control(self._runner)
+            version_control = created or self._default_version_control
+            self._version_controls[task_type] = version_control
+        return version_control

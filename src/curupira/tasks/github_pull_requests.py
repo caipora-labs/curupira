@@ -56,6 +56,7 @@ class PullRequestTrigger(Trigger):
     """Trigger implementation for GitHub pull-request automations."""
 
     trigger_type = "github-cli-pull-requests"
+    configuration_model = PullRequestAutomationConfiguration
 
     @classmethod
     @override

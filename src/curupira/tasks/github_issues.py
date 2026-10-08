@@ -51,6 +51,7 @@ class IssueTrigger(Trigger):
     """Trigger implementation for GitHub issue automations."""
 
     trigger_type = "issue"
+    configuration_model = IssueAutomationConfiguration
 
     @classmethod
     @override

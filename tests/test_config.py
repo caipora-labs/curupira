@@ -286,11 +286,13 @@ async def test_missing_file_and_environment_precedence(
     assert configuration().settings.max_active_tasks == 1
 
 
-def test_json_schema_keeps_the_supported_configuration_shapes() -> None:
+def test_json_schema_describes_the_shared_automation_contract() -> None:
     schema = ApplicationSettings.model_json_schema()
     automations = schema["$defs"]["CodingAgentsSettings"]["properties"]["automations"]
     values = next(iter(automations["patternProperties"].values()))
-    assert len(values["anyOf"]) == 4
+    assert values["$ref"].endswith("/AutomationConfigurationBase")
+    base = schema["$defs"]["AutomationConfigurationBase"]
+    assert {"trigger_type", "repo", "prompt"} <= set(base["required"])
 
 
 def test_azure_pull_request_automation_accepts_status_and_branch_filters() -> None:

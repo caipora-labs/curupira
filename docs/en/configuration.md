@@ -85,6 +85,7 @@ Save this as `~/.curupira/settings.toml`. The keys under `profiles` and `automat
 - `github-cli-pull-requests` discovers matching GitHub pull requests using `query`.
 - `azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
 - `cron` produces occurrences from a five-field `schedule` instead of querying a forge.
+- Installed [plugins](plugins.md) add their own trigger types; `curu plugins list` shows every available type and its prompt placeholders.
 
 Each automation requires `repo` and `prompt`. GitHub triggers also require `query`; cron requires `schedule`. Azure DevOps automations use `repo` as `organization/project/repository` and optional `status` / branch filters instead of a search query. Optional `profile` selects a CLI profile. Optional `path` pins the automation to an existing checkout or an alternative clone destination. Relative paths are resolved from the TOML file's directory. Different repositories cannot share one workspace path. Automations keep file order, and one-shot selection follows that order.
 

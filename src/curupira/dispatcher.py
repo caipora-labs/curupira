@@ -16,7 +16,6 @@ from curupira.tasks.base import FeedDependencies, TaskFeed
 from curupira.tasks.registry import get as get_trigger
 from curupira.telemetry import TaskTelemetry
 from curupira.vcs.base import VersionControl
-from curupira.vcs.github_cli import GitHubCliVersionControl
 
 
 def create_task_feeds(
@@ -29,7 +28,13 @@ def create_task_feeds(
     azure = az or AzClient()
     feeds: list[TaskFeed] = []
     for automation in settings.resolve_automations().values():
-        dependencies = FeedDependencies(settings.settings.polling, gh, azure, cron)
+        dependencies = FeedDependencies(
+            polling=settings.settings.polling,
+            gh=gh,
+            az=azure,
+            cron=cron,
+            state_db_path=settings.settings.state_db_path,
+        )
         feeds.append(
             get_trigger(automation.configuration.trigger_type).build_feed(automation, dependencies)
         )
@@ -61,7 +66,7 @@ async def dispatch_next_task(
         resumed = await sessions.get(selected)
         executor = TaskExecutor(
             settings.settings,
-            version_control or GitHubCliVersionControl(),
+            version_control,
             sessions,
             cron,
             adapter_factory=adapter_factory,

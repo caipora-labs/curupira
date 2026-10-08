@@ -64,5 +64,15 @@ class PromptRenderError(DispatchError):
     """A prompt template references invalid or unsupported fields."""
 
 
+class PluginLoadError(DispatchError):
+    """An installed trigger plugin could not be imported or does not meet the contract."""
+
+    def __init__(self, entry_point: str, distribution: str, detail: str) -> None:
+        super().__init__(f"could not load plugin {entry_point!r} from {distribution}: {detail}")
+        self.entry_point = entry_point
+        self.distribution = distribution
+        self.detail = detail
+
+
 class StateDatabaseError(DispatchError):
     """Local state cannot be read safely; the original file is preserved."""
