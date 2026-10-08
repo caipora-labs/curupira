@@ -100,7 +100,9 @@ class AsyncProcessRunner:
             output.append(chunk)
             if callback is None:
                 continue
-            pending, discarding = await self._callback_chunk(chunk, callback, pending, discarding)
+            pending, discarding = await self._callback_chunk(
+                chunk, callback, pending, discarding=discarding
+            )
         if callback is not None and pending and not discarding:
             await callback(pending.decode(errors="replace"))
 
@@ -109,6 +111,7 @@ class AsyncProcessRunner:
         chunk: bytes,
         callback: Callable[[str], Awaitable[None]],
         pending: bytearray,
+        *,
         discarding: bool,
     ) -> tuple[bytearray, bool]:
         """Split callback lines while dropping oversized event payloads."""

@@ -33,7 +33,7 @@ class AzurePullRequestSource(TaskSource):
         """List pull requests using the automation's Azure DevOps repository."""
         config = automation.configuration
         if not isinstance(config, AzurePullRequestAutomationConfiguration):
-            raise ValueError(
+            raise TypeError(
                 "Azure pull-request source requires an Azure pull-request configuration"
             )
         organization, project, repository = config.repo.split("/", 2)

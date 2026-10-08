@@ -7,8 +7,8 @@ from typing import get_args
 import pytest
 from typing_extensions import override
 
-import curupira.tasks.registry as registry
 from curupira.models import AutomationConfiguration, ResolvedAutomation, Task
+from curupira.tasks import registry
 from curupira.tasks.base import FeedDependencies, TaskFeed, Trigger
 from curupira.tasks.registry import get, register
 

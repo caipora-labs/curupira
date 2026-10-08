@@ -66,5 +66,5 @@ def test_build_arguments_rejects_non_claude_profile(tmp_path: Path) -> None:
 
     request = CodingTaskRequest(cwd=tmp_path, profile=CodexCliProfile(), message="Review")
 
-    with pytest.raises(ValueError, match="Claude Code requires a Claude profile"):
+    with pytest.raises(TypeError, match="Claude Code requires a Claude profile"):
         ClaudeCodeCliAdapter().build_arguments(request)

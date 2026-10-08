@@ -121,7 +121,7 @@ class GhClient:
             request.query,
             request.limit,
             _DEFAULT_PULL_REQUEST_JSON_FIELDS,
-            request.jq,
+            jq=request.jq,
         )
 
     async def _search_items(
@@ -131,6 +131,7 @@ class GhClient:
         query: str,
         limit: int,
         default_fields: tuple[str, ...],
+        *,
         jq: str | None = None,
     ) -> list[object]:
         arguments = [
@@ -167,13 +168,14 @@ class GhClient:
 
         try:
             payload = _decode_json_output(result.stdout)
-            if not isinstance(payload, list):
-                payload = [payload]
-            if not all(isinstance(item, dict) for item in payload):
-                raise TypeError("expected each jq result to be a JSON object")
-            return payload
-        except (json.JSONDecodeError, TypeError) as error:
+        except json.JSONDecodeError as error:
             raise CliOutputError(f"gh returned invalid {command} JSON: {error}") from error
+        items = payload if isinstance(payload, list) else [payload]
+        if not all(isinstance(item, dict) for item in items):
+            raise CliOutputError(
+                f"gh returned invalid {command} JSON: expected each jq result to be a JSON object"
+            )
+        return items
 
 
 def _is_project_query(query: str) -> bool:

@@ -71,7 +71,7 @@ class TaskScheduler:
             while not exhausted or pending or active or self.paused:
                 if self._admit.is_set():
                     self._launch_available(pending, active)
-                    reader = self._ensure_reader(reader, exhausted, pending, source)
+                    reader = self._ensure_reader(reader, pending, source, exhausted=exhausted)
                 waiting: set[asyncio.Task[object]] = set(active)
                 if reader is not None:
                     waiting.add(reader)
@@ -115,9 +115,10 @@ class TaskScheduler:
     def _ensure_reader(
         self,
         reader: ReaderTask | None,
-        exhausted: bool,
         pending: deque[WorkItem],
         source: AsyncGenerator[WorkItem, None],
+        *,
+        exhausted: bool,
     ) -> ReaderTask | None:
         """Read the next work item in the background until the stream is bounded or exhausted."""
         if reader is None and not exhausted and len(pending) < self._settings.max_pending_tasks:

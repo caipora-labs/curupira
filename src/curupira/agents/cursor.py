@@ -14,7 +14,7 @@ class CursorCliAdapter(CodingAgentCliAdapter):
         """Build a headless invocation with native mode and permission overrides."""
         profile = request.profile
         if not isinstance(profile, CursorCliProfile):
-            raise ValueError("Cursor requires a Cursor profile")
+            raise TypeError("Cursor requires a Cursor profile")
         arguments = ["--print", "--output-format", "stream-json"]
         if request.session_id is not None:
             arguments.extend(("--resume", request.session_id))

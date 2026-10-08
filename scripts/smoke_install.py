@@ -64,8 +64,8 @@ def select_wheel(dist: Path) -> Path:
         raise SystemExit(message)
 
     try:
-        from packaging.tags import sys_tags
-        from packaging.utils import parse_wheel_filename
+        from packaging.tags import sys_tags  # noqa: PLC0415  (optional dependency)
+        from packaging.utils import parse_wheel_filename  # noqa: PLC0415
     except ImportError as exc:
         message = "packaging is required to select a platform wheel"
         raise SystemExit(message) from exc

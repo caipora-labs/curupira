@@ -14,7 +14,7 @@ class ClaudeCodeCliAdapter(CodingAgentCliAdapter):
         """Build a print-mode invocation preserving native policies by default."""
         profile = request.profile
         if not isinstance(profile, ClaudeCodeCliProfile):
-            raise ValueError("Claude Code requires a Claude profile")
+            raise TypeError("Claude Code requires a Claude profile")
         arguments = ["-p", "--output-format", "stream-json", "--verbose"]
         if request.session_id is not None:
             arguments.extend(("--resume", request.session_id))

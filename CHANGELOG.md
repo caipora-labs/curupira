@@ -43,6 +43,10 @@ All notable changes to this project are documented here. The format follows
   rejected instead of coerced.
 - External `gh`, `az`, and coding-agent event payloads share an immutable
   `BoundaryModel`; `GhIssue.labels` is a tuple.
+- Ruff enforces the full Google docstring convention plus `A`, `ARG`, `BLE`, `ERA`, `FBT`,
+  `FURB`, `ISC`, `PERF`, `PIE`, `PL`, `T20`, and `TRY`. Every remaining suppression names
+  one rule and its reason. Wrong-type checks in adapters and task sources now raise
+  `TypeError`, and boolean flags of internal helpers are keyword-only.
 
 - CLI parsing now uses Typer instead of argparse. Command names and flags are
   unchanged (`validate`, `run`, `watch`, `batch`, plus `tui`).

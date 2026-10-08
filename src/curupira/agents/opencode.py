@@ -14,7 +14,7 @@ class OpenCodeCliAdapter(CodingAgentCliAdapter):
         """Build a noninteractive OpenCode invocation with optional overrides."""
         profile = request.profile
         if not isinstance(profile, OpenCodeCliProfile):
-            raise ValueError("OpenCode requires an OpenCode profile")
+            raise TypeError("OpenCode requires an OpenCode profile")
         arguments = ["run", "--format", "json"]
         if request.session_id is not None:
             arguments.extend(("--session", request.session_id))

@@ -117,15 +117,20 @@ class AzClient:
                 )
             raise CliExecutionError("az", result.returncode, result.stderr)
 
+        content = result.stdout.strip()
+        if not content:
+            return []
         try:
-            content = result.stdout.strip()
-            if not content:
-                return []
             payload = json.loads(content)
-            if not isinstance(payload, list):
-                raise TypeError("expected a JSON array of pull requests")
-            if not all(isinstance(item, dict) for item in payload):
-                raise TypeError("expected each pull request to be a JSON object")
-            return payload
-        except (json.JSONDecodeError, TypeError) as error:
+        except json.JSONDecodeError as error:
             raise CliOutputError(f"az returned invalid pull request JSON: {error}") from error
+        if not isinstance(payload, list):
+            raise CliOutputError(
+                "az returned invalid pull request JSON: expected a JSON array of pull requests"
+            )
+        if not all(isinstance(item, dict) for item in payload):
+            raise CliOutputError(
+                "az returned invalid pull request JSON: "
+                "expected each pull request to be a JSON object"
+            )
+        return payload

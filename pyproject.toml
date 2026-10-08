@@ -105,17 +105,66 @@ target-version = "py311"
 required-version = ">=0.16.10,<0.17"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "N", "ANN", "ASYNC", "DTZ", "S", "LOG", "G", "PTH", "C4", "SIM", "RET", "RUF", "PT", "C90", "D100", "D101", "D102", "D103", "D104"]
+select = [
+  "A",     # builtin shadowing
+  "ANN",   # annotations
+  "ARG",   # unused arguments
+  "ASYNC", # asyncio pitfalls
+  "B",     # bugbear
+  "BLE",   # blind except
+  "C4",    # comprehensions
+  "C90",   # mccabe complexity
+  "D",     # docstrings (Google convention)
+  "DTZ",   # timezone-aware datetimes
+  "E",     # pycodestyle errors
+  "ERA",   # commented-out code
+  "F",     # pyflakes
+  "FBT",   # boolean positional flags
+  "FURB",  # modern idioms
+  "G",     # logging format
+  "I",     # import order
+  "ISC",   # implicit string concatenation
+  "LOG",   # logging
+  "N",     # naming
+  "PERF",  # performance anti-patterns
+  "PIE",   # unnecessary code
+  "PL",    # pylint
+  "PT",    # pytest style
+  "PTH",   # pathlib
+  "RET",   # returns
+  "RUF",   # ruff-specific
+  "S",     # bandit security
+  "SIM",   # simplify
+  "T20",   # stray print
+  "TRY",   # exception handling
+  "UP",    # pyupgrade
+]
+ignore = [
+  "D105",    # magic methods document themselves through their protocol
+  "D107",    # __init__ parameters are documented on the class
+  "TRY003",  # concise inline exception messages are clearer than one subclass per message
+  "PLR2004", # named constants for every literal hurt readability more than they help
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pylint]
+# Keyword-only dependency injection keeps constructors explicit; positional arguments stay at 5.
+max-args = 8
 
 [tool.ruff.lint.mccabe]
 max-complexity = 12
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["D", "S101", "ASYNC240", "ANN401"]
+"tests/**/*.py" = ["D", "S101", "ASYNC240", "ANN401", "ARG", "FBT", "PLR0913", "PLC0415"]
 # Executable discovery is intentional; arguments never pass through a shell.
 "src/curupira/clients/process.py" = ["S603", "S607"]
 # SQL identifiers are private constants; all externally supplied values are bound parameters.
 "src/curupira/storage/*.py" = ["S608"]
+# The CLI and release scripts report results on stdout by design.
+"src/curupira/cli.py" = ["T201"]
+"scripts/*.py" = ["T201"]
 
 [tool.pyrefly]
 project-includes = ["src", "tests", "scripts"]

@@ -61,7 +61,7 @@ def _program_name(argv0: str | None = None) -> str:
     return "curupira"
 
 
-def _version_callback(ctx: typer.Context, value: bool) -> None:
+def _version_callback(ctx: typer.Context, value: bool) -> None:  # noqa: FBT001  (Typer API)
     """Print the package version and exit when ``--version`` is set."""
     if value:
         name = ctx.find_root().info_name or _program_name()
@@ -142,7 +142,7 @@ def validate_command(ctx: typer.Context) -> None:
 @app.command("run")
 def run_command(
     ctx: typer.Context,
-    dry_run: Annotated[
+    dry_run: Annotated[  # noqa: FBT002  (Typer maps parameters to options)
         bool,
         typer.Option(
             "--dry-run",
@@ -253,9 +253,9 @@ async def _execute_command(options: CliOptions) -> int:
             root_logger.addHandler(log_handler)
         gh = GhClient()
         if options.command == "run":
-            return await _execute_run_command(settings, gh, telemetry, options.dry_run)
+            return await _execute_run_command(settings, gh, telemetry, dry_run=options.dry_run)
         if options.command == "tui":
-            from curupira.tui.app import run_orchestrator_tui
+            from curupira.tui.app import run_orchestrator_tui  # noqa: PLC0415  (loads Textual)
 
             return await run_orchestrator_tui(settings, gh, GitHubCliVersionControl(), telemetry)
         return await _execute_scheduled_command(
@@ -277,6 +277,7 @@ async def _execute_run_command(
     settings: ApplicationSettings,
     gh: GhClient,
     telemetry: TaskTelemetry,
+    *,
     dry_run: bool,
 ) -> int:
     """Select and optionally execute a single currently available task."""
@@ -354,17 +355,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             standalone_mode=False,
         )
     except typer.Exit as error:
-        code = error.exit_code
-        return 0 if code is None else code
+        return _exit_code(error.exit_code)
     except SystemExit as error:
-        code = error.code
-        if code is None:
-            return 0
-        if isinstance(code, int):
-            return code
-        return 1
-    if result is None:
+        return _exit_code(error.code)
+    return _exit_code(result)
+
+
+def _exit_code(value: object) -> int:
+    """Map a command result or exit request to a process exit status."""
+    if value is None:
         return 0
-    if isinstance(result, int):
-        return result
-    return 1
+    return value if isinstance(value, int) else 1
