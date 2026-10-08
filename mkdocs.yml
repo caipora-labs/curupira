@@ -79,5 +79,10 @@ nav:
   - Installation: installation.md
   - Configuration: configuration.md
   - Operations: operations.md
-  - Providers and agents: providers.md
+  - Providers and agents:
+      - Overview: providers.md
+      - OpenCode: providers/opencode.md
+      - Codex: providers/codex.md
+      - Claude Code: providers/claude.md
+      - Cursor: providers/cursor.md
   - Plugins: plugins.md
