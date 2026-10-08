@@ -5,6 +5,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Install instructions in the README and documentation use `uv tool install curupira`
+  without a version pin, with a note on pinning `curupira==X.Y.Z` when needed.
+
 ## [0.2.0] - 2026-10-08
 
 ### Added

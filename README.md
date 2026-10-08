@@ -22,8 +22,10 @@ while `watch` polls every automation continuously.
 Install the published package from PyPI:
 
 ```bash
-uv tool install "curupira==0.2.0"
+uv tool install curupira
 ```
+
+To pin a specific version, use `uv tool install "curupira==X.Y.Z"`.
 
 The project is [caipora-labs/curupira](https://github.com/caipora-labs/curupira).
 `curupira --version` and the short alias `curu --version` report the installed version.
