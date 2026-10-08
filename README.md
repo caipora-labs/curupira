@@ -22,7 +22,7 @@ while `watch` polls every automation continuously.
 Install the published package from PyPI:
 
 ```bash
-uv tool install "curupira==0.1.0"
+uv tool install "curupira==0.2.0"
 ```
 
 The project is [caipora-labs/curupira](https://github.com/caipora-labs/curupira).
