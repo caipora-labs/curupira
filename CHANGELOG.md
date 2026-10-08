@@ -26,8 +26,7 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - Packaging is a pure-Python `py3-none-any` wheel plus sdist. CI and publish
-  workflows build distributions once and reuse that artifact for multi-platform
-  install smoke tests.
+  workflows build and smoke-test distributions on `ubuntu-latest` only.
 - Pull-request automations use only the explicit trigger
   `github-cli-pull-requests`. The short `pull_request` alias is no longer accepted,
   and discovered task identities use the same explicit type.
@@ -35,8 +34,8 @@ All notable changes to this project are documented here. The format follows
   the legacy source-checkout module shim that reused the previous package name.
 - Remove the leftover empty `src/gh_dispatch` package tree; task contracts live
   under `curupira.tasks`.
-- CI runs the test suite and wheel install smoke tests across Linux, macOS, and
-  Windows.
+- CI runs the test suite on `ubuntu-latest` across Python 3.11–3.14 and smoke-tests
+  the wheel on the same runner.
 
 ## [0.1.0] - 2026-10-07
 

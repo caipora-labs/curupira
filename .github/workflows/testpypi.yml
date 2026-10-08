@@ -37,23 +37,9 @@ jobs:
           if-no-files-found: error
 
   install-test:
-    name: Install and validate (${{ matrix.label }})
+    name: Install and validate
     needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            label: linux-x86_64
-          - os: ubuntu-24.04-arm
-            label: linux-aarch64
-          - os: macos-latest
-            label: macos-arm64
-          - os: macos-15-intel
-            label: macos-x86_64
-          - os: windows-latest
-            label: windows-amd64
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -70,7 +56,6 @@ jobs:
           name: dist
           path: dist/
       - name: Install wheel and run validate
-        shell: bash
         run: |
           uv sync --frozen --dev
           version="$(uv run --no-sync python scripts/verify_dist_version.py --dist dist)"

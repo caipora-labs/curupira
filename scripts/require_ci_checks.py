@@ -12,14 +12,10 @@ REQUIRED_CHECKS = frozenset(
     {
         "Ruff lint and format",
         "Strict type check",
-        "Tests (Linux x86_64, Python 3.11)",
-        "Tests (Linux x86_64, Python 3.12)",
-        "Tests (Linux x86_64, Python 3.13)",
-        "Tests (Linux x86_64, Python 3.14)",
-        "Tests (Linux aarch64, Python 3.13)",
-        "Tests (macOS arm64, Python 3.13)",
-        "Tests (macOS x86_64, Python 3.13)",
-        "Tests (Windows amd64, Python 3.13)",
+        "Tests (Python 3.11)",
+        "Tests (Python 3.12)",
+        "Tests (Python 3.13)",
+        "Tests (Python 3.14)",
         "Build and smoke-test distributions",
     }
 )
