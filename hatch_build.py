@@ -97,4 +97,7 @@ def _extract_native_files(wheel: Path, destination: Path) -> dict[str, str]:
 
 
 def _is_native_artifact(name: str) -> bool:
+    # Maturin may also ship the stub; Hatchling already packs src/curupira/_native.pyi.
+    if name.endswith((".pyi", ".py")):
+        return False
     return name.startswith(("curupira/_native", "curupira.libs/", "curupira/.libs/"))

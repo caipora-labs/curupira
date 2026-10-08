@@ -85,6 +85,7 @@ bindings = "pyo3"
 include = [
   "src",
   "tests",
+  "scripts",
   "crates",
   "hatch_build.py",
   "pyproject.toml",

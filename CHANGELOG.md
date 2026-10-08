@@ -46,3 +46,17 @@ All notable changes to this project are documented here. The format follows
   (`--agent` for OpenCode and Claude Code).
 
 ## [Unreleased]
+
+### Fixed
+
+- PyPI and TestPyPI publishing now build abi3 wheels on Linux (x86_64 and aarch64),
+  macOS (arm64 and x86_64), and Windows (amd64) before upload. The previous Linux-only
+  wheel left Windows and macOS installs falling back to an sdist that requires a local
+  Rust toolchain.
+- Release workflows install each platform wheel and run
+  `curupira --config curupira.example.toml validate` before publishing.
+
+### Changed
+
+- CI runs the test suite and wheel install smoke tests across the same multi-platform,
+  multi-architecture matrix that publishing uses.

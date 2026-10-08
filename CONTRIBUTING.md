@@ -174,8 +174,8 @@ in `src/curupira/_version.py`, commit that change, and tag the same commit. Tag
 
 1. Set `__version__` to the next unused `X.Y.Z.devN` and commit.
 2. Wait until CI is green on that commit. The tag workflow publishes only after the
-   Linux test matrix, lint, type check, and distribution build have succeeded for
-   the tagged SHA.
+   multi-platform test matrix, lint, type check, and distribution install smoke tests
+   have succeeded for the tagged SHA.
 3. Tag that commit and push the tag:
 
 ```bash
@@ -183,11 +183,14 @@ git tag v0.1.0.dev1
 git push origin v0.1.0.dev1
 ```
 
-`publish.yml` builds the Rust-enabled wheel and sdist with `uv build`, checks that
-the distribution version equals the tag without its leading `v`, and publishes with
-Trusted Publishing (`id-token: write`, environment `pypi`). Use the canonical dotted
-form `vX.Y.Z.devN`. PyPI keeps an uploaded file, so each rehearsal needs a new
-suffix.
+`publish.yml` builds Rust-enabled abi3 wheels on Linux (x86_64, aarch64), macOS
+(arm64, x86_64), and Windows (amd64), plus one sdist. Each platform job installs its
+wheel outside the repository and runs
+`curupira --config curupira.example.toml validate` before the publish job merges the
+artifacts, checks that the distribution version equals the tag without its leading
+`v`, and uploads with Trusted Publishing (`id-token: write`, environment `pypi`).
+Use the canonical dotted form `vX.Y.Z.devN`. PyPI keeps an uploaded file, so each
+rehearsal needs a new suffix.
 
 Tags that contain `.dev` do not open a GitHub Release (`release.yml` still skips
 them). `testpypi.yml` is unchanged: the same `v*.dev*` tags, and a manual
@@ -216,8 +219,9 @@ filename `publish.yml`, and environment `pypi`. Development tags `vX.Y.Z.devN` u
 that same publisher. `testpypi.yml` remains a separate workflow with environment
 `testpypi`, workflow filename `testpypi.yml`, and audience `testpypi`. It uploads to
 `https://test.pypi.org/legacy/` and smoke-tests that installation. The publish
-workflow checks that the full Linux test matrix, lint, type check, and distribution
-build succeeded for the commit.
+workflow checks that the multi-platform test matrix, lint, type check, and
+distribution install smoke tests succeeded for the commit
+(`scripts/require_ci_checks.py`).
 
 ## Style
 
