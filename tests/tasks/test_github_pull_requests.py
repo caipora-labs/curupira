@@ -110,6 +110,7 @@ def test_pull_request_trigger_builds_polling_feed(tmp_path: Path) -> None:
             gh=gh,
             az=AzClient(),
             cron=CronScheduleRepository(tmp_path / "state.sqlite3"),
+            state_db_path=tmp_path / "state.sqlite3",
         ),
     )
 

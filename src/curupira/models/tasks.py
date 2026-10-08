@@ -1,12 +1,13 @@
 """Task identities, resolved execution snapshots, and persistence contracts."""
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 
-from pydantic import AwareDatetime, model_validator
+from pydantic import AwareDatetime, Field, model_validator
 
 from curupira.models.base import Identifier, NonEmptyString, ValidatedModel
-from curupira.models.configuration import AutomationConfiguration, CronAutomationConfiguration
+from curupira.models.configuration import AutomationConfiguration
 from curupira.models.profiles import CliProfile
 
 
@@ -37,7 +38,20 @@ class ResolvedAutomation(ValidatedModel):
 
 
 class Task(ValidatedModel):
-    """Resolved task passed unchanged from discovery to execution and persistence."""
+    """Resolved task passed unchanged from discovery to execution and persistence.
+
+    Attributes:
+        identity: Canonical identity of the source item or occurrence.
+        automation: Resolved automation snapshot that discovered the task.
+        title: Human-readable task title.
+        body: Optional task description.
+        url: Link to the source item.
+        is_draft: Whether a pull request is a draft, when applicable.
+        head_ref_name: Pull-request source branch, when applicable.
+        base_ref_name: Pull-request target branch, when applicable.
+        scheduled_for: Cron occurrence, only for cron tasks.
+        attributes: Source-specific string values that triggers expose to prompts.
+    """
 
     identity: TaskIdentity
     automation: ResolvedAutomation
@@ -48,10 +62,11 @@ class Task(ValidatedModel):
     head_ref_name: str | None = None
     base_ref_name: str | None = None
     scheduled_for: AwareDatetime | None = None
+    attributes: Mapping[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_source(self) -> "Task":
-        """Keep task identity consistent with its resolved automation."""
+        """Keep task identity consistent with its resolved automation and trigger."""
         config = self.automation.configuration
         if (
             self.identity.automation_id != self.automation.automation_id
@@ -59,13 +74,9 @@ class Task(ValidatedModel):
             or self.identity.task_type != config.trigger_type
         ):
             raise ValueError("task identity must match its resolved automation")
-        if isinstance(config, CronAutomationConfiguration):
-            if self.scheduled_for is None:
-                raise ValueError("cron tasks require scheduled_for")
-            if self.identity.id != str(int(self.scheduled_for.timestamp())):
-                raise ValueError("cron identity must match its scheduled occurrence")
-        elif self.scheduled_for is not None:
-            raise ValueError("non-cron tasks must not contain a scheduled occurrence")
+        from curupira.tasks.registry import get
+
+        get(config.trigger_type).validate_task(self)
         return self
 
 

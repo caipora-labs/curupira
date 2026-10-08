@@ -136,7 +136,7 @@ class OrchestratorApp(App[int]):
         self,
         settings: ApplicationSettings,
         gh: GhClient,
-        version_control: VersionControl,
+        version_control: VersionControl | None,
         telemetry: TaskTelemetry,
     ) -> None:
         super().__init__()
@@ -291,7 +291,7 @@ class OrchestratorApp(App[int]):
 async def run_orchestrator_tui(
     settings: ApplicationSettings,
     gh: GhClient,
-    version_control: VersionControl,
+    version_control: VersionControl | None,
     telemetry: TaskTelemetry,
 ) -> int:
     """Run the Textual orchestrator app and return its exit code."""

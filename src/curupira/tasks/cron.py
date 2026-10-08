@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from croniter import croniter
+from typing_extensions import override
 
 from curupira.models import (
     CronAutomationConfiguration,
@@ -16,7 +17,7 @@ from curupira.models import (
     TaskIdentity,
 )
 from curupira.storage import CronScheduleRepository
-from curupira.tasks.base import FeedDependencies, TaskFeed, Trigger
+from curupira.tasks.base import FeedDependencies, TaskFeed, Trigger, TriggerState
 from curupira.tasks.registry import register
 
 
@@ -124,6 +125,7 @@ class CronTrigger(Trigger):
     """Trigger implementation for locally scheduled cron automations."""
 
     trigger_type = "cron"
+    configuration_model = CronAutomationConfiguration
 
     @classmethod
     def prompt_fields(cls) -> frozenset[str]:
@@ -133,6 +135,24 @@ class CronTrigger(Trigger):
     def prompt_context(self, task: Task) -> dict[str, str]:
         """Cron provides no trigger-specific prompt context."""
         return {}
+
+    @override
+    def validate_task(self, task: Task) -> None:
+        """Require the scheduled occurrence that the task identity encodes."""
+        if task.scheduled_for is None:
+            raise ValueError("cron tasks require scheduled_for")
+        if task.identity.id != str(int(task.scheduled_for.timestamp())):
+            raise ValueError("cron identity must match its scheduled occurrence")
+
+    @override
+    async def on_task_started(self, task: Task, state: TriggerState) -> None:
+        """Record when the claimed occurrence began executing."""
+        await state.cron.mark_started(task.identity.automation_id, utc_now())
+
+    @override
+    async def on_task_finished(self, task: Task, state: TriggerState) -> None:
+        """Atomically clear the completed occurrence and its session."""
+        await state.cron.complete_run(task, state.sessions)
 
     def build_feed(
         self, automation: ResolvedAutomation, dependencies: FeedDependencies

@@ -30,6 +30,7 @@ def test_cron_trigger_is_registered_without_extra_prompt_fields(tmp_path: Path) 
             gh=cast(GhClient, None),
             az=cast(AzClient, None),
             cron=repository,
+            state_db_path=tmp_path / "state.sqlite3",
         ),
     )
     assert isinstance(feed, CronTaskFeed)

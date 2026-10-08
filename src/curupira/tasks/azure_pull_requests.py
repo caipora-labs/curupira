@@ -66,6 +66,7 @@ class AzurePullRequestTrigger(Trigger):
     """Trigger implementation for Azure DevOps pull-request automations."""
 
     trigger_type = "azure-cli-pull-requests"
+    configuration_model = AzurePullRequestAutomationConfiguration
 
     @classmethod
     @override
