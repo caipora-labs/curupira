@@ -1,4 +1,4 @@
-site_name: OpsCli
+site_name: Curupira
 site_url: https://caipora-labs.github.io/curupira/
 site_description: Run GitHub and cron automations with local coding-agent CLIs.
 repo_name: caipora-labs/curupira

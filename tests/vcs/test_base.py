@@ -54,7 +54,7 @@ def local_repository(tmp_path: Path) -> Path:
     repository = tmp_path / "source"
     repository.mkdir()
     _git(repository, "init", "--initial-branch=main")
-    _git(repository, "config", "user.name", "OpsCli tests")
+    _git(repository, "config", "user.name", "Curupira tests")
     _git(repository, "config", "user.email", "curupira-tests@example.invalid")
     (repository / "README.md").write_text("temporary repository\n")
     _git(repository, "add", "README.md")

@@ -26,7 +26,7 @@ curupira --config curupira.example.toml validate
 
 ## Create a configuration
 
-OpsCli reads `~/.curupira/settings.toml` by default. Download the example configuration:
+Curupira reads `~/.curupira/settings.toml` by default. Download the example configuration:
 
 ```bash
 mkdir -p ~/.curupira
