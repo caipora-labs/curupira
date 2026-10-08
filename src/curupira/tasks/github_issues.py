@@ -52,12 +52,6 @@ class IssueTrigger(Trigger):
 
     trigger_type = "issue"
 
-    @classmethod
-    @override
-    def prompt_fields(cls) -> frozenset[str]:
-        """Return the issue-specific prompt placeholders."""
-        return frozenset({"issue_number", "issue_title", "issue_body", "issue_url"})
-
     @override
     def prompt_context(self, task: Task) -> dict[str, str]:
         """Map an issue task into its issue-specific prompt placeholders."""

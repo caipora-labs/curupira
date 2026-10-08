@@ -1,31 +1,44 @@
 """Discriminated automation configuration and global execution settings."""
 
-import re
 from datetime import datetime
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 from string import Template
-from typing import Annotated, Literal
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from typing import Annotated, ClassVar, Literal
+from zoneinfo import ZoneInfo
 
 from croniter import croniter
-from pydantic import AnyHttpUrl, BeforeValidator, Field, field_validator, model_validator
+from pydantic import AnyHttpUrl, Field, field_validator, model_validator
 
 from curupira.models.azure import AzurePullRequestStatus
-from curupira.models.base import Identifier, NonEmptyString, PositiveSeconds, ValidatedModel
+from curupira.models.base import (
+    AzureRepository,
+    BoundedLimit,
+    GitHubRepository,
+    Identifier,
+    NonEmptyString,
+    OutputLimit,
+    PositiveSeconds,
+    RelativeScriptPath,
+    TimezoneName,
+    ValidatedModel,
+)
 from curupira.models.profiles import CliProfile, OpenCodeCliProfile
 
 COMMON_PROMPT_FIELDS = frozenset(
     {"repo", "automation_id", "task_type", "task_number", "task_title", "task_body", "task_url"}
 )
-
-
-def validate_timezone(value: str) -> str:
-    """Validate an IANA timezone without inventing a fallback."""
-    try:
-        ZoneInfo(value)
-    except (ValueError, ZoneInfoNotFoundError) as error:
-        raise ValueError(f"unknown timezone: {value}") from error
-    return value
+ISSUE_PROMPT_FIELDS = frozenset({"issue_number", "issue_title", "issue_body", "issue_url"})
+PULL_REQUEST_PROMPT_FIELDS = frozenset(
+    {
+        "pull_request_number",
+        "pull_request_title",
+        "pull_request_body",
+        "pull_request_url",
+        "pull_request_is_draft",
+        "pull_request_head_ref",
+        "pull_request_base_ref",
+    }
+)
 
 
 class PollingSettings(ValidatedModel):
@@ -38,7 +51,7 @@ class PollingSettings(ValidatedModel):
     """
 
     poll_interval_seconds: PositiveSeconds = 30.0
-    batch_size: Annotated[int, Field(strict=True, ge=1, le=1000)] = 100
+    batch_size: BoundedLimit = 100
     cron_poll_interval_seconds: Annotated[PositiveSeconds, Field(le=60)] = 1.0
 
 
@@ -56,13 +69,13 @@ class ExecutionSettings(ValidatedModel):
         polling: Discovery polling intervals and fetch limits.
     """
 
-    max_active_tasks: Annotated[int, Field(strict=True, ge=1, le=1000)] = 1
+    max_active_tasks: BoundedLimit = 1
     max_pending_tasks: Annotated[int, Field(strict=True, ge=1, le=10000)] = 100
     workspace_dir: Path = Field(default_factory=lambda: Path("~/.curupira/workspaces"))
     state_db_path: Path = Field(default_factory=lambda: Path("~/.curupira/state.sqlite3"))
     otlp_endpoint: AnyHttpUrl | None = None
     task_timeout_seconds: PositiveSeconds | None = None
-    max_output_bytes: Annotated[int, Field(strict=True, ge=1024, le=100_000_000)] = 1_000_000
+    max_output_bytes: OutputLimit = 1_000_000
     polling: PollingSettings = Field(default_factory=PollingSettings)
 
     @field_validator("workspace_dir", "state_db_path", mode="before")
@@ -81,17 +94,14 @@ class CodingAgentDefaults(ValidatedModel):
     """
 
     profile: Identifier = "opencode"
-    timezone: NonEmptyString = "UTC"
-
-    @field_validator("timezone")
-    @classmethod
-    def validate_timezone(cls, value: str) -> str:
-        """Require a known IANA timezone."""
-        return validate_timezone(value)
+    timezone: TimezoneName = "UTC"
 
 
 class AutomationConfigurationBase(ValidatedModel):
     """Shared options for one automation, keyed by its enclosing TOML table name.
+
+    Subclasses declare ``prompt_fields``, the placeholders their trigger adds to
+    ``COMMON_PROMPT_FIELDS``; prompts using any other placeholder are rejected.
 
     Attributes:
         repo: Repository identifier whose format depends on the trigger type.
@@ -102,34 +112,14 @@ class AutomationConfigurationBase(ValidatedModel):
         profile: Optional named CLI profile overriding the configured default.
     """
 
+    prompt_fields: ClassVar[frozenset[str]] = frozenset()
+
     repo: NonEmptyString
     path: Path | None = None
-    setup_script: str | None = None
+    setup_script: RelativeScriptPath | None = None
     checkout: Literal["worktree", "main"] = "worktree"
     prompt: str
     profile: Identifier | None = None
-
-    @field_validator("setup_script")
-    @classmethod
-    def validate_setup_script(cls, value: str | None) -> str | None:
-        """Require an optional repository-relative script path without traversal."""
-        if value is None:
-            return None
-        if not value.strip():
-            raise ValueError("setup_script must not be empty")
-        path = Path(value)
-        posix_path = PurePosixPath(value)
-        windows_path = PureWindowsPath(value)
-        if (
-            path.is_absolute()
-            or posix_path.is_absolute()
-            or windows_path.is_absolute()
-            or bool(windows_path.root)
-            or ".." in path.parts
-            or ".." in windows_path.parts
-        ):
-            raise ValueError("setup_script must be a relative path without '..'")
-        return value
 
     @field_validator("path")
     @classmethod
@@ -139,45 +129,50 @@ class AutomationConfigurationBase(ValidatedModel):
 
     @field_validator("prompt")
     @classmethod
-    def validate_prompt_syntax(cls, value: str) -> str:
-        """Reject empty prompts and invalid template placeholders."""
+    def validate_prompt(cls, value: str) -> str:
+        """Reject empty prompts, invalid placeholders, and fields this trigger lacks."""
         if not value.strip():
             raise ValueError("prompt must not be empty")
-        if not Template(value).is_valid():
+        template = Template(value)
+        if not template.is_valid():
             raise ValueError("prompt contains an invalid template placeholder")
+        unknown = set(template.get_identifiers()) - COMMON_PROMPT_FIELDS - cls.prompt_fields
+        if unknown:
+            raise ValueError(f"unsupported prompt placeholders: {sorted(unknown)}")
         return value
 
 
-class GitHubAutomationConfiguration(AutomationConfigurationBase):
-    """Options for issue and pull-request discovery.
+class IssueAutomationConfiguration(AutomationConfigurationBase):
+    """Discover issues matching a GitHub Search query.
 
     Attributes:
-        query: GitHub Search query used to select matching items.
+        trigger_type: Discriminator selecting GitHub issue discovery.
+        repo: GitHub repository in ``owner/repository`` form.
+        query: GitHub Search query used to select matching issues.
     """
 
+    prompt_fields: ClassVar[frozenset[str]] = ISSUE_PROMPT_FIELDS
+
+    trigger_type: Literal["issue"] = "issue"
+    repo: GitHubRepository
     query: NonEmptyString
 
-    @field_validator("repo")
-    @classmethod
-    def validate_repository(cls, value: str) -> str:
-        """Require the owner/repository format without traversal segments."""
-        if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value) is None:
-            raise ValueError("repo must use the owner/repository format")
-        if any(part in {".", ".."} for part in value.split("/")):
-            raise ValueError("repo must not contain traversal segments")
-        return value
 
+class PullRequestAutomationConfiguration(AutomationConfigurationBase):
+    """Discover pull requests matching a GitHub Search query.
 
-class IssueAutomationConfiguration(GitHubAutomationConfiguration):
-    """Discover issues matching a GitHub Search query."""
+    Attributes:
+        trigger_type: Discriminator selecting GitHub CLI pull-request discovery.
+        repo: GitHub repository in ``owner/repository`` form.
+        query: GitHub Search query used to select matching pull requests.
+        jq: Optional ``gh --jq`` filter applied to the listed pull requests.
+    """
 
-    trigger_type: NonEmptyString = "issue"
+    prompt_fields: ClassVar[frozenset[str]] = PULL_REQUEST_PROMPT_FIELDS
 
-
-class PullRequestAutomationConfiguration(GitHubAutomationConfiguration):
-    """Discover pull requests matching a GitHub Search query."""
-
-    trigger_type: NonEmptyString = "github-cli-pull-requests"
+    trigger_type: Literal["github-cli-pull-requests"] = "github-cli-pull-requests"
+    repo: GitHubRepository
+    query: NonEmptyString
     jq: NonEmptyString | None = None
 
 
@@ -185,59 +180,40 @@ class AzurePullRequestAutomationConfiguration(AutomationConfigurationBase):
     """Discover Azure DevOps pull requests through the Azure CLI.
 
     Attributes:
+        trigger_type: Discriminator selecting Azure CLI pull-request discovery.
         repo: Azure DevOps repository in ``organization/project/repository`` form.
         status: Azure DevOps pull-request status filter passed to ``az repos pr list``.
         source_branch: Optional source branch filter.
         target_branch: Optional target branch filter.
     """
 
-    trigger_type: NonEmptyString = "azure-cli-pull-requests"
+    prompt_fields: ClassVar[frozenset[str]] = PULL_REQUEST_PROMPT_FIELDS
+
+    trigger_type: Literal["azure-cli-pull-requests"] = "azure-cli-pull-requests"
+    repo: AzureRepository
     status: AzurePullRequestStatus = "active"
     source_branch: NonEmptyString | None = None
     target_branch: NonEmptyString | None = None
-
-    @field_validator("repo")
-    @classmethod
-    def validate_repository(cls, value: str) -> str:
-        """Require the organization/project/repository format without traversal."""
-        if (
-            re.fullmatch(
-                r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+",
-                value,
-            )
-            is None
-        ):
-            raise ValueError("repo must use the organization/project/repository format")
-        if any(part in {".", ".."} for part in value.split("/")):
-            raise ValueError("repo must not contain traversal segments")
-        return value
 
 
 class CronAutomationConfiguration(AutomationConfigurationBase):
     """Discover cron occurrences within an optional inclusive date window.
 
     Attributes:
+        trigger_type: Discriminator selecting scheduled occurrences.
+        repo: GitHub repository in ``owner/repository`` form.
         schedule: Five-field cron expression defining the occurrence schedule.
         timezone: Optional IANA timezone overriding the inherited default.
         start_date: Optional inclusive earliest occurrence; naive values use the effective timezone.
         end_date: Optional inclusive latest occurrence; naive values use the effective timezone.
     """
 
-    trigger_type: NonEmptyString = "cron"
+    trigger_type: Literal["cron"] = "cron"
+    repo: GitHubRepository
     schedule: NonEmptyString
-    timezone: NonEmptyString | None = None
+    timezone: TimezoneName | None = None
     start_date: datetime | None = None
     end_date: datetime | None = None
-
-    @field_validator("repo")
-    @classmethod
-    def validate_repository(cls, value: str) -> str:
-        """Require the owner/repository format without traversal segments."""
-        if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value) is None:
-            raise ValueError("repo must use the owner/repository format")
-        if any(part in {".", ".."} for part in value.split("/")):
-            raise ValueError("repo must not contain traversal segments")
-        return value
 
     @field_validator("schedule")
     @classmethod
@@ -247,39 +223,13 @@ class CronAutomationConfiguration(AutomationConfigurationBase):
             raise ValueError("schedule must be a valid five-field cron expression")
         return value
 
-    @field_validator("timezone")
-    @classmethod
-    def validate_optional_timezone(cls, value: str | None) -> str | None:
-        """Validate the optional IANA timezone."""
-        return validate_timezone(value) if value is not None else None
-
-
-def parse_automation_configuration(value: object) -> object:
-    """Validate registered trigger names and select one of the supported config shapes."""
-    if not isinstance(value, dict):
-        return value
-    trigger_type = value.get("trigger_type")
-    if not isinstance(trigger_type, str):
-        return value
-    import curupira.tasks  # noqa: F401
-    from curupira.tasks.registry import get
-
-    get(trigger_type)
-    if trigger_type == "github-cli-pull-requests":
-        return PullRequestAutomationConfiguration.model_validate(value)
-    if trigger_type == "azure-cli-pull-requests":
-        return AzurePullRequestAutomationConfiguration.model_validate(value)
-    if trigger_type == "cron" or "schedule" in value:
-        return CronAutomationConfiguration.model_validate(value)
-    return IssueAutomationConfiguration.model_validate(value)
-
 
 AutomationConfiguration = Annotated[
     IssueAutomationConfiguration
     | PullRequestAutomationConfiguration
     | AzurePullRequestAutomationConfiguration
     | CronAutomationConfiguration,
-    BeforeValidator(parse_automation_configuration),
+    Field(discriminator="trigger_type"),
 ]
 
 
@@ -302,20 +252,14 @@ class CodingAgentsSettings(ValidatedModel):
     automations: dict[Identifier, AutomationConfiguration] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_references_and_prompts(self) -> "CodingAgentsSettings":
-        """Check profile references and prompt placeholders."""
+    def validate_references_and_windows(self) -> "CodingAgentsSettings":
+        """Check profile references and cron date windows."""
         if self.defaults.profile not in self.profiles:
             raise ValueError(f"default profile does not exist: {self.defaults.profile}")
-        from curupira.tasks.registry import get
-
         for name, automation in self.automations.items():
             profile = automation.profile or self.defaults.profile
             if profile not in self.profiles:
                 raise ValueError(f"profile {profile!r} for automation {name!r} does not exist")
-            allowed = COMMON_PROMPT_FIELDS | get(automation.trigger_type).prompt_fields()
-            unknown = set(Template(automation.prompt).get_identifiers()) - allowed
-            if unknown:
-                raise ValueError(f"unsupported prompt placeholders for {name!r}: {sorted(unknown)}")
             if isinstance(automation, CronAutomationConfiguration):
                 timezone = ZoneInfo(automation.timezone or self.defaults.timezone)
                 start = normalize_date(automation.start_date, timezone)

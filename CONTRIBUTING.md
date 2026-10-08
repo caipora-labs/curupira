@@ -36,9 +36,10 @@ coding-agent CLI invocation (`agents/`) into layers whose contracts live in each
 `base.py`; see the repository map in [AGENTS.md](AGENTS.md). Curupira does not manage
 authentication: provider CLIs and the user's environment provide their own.
 
-To add a task source, implement `TaskSource`, provide a `Trigger`, and register its
-`trigger_type` in `tasks/registry.py`; use a dedicated issue/PR after the task layer's
-`base.py` contract. A new version-control provider implements `VersionControl.clone`
+To add a task source, add its configuration model (a `Literal` `trigger_type`
+discriminator plus its `prompt_fields`) to `AutomationConfiguration`, implement
+`TaskSource`, and register a matching `Trigger` in `tasks/registry.py`; use a dedicated
+issue/PR after the task layer's `base.py` contract. A new version-control provider implements `VersionControl.clone`
 and belongs in its own issue/PR after `vcs/base.py`. A new coding-agent adapter
 implements `CodingAgentCliAdapter.build_arguments` and is wired into
 `create_cli_adapter`; it belongs in its own issue/PR after `agents/base.py`. Azure

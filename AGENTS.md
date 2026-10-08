@@ -58,7 +58,7 @@ Follow the Zen of Python (`python -m this`): explicit, flat, and simple beats cl
   (test builders may accept `**overrides: Any`).
 - Data crossing a boundary (TOML, CLI JSON, SQLite rows) is a Pydantic model, never a
   loose `dict`. Configuration models extend `ValidatedModel` (frozen, `extra="forbid"`);
-  external CLI payloads are frozen models that ignore unknown fields.
+  external CLI payloads extend `BoundaryModel` (frozen, unknown fields ignored).
 - Express a validation rule once, as a reusable `Annotated` type in `models/base.py`,
   and choose between models with a `Literal` discriminator instead of `if` chains.
 - Public modules, classes, and functions have Google-style docstrings; models list their

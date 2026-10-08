@@ -125,11 +125,6 @@ class CronTrigger(Trigger):
 
     trigger_type = "cron"
 
-    @classmethod
-    def prompt_fields(cls) -> frozenset[str]:
-        """Cron provides no trigger-specific prompt placeholders."""
-        return frozenset()
-
     def prompt_context(self, task: Task) -> dict[str, str]:
         """Cron provides no trigger-specific prompt context."""
         return {}

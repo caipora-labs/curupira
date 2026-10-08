@@ -7,7 +7,12 @@ from typing_extensions import override
 
 from curupira.clients.az import AzClient
 from curupira.clients.gh import GhClient
-from curupira.models import GhIssue, GhIssueSearchRequest, PollingSettings
+from curupira.models import (
+    GhIssue,
+    GhIssueSearchRequest,
+    IssueAutomationConfiguration,
+    PollingSettings,
+)
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
 from curupira.tasks.feed import PollingTaskFeed
@@ -60,9 +65,7 @@ def test_issue_trigger_is_registered_and_provides_prompt_context(tmp_path: Path)
     task = issue_task(tmp_path, number=54)
 
     assert isinstance(trigger, IssueTrigger)
-    assert trigger.prompt_fields() == frozenset(
-        {"issue_number", "issue_title", "issue_body", "issue_url"}
-    )
+    assert set(trigger.prompt_context(task)) == IssueAutomationConfiguration.prompt_fields
     assert trigger.prompt_context(task) == {
         "issue_number": "54",
         "issue_title": "Task 54",

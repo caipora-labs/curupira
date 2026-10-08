@@ -19,6 +19,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Removed
 
+- Trigger aliases (`registry.register_alias`) and `Trigger.prompt_fields()`. No alias was
+  registered; each configuration model now declares its own `prompt_fields`.
+
 - The Rust `crates/curupira-core` / `curupira._native` PyO3 extension, maturin
   build hook, and compiler toolchain requirement for wheels. Process supervision
   now uses only Python `asyncio` subprocess APIs.
@@ -29,6 +32,17 @@ All notable changes to this project are documented here. The format follows
   `curupira --config curupira.example.toml validate` before uploading.
 
 ### Changed
+
+- `trigger_type` is now a required `Literal` discriminator: automations are validated
+  against exactly one configuration model, and a missing or unknown value is rejected
+  with Pydantic's tagged-union error. Existing trigger names are unchanged.
+- Validation rules live once in `curupira.models.base` as reusable `Annotated` types
+  (`GitHubRepository`, `AzureRepository`, `TimezoneName`, `RelativeScriptPath`,
+  `BoundedLimit`, `OutputLimit`). Profile flags, request limits, and
+  `CommandRequest.capture_output` are strict: strings such as `"true"` or `"3"` are
+  rejected instead of coerced.
+- External `gh`, `az`, and coding-agent event payloads share an immutable
+  `BoundaryModel`; `GhIssue.labels` is a tuple.
 
 - CLI parsing now uses Typer instead of argparse. Command names and flags are
   unchanged (`validate`, `run`, `watch`, `batch`, plus `tui`).

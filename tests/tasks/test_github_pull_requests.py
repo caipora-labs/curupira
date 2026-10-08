@@ -7,7 +7,12 @@ from typing_extensions import override
 
 from curupira.clients.az import AzClient
 from curupira.clients.gh import GhClient
-from curupira.models import GhPullRequest, GhPullRequestSearchRequest, PollingSettings
+from curupira.models import (
+    GhPullRequest,
+    GhPullRequestSearchRequest,
+    PollingSettings,
+    PullRequestAutomationConfiguration,
+)
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
 from curupira.tasks.feed import PollingTaskFeed
@@ -77,17 +82,7 @@ def test_pull_request_trigger_is_registered_and_provides_prompt_context(tmp_path
     task = pull_request_task(tmp_path, number=54)
 
     assert isinstance(trigger, PullRequestTrigger)
-    assert trigger.prompt_fields() == frozenset(
-        {
-            "pull_request_number",
-            "pull_request_title",
-            "pull_request_body",
-            "pull_request_url",
-            "pull_request_is_draft",
-            "pull_request_head_ref",
-            "pull_request_base_ref",
-        }
-    )
+    assert set(trigger.prompt_context(task)) == PullRequestAutomationConfiguration.prompt_fields
     assert trigger.prompt_context(task) == {
         "pull_request_number": "54",
         "pull_request_title": "Review",

@@ -79,7 +79,7 @@ prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 ### Automations
 
 `[coding_agents.automations.<name>]` is a keyed map; the map key is the automation ID
-and is carried into every task identity. `trigger_type` selects the source:
+and is carried into every task identity. The required `trigger_type` selects the source:
 
 - `"issue"` — discovers matching GitHub issues with `query`
 - `"github-cli-pull-requests"` — discovers matching GitHub pull requests with `query`
