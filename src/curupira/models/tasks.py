@@ -65,7 +65,7 @@ class Task(ValidatedModel):
             if self.identity.id != str(int(self.scheduled_for.timestamp())):
                 raise ValueError("cron identity must match its scheduled occurrence")
         elif self.scheduled_for is not None:
-            raise ValueError("GitHub tasks must not contain a scheduled occurrence")
+            raise ValueError("non-cron tasks must not contain a scheduled occurrence")
         return self
 
 

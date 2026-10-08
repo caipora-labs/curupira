@@ -2,4 +2,9 @@
 
 # Import concrete triggers so registry lookups work regardless of which application
 # entry point is used first.
-from curupira.tasks import cron, github_issues, github_pull_requests  # noqa: F401
+from curupira.tasks import (  # noqa: F401
+    azure_pull_requests,
+    cron,
+    github_issues,
+    github_pull_requests,
+)

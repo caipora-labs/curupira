@@ -10,15 +10,16 @@ def resolved_automation(
     path: Path, name: str = "issues", trigger: str = "issue", **overrides: object
 ) -> ResolvedAutomation:
     """Resolve one automation through the real configuration boundary."""
+    repo = "contoso/api-project/api" if trigger == "azure-cli-pull-requests" else "acme/api"
     config: dict[str, object] = {
         "trigger_type": trigger,
-        "repo": "acme/api",
+        "repo": repo,
         "path": path,
         "prompt": "Handle ${task_type} ${task_number}: ${task_title}",
     }
     if trigger == "cron":
         config.update(schedule="0 9 * * *", start_date="2026-10-01T00:00:00+00:00")
-    else:
+    elif trigger != "azure-cli-pull-requests":
         config["query"] = "is:open"
     config.update(overrides)
     settings = ApplicationSettings.model_validate(

@@ -30,6 +30,12 @@ def define_env(env: MacroEnvironment) -> None:
             f"- [{tool['name']}]({tool['url']}) — {tool['detail']}"
             for tool in requirements["required_tools"]
         )
+        optional_tools = requirements.get("optional_tools", [])
+        if optional_tools:
+            lines.append("- Optional forge CLIs, only when their triggers are configured:")
+            lines.extend(
+                f"  - [{tool['name']}]({tool['url']}) — {tool['detail']}" for tool in optional_tools
+            )
         lines.append("- Install only the CLIs used by configured profiles:")
         lines.extend(
             f"  - [{profile['name']}]({profile['url']})"

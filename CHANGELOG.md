@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Azure DevOps pull-request discovery through the Azure CLI under the explicit
+  trigger `azure-cli-pull-requests` (`az repos pr list`). Configure
+  `repo` as `organization/project/repository`, with optional `status`,
+  `source_branch`, and `target_branch` filters.
+
 ### Fixed
 
 - PyPI and TestPyPI publishing now build abi3 wheels on Linux (x86_64 and aarch64),

@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import cast
 
+from curupira.clients.az import AzClient
 from curupira.clients.gh import GhClient
 from curupira.models import PollingSettings
 from curupira.storage import CronScheduleRepository
@@ -27,6 +28,7 @@ def test_cron_trigger_is_registered_without_extra_prompt_fields(tmp_path: Path) 
         FeedDependencies(
             polling=PollingSettings(),
             gh=cast(GhClient, None),
+            az=cast(AzClient, None),
             cron=repository,
         ),
     )

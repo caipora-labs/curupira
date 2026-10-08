@@ -1,4 +1,4 @@
-"""Native argument translation, GitHub boundaries, and optional provider options."""
+"""Native argument translation, GitHub/Azure boundaries, and optional provider options."""
 
 import json
 from collections.abc import Awaitable, Callable
@@ -9,6 +9,7 @@ from typing_extensions import override
 
 from curupira.agents import create_cli_adapter
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.clients.az import AzClient, organization_url
 from curupira.clients.gh import GhClient
 from curupira.clients.process import AsyncProcessRunner
 from curupira.errors import (
@@ -17,6 +18,7 @@ from curupira.errors import (
     UnsupportedCodingAgentError,
 )
 from curupira.models import (
+    AzPullRequestSearchRequest,
     ClaudeCodeCliProfile,
     CliProfile,
     CodexCliProfile,
@@ -318,3 +320,114 @@ async def test_github_cli_version_control_reports_clone_failure() -> None:
     runner = RecordingRunner(ProcessResult(returncode=1, stderr="not authenticated"))
     with pytest.raises(CliExecutionError):
         await GitHubCliVersionControl(runner).clone("acme/api", Path("checkout"))
+
+
+def test_organization_url_normalizes_names_and_preserves_urls() -> None:
+    assert organization_url("contoso") == "https://dev.azure.com/contoso"
+    assert organization_url("https://dev.azure.com/contoso/") == "https://dev.azure.com/contoso"
+
+
+async def test_azure_pull_request_list_uses_literal_arguments_and_validates_json() -> None:
+    runner = RecordingRunner(
+        ProcessResult(
+            returncode=0,
+            stdout=json.dumps(
+                [
+                    {
+                        "pullRequestId": 12,
+                        "title": "Review",
+                        "description": "Body",
+                        "isDraft": True,
+                        "sourceRefName": "refs/heads/feature",
+                        "targetRefName": "refs/heads/main",
+                        "_links": {
+                            "web": {
+                                "href": (
+                                    "https://dev.azure.com/contoso/api-project/_git/api"
+                                    "/pullrequest/12"
+                                )
+                            }
+                        },
+                    }
+                ]
+            ),
+        )
+    )
+
+    pulls = await AzClient(runner).list_pull_requests(
+        AzPullRequestSearchRequest(
+            organization="contoso",
+            project="api-project",
+            repository="api",
+            limit=25,
+            status="active",
+            source_branch="feature",
+            target_branch="main",
+        )
+    )
+
+    assert pulls[0].pull_request_id == 12
+    assert pulls[0].is_draft is True
+    assert pulls[0].web_url() == (
+        "https://dev.azure.com/contoso/api-project/_git/api/pullrequest/12"
+    )
+    assert runner.requests[0].executable == "az"
+    assert runner.requests[0].arguments == (
+        "repos",
+        "pr",
+        "list",
+        "--organization",
+        "https://dev.azure.com/contoso",
+        "--project",
+        "api-project",
+        "--repository",
+        "api",
+        "--status",
+        "active",
+        "--top",
+        "25",
+        "--include-links",
+        "--output",
+        "json",
+        "--source-branch",
+        "feature",
+        "--target-branch",
+        "main",
+    )
+
+
+@pytest.mark.parametrize("output", ["not JSON", "{}", '[{"pullRequestId":0}]'])
+async def test_invalid_azure_payloads_fail(output: str) -> None:
+    client = AzClient(RecordingRunner(ProcessResult(returncode=0, stdout=output)))
+    with pytest.raises(CliOutputError):
+        await client.list_pull_requests(
+            AzPullRequestSearchRequest(
+                organization="contoso", project="api-project", repository="api"
+            )
+        )
+
+
+async def test_nontransient_azure_errors_are_not_retried() -> None:
+    runner = RecordingRunner(ProcessResult(returncode=1, stderr="not authenticated"))
+    with pytest.raises(CliExecutionError):
+        await AzClient(runner).list_pull_requests(
+            AzPullRequestSearchRequest(
+                organization="contoso", project="api-project", repository="api"
+            )
+        )
+    assert len(runner.requests) == 1
+
+
+async def test_transient_azure_errors_are_retried() -> None:
+    runner = RecordingRunner(
+        ProcessResult(returncode=1, stderr="HTTP 503"), ProcessResult(returncode=0, stdout="[]")
+    )
+    assert (
+        await AzClient(runner).list_pull_requests(
+            AzPullRequestSearchRequest(
+                organization="contoso", project="api-project", repository="api"
+            )
+        )
+        == []
+    )
+    assert len(runner.requests) == 2

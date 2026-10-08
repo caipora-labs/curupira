@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
+from curupira.clients.az import AzClient
 from curupira.clients.gh import GhClient
 from curupira.models import GhPullRequest, GhPullRequestSearchRequest, PollingSettings
 from curupira.storage import CronScheduleRepository
@@ -107,6 +108,7 @@ def test_pull_request_trigger_builds_polling_feed(tmp_path: Path) -> None:
         FeedDependencies(
             polling=PollingSettings(),
             gh=gh,
+            az=AzClient(),
             cron=CronScheduleRepository(tmp_path / "state.sqlite3"),
         ),
     )
