@@ -5,6 +5,10 @@ repo_name: caipora-labs/curupira
 repo_url: https://github.com/caipora-labs/curupira
 edit_uri: edit/main/docs/
 docs_dir: docs
+exclude_docs: |
+  /macros.py
+  /data/
+  __pycache__/
 plugins:
   - search
   - i18n:
@@ -31,7 +35,7 @@ plugins:
             - Operaciones: operations.md
             - Proveedores y agentes: providers.md
   - macros:
-      module_name: main
+      module_name: docs/macros
   - mkdocstrings:
       handlers:
         python:

@@ -15,7 +15,7 @@ class MacroEnvironment(Protocol):
 
 def define_env(env: MacroEnvironment) -> None:
     """Register macros used by the documentation pages."""
-    requirements_path = Path(__file__).parent / "docs" / "data" / "requirements.toml"
+    requirements_path = Path(__file__).parent / "data" / "requirements.toml"
     with requirements_path.open("rb") as requirements_file:
         requirements = tomllib.load(requirements_file)
 

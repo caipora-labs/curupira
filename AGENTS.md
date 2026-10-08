@@ -21,7 +21,7 @@ Run everything from the repository root. CI runs the same commands and every one
 ```bash
 uv sync --dev                                              # install the project and dev tools
 uv run --no-sync pytest                                    # full test suite
-uv run --no-sync pytest tests/test_cli.py -k example      # one file or test
+uv run --no-sync pytest tests/test_cli.py -k example        # one file or test
 uv run --no-sync pytest --cov                              # branch coverage, must stay >= 85%
 uv run --no-sync ruff check .                              # lint (add --fix for safe fixes)
 uv run --no-sync ruff format --check .                     # formatting
@@ -40,7 +40,7 @@ on each other.
 
 | Path | Responsibility |
 | --- | --- |
-| `src/curupira/models/` | Pydantic contracts: configuration, CLI profiles, tasks, CLI payloads. |
+| `src/curupira/models/` | Pydantic contracts, imported from `curupira.models`; shared `Annotated` types and model bases in `models/base.py`. |
 | `src/curupira/config.py` | Loads and resolves the TOML configuration (`ApplicationSettings`). |
 | `src/curupira/tasks/` | Task discovery: `Trigger`, `TaskSource`, `TaskFeed`; one module per trigger, registered in `tasks/registry.py`. |
 | `src/curupira/vcs/` | Repository checkout and worktrees: `VersionControl`. |
@@ -50,6 +50,7 @@ on each other.
 | `src/curupira/cli.py`, `tui/` | Typer commands and the Textual dashboard. |
 | `tests/` | Mirrors `src/`; shared fakes in `tests/fakes.py`, builders in `tests/helpers.py`. |
 | `docs/en/` | Canonical documentation; `docs/pt/` and `docs/es/` are translations. |
+| `docs/macros.py` | MkDocs macros; renders install requirements from `docs/data/requirements.toml`. |
 
 ## Code style
 
