@@ -56,7 +56,8 @@ on each other.
 | `src/curupira/storage/` | SQLite persistence for sessions and cron state. |
 | `src/curupira/cli.py`, `tui/` | Typer commands and the Textual dashboard. |
 | `tests/` | Mirrors `src/`; shared fakes in `tests/fakes.py`, builders in `tests/helpers.py`. |
-| `docs/en/` | Canonical documentation; `docs/pt/` and `docs/es/` are translations. |
+| `docs/en/` | Canonical documentation; `docs/pt/` and `docs/es/` are translations. One page per provider in `docs/en/providers/`. |
+| `main.py` | MkDocs macros; the provider table and install list come from the agent registry. |
 
 ## Code style
 
