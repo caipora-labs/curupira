@@ -80,7 +80,7 @@ Save this as `~/.curupira/settings.toml`. The keys under `profiles` and `automat
 `trigger_type` selects the source:
 
 - `issue` discovers matching issues using GitHub Search syntax in `query`.
-- `pull_request` discovers matching pull requests using `query`.
+- `github-cli-pull-requests` discovers matching pull requests using `query`.
 - `cron` produces occurrences from a five-field `schedule` instead of querying GitHub.
 
 Each automation requires `repo`, `prompt`, and either `query` or `schedule`. Optional `profile` selects a CLI profile. Optional `path` pins the automation to an existing checkout or an alternative clone destination. Relative paths are resolved from the TOML file's directory. Different repositories cannot share one workspace path. Automations keep file order, and one-shot selection follows that order.

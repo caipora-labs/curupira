@@ -18,6 +18,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Pull-request automations use only the explicit trigger
+  `github-cli-pull-requests`. The short `pull_request` alias is no longer accepted,
+  and discovered task identities use the same explicit type.
 - Use Curupira as the sole product name across documentation and branding. Remove
   the legacy source-checkout module shim that reused the previous package name.
 - CI runs the test suite and wheel install smoke tests across the same multi-platform,
@@ -29,8 +32,9 @@ All notable changes to this project are documented here. The format follows
 
 - Rust crate `crates/curupira-core`, compiled with maturin into the `curupira._native`
   extension shipped in the wheel. `rust_core_version()` returns the crate version.
-- Keyed automations with a `trigger_type` discriminator (`issue`, `pull_request`,
-  `cron`) sharing one discovery, scheduling, and execution pipeline.
+- Keyed automations with a `trigger_type` discriminator (`issue`,
+  `github-cli-pull-requests`, `cron`) sharing one discovery, scheduling, and
+  execution pipeline.
 - Native provider adapters for OpenCode, Codex, Claude Code, and Cursor with
   optional `model`/`effort`/`agent` translation and explicit permission options.
 - Bounded async process runner with disconnected stdin, output limits, timeouts,

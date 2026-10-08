@@ -65,7 +65,7 @@ URL: ${issue_url}
 """
 
 [coding_agents.automations.review-pull-requests]
-trigger_type = "pull_request"
+trigger_type = "github-cli-pull-requests"
 repo = "acme/api"
 query = "is:open label:review-needed"
 profile = "claude-reviewer"

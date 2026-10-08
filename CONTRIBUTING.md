@@ -82,9 +82,9 @@ invocation into three layers. Each layer owns a contract in its `base.py`:
   and streaming discovered tasks), `TaskSource` (discovering tasks for an automation),
   `Trigger` (trigger-specific prompt data and feed construction), and
   `FeedDependencies`. `tasks/feed.py` provides the reusable `PollingTaskFeed`, while
-  `tasks/registry.py` registers trigger types and aliases. Current sources/triggers
-  are implemented in `tasks/cron.py`, `tasks/github_issues.py`, and
-  `tasks/github_pull_requests.py`.
+  `tasks/registry.py` registers trigger types (and optional aliases). Current
+  sources/triggers are implemented in `tasks/cron.py`, `tasks/github_issues.py`,
+  and `tasks/github_pull_requests.py`.
 - `src/curupira/vcs/` prepares repositories. `vcs/base.py` defines `VersionControl`;
   providers implement its `clone(repo, destination)` operation, while shared checkout,
   worktree, and setup behavior stays in the base class. `vcs/github_cli.py` implements

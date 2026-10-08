@@ -35,7 +35,6 @@ def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettin
     ("trigger", "expected"),
     [
         ("issue", IssueAutomationConfiguration),
-        ("pull_request", PullRequestAutomationConfiguration),
         ("github-cli-pull-requests", PullRequestAutomationConfiguration),
         ("cron", CronAutomationConfiguration),
     ],
@@ -66,7 +65,9 @@ def test_checkout_options_and_relative_setup_script_are_validated() -> None:
 
 
 def test_pull_request_automation_accepts_jq_filter() -> None:
-    settings = configuration("pull_request", jq='.[] | select(.mergeable == "MERGEABLE")')
+    settings = configuration(
+        "github-cli-pull-requests", jq='.[] | select(.mergeable == "MERGEABLE")'
+    )
 
     automation = settings.coding_agents.automations["daily"]
     assert isinstance(automation, PullRequestAutomationConfiguration)
@@ -97,6 +98,11 @@ def test_invalid_automation_is_rejected(overrides: dict[str, Any]) -> None:
 def test_unregistered_trigger_type_is_rejected() -> None:
     with pytest.raises(ValidationError, match="unknown trigger type: unknown"):
         configuration("unknown")
+
+
+def test_short_pull_request_alias_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="unknown trigger type: pull_request"):
+        configuration("pull_request")
 
 
 def test_registered_alias_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:

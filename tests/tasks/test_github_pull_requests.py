@@ -47,7 +47,7 @@ async def test_source_searches_pull_requests_and_builds_tasks(tmp_path: Path) ->
     automation = resolved_automation(
         tmp_path,
         "reviews",
-        "pull_request",
+        "github-cli-pull-requests",
         jq='.[] | select(.mergeable == "MERGEABLE")',
     )
 
@@ -61,7 +61,7 @@ async def test_source_searches_pull_requests_and_builds_tasks(tmp_path: Path) ->
     )
     assert len(tasks) == 1
     assert tasks[0].identity.id == "42"
-    assert tasks[0].identity.task_type == "pull_request"
+    assert tasks[0].identity.task_type == "github-cli-pull-requests"
     assert tasks[0].title == "Review change"
     assert tasks[0].body == "Details"
     assert tasks[0].url == "https://github.com/acme/api/pull/42"
@@ -72,7 +72,6 @@ async def test_source_searches_pull_requests_and_builds_tasks(tmp_path: Path) ->
 
 def test_pull_request_trigger_is_registered_and_provides_prompt_context(tmp_path: Path) -> None:
     trigger = get("github-cli-pull-requests")
-    assert get("pull_request") is trigger
     assert trigger.trigger_type == "github-cli-pull-requests"
     task = pull_request_task(tmp_path, number=54)
 
@@ -100,7 +99,7 @@ def test_pull_request_trigger_is_registered_and_provides_prompt_context(tmp_path
 
 
 def test_pull_request_trigger_builds_polling_feed(tmp_path: Path) -> None:
-    automation = resolved_automation(tmp_path, "reviews", "pull_request")
+    automation = resolved_automation(tmp_path, "reviews", "github-cli-pull-requests")
     gh = FakeGhClient([])
 
     feed = PullRequestTrigger().build_feed(

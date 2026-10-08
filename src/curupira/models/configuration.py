@@ -222,7 +222,7 @@ def parse_automation_configuration(value: object) -> object:
     from curupira.tasks.registry import get
 
     get(trigger_type)
-    if trigger_type in {"github-cli-pull-requests", "pull_request"}:
+    if trigger_type == "github-cli-pull-requests":
         return PullRequestAutomationConfiguration.model_validate(value)
     if trigger_type == "cron" or "schedule" in value:
         return CronAutomationConfiguration.model_validate(value)

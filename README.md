@@ -82,7 +82,7 @@ prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 and is carried into every task identity. `trigger_type` selects the source:
 
 - `"issue"` — discovers matching issues with `query`
-- `"pull_request"` — discovers matching pull requests with `query`
+- `"github-cli-pull-requests"` — discovers matching pull requests with `query`
 - `"cron"` — produces occurrences from `schedule` instead of querying GitHub
 
 Every automation requires `repo`, `prompt`, and — depending on the trigger — `query`

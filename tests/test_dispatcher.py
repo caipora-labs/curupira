@@ -251,7 +251,7 @@ async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
 ) -> None:
     data = settings(tmp_path).model_dump()
     data["coding_agents"]["automations"]["reviews"] = {
-        "trigger_type": "pull_request",
+        "trigger_type": "github-cli-pull-requests",
         "repo": "acme/api",
         "query": "is:open",
         "prompt": "Review ${pull_request_head_ref} -> ${pull_request_base_ref}",
@@ -279,7 +279,7 @@ async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
         configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
     )
     assert outcome.selected is not None
-    assert outcome.selected.identity.task_type == "pull_request"
+    assert outcome.selected.identity.task_type == "github-cli-pull-requests"
     assert adapter.requests[0].message == "Review feature -> main"
 
 

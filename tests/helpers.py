@@ -45,9 +45,12 @@ def pull_request_task(path: Path, number: int = 12, name: str = "reviews") -> Ta
     """Create a pull request snapshot with its native branch metadata."""
     return Task(
         identity=TaskIdentity(
-            automation_id=name, repo="acme/api", task_type="pull_request", id=str(number)
+            automation_id=name,
+            repo="acme/api",
+            task_type="github-cli-pull-requests",
+            id=str(number),
         ),
-        automation=resolved_automation(path, name, "pull_request"),
+        automation=resolved_automation(path, name, "github-cli-pull-requests"),
         title="Review",
         url=f"https://github.com/acme/api/pull/{number}",
         is_draft=True,
