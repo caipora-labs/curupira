@@ -33,6 +33,8 @@ All notable changes to this project are documented here. The format follows
   and discovered task identities use the same explicit type.
 - Use Curupira as the sole product name across documentation and branding. Remove
   the legacy source-checkout module shim that reused the previous package name.
+- Remove the leftover empty `src/gh_dispatch` package tree; task contracts live
+  under `curupira.tasks`.
 - CI runs the test suite and wheel install smoke tests across Linux, macOS, and
   Windows.
 
