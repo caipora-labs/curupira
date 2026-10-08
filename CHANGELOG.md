@@ -49,6 +49,12 @@ All notable changes to this project are documented here. The format follows
   `TypeError`, and boolean flags of internal helpers are keyword-only.
 - Pre-commit also checks merge-conflict markers, private keys, and that `uv.lock` is in
   sync with `pyproject.toml`.
+- The MkDocs macros module moved from the repository-root `main.py` to `docs/macros.py`
+  and is now type-checked; build inputs (`macros.py`, `data/`) are no longer copied into
+  the published site.
+- `curupira.models` no longer re-exports nested payload parts (`AzHref`,
+  `AzPullRequestLinks`, `GhLabel`) or `AzurePullRequestStatus`; import them from their
+  defining modules.
 
 - CLI parsing now uses Typer instead of argparse. Command names and flags are
   unchanged (`validate`, `run`, `watch`, `batch`, plus `tui`).

@@ -1,12 +1,11 @@
-"""Typed contracts exported for adapters and application consumers."""
+"""Typed contracts exported for adapters and application consumers.
 
-from curupira.models.azure import (
-    AzHref,
-    AzPullRequest,
-    AzPullRequestLinks,
-    AzPullRequestSearchRequest,
-    AzurePullRequestStatus,
-)
+Import contracts from ``curupira.models``; reusable validation primitives and the model
+bases live in ``curupira.models.base``. Nested payload parts (labels, hypermedia links)
+stay in their defining modules.
+"""
+
+from curupira.models.azure import AzPullRequest, AzPullRequestSearchRequest
 from curupira.models.configuration import (
     AutomationConfiguration,
     AzurePullRequestAutomationConfiguration,
@@ -22,7 +21,6 @@ from curupira.models.github import (
     DEFAULT_ISSUE_JSON_FIELDS,
     GhIssue,
     GhIssueSearchRequest,
-    GhLabel,
     GhPullRequest,
     GhPullRequestSearchRequest,
 )
@@ -50,12 +48,9 @@ from curupira.models.tasks import (
 __all__ = [
     "DEFAULT_ISSUE_JSON_FIELDS",
     "AutomationConfiguration",
-    "AzHref",
     "AzPullRequest",
-    "AzPullRequestLinks",
     "AzPullRequestSearchRequest",
     "AzurePullRequestAutomationConfiguration",
-    "AzurePullRequestStatus",
     "ClaudeCodeCliProfile",
     "CliProfile",
     "CodexCliProfile",
@@ -70,7 +65,6 @@ __all__ = [
     "ExecutionSettings",
     "GhIssue",
     "GhIssueSearchRequest",
-    "GhLabel",
     "GhPullRequest",
     "GhPullRequestSearchRequest",
     "IssueAutomationConfiguration",
