@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from croniter import croniter
 from pydantic import AnyHttpUrl, BeforeValidator, Field, field_validator, model_validator
 
+from curupira.models.azure import AzurePullRequestStatus
 from curupira.models.base import Identifier, NonEmptyString, PositiveSeconds, ValidatedModel
 from curupira.models.profiles import CliProfile, OpenCodeCliProfile
 
@@ -93,7 +94,7 @@ class AutomationConfigurationBase(ValidatedModel):
     """Shared options for one automation, keyed by its enclosing TOML table name.
 
     Attributes:
-        repo: GitHub repository in ``owner/name`` form.
+        repo: Repository identifier whose format depends on the trigger type.
         path: Optional base checkout path; relative paths are resolved from the TOML file.
         setup_script: Optional repository-relative script run after a fresh clone.
         checkout: Whether tasks use isolated worktrees or the shared checkout.
@@ -130,16 +131,6 @@ class AutomationConfigurationBase(ValidatedModel):
             raise ValueError("setup_script must be a relative path without '..'")
         return value
 
-    @field_validator("repo")
-    @classmethod
-    def validate_repository(cls, value: str) -> str:
-        """Require the owner/repository format without traversal segments."""
-        if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value) is None:
-            raise ValueError("repo must use the owner/repository format")
-        if any(part in {".", ".."} for part in value.split("/")):
-            raise ValueError("repo must not contain traversal segments")
-        return value
-
     @field_validator("path")
     @classmethod
     def expand_path(cls, value: Path | None) -> Path | None:
@@ -166,6 +157,16 @@ class GitHubAutomationConfiguration(AutomationConfigurationBase):
 
     query: NonEmptyString
 
+    @field_validator("repo")
+    @classmethod
+    def validate_repository(cls, value: str) -> str:
+        """Require the owner/repository format without traversal segments."""
+        if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value) is None:
+            raise ValueError("repo must use the owner/repository format")
+        if any(part in {".", ".."} for part in value.split("/")):
+            raise ValueError("repo must not contain traversal segments")
+        return value
+
 
 class IssueAutomationConfiguration(GitHubAutomationConfiguration):
     """Discover issues matching a GitHub Search query."""
@@ -178,6 +179,38 @@ class PullRequestAutomationConfiguration(GitHubAutomationConfiguration):
 
     trigger_type: NonEmptyString = "github-cli-pull-requests"
     jq: NonEmptyString | None = None
+
+
+class AzurePullRequestAutomationConfiguration(AutomationConfigurationBase):
+    """Discover Azure DevOps pull requests through the Azure CLI.
+
+    Attributes:
+        repo: Azure DevOps repository in ``organization/project/repository`` form.
+        status: Azure DevOps pull-request status filter passed to ``az repos pr list``.
+        source_branch: Optional source branch filter.
+        target_branch: Optional target branch filter.
+    """
+
+    trigger_type: NonEmptyString = "azure-cli-pull-requests"
+    status: AzurePullRequestStatus = "active"
+    source_branch: NonEmptyString | None = None
+    target_branch: NonEmptyString | None = None
+
+    @field_validator("repo")
+    @classmethod
+    def validate_repository(cls, value: str) -> str:
+        """Require the organization/project/repository format without traversal."""
+        if (
+            re.fullmatch(
+                r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+",
+                value,
+            )
+            is None
+        ):
+            raise ValueError("repo must use the organization/project/repository format")
+        if any(part in {".", ".."} for part in value.split("/")):
+            raise ValueError("repo must not contain traversal segments")
+        return value
 
 
 class CronAutomationConfiguration(AutomationConfigurationBase):
@@ -195,6 +228,16 @@ class CronAutomationConfiguration(AutomationConfigurationBase):
     timezone: NonEmptyString | None = None
     start_date: datetime | None = None
     end_date: datetime | None = None
+
+    @field_validator("repo")
+    @classmethod
+    def validate_repository(cls, value: str) -> str:
+        """Require the owner/repository format without traversal segments."""
+        if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value) is None:
+            raise ValueError("repo must use the owner/repository format")
+        if any(part in {".", ".."} for part in value.split("/")):
+            raise ValueError("repo must not contain traversal segments")
+        return value
 
     @field_validator("schedule")
     @classmethod
@@ -222,15 +265,20 @@ def parse_automation_configuration(value: object) -> object:
     from curupira.tasks.registry import get
 
     get(trigger_type)
-    if trigger_type in {"github-cli-pull-requests", "pull_request"}:
+    if trigger_type == "github-cli-pull-requests":
         return PullRequestAutomationConfiguration.model_validate(value)
+    if trigger_type == "azure-cli-pull-requests":
+        return AzurePullRequestAutomationConfiguration.model_validate(value)
     if trigger_type == "cron" or "schedule" in value:
         return CronAutomationConfiguration.model_validate(value)
     return IssueAutomationConfiguration.model_validate(value)
 
 
 AutomationConfiguration = Annotated[
-    IssueAutomationConfiguration | PullRequestAutomationConfiguration | CronAutomationConfiguration,
+    IssueAutomationConfiguration
+    | PullRequestAutomationConfiguration
+    | AzurePullRequestAutomationConfiguration
+    | CronAutomationConfiguration,
     BeforeValidator(parse_automation_configuration),
 ]
 
@@ -246,7 +294,7 @@ class CodingAgentsSettings(ValidatedModel):
     Attributes:
         defaults: Profile and timezone inherited by automations.
         profiles: Non-empty mapping of user-chosen names to provider-specific CLI options.
-        automations: Non-empty mapping of user-chosen names to issue, PR, or cron definitions.
+        automations: Non-empty mapping of user-chosen names to trigger definitions.
     """
 
     defaults: CodingAgentDefaults = Field(default_factory=CodingAgentDefaults)

@@ -65,9 +65,26 @@ URL: ${issue_url}
 """
 
 [coding_agents.automations.review-pull-requests]
-trigger_type = "pull_request"
+trigger_type = "github-cli-pull-requests"
 repo = "acme/api"
 query = "is:open label:review-needed"
+profile = "claude-reviewer"
+prompt = """
+Review pull request ${pull_request_number}: ${pull_request_title}
+
+${pull_request_body}
+
+Repository: ${repo}
+URL: ${pull_request_url}
+Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
+"""
+
+[coding_agents.automations.review-azure-pull-requests]
+trigger_type = "azure-cli-pull-requests"
+repo = "contoso/api-project/api"
+# status = "active"
+# source_branch = "feature"
+# target_branch = "main"
 profile = "claude-reviewer"
 prompt = """
 Review pull request ${pull_request_number}: ${pull_request_title}

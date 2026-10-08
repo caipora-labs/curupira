@@ -144,6 +144,7 @@ async def test_example_configuration_is_valid(tmp_path: Path) -> None:
     settings = await load_settings(example)
     assert sorted(settings.resolve_automations()) == [
         "resolve-ready-issues",
+        "review-azure-pull-requests",
         "review-pull-requests",
         "weekly-maintenance",
     ]

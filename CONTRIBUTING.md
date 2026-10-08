@@ -82,9 +82,9 @@ invocation into three layers. Each layer owns a contract in its `base.py`:
   and streaming discovered tasks), `TaskSource` (discovering tasks for an automation),
   `Trigger` (trigger-specific prompt data and feed construction), and
   `FeedDependencies`. `tasks/feed.py` provides the reusable `PollingTaskFeed`, while
-  `tasks/registry.py` registers trigger types and aliases. Current sources/triggers
-  are implemented in `tasks/cron.py`, `tasks/github_issues.py`, and
-  `tasks/github_pull_requests.py`.
+  `tasks/registry.py` registers trigger types (and optional aliases). Current
+  sources/triggers are implemented in `tasks/cron.py`, `tasks/github_issues.py`,
+  `tasks/github_pull_requests.py`, and `tasks/azure_pull_requests.py`.
 - `src/curupira/vcs/` prepares repositories. `vcs/base.py` defines `VersionControl`;
   providers implement its `clone(repo, destination)` operation, while shared checkout,
   worktree, and setup behavior stays in the base class. `vcs/github_cli.py` implements
@@ -104,10 +104,12 @@ To add a task source, implement `TaskSource`, provide a `Trigger`, and register 
 `base.py` contract. A new version-control provider implements `VersionControl.clone`
 and belongs in its own issue/PR after `vcs/base.py`. A new coding-agent adapter
 implements `CodingAgentCliAdapter.build_arguments` and is wired into
-`create_cli_adapter`; it belongs in its own issue/PR after `agents/base.py`. Trello,
-Azure DevOps, and Monday are examples of services where a future task source could
-belong; they are not currently supported providers. Configuration accepts only the
-trigger types and agent profiles defined by the current registry and models.
+`create_cli_adapter`; it belongs in its own issue/PR after `agents/base.py`. Azure
+DevOps pull-request listing is supported via `azure-cli-pull-requests`; cloning still
+uses the GitHub CLI version-control adapter unless `path` points at an existing
+checkout. Trello and Monday remain examples of services where a future task source
+could belong. Configuration accepts only the trigger types and agent profiles defined
+by the current registry and models.
 
 Cover new behavior with fakes in `tests/` — never start authenticated agents or hit the
 network in tests.

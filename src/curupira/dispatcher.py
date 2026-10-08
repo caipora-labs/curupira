@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 from curupira.agents import CliAdapterFactory, create_cli_adapter
+from curupira.clients.az import AzClient
 from curupira.clients.gh import GhClient
 from curupira.config import ApplicationSettings
 from curupira.executor import TaskExecutor
@@ -19,12 +20,16 @@ from curupira.vcs.github_cli import GitHubCliVersionControl
 
 
 def create_task_feeds(
-    settings: ApplicationSettings, gh: GhClient, cron: CronScheduleRepository
+    settings: ApplicationSettings,
+    gh: GhClient,
+    cron: CronScheduleRepository,
+    az: AzClient | None = None,
 ) -> list[TaskFeed]:
     """Build source-specific discovery using one resolved configuration snapshot."""
+    azure = az or AzClient()
     feeds: list[TaskFeed] = []
     for automation in settings.resolve_automations().values():
-        dependencies = FeedDependencies(settings.settings.polling, gh, cron)
+        dependencies = FeedDependencies(settings.settings.polling, gh, azure, cron)
         feeds.append(
             get_trigger(automation.configuration.trigger_type).build_feed(automation, dependencies)
         )
@@ -40,10 +45,11 @@ async def dispatch_next_task(
     version_control: VersionControl | None = None,
     telemetry: TaskTelemetry | None = None,
     on_task_selected: Callable[[Task], None] | None = None,
+    az: AzClient | None = None,
 ) -> DispatchOutcome:
     """Run the first currently available task, or preview it without any writes."""
     cron = CronScheduleRepository(settings.settings.state_db_path)
-    feeds = create_task_feeds(settings, gh, cron)
+    feeds = create_task_feeds(settings, gh, cron, az)
     for feed in feeds:
         available = await feed.poll(preview=dry_run)
         if not available:

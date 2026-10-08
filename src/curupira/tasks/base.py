@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import ClassVar
 
+from curupira.clients.az import AzClient
 from curupira.clients.gh import GhClient
 from curupira.models import PollingSettings, ResolvedAutomation, Task
 from curupira.storage import CronScheduleRepository
@@ -38,6 +39,7 @@ class FeedDependencies:
 
     polling: PollingSettings
     gh: GhClient
+    az: AzClient
     cron: CronScheduleRepository
 
 

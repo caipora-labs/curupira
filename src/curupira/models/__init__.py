@@ -1,7 +1,15 @@
 """Typed contracts exported for adapters and application consumers."""
 
+from curupira.models.azure import (
+    AzHref,
+    AzPullRequest,
+    AzPullRequestLinks,
+    AzPullRequestSearchRequest,
+    AzurePullRequestStatus,
+)
 from curupira.models.configuration import (
     AutomationConfiguration,
+    AzurePullRequestAutomationConfiguration,
     CodingAgentDefaults,
     CodingAgentsSettings,
     CronAutomationConfiguration,
@@ -42,6 +50,12 @@ from curupira.models.tasks import (
 __all__ = [
     "DEFAULT_ISSUE_JSON_FIELDS",
     "AutomationConfiguration",
+    "AzHref",
+    "AzPullRequest",
+    "AzPullRequestLinks",
+    "AzPullRequestSearchRequest",
+    "AzurePullRequestAutomationConfiguration",
+    "AzurePullRequestStatus",
     "ClaudeCodeCliProfile",
     "CliProfile",
     "CodexCliProfile",

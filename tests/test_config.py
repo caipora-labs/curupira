@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from curupira.config import ApplicationSettings, load_settings
 from curupira.models import (
+    AzurePullRequestAutomationConfiguration,
     CronAutomationConfiguration,
     IssueAutomationConfiguration,
     PullRequestAutomationConfiguration,
@@ -18,12 +19,12 @@ def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettin
     """Build one independently named automation for boundary tests."""
     automation: dict[str, object] = {
         "trigger_type": trigger,
-        "repo": "acme/api",
+        "repo": ("contoso/api-project/api" if trigger == "azure-cli-pull-requests" else "acme/api"),
         "prompt": "Handle ${task_title}",
     }
     if trigger == "cron":
         automation["schedule"] = "0 9 * * 1"
-    else:
+    elif trigger != "azure-cli-pull-requests":
         automation["query"] = "is:open"
     automation.update(overrides)
     return ApplicationSettings.model_validate(
@@ -35,8 +36,8 @@ def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettin
     ("trigger", "expected"),
     [
         ("issue", IssueAutomationConfiguration),
-        ("pull_request", PullRequestAutomationConfiguration),
         ("github-cli-pull-requests", PullRequestAutomationConfiguration),
+        ("azure-cli-pull-requests", AzurePullRequestAutomationConfiguration),
         ("cron", CronAutomationConfiguration),
     ],
 )
@@ -66,7 +67,9 @@ def test_checkout_options_and_relative_setup_script_are_validated() -> None:
 
 
 def test_pull_request_automation_accepts_jq_filter() -> None:
-    settings = configuration("pull_request", jq='.[] | select(.mergeable == "MERGEABLE")')
+    settings = configuration(
+        "github-cli-pull-requests", jq='.[] | select(.mergeable == "MERGEABLE")'
+    )
 
     automation = settings.coding_agents.automations["daily"]
     assert isinstance(automation, PullRequestAutomationConfiguration)
@@ -97,6 +100,11 @@ def test_invalid_automation_is_rejected(overrides: dict[str, Any]) -> None:
 def test_unregistered_trigger_type_is_rejected() -> None:
     with pytest.raises(ValidationError, match="unknown trigger type: unknown"):
         configuration("unknown")
+
+
+def test_short_pull_request_alias_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="unknown trigger type: pull_request"):
+        configuration("pull_request")
 
 
 def test_registered_alias_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -278,8 +286,29 @@ async def test_missing_file_and_environment_precedence(
     assert configuration().settings.max_active_tasks == 1
 
 
-def test_json_schema_keeps_the_three_supported_configuration_shapes() -> None:
+def test_json_schema_keeps_the_supported_configuration_shapes() -> None:
     schema = ApplicationSettings.model_json_schema()
     automations = schema["$defs"]["CodingAgentsSettings"]["properties"]["automations"]
     values = next(iter(automations["patternProperties"].values()))
-    assert len(values["anyOf"]) == 3
+    assert len(values["anyOf"]) == 4
+
+
+def test_azure_pull_request_automation_accepts_status_and_branch_filters() -> None:
+    settings = configuration(
+        "azure-cli-pull-requests",
+        status="all",
+        source_branch="feature",
+        target_branch="main",
+    )
+
+    automation = settings.coding_agents.automations["daily"]
+    assert isinstance(automation, AzurePullRequestAutomationConfiguration)
+    assert automation.status == "all"
+    assert automation.source_branch == "feature"
+    assert automation.target_branch == "main"
+
+
+@pytest.mark.parametrize("repo", ["acme/api", "contoso/api-project", "a/b/c/d"])
+def test_azure_pull_request_rejects_non_three_part_repos(repo: str) -> None:
+    with pytest.raises(ValidationError, match="organization/project/repository"):
+        configuration("azure-cli-pull-requests", repo=repo)

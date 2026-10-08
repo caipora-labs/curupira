@@ -81,14 +81,18 @@ prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 `[coding_agents.automations.<name>]` is a keyed map; the map key is the automation ID
 and is carried into every task identity. `trigger_type` selects the source:
 
-- `"issue"` — discovers matching issues with `query`
-- `"pull_request"` — discovers matching pull requests with `query`
-- `"cron"` — produces occurrences from `schedule` instead of querying GitHub
+- `"issue"` — discovers matching GitHub issues with `query`
+- `"github-cli-pull-requests"` — discovers matching GitHub pull requests with `query`
+- `"azure-cli-pull-requests"` — lists Azure DevOps pull requests with `az repos pr list`
+- `"cron"` — produces occurrences from `schedule` instead of querying a forge
 
-Every automation requires `repo`, `prompt`, and — depending on the trigger — `query`
-or `schedule`. Optional `profile` selects a named CLI profile; otherwise the default
-profile applies. Optional `path` pins the automation to an existing checkout or an
-alternative clone destination; relative paths resolve from the TOML directory, as do
+Every automation requires `repo` and `prompt`. GitHub triggers also require `query`;
+cron requires `schedule`. For Azure DevOps, `repo` uses
+`organization/project/repository` (organization name, not a full URL). Optional
+`status` (`active` by default), `source_branch`, and `target_branch` filter the Azure
+list. Optional `profile` selects a named CLI profile; otherwise the default profile
+applies. Optional `path` pins the automation to an existing checkout or an alternative
+clone destination; relative paths resolve from the TOML directory, as do
 `workspace_dir` and `state_db_path`. Different repositories cannot share one workspace
 path. Automations keep file order, and one-shot selection follows that order.
 

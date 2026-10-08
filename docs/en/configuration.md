@@ -34,6 +34,8 @@ than maintaining a parallel field table here.
 
 ::: curupira.models.configuration.PullRequestAutomationConfiguration
 
+::: curupira.models.configuration.AzurePullRequestAutomationConfiguration
+
 ::: curupira.models.configuration.CronAutomationConfiguration
 
 ### CLI profiles
@@ -79,11 +81,12 @@ Save this as `~/.curupira/settings.toml`. The keys under `profiles` and `automat
 
 `trigger_type` selects the source:
 
-- `issue` discovers matching issues using GitHub Search syntax in `query`.
-- `pull_request` discovers matching pull requests using `query`.
-- `cron` produces occurrences from a five-field `schedule` instead of querying GitHub.
+- `issue` discovers matching GitHub issues using GitHub Search syntax in `query`.
+- `github-cli-pull-requests` discovers matching GitHub pull requests using `query`.
+- `azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
+- `cron` produces occurrences from a five-field `schedule` instead of querying a forge.
 
-Each automation requires `repo`, `prompt`, and either `query` or `schedule`. Optional `profile` selects a CLI profile. Optional `path` pins the automation to an existing checkout or an alternative clone destination. Relative paths are resolved from the TOML file's directory. Different repositories cannot share one workspace path. Automations keep file order, and one-shot selection follows that order.
+Each automation requires `repo` and `prompt`. GitHub triggers also require `query`; cron requires `schedule`. Azure DevOps automations use `repo` as `organization/project/repository` and optional `status` / branch filters instead of a search query. Optional `profile` selects a CLI profile. Optional `path` pins the automation to an existing checkout or an alternative clone destination. Relative paths are resolved from the TOML file's directory. Different repositories cannot share one workspace path. Automations keep file order, and one-shot selection follows that order.
 
 Placeholders use `${name}` syntax and are validated when the configuration loads. Common placeholders include `${repo}`, `${automation_id}`, `${task_type}`, `${task_number}`, `${task_title}`, `${task_body}`, and `${task_url}`. Issues and pull requests provide their respective number, title, body, and URL placeholders; pull requests also provide `${pull_request_is_draft}`, `${pull_request_head_ref}`, and `${pull_request_base_ref}`. For cron tasks, `${task_number}` is the occurrence timestamp.
 
