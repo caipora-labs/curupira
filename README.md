@@ -278,6 +278,7 @@ may change without notice.
 
 ```bash
 uv sync --dev
+uv run --no-sync prek install
 uv run --no-sync pytest
 uv run --no-sync ruff check .
 uv run --no-sync ruff format --check .
@@ -286,8 +287,10 @@ uv build
 uv run --no-sync twine check dist/*
 ```
 
-`uv sync` installs the pure-Python package. `uv build` produces a `py3-none-any` wheel
-and sdist with no compiler toolchain required.
+`uv sync` installs the pure-Python package. `uv run --no-sync prek install` registers
+Git pre-commit hooks; Ruff and Pyrefly run through `uv` so they use the locked project
+environment. `uv build` produces a `py3-none-any` wheel and sdist with no compiler
+toolchain required.
 
 To inspect branch coverage locally, run `uv run --no-sync pytest --cov --cov-report=term-missing`;
 the configured minimum is 85%.

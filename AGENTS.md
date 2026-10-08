@@ -12,7 +12,8 @@ Curupira dispatches GitHub, Azure DevOps, and cron tasks to local coding-agent C
 
 Stack: Python 3.11+ (pure Python, `src/` layout), [uv](https://docs.astral.sh/uv/),
 Pydantic v2 and pydantic-settings (TOML configuration), Typer (CLI), Textual (TUI),
-asyncio subprocesses, SQLite, OpenTelemetry, pytest, Ruff, and Pyrefly (strict).
+asyncio subprocesses, SQLite, OpenTelemetry, pytest, Ruff, Pyrefly (strict), and
+[prek](https://prek.j178.dev/) for Git hooks.
 
 ## Commands
 
@@ -20,6 +21,8 @@ Run everything from the repository root. CI runs the same commands and every one
 
 ```bash
 uv sync --dev                                              # install the project and dev tools
+uv run --no-sync prek install                              # Git pre-commit hooks (prek)
+uv run --no-sync prek run --all-files                      # run all hooks on demand
 uv run --no-sync pytest                                    # full test suite
 uv run --no-sync pytest tests/test_cli.py -k example      # one file or test
 uv run --no-sync pytest --cov                              # branch coverage, must stay >= 85%
@@ -29,6 +32,10 @@ uv run --no-sync pyrefly check                             # strict type check
 uv run --no-sync curupira --config curupira.example.toml validate
 uv build && uv run --no-sync twine check dist/*            # packaging
 ```
+
+Git hooks are managed by [`prek`](https://prek.j178.dev/) via `.pre-commit-config.yaml`.
+Ruff and Pyrefly hooks invoke `uv run --no-sync` so they match the locked project
+environment (do not pin a separate Ruff wheel in the hook config).
 
 Documentation: `uv sync --group docs`, then `uv run mkdocs build --strict`.
 

@@ -10,9 +10,15 @@ building a wheel needs no compiler toolchain.
 
 ```bash
 uv sync --dev
+uv run --no-sync prek install
 ```
 
 `uv sync` installs the Python package and the `curupira` and `curu` console scripts.
+[`prek`](https://prek.j178.dev/) replaces `pre-commit` for Git hooks: after `prek install`,
+each commit runs the hooks in [`.pre-commit-config.yaml`](.pre-commit-config.yaml). Ruff and
+Pyrefly hooks call `uv run --no-sync`, so they use the same locked versions and project
+environment as the commands in [AGENTS.md](AGENTS.md). Run every hook on demand with
+`uv run --no-sync prek run --all-files`.
 
 [AGENTS.md](AGENTS.md) is the single source for the verification commands, repository
 map, code style, testing rules, and security boundaries. It is written for coding agents

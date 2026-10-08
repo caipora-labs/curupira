@@ -1,3 +1,9 @@
+# Managed with prek (https://prek.j178.dev/), a drop-in pre-commit alternative.
+# Install hooks: uv run --no-sync prek install
+# Run all hooks: uv run --no-sync prek run --all-files
+#
+# Ruff and Pyrefly run through `uv` so they use the locked project environment
+# (same versions as `uv run --no-sync ruff` / `pyrefly` in AGENTS.md).
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -7,9 +13,24 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.10
+  - repo: local
     hooks:
       - id: ruff-check
-        args: [--fix]
+        name: ruff check
+        entry: uv run --no-sync ruff check --fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: ruff-format
+        name: ruff format
+        entry: uv run --no-sync ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: pyrefly
+        name: pyrefly
+        entry: uv run --no-sync pyrefly check
+        language: system
+        types: [python]
+        pass_filenames: false
+        require_serial: true

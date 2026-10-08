@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Pre-commit hooks via [`prek`](https://prek.j178.dev/): local Ruff and Pyrefly hooks run
+  through `uv run --no-sync`, so lint and type-check use the same locked project
+  environment as the commands in `AGENTS.md`. Install with `uv run --no-sync prek install`.
 - Trigger plugins: installed distributions register new automation sources under the
   `curupira.triggers` entry-point group, using the public `curupira.plugins` API. Each
   trigger declares its own Pydantic `configuration_model`, so plugin options and prompt
@@ -30,6 +33,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Replace the `pre-commit` Python package with `prek` for Git hook management.
 - Automation configuration is validated by the model of the registered trigger instead
   of a fixed union; existing TOML files keep working, including automations without
   `trigger_type`. The generated JSON schema now describes the shared
