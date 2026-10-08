@@ -13,6 +13,9 @@ All notable changes to this project are documented here. The format follows
   trigger `azure-cli-pull-requests` (`az repos pr list`). Configure
   `repo` as `organization/project/repository`, with optional `status`,
   `source_branch`, and `target_branch` filters.
+- `AGENTS.md` operating manual for coding agents (commands, repository map, code style,
+  testing, security, and boundaries); `CONTRIBUTING.md` now links to it instead of
+  duplicating those sections, and `CLAUDE.md` imports it.
 
 ### Removed
 
@@ -81,4 +84,3 @@ All notable changes to this project are documented here. The format follows
   per-automation prompts; the map key is the automation ID.
 - Custom-agent names are only accepted where a verified native flag exists
   (`--agent` for OpenCode and Claude Code).
-

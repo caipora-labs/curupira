@@ -10,5 +10,5 @@
 
 ## Documentation
 
-- [ ] README/CONTRIBUTING/CHANGELOG updated if user-facing behavior changed
+- [ ] README/CONTRIBUTING/AGENTS/CHANGELOG updated if user-facing behavior changed
 - [ ] `curupira.example.toml` still validates if configuration changed

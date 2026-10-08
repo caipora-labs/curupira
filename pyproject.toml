@@ -86,6 +86,7 @@ include = [
   "LICENSE",
   "CHANGELOG.md",
   "CONTRIBUTING.md",
+  "AGENTS.md",
   "SECURITY.md",
   "curupira.example.toml",
 ]
