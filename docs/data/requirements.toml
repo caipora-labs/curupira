@@ -11,19 +11,3 @@ detail = "Install and authenticate with `gh auth login`."
 name = "Azure CLI (`az`) with the Azure DevOps extension"
 url = "https://learn.microsoft.com/cli/azure/install-azure-cli"
 detail = "Needed for `azure-cli-pull-requests`. Add the extension with `az extension add --name azure-devops`, then sign in with `az login` (and `az devops login` when required)."
-
-[[optional_profiles]]
-name = "OpenCode (`opencode`)"
-url = "https://opencode.ai/"
-
-[[optional_profiles]]
-name = "Codex (`codex`)"
-url = "https://developers.openai.com/codex/cli/"
-
-[[optional_profiles]]
-name = "Claude Code (`claude`)"
-url = "https://code.claude.com/docs/en/cli-reference"
-
-[[optional_profiles]]
-name = "Cursor CLI (`agent`)"
-url = "https://docs.cursor.com/en/cli/overview"

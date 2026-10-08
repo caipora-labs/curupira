@@ -5,6 +5,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
+from curupira.agents import registry
+
 
 class MacroEnvironment(Protocol):
     """Interface provided by the MkDocs macros plugin."""
@@ -21,7 +23,7 @@ def define_env(env: MacroEnvironment) -> None:
 
     @env.macro
     def requirements_list() -> str:
-        """Render the installation requirements from the TOML source."""
+        """Render the installation requirements from the TOML source and agent registry."""
         python = requirements["python"]
         lines = [
             f"- Python {python['range']} ({python['platforms']}).",
@@ -38,7 +40,21 @@ def define_env(env: MacroEnvironment) -> None:
             )
         lines.append("- Install only the CLIs used by configured profiles:")
         lines.extend(
-            f"  - [{profile['name']}]({profile['url']})"
-            for profile in requirements["optional_profiles"]
+            f"  - [{adapter.display_name} (`{adapter.executable}`)]({adapter.install_url})"
+            for adapter in registry.registered().values()
+        )
+        return "\n".join(lines)
+
+    @env.macro
+    def providers_table() -> str:
+        """Render one row per registered coding-agent provider."""
+        lines = [
+            "| Provider | Executable | Install |",
+            "| --- | --- | --- |",
+        ]
+        lines.extend(
+            f"| [{adapter.display_name}](providers/{provider}.md) | `{adapter.executable}` "
+            f"| <{adapter.install_url}> |"
+            for provider, adapter in registry.registered().items()
         )
         return "\n".join(lines)
