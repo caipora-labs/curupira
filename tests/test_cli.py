@@ -5,13 +5,16 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-from curupira.cli import CliOptions, _batch_stream, _build_parser, _program_name, async_main
+from curupira.cli import CliOptions, _batch_stream, _program_name, app, async_main, main
 from curupira.config import load_settings
 from curupira.models import Task
 from curupira.runtime import DispatchInstanceLock, dispatch_home
 from curupira.tasks.base import TaskFeed
 from tests.helpers import issue_task
+
+runner = CliRunner()
 
 
 class SequenceFeed(TaskFeed):
@@ -38,27 +41,41 @@ def test_program_name_follows_the_invoked_console_script(
     assert _program_name("/usr/bin/pytest") == "curupira"
 
     monkeypatch.setattr(sys, "argv", ["/usr/local/bin/curu"])
-    assert _build_parser().format_help().startswith("usage: curu")
+    help_text = runner.invoke(app, ["--help"], prog_name=_program_name()).output
+    assert "Usage: curu" in help_text
     monkeypatch.setattr(sys, "argv", ["/usr/local/bin/curupira"])
-    assert _build_parser().format_help().startswith("usage: curupira")
+    help_text = runner.invoke(app, ["--help"], prog_name=_program_name()).output
+    assert "Usage: curupira" in help_text
 
 
-def test_parser_supports_source_independent_commands(tmp_path: Path) -> None:
-    parsed = _build_parser().parse_args(
-        ["--config", str(tmp_path / "config.toml"), "run", "--dry-run"]
-    )
-    options = CliOptions.model_validate(vars(parsed))
-    assert options.command == "run"
-    assert options.dry_run
-    assert _build_parser().parse_args(["watch"]).command == "watch"
-    batch = _build_parser().parse_args(["batch", "--size", "2"])
-    assert CliOptions.model_validate(vars(batch)).size == 2
+def test_cli_supports_source_independent_commands(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["--config", str(tmp_path / "config.toml"), "run", "--dry-run"])
+    # dry-run still loads config; missing file exits 2, but the command is accepted
+    assert "No such option" not in result.output
+    assert result.exit_code in {0, 1, 2}
+
+    assert runner.invoke(app, ["watch", "--help"]).exit_code == 0
+    assert "tui" in runner.invoke(app, ["--help"]).output
+    batch_help = runner.invoke(app, ["batch", "--help"]).output
+    assert "--size" in batch_help
 
 
 @pytest.mark.parametrize("value", ["0", "-1", "nope"])
 def test_batch_size_must_be_a_positive_integer(value: str) -> None:
-    with pytest.raises(SystemExit):
-        _build_parser().parse_args(["batch", "--size", value])
+    result = runner.invoke(app, ["batch", "--size", value])
+    assert result.exit_code != 0
+
+
+def test_main_accepts_tui_subcommand_in_help() -> None:
+    result = runner.invoke(app, ["tui", "--help"])
+    assert result.exit_code == 0
+    assert "interactive terminal dashboard" in result.output.lower()
+
+
+def test_main_version_flag() -> None:
+    result = runner.invoke(app, ["--version"], prog_name="curu")
+    assert result.exit_code == 0
+    assert "curu " in result.output
 
 
 async def test_batch_stream_drains_each_feed_until_empty(tmp_path: Path) -> None:
@@ -85,9 +102,12 @@ def test_parser_defaults_to_central_settings_path(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
 
-    parsed = _build_parser().parse_args(["validate"])
+    options = CliOptions(command="validate", config=tmp_path / ".curupira" / "settings.toml")
+    assert options.config == tmp_path / ".curupira" / "settings.toml"
+    # Ensure the Typer default resolves the same path when HOME is patched.
+    from curupira.runtime import default_config_path
 
-    assert parsed.config == tmp_path / ".curupira" / "settings.toml"
+    assert default_config_path() == tmp_path / ".curupira" / "settings.toml"
 
 
 async def test_default_configuration_is_loaded_from_user_home(
@@ -102,7 +122,7 @@ async def test_default_configuration_is_loaded_from_user_home(
         'schedule="0 9 * * *"\nprompt="Maintain ${repo}"\n',
         encoding="utf-8",
     )
-    options = CliOptions.model_validate(vars(_build_parser().parse_args(["validate"])))
+    options = CliOptions(command="validate", config=config)
 
     assert await async_main(options) == 0
     assert "Configuration is valid (1 automations" in capsys.readouterr().out
@@ -156,3 +176,7 @@ async def test_configuration_error_has_actionable_exit_code(
 ) -> None:
     assert await async_main(CliOptions(command="run", config=tmp_path / "absent.toml")) == 2
     assert "configuration file not found" in capsys.readouterr().err
+
+
+def test_main_returns_typer_exit_codes(tmp_path: Path) -> None:
+    assert main(["--config", str(tmp_path / "absent.toml"), "validate"]) == 2

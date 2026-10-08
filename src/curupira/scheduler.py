@@ -28,7 +28,22 @@ class TaskScheduler:
         self._settings = settings
         self._executor = executor
         self._on_active_tasks_changed = on_active_tasks_changed
+        self._admit = asyncio.Event()
+        self._admit.set()
         self.failed_tasks = 0
+
+    def pause(self) -> None:
+        """Stop admitting newly discovered work until ``resume`` is called."""
+        self._admit.clear()
+
+    def resume(self) -> None:
+        """Allow the scheduler to admit and launch work again."""
+        self._admit.set()
+
+    @property
+    def paused(self) -> bool:
+        """Return whether new work admission is currently suspended."""
+        return not self._admit.is_set()
 
     async def run(
         self, tasks: AsyncIterator[Task], *, resume_sessions: Sequence[RunningCodingSession] = ()
@@ -53,13 +68,17 @@ class TaskScheduler:
         exhausted = False
         try:
             self._notify_active_tasks(active)
-            while not exhausted or pending or active:
-                self._launch_available(pending, active)
-                reader = self._ensure_reader(reader, exhausted, pending, source)
+            while not exhausted or pending or active or self.paused:
+                if self._admit.is_set():
+                    self._launch_available(pending, active)
+                    reader = self._ensure_reader(reader, exhausted, pending, source)
                 waiting: set[asyncio.Task[object]] = set(active)
                 if reader is not None:
                     waiting.add(reader)
                 if not waiting:
+                    if self.paused and (not exhausted or pending):
+                        await self._admit.wait()
+                        continue
                     break
                 finished, _ = await asyncio.wait(waiting, return_when=asyncio.FIRST_COMPLETED)
                 if reader is not None and reader in finished:

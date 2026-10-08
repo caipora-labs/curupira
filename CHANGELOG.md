@@ -7,10 +7,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Interactive orchestrator dashboard via `curu tui` (Textual): system metrics,
+  running agents with elapsed timers, and live orchestrator logs.
 - Azure DevOps pull-request discovery through the Azure CLI under the explicit
   trigger `azure-cli-pull-requests` (`az repos pr list`). Configure
   `repo` as `organization/project/repository`, with optional `status`,
   `source_branch`, and `target_branch` filters.
+
+### Changed
+
+- CLI parsing now uses Typer instead of argparse. Command names and flags are
+  unchanged (`validate`, `run`, `watch`, `batch`, plus `tui`).
 
 ### Fixed
 

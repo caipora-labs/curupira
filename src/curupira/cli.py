@@ -1,13 +1,13 @@
 """Command-line entry points for configuration, one-shot dispatch, and polling."""
 
-import argparse
 import asyncio
 import logging
 import sys
 from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
+import typer
 from pydantic import ValidationError
 
 from curupira import __version__
@@ -39,13 +39,14 @@ from curupira.vcs.github_cli import GitHubCliVersionControl
 class CliOptions(ValidatedModel):
     """Validated command-line options."""
 
-    command: Literal["validate", "run", "watch", "batch"]
+    command: Literal["validate", "run", "watch", "batch", "tui"]
     config: Path
     dry_run: bool = False
     size: int | None = None
 
 
 _CONSOLE_SCRIPTS = frozenset({"curupira", "curu"})
+_DISPATCH_COMMANDS = frozenset({"run", "watch", "batch", "tui"})
 
 
 def _program_name(argv0: str | None = None) -> str:
@@ -60,43 +61,123 @@ def _program_name(argv0: str | None = None) -> str:
     return "curupira"
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog=_program_name(),
-        description="Dispatch GitHub and cron automations to native coding-agent CLIs.",
-    )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=default_config_path(),
-        help="TOML configuration file (default: ~/.curupira/settings.toml)",
-    )
-    subcommands = parser.add_subparsers(dest="command", required=True)
-    subcommands.add_parser(
-        "validate", help="validate configuration without calling external CLIs or writing state"
-    )
-    run = subcommands.add_parser("run", help="execute one currently available automation task")
-    run.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="preview a task without reserving, persisting, cloning, or executing",
-    )
-    subcommands.add_parser("watch", help="poll all automations using the shared bounded scheduler")
-    batch = subcommands.add_parser("batch", help="drain currently available automation tasks")
-    batch.add_argument("--size", type=_positive_int, help="process at most N tasks")
-    return parser
+def _version_callback(ctx: typer.Context, value: bool) -> None:
+    """Print the package version and exit when ``--version`` is set."""
+    if value:
+        name = ctx.find_root().info_name or _program_name()
+        typer.echo(f"{name} {__version__}")
+        raise typer.Exit(0)
 
 
-def _positive_int(value: str) -> int:
-    """Parse a positive integer for bounded batch execution."""
+def _positive_int(value: int) -> int:
+    """Reject non-positive batch sizes with a Typer-friendly error."""
+    if value < 1:
+        raise typer.BadParameter("must be a positive integer")
+    return value
+
+
+def _optional_positive_int(value: int | None) -> int | None:
+    """Allow omitted ``--size`` while still validating positive integers."""
+    if value is None:
+        return None
+    return _positive_int(value)
+
+
+app = typer.Typer(
+    help="Dispatch GitHub and cron automations to native coding-agent CLIs.",
+    no_args_is_help=True,
+    add_completion=False,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+
+
+@app.callback()
+def _root(
+    ctx: typer.Context,
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            help="TOML configuration file (default: ~/.curupira/settings.toml)",
+            show_default=False,
+        ),
+    ] = None,
+    version: Annotated[
+        bool | None,
+        typer.Option(
+            "--version",
+            callback=_version_callback,
+            is_eager=True,
+            help="Show the version and exit.",
+        ),
+    ] = None,
+) -> None:
+    """Shared options for every Curupira subcommand."""
+    del version
+    ctx.ensure_object(dict)
+    ctx.obj["config"] = config if config is not None else default_config_path()
+
+
+def _exit_with(options: CliOptions) -> None:
+    """Run the async command path and translate its status into ``typer.Exit``."""
+    raise typer.Exit(_run(options))
+
+
+def _run(options: CliOptions) -> int:
+    """Own the event-loop lifecycle for a validated command."""
     try:
-        parsed = int(value)
-    except ValueError as error:
-        raise argparse.ArgumentTypeError("must be a positive integer") from error
-    if parsed < 1:
-        raise argparse.ArgumentTypeError("must be a positive integer")
-    return parsed
+        return asyncio.run(async_main(options))
+    except KeyboardInterrupt:
+        return 130
+
+
+@app.command("validate")
+def validate_command(ctx: typer.Context) -> None:
+    """Validate configuration without calling external CLIs or writing state."""
+    _exit_with(CliOptions(command="validate", config=ctx.obj["config"]))
+
+
+@app.command("run")
+def run_command(
+    ctx: typer.Context,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Preview a task without reserving, persisting, cloning, or executing",
+        ),
+    ] = False,
+) -> None:
+    """Execute one currently available automation task."""
+    _exit_with(CliOptions(command="run", config=ctx.obj["config"], dry_run=dry_run))
+
+
+@app.command("watch")
+def watch_command(ctx: typer.Context) -> None:
+    """Poll all automations using the shared bounded scheduler."""
+    _exit_with(CliOptions(command="watch", config=ctx.obj["config"]))
+
+
+@app.command("batch")
+def batch_command(
+    ctx: typer.Context,
+    size: Annotated[
+        int | None,
+        typer.Option(
+            "--size",
+            help="Process at most N tasks",
+            callback=_optional_positive_int,
+        ),
+    ] = None,
+) -> None:
+    """Drain currently available automation tasks."""
+    _exit_with(CliOptions(command="batch", config=ctx.obj["config"], size=size))
+
+
+@app.command("tui")
+def tui_command(ctx: typer.Context) -> None:
+    """Run the orchestrator with an interactive terminal dashboard."""
+    _exit_with(CliOptions(command="tui", config=ctx.obj["config"]))
 
 
 async def _batch_stream(feeds: Sequence[TaskFeed], size: int | None) -> AsyncIterator[Task]:
@@ -121,7 +202,7 @@ async def async_main(options: CliOptions) -> int:
         config_path = options.config.expanduser().resolve()
         if config_path == default_config_path().resolve():
             config_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        if options.command in {"run", "watch", "batch"} and not options.dry_run:
+        if options.command in _DISPATCH_COMMANDS and not options.dry_run:
             instance_lock = DispatchInstanceLock(dispatch_home() / "dispatch.lock")
             instance_lock.acquire()
             ensure_runtime_directories()
@@ -164,44 +245,17 @@ async def _execute_command(options: CliOptions) -> int:
     root_logger = logging.getLogger()
     try:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-        if options.command in {"watch", "batch"} or not options.dry_run:
+        if options.command in {"watch", "batch", "tui"} or not options.dry_run:
             log_handler = create_execution_log_handler()
             root_logger.setLevel(logging.INFO)
             root_logger.addHandler(log_handler)
         gh = GhClient()
         if options.command == "run":
-            status = TerminalTaskStatus()
-            try:
-                outcome = await dispatch_next_task(
-                    settings,
-                    gh,
-                    dry_run=options.dry_run,
-                    telemetry=telemetry,
-                    on_task_selected=lambda task: status.update(
-                        (task,), settings.settings.max_active_tasks
-                    ),
-                )
-            finally:
-                status.clear()
-            if outcome.selected is None:
-                print("No matching task is currently available.")
-                return 0
-            selected = outcome.selected
-            identity = selected.identity
-            print(
-                f"Selected {identity.automation_id}: "
-                f"{identity.repo}#{identity.id}: {selected.title}"
-            )
-            print(selected.url)
-            if options.dry_run:
-                print("Dry run: no task was reserved or executed.")
-            elif outcome.process is not None:
-                if outcome.process.stdout:
-                    print(outcome.process.stdout)
-                if outcome.process.stderr:
-                    print(outcome.process.stderr, file=sys.stderr)
-                return outcome.process.returncode
-            return 0
+            return await _execute_run_command(settings, gh, telemetry, options.dry_run)
+        if options.command == "tui":
+            from curupira.tui.app import run_orchestrator_tui
+
+            return await run_orchestrator_tui(settings, gh, GitHubCliVersionControl(), telemetry)
         return await _execute_scheduled_command(
             settings, gh, GitHubCliVersionControl(), telemetry, options
         )
@@ -215,6 +269,44 @@ async def _execute_command(options: CliOptions) -> int:
             if log_handler is not None:
                 root_logger.removeHandler(log_handler)
                 log_handler.close()
+
+
+async def _execute_run_command(
+    settings: ApplicationSettings,
+    gh: GhClient,
+    telemetry: TaskTelemetry,
+    dry_run: bool,
+) -> int:
+    """Select and optionally execute a single currently available task."""
+    status = TerminalTaskStatus()
+    try:
+        outcome = await dispatch_next_task(
+            settings,
+            gh,
+            dry_run=dry_run,
+            telemetry=telemetry,
+            on_task_selected=lambda task: status.update(
+                (task,), settings.settings.max_active_tasks
+            ),
+        )
+    finally:
+        status.clear()
+    if outcome.selected is None:
+        print("No matching task is currently available.")
+        return 0
+    selected = outcome.selected
+    identity = selected.identity
+    print(f"Selected {identity.automation_id}: {identity.repo}#{identity.id}: {selected.title}")
+    print(selected.url)
+    if dry_run:
+        print("Dry run: no task was reserved or executed.")
+    elif outcome.process is not None:
+        if outcome.process.stdout:
+            print(outcome.process.stdout)
+        if outcome.process.stderr:
+            print(outcome.process.stderr, file=sys.stderr)
+        return outcome.process.returncode
+    return 0
 
 
 async def _execute_scheduled_command(
@@ -253,8 +345,24 @@ async def _execute_scheduled_command(
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Parse arguments and own the application's event-loop lifecycle."""
-    options = CliOptions.model_validate(vars(_build_parser().parse_args(argv)))
     try:
-        return asyncio.run(async_main(options))
-    except KeyboardInterrupt:
-        return 130
+        result = app(
+            args=list(argv) if argv is not None else None,
+            prog_name=_program_name(),
+            standalone_mode=False,
+        )
+    except typer.Exit as error:
+        code = error.exit_code
+        return 0 if code is None else code
+    except SystemExit as error:
+        code = error.code
+        if code is None:
+            return 0
+        if isinstance(code, int):
+            return code
+        return 1
+    if result is None:
+        return 0
+    if isinstance(result, int):
+        return result
+    return 1
