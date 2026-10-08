@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 publish = false
-description = "Native core compiled into the OpsCli Python package"
+description = "Native core compiled into the Curupira Python package"
 
 [lib]
 name = "curupira_native"

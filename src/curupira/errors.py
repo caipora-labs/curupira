@@ -1,4 +1,4 @@
-"""User-facing errors raised by OpsCli and its CLI clients."""
+"""User-facing errors raised by Curupira and its CLI clients."""
 
 
 class DispatchError(Exception):

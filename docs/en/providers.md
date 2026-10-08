@@ -1,6 +1,6 @@
 # Providers and agents
 
-OpsCli invokes each tool through its non-interactive native CLI and saves session identifiers to resume interrupted tasks. `model`, `effort`, and `agent` are optional; unset options are omitted.
+Curupira invokes each tool through its non-interactive native CLI and saves session identifiers to resume interrupted tasks. `model`, `effort`, and `agent` are optional; unset options are omitted.
 
 | Provider | Agent mapping | Model | Effort |
 | --- | --- | --- | --- |

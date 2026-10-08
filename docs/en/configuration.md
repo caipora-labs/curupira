@@ -89,7 +89,7 @@ Placeholders use `${name}` syntax and are validated when the configuration loads
 
 ## Checkout and setup
 
-Each task uses its own worktree by default, created from the fetched remote default branch. Set `checkout = "main"` to use the shared checkout as-is; OpsCli does not fetch, pull, or switch branches in that mode. `path` continues to select the base checkout.
+Each task uses its own worktree by default, created from the fetched remote default branch. Set `checkout = "main"` to use the shared checkout as-is; Curupira does not fetch, pull, or switch branches in that mode. `path` continues to select the base checkout.
 
 `setup_script` is a repository-relative executable path with no absolute path or `..`. It runs directly only after a base checkout is freshly cloned, not for an existing checkout or in a task worktree. A nonzero exit prevents the agent from starting and removes the newly cloned checkout. Validation checks path syntax but does not require the script to exist. `run --dry-run` does not fetch, clone, create worktrees, or run setup.
 

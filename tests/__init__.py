@@ -1,1 +1,1 @@
-"""Behavioral verification for OpsCli."""
+"""Behavioral verification for Curupira."""

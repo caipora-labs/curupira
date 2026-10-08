@@ -1,6 +1,6 @@
 # Contributing
 
-**OpsCli** (by Caipora Labs) is the product name. The installable package, primary console script, and Python import are `curupira`. The short CLI alias is `curu`.
+**Curupira** (by Caipora Labs) is the product name. The installable package, primary console script, and Python import are `curupira`. The short CLI alias is `curu`.
 
 ## Environment setup
 
@@ -75,7 +75,7 @@ changes to `curupira.example.toml` must keep `test_example_configuration_is_vali
 
 ## Architecture boundaries
 
-OpsCli separates task discovery, repository version control, and coding-agent CLI
+Curupira separates task discovery, repository version control, and coding-agent CLI
 invocation into three layers. Each layer owns a contract in its `base.py`:
 
 - `src/curupira/tasks/` discovers work. `tasks/base.py` defines `TaskFeed` (polling
@@ -96,7 +96,7 @@ invocation into three layers. Each layer owns a contract in its `base.py`:
   `opencode.py`, `codex.py`, `claude.py`, and `cursor.py`.
 
 `src/curupira/storage/` is local SQLite persistence, not a version-control provider.
-OpsCli does not manage authentication: provider CLIs and the user's environment provide
+Curupira does not manage authentication: provider CLIs and the user's environment provide
 their own authentication.
 
 To add a task source, implement `TaskSource`, provide a `Trigger`, and register its
@@ -141,7 +141,7 @@ Do not add other brand colors without a new decision. The Material overrides liv
 On the light scheme, the header uses `primary` with `neutral-900` text, and primary
 buttons use `primary-deep`. Body links use `skin`, which stays readable on `neutral-0`.
 The leaf `accent` is the hover color. The dark scheme swaps the neutrals and uses
-`primary` for links. The optional OpsCli product accent (`#014FC9` / `#011E58`) is not
+`primary` for links. The optional product accent (`#014FC9` / `#011E58`) is not
 applied on the docs theme.
 
 ## Dependency audits
