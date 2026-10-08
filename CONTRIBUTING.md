@@ -147,8 +147,8 @@ in `src/curupira/_version.py`, commit that change, and tag the same commit. Tag
 
 1. Set `__version__` to the next unused `X.Y.Z.devN` and commit.
 2. Wait until CI is green on that commit. The tag workflow publishes only after the
-   multi-platform test matrix, lint, type check, and distribution install smoke tests
-   have succeeded for the tagged SHA.
+   Ubuntu CI checks (lint, type check, Python test matrix, and distribution smoke
+   tests) have succeeded for the tagged SHA.
 3. Tag that commit and push the tag:
 
 ```bash
@@ -157,11 +157,11 @@ git push origin v0.1.0.dev1
 ```
 
 `publish.yml` builds a pure-Python wheel and sdist once, then install-smoke-tests that
-wheel on Linux (x86_64, aarch64), macOS (arm64, x86_64), and Windows (amd64) with
-`curupira --config curupira.example.toml validate`. The publish job checks that the
-distribution version equals the tag without its leading `v` and uploads with Trusted
-Publishing (`id-token: write`, environment `pypi`). Use the canonical dotted form
-`vX.Y.Z.devN`. PyPI keeps an uploaded file, so each rehearsal needs a new suffix.
+wheel on `ubuntu-latest` with `curupira --config curupira.example.toml validate`. The
+publish job checks that the distribution version equals the tag without its leading
+`v` and uploads with Trusted Publishing (`id-token: write`, environment `pypi`). Use
+the canonical dotted form `vX.Y.Z.devN`. PyPI keeps an uploaded file, so each
+rehearsal needs a new suffix.
 
 Tags that contain `.dev` do not open a GitHub Release (`release.yml` still skips
 them). `testpypi.yml` is unchanged: the same `v*.dev*` tags, and a manual
@@ -190,8 +190,8 @@ filename `publish.yml`, and environment `pypi`. Development tags `vX.Y.Z.devN` u
 that same publisher. `testpypi.yml` remains a separate workflow with environment
 `testpypi`, workflow filename `testpypi.yml`, and audience `testpypi`. It uploads to
 `https://test.pypi.org/legacy/` and smoke-tests that installation. The publish
-workflow checks that the multi-platform test matrix, lint, type check, and
-distribution install smoke tests succeeded for the commit
+workflow checks that the Ubuntu CI checks (lint, type check, Python test matrix,
+and distribution smoke tests) succeeded for the commit
 (`scripts/require_ci_checks.py`).
 
 ## Style

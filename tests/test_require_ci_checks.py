@@ -19,12 +19,15 @@ def _load_module() -> ModuleType:
     return module
 
 
-def test_required_checks_cover_platforms_and_package_gate() -> None:
+def test_required_checks_cover_ubuntu_python_matrix_and_package() -> None:
     module = _load_module()
     required = module.REQUIRED_CHECKS
-    assert "Build and smoke-test distributions" in required
-    assert "Tests (Linux x86_64, Python 3.11)" in required
-    assert "Tests (Linux aarch64, Python 3.13)" in required
-    assert "Tests (macOS arm64, Python 3.13)" in required
-    assert "Tests (macOS x86_64, Python 3.13)" in required
-    assert "Tests (Windows amd64, Python 3.13)" in required
+    assert required == {
+        "Ruff lint and format",
+        "Strict type check",
+        "Tests (Python 3.11)",
+        "Tests (Python 3.12)",
+        "Tests (Python 3.13)",
+        "Tests (Python 3.14)",
+        "Build and smoke-test distributions",
+    }

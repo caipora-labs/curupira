@@ -40,36 +40,12 @@ jobs:
       - run: uv run --no-sync pyrefly check
 
   test:
-    name: Tests (${{ matrix.label }}, Python ${{ matrix.python-version }})
+    name: Tests (Python ${{ matrix.python-version }})
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            label: Linux x86_64
-            python-version: "3.11"
-          - os: ubuntu-latest
-            label: Linux x86_64
-            python-version: "3.12"
-          - os: ubuntu-latest
-            label: Linux x86_64
-            python-version: "3.13"
-          - os: ubuntu-latest
-            label: Linux x86_64
-            python-version: "3.14"
-          - os: ubuntu-24.04-arm
-            label: Linux aarch64
-            python-version: "3.13"
-          - os: macos-latest
-            label: macOS arm64
-            python-version: "3.13"
-          - os: macos-15-intel
-            label: macOS x86_64
-            python-version: "3.13"
-          - os: windows-latest
-            label: Windows amd64
-            python-version: "3.13"
-    runs-on: ${{ matrix.os }}
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    runs-on: ubuntu-latest
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -96,8 +72,8 @@ jobs:
       - run: uv sync --frozen --dev
       - run: uv run --no-sync pip-audit
 
-  package-build:
-    name: Build pure-Python distributions
+  package:
+    name: Build and smoke-test distributions
     runs-on: ubuntu-latest
     steps:
       # actions/checkout v7.0.1
@@ -110,62 +86,8 @@ jobs:
       - run: uv sync --frozen --dev
       - run: uv build
       - run: uv run --no-sync twine check dist/*
-      - name: Upload distributions
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: dist
-          path: dist/
-          if-no-files-found: error
-
-  package:
-    name: Build and install (${{ matrix.label }})
-    needs: package-build
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            label: Linux x86_64
-          - os: ubuntu-24.04-arm
-            label: Linux aarch64
-          - os: macos-latest
-            label: macOS arm64
-          - os: macos-15-intel
-            label: macOS x86_64
-          - os: windows-latest
-            label: Windows amd64
-    runs-on: ${{ matrix.os }}
-    steps:
-      # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      # astral-sh/setup-uv v10.2.0
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
-        with:
-          python-version: "3.11"
-          enable-cache: true
-      - run: uv sync --frozen --dev
-      - name: Download distributions
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: dist
-          path: dist/
       - name: Smoke-test the installed wheel outside the repository
-        shell: bash
         run: |
           uv run --no-sync python scripts/smoke_install.py \
             --dist dist \
             --config curupira.example.toml
-
-  package-gate:
-    name: Build and smoke-test distributions
-    needs: package
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require package matrix success
-        shell: bash
-        run: |
-          if [ "${{ needs.package.result }}" != "success" ]; then
-            echo "Package matrix result: ${{ needs.package.result }}" >&2
-            exit 1
-          fi
