@@ -1,6 +1,6 @@
-# OpsCli
+# Curupira
 
-OpsCli ejecuta automatizaciones en tu máquina a partir de issues, pull requests u ocurrencias cron locales.
+Curupira ejecuta automatizaciones en tu máquina a partir de issues, pull requests u ocurrencias cron locales.
 
 ## Empezar
 

@@ -1,8 +1,8 @@
-# OpsCli
+# Curupira
 
-**OpsCli** (by Caipora Labs) is the product name. The PyPI project, primary console script, and Python import are `curupira`. The short command `curu` is the same entry point.
+**Curupira** (by Caipora Labs) is the product name. The PyPI project, primary console script, and Python import are `curupira`. The short command `curu` is the same entry point.
 
-OpsCli runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
+Curupira runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
 
 Each automation in the settings TOML watches one source (issues, pull requests, or a
 cron schedule) and carries its own prompt. All automations share one discovery,
@@ -169,7 +169,7 @@ can run concurrently without sharing edits. The worktree branch is created from 
 fetched remote default branch and is not pushed. Set `checkout = "main"` to use the
 shared checkout instead (this means the shared checkout, not a branch named `main`, and
 restores the previous exclusive behavior). `path` continues to select the base checkout.
-With `checkout = "main"`, the agent runs on the shared checkout exactly as it is: OpsCli does not fetch, pull, or switch branches there.
+With `checkout = "main"`, the agent runs on the shared checkout exactly as it is: Curupira does not fetch, pull, or switch branches there.
 Checkouts are created on demand with `gh repo clone` under `workspace_dir/owner/repo`.
 Nothing modifies issues or pull requests.
 
@@ -258,7 +258,7 @@ configuration, output-format, and agent-task failures are not retried automatica
 
 ## Public interface
 
-OpsCli is CLI-first. The only supported programmatic surface is
+Curupira is CLI-first. The only supported programmatic surface is
 `curupira.__version__`; all other modules are internal implementation details that
 may change without notice.
 

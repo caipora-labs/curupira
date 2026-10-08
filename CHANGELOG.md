@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- Use Curupira as the sole product name across documentation and branding. Remove
+  the legacy source-checkout module shim that reused the previous package name.
+
 ## [0.1.0] - 2026-10-07
 
 ### Added
@@ -27,22 +34,19 @@ All notable changes to this project are documented here. The format follows
 - Development tags `vX.Y.Z.devN` publish that PEP 440 version to PyPI through
   `publish.yml` (environment `pypi`) and do not open a GitHub Release. Stable
   `vX.Y.Z` tags publish to PyPI and open a GitHub Release.
-- Renamed the installable package, primary console script, and Python import from `curupi`
-  to `curupira`, and added the short CLI alias `curu`. The product name remains OpsCli.
+- Renamed the installable package, primary console script, Python import, and product
+  name from `curupi` to Curupira/`curupira`, and added the short CLI alias `curu`.
   Configuration and state now default to `~/.curupira` (example file
   `curupira.example.toml`, log `logs/curupira.log`). Task worktree branches use the
   `curupira/` prefix. The native crate is `crates/curupira-core`, imported as
   `curupira._native`.
-- Renamed the installable package, console script, and Python import from `opscli`
-  to `curupi`. The product name remains OpsCli. Configuration and state now default
-  to `~/.curupi` (example file `curupi.example.toml`, log `logs/curupi.log`). Task
-  worktree branches use the `curupi/` prefix. The native crate is `crates/curupi-core`,
-  imported as `curupi._native`.
-- Renamed the product to OpsCli, the package and executable to `opscli`, and the
-  per-user runtime directory to `~/.opscli`.
+- Renamed the installable package, console script, and Python import to `curupi`.
+  Configuration and state defaulted to `~/.curupi` (example file
+  `curupi.example.toml`, log `logs/curupi.log`). Task worktree branches used the
+  `curupi/` prefix. The native crate was `crates/curupi-core`, imported as
+  `curupi._native`.
 - Configuration moved to `settings` plus `coding_agents` with global polling and
   per-automation prompts; the map key is the automation ID.
 - Custom-agent names are only accepted where a verified native flag exists
   (`--agent` for OpenCode and Claude Code).
 
-## [Unreleased]
