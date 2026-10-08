@@ -79,7 +79,7 @@ Save this as `~/.curupira/settings.toml`. The keys under `profiles` and `automat
 
 ## Automations
 
-`trigger_type` selects the source:
+The required `trigger_type` selects the source:
 
 - `issue` discovers matching GitHub issues using GitHub Search syntax in `query`.
 - `github-cli-pull-requests` discovers matching GitHub pull requests using `query`.

@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, StrictBool, model_validator
 
 from curupira.models.base import NonEmptyString, ValidatedModel
 
@@ -30,7 +30,7 @@ class OpenCodeCliProfile(CliProfileBase):
     provider: Literal["opencode"] = "opencode"
     agent: NonEmptyString | None = None
     effort: NonEmptyString | None = None
-    auto_approve: bool = False
+    auto_approve: StrictBool = False
 
     @model_validator(mode="after")
     def validate_model_format(self) -> "OpenCodeCliProfile":
@@ -55,7 +55,7 @@ class CodexCliProfile(CliProfileBase):
     agent: NonEmptyString | None = None
     effort: Literal["low", "medium", "high", "xhigh", "max", "ultra"] | None = None
     sandbox: Literal["read-only", "workspace-write", "danger-full-access"] | None = None
-    auto_review: bool = False
+    auto_review: StrictBool = False
 
     @model_validator(mode="after")
     def validate_approval_options(self) -> "CodexCliProfile":
@@ -97,8 +97,8 @@ class CursorCliProfile(CliProfileBase):
 
     provider: Literal["cursor"] = "cursor"
     agent: Literal["agent", "ask", "plan"] | None = None
-    force: bool = False
-    trust: bool = False
+    force: StrictBool = False
+    trust: StrictBool = False
 
 
 CliProfile = Annotated[

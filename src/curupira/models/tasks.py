@@ -11,7 +11,14 @@ from curupira.models.profiles import CliProfile
 
 
 class TaskIdentity(ValidatedModel):
-    """One automation's work on a source item or scheduled occurrence."""
+    """One automation's work on a source item or scheduled occurrence.
+
+    Attributes:
+        automation_id: Name of the automation that discovered the task.
+        repo: Repository identifier copied from the automation.
+        task_type: Trigger type that produced the task.
+        id: Source item number or scheduled occurrence timestamp.
+    """
 
     automation_id: Identifier
     repo: NonEmptyString
@@ -27,7 +34,15 @@ class TaskIdentity(ValidatedModel):
 
 
 class ResolvedAutomation(ValidatedModel):
-    """A validated automation with effective profile, workspace, and timezone."""
+    """A validated automation with effective profile, workspace, and timezone.
+
+    Attributes:
+        automation_id: Name of the automation in the configuration.
+        configuration: Automation definition with inherited values applied.
+        profile: Effective CLI profile.
+        workspace_path: Absolute base checkout path.
+        timezone: Effective IANA timezone for cron automations.
+    """
 
     automation_id: Identifier
     configuration: AutomationConfiguration
@@ -37,7 +52,19 @@ class ResolvedAutomation(ValidatedModel):
 
 
 class Task(ValidatedModel):
-    """Resolved task passed unchanged from discovery to execution and persistence."""
+    """Resolved task passed unchanged from discovery to execution and persistence.
+
+    Attributes:
+        identity: Stable identity used for deduplication and persistence.
+        automation: Resolved automation that discovered the task.
+        title: Source item title, or the automation name for cron.
+        body: Optional source item body.
+        url: Web URL of the source item.
+        is_draft: Whether a pull request is a draft, when known.
+        head_ref_name: Pull-request source branch, when known.
+        base_ref_name: Pull-request target branch, when known.
+        scheduled_for: Occurrence time; required for cron tasks only.
+    """
 
     identity: TaskIdentity
     automation: ResolvedAutomation
@@ -70,7 +97,13 @@ class Task(ValidatedModel):
 
 
 class RunningCodingSession(ValidatedModel):
-    """The original task snapshot and native session required for resumption."""
+    """The original task snapshot and native session required for resumption.
+
+    Attributes:
+        task: Task snapshot taken when the session started.
+        session_id: Provider-native session identifier.
+        message: Rendered prompt originally sent to the agent.
+    """
 
     task: Task
     session_id: NonEmptyString
@@ -78,7 +111,15 @@ class RunningCodingSession(ValidatedModel):
 
 
 class CronRunState(ValidatedModel):
-    """A cron automation's creation time and claimed occurrence watermark."""
+    """A cron automation's creation time and claimed occurrence watermark.
+
+    Attributes:
+        automation_id: Name of the cron automation.
+        created_at: When the automation was first recorded.
+        last_execution_at: When an occurrence last started.
+        last_scheduled_for: Latest occurrence already claimed.
+        pending_scheduled_for: Occurrence claimed but not yet finished.
+    """
 
     automation_id: Identifier
     created_at: AwareDatetime

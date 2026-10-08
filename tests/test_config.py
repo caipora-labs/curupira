@@ -97,26 +97,16 @@ def test_invalid_automation_is_rejected(overrides: dict[str, Any]) -> None:
         configuration(**overrides)
 
 
-def test_unregistered_trigger_type_is_rejected() -> None:
-    with pytest.raises(ValidationError, match="unknown trigger type: unknown"):
-        configuration("unknown")
+@pytest.mark.parametrize("trigger", ["unknown", "pull_request", "legacy_issue"])
+def test_unknown_trigger_type_is_rejected(trigger: str) -> None:
+    with pytest.raises(ValidationError, match="does not match any of the expected tags"):
+        configuration(trigger)
 
 
-def test_short_pull_request_alias_is_rejected() -> None:
-    with pytest.raises(ValidationError, match="unknown trigger type: pull_request"):
-        configuration("pull_request")
-
-
-def test_registered_alias_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
-    import curupira.tasks  # noqa: F401
-    from curupira.tasks import registry
-
-    monkeypatch.setattr(registry, "_ALIASES", {})
-    registry.register_alias("issue", "legacy_issue")
-
-    automation = configuration("legacy_issue").coding_agents.automations["daily"]
-
-    assert automation.trigger_type == "legacy_issue"
+def test_missing_trigger_type_is_rejected() -> None:
+    automation = {"repo": "acme/api", "query": "is:open", "prompt": "Handle ${task_title}"}
+    with pytest.raises(ValidationError, match="trigger_type"):
+        ApplicationSettings.model_validate({"coding_agents": {"automations": {"x": automation}}})
 
 
 @pytest.mark.parametrize("field", ["max_active_tasks", "max_pending_tasks"])
@@ -290,7 +280,14 @@ def test_json_schema_keeps_the_supported_configuration_shapes() -> None:
     schema = ApplicationSettings.model_json_schema()
     automations = schema["$defs"]["CodingAgentsSettings"]["properties"]["automations"]
     values = next(iter(automations["patternProperties"].values()))
-    assert len(values["anyOf"]) == 4
+    assert len(values["oneOf"]) == 4
+    assert values["discriminator"]["propertyName"] == "trigger_type"
+    assert set(values["discriminator"]["mapping"]) == {
+        "issue",
+        "github-cli-pull-requests",
+        "azure-cli-pull-requests",
+        "cron",
+    }
 
 
 def test_azure_pull_request_automation_accepts_status_and_branch_filters() -> None:

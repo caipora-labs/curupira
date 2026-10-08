@@ -4,11 +4,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import ClassVar
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AliasChoices, Field, ValidationError
 
 from curupira.clients.process import AsyncProcessRunner
 from curupira.errors import UnsupportedCodingAgentError
 from curupira.models import CodingTaskRequest, CommandRequest, ProcessResult
+from curupira.models.base import BoundaryModel
 
 SessionStartedCallback = Callable[[str], Awaitable[None]]
 RESUME_SESSION_PROMPT = (
@@ -17,18 +18,29 @@ RESUME_SESSION_PROMPT = (
 )
 
 
-class EventText(BaseModel):
-    """Text nested inside provider-native events."""
+class EventText(BoundaryModel):
+    """Text nested inside provider-native events.
 
-    model_config = ConfigDict(extra="ignore")
+    Attributes:
+        text: Human-readable text, empty when absent.
+        type: Provider-specific item type.
+    """
+
     text: str = ""
     type: str = ""
 
 
-class CliEvent(BaseModel):
-    """Relevant fields in OpenCode, Codex, Claude, and Cursor JSONL events."""
+class CliEvent(BoundaryModel):
+    """Relevant fields in OpenCode, Codex, Claude, and Cursor JSONL events.
 
-    model_config = ConfigDict(extra="ignore")
+    Attributes:
+        type: Provider-specific event type.
+        session_id: Native session identifier, under any provider's field name.
+        part: OpenCode text part.
+        item: Codex completed item.
+        result: Claude Code and Cursor final result text.
+    """
+
     type: str = ""
     session_id: str | None = Field(
         default=None, validation_alias=AliasChoices("sessionID", "session_id", "thread_id")
