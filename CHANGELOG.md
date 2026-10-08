@@ -13,6 +13,8 @@ All notable changes to this project are documented here. The format follows
   Rust toolchain.
 - Release workflows install each platform wheel and run
   `curupira --config curupira.example.toml validate` before publishing.
+- Make `NativeProcess.kill` borrow the child mutably so the Windows wheel compiles
+  (`Child::kill` requires `&mut self`).
 
 ### Changed
 
