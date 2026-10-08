@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
+from pydantic import BeforeValidator, SerializeAsAny, model_validator
 
 from curupira.models.base import NonEmptyString, ValidatedModel
 
@@ -10,10 +10,15 @@ from curupira.models.base import NonEmptyString, ValidatedModel
 class CliProfileBase(ValidatedModel):
     """Options common to every supported CLI.
 
+    Agent plugins extend this model and give ``provider`` a default equal to their
+    registered provider.
+
     Attributes:
+        provider: Registered coding-agent provider selecting the profile model.
         model: Optional provider-specific model identifier.
     """
 
+    provider: NonEmptyString
     model: NonEmptyString | None = None
 
 
@@ -101,7 +106,19 @@ class CursorCliProfile(CliProfileBase):
     trust: bool = False
 
 
-CliProfile = Annotated[
-    OpenCodeCliProfile | CodexCliProfile | ClaudeCodeCliProfile | CursorCliProfile,
-    Field(discriminator="provider"),
-]
+def parse_cli_profile(value: object) -> object:
+    """Validate a profile table with the model of its registered coding agent."""
+    if not isinstance(value, dict):
+        return value
+    from curupira.agents.registry import get
+
+    provider = value.get("provider")
+    if provider is None:
+        raise ValueError("provider is required")
+    if not isinstance(provider, str):
+        raise ValueError("provider must be a string")
+    return get(provider).profile_model.model_validate(value)
+
+
+# SerializeAsAny keeps plugin-specific fields when snapshots are dumped and revalidated.
+CliProfile = Annotated[SerializeAsAny[CliProfileBase], BeforeValidator(parse_cli_profile)]

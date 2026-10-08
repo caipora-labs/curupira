@@ -1,6 +1,7 @@
 """Native OpenCode CLI argument translation."""
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.registry import register
 from curupira.models import CodingTaskRequest, OpenCodeCliProfile
 
 
@@ -9,6 +10,9 @@ class OpenCodeCliAdapter(CodingAgentCliAdapter):
 
     executable = "opencode"
     provider = "opencode"
+    profile_model = OpenCodeCliProfile
+    display_name = "OpenCode"
+    install_url = "https://opencode.ai/"
 
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
         """Build a noninteractive OpenCode invocation with optional overrides."""
@@ -28,3 +32,6 @@ class OpenCodeCliAdapter(CodingAgentCliAdapter):
         if profile.auto_approve:
             arguments.append("--auto")
         return (*arguments, "--", request.message)
+
+
+register(OpenCodeCliAdapter)

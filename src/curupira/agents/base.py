@@ -8,7 +8,8 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
 from curupira.clients.process import AsyncProcessRunner
 from curupira.errors import UnsupportedCodingAgentError
-from curupira.models import CodingTaskRequest, CommandRequest, ProcessResult
+from curupira.models import CliProfileBase, CodingTaskRequest, CommandRequest, ProcessResult
+from curupira.tasks.base import PLUGIN_API_VERSION
 
 SessionStartedCallback = Callable[[str], Awaitable[None]]
 RESUME_SESSION_PROMPT = (
@@ -47,10 +48,23 @@ def parse_event(line: str) -> CliEvent | None:
 
 
 class CodingAgentCliAdapter(ABC):
-    """Invoke a native CLI; agent definitions are owned by that external tool."""
+    """Invoke a native CLI; agent definitions are owned by that external tool.
+
+    Attributes:
+        executable: Native CLI executable started for each task.
+        provider: Value of ``provider`` in the TOML profile that selects this adapter.
+        profile_model: Pydantic model validating this provider's profile table.
+        display_name: Human-readable provider name shown in the dashboard.
+        install_url: Where users install or learn about the native CLI.
+        api_version: Plugin API version the implementation was written against.
+    """
 
     executable: ClassVar[str]
     provider: ClassVar[str]
+    profile_model: ClassVar[type[CliProfileBase]]
+    display_name: ClassVar[str]
+    install_url: ClassVar[str]
+    api_version: ClassVar[int] = PLUGIN_API_VERSION
 
     def __init__(self, runner: AsyncProcessRunner | None = None) -> None:
         self._runner = runner or AsyncProcessRunner()

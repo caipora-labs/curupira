@@ -1,8 +1,5 @@
 """Entry-point discovery, configuration, persistence, and execution of trigger plugins."""
 
-from collections.abc import Callable
-from dataclasses import dataclass
-from importlib.metadata import EntryPoint
 from pathlib import Path
 
 import pytest
@@ -18,48 +15,10 @@ from curupira.executor import TaskExecutor, render_task_prompt
 from curupira.models import RunningCodingSession, Task, TaskIdentity
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
 from tests.fakes import FakeGitHub, FakeVersionControl, RecordingAdapter
+from tests.plugins.entry_points import FakeEntryPoint, Install
 from tests.plugins.ticket_plugin import TicketAutomationConfiguration, TicketTrigger
 
 MODULE = "tests.plugins.ticket_plugin"
-
-
-@dataclass(frozen=True)
-class FakeDistribution:
-    name: str
-    version: str
-
-
-@dataclass(frozen=True)
-class FakeEntryPoint:
-    """Mimic an installed distribution's entry point without packaging metadata."""
-
-    name: str
-    value: str
-    dist: FakeDistribution | None = FakeDistribution("curupira-ticket", "1.2.3")
-    group: str = plugins.ENTRY_POINT_GROUP
-
-    def load(self) -> object:
-        return EntryPoint(self.name, self.value, self.group).load()
-
-
-Install = Callable[..., None]
-
-
-@pytest.fixture
-def install(monkeypatch: pytest.MonkeyPatch) -> Install:
-    registry.registered()
-    monkeypatch.setattr(registry, "_TRIGGERS", dict(registry._TRIGGERS))
-    monkeypatch.setattr(registry, "_ALIASES", dict(registry._ALIASES))
-    monkeypatch.setattr(plugins, "_loaded", None)
-
-    def install_entry_points(*installed: FakeEntryPoint) -> None:
-        def entry_points(group: str) -> list[FakeEntryPoint]:
-            return [entry for entry in installed if entry.group == group]
-
-        monkeypatch.setattr(plugins, "entry_points", entry_points)
-
-    install_entry_points()
-    return install_entry_points
 
 
 @pytest.fixture

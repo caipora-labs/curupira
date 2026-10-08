@@ -9,7 +9,9 @@ from pydantic import ValidationError
 from curupira.config import ApplicationSettings, load_settings
 from curupira.models import (
     AzurePullRequestAutomationConfiguration,
+    CodexCliProfile,
     CronAutomationConfiguration,
+    CursorCliProfile,
     IssueAutomationConfiguration,
     PullRequestAutomationConfiguration,
 )
@@ -145,7 +147,7 @@ def test_codex_agent_selects_a_named_cli_profile() -> None:
 
     profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
 
-    assert profile.provider == "codex"
+    assert isinstance(profile, CodexCliProfile)
     assert profile.agent == "work"
 
 
@@ -156,7 +158,7 @@ def test_cursor_agent_selects_a_native_mode(mode: str) -> None:
 
     profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
 
-    assert profile.provider == "cursor"
+    assert isinstance(profile, CursorCliProfile)
     assert profile.agent == mode
 
 
@@ -175,7 +177,7 @@ def test_trello_provider_is_rejected() -> None:
     data = configuration().model_dump()
     data["coding_agents"]["profiles"]["opencode"] = {"provider": "trello"}
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="unknown coding agent provider: trello"):
         ApplicationSettings.model_validate(data)
 
 

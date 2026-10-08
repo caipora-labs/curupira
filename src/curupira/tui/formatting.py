@@ -4,21 +4,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from curupira.agents.registry import registered
 from curupira.models import Task
-
-_PROVIDER_LABELS = {
-    "cursor": "Cursor",
-    "codex": "Codex",
-    "opencode": "OpenCode",
-    "claude": "Claude Code",
-}
 
 _ACTIVITY_ALERT_RATIO = 0.8
 
 
 def provider_label(provider: str) -> str:
     """Map a coding-agent provider id to its display name."""
-    return _PROVIDER_LABELS.get(provider, provider)
+    adapter = registered().get(provider)
+    return adapter.display_name if adapter is not None else provider
 
 
 def format_elapsed(started_at: datetime, *, now: datetime | None = None) -> str:
