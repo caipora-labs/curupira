@@ -14,22 +14,11 @@ uv sync --dev
 
 `uv sync` installs the Python package and the `curupira` and `curu` console scripts.
 
-A fresh contributor verifies everything with the commands below. They must all pass
-before opening a pull request; CI runs the same steps.
-
-## Verification commands
-
-Install the documentation tools with `uv sync --group docs`, then preview the site with
-`uv run mkdocs serve`.
-
-```bash
-uv run --no-sync pytest
-uv run --no-sync ruff check .
-uv run --no-sync ruff format --check .
-uv run --no-sync pyrefly check
-uv build
-uv run --no-sync twine check dist/*
-```
+[AGENTS.md](AGENTS.md) is the single source for the verification commands, repository
+map, code style, testing rules, and security boundaries. It is written for coding agents
+and humans alike; every command listed there must pass before opening a pull request, and
+CI runs the same steps. Install the documentation tools with `uv sync --group docs`, then
+preview the site with `uv run mkdocs serve`.
 
 ## Packaging
 
@@ -40,35 +29,12 @@ CLIs, and Azure CLI) are invoked through `AsyncProcessRunner` using
 `asyncio.create_subprocess_exec` with bounded capture, timeouts, and process-group
 cleanup on POSIX.
 
-When collecting coverage, it must stay at or above 85% branch coverage
-(`fail_under = 85` in `pyproject.toml`). The example configuration is covered by tests:
-changes to `curupira.example.toml` must keep `test_example_configuration_is_valid` green.
+## Extending Curupira
 
-## Architecture boundaries
-
-Curupira separates task discovery, repository version control, and coding-agent CLI
-invocation into three layers. Each layer owns a contract in its `base.py`:
-
-- `src/curupira/tasks/` discovers work. `tasks/base.py` defines `TaskFeed` (polling
-  and streaming discovered tasks), `TaskSource` (discovering tasks for an automation),
-  `Trigger` (trigger-specific prompt data and feed construction), and
-  `FeedDependencies`. `tasks/feed.py` provides the reusable `PollingTaskFeed`, while
-  `tasks/registry.py` registers trigger types (and optional aliases). Current
-  sources/triggers are implemented in `tasks/cron.py`, `tasks/github_issues.py`,
-  `tasks/github_pull_requests.py`, and `tasks/azure_pull_requests.py`.
-- `src/curupira/vcs/` prepares repositories. `vcs/base.py` defines `VersionControl`;
-  providers implement its `clone(repo, destination)` operation, while shared checkout,
-  worktree, and setup behavior stays in the base class. `vcs/github_cli.py` implements
-  cloning through the GitHub CLI.
-- `src/curupira/agents/` invokes coding-agent CLIs. `agents/base.py` defines
-  `CodingAgentCliAdapter`; an adapter implements `build_arguments(request)` to map a
-  validated task request to that CLI's native arguments. The factory
-  `create_cli_adapter` in `agents/__init__.py` constructs supported adapters:
-  `opencode.py`, `codex.py`, `claude.py`, and `cursor.py`.
-
-`src/curupira/storage/` is local SQLite persistence, not a version-control provider.
-Curupira does not manage authentication: provider CLIs and the user's environment provide
-their own authentication.
+Curupira separates task discovery (`tasks/`), repository version control (`vcs/`), and
+coding-agent CLI invocation (`agents/`) into layers whose contracts live in each
+`base.py`; see the repository map in [AGENTS.md](AGENTS.md). Curupira does not manage
+authentication: provider CLIs and the user's environment provide their own.
 
 To add a task source, implement `TaskSource`, provide a `Trigger`, and register its
 `trigger_type` in `tasks/registry.py`; use a dedicated issue/PR after the task layer's
@@ -81,9 +47,6 @@ uses the GitHub CLI version-control adapter unless `path` points at an existing
 checkout. Trello and Monday remain examples of services where a future task source
 could belong. Configuration accepts only the trigger types and agent profiles defined
 by the current registry and models.
-
-Cover new behavior with fakes in `tests/` — never start authenticated agents or hit the
-network in tests.
 
 When adding a provider or CLI, update `docs/data/requirements.toml` and the corresponding
 adapter in `src/curupira/agents/`; the English installation requirements are rendered from
@@ -193,10 +156,3 @@ that same publisher. `testpypi.yml` remains a separate workflow with environment
 workflow checks that the Ubuntu CI checks (lint, type check, Python test matrix,
 and distribution smoke tests) succeeded for the commit
 (`scripts/require_ci_checks.py`).
-
-## Style
-
-Ruff (lint + format) and strict Pyrefly govern style: typed signatures everywhere,
-`@override` on overrides, docstrings on public modules/classes/methods, no blanket
-suppressions. Test helpers may use `**overrides: Any`; keep other `Any` usage narrow
-and justified.
