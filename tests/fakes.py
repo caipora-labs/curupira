@@ -1,13 +1,16 @@
 """Controlled native-process and checkout boundaries for behavioral tests."""
 
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter, SessionStartedCallback
 from curupira.clients.gh import GhClient
+from curupira.clients.process import AsyncProcessRunner
 from curupira.models import (
     CodingTaskRequest,
+    CommandRequest,
     GhIssue,
     GhIssueSearchRequest,
     GhPullRequest,
@@ -135,3 +138,38 @@ class RecordingAdapter(CodingAgentCliAdapter):
         if on_session_started is not None:
             await on_session_started(request.session_id or "native-session")
         return ProcessResult(returncode=self.returncode, stdout="Completed")
+
+
+class CallbackRunner(AsyncProcessRunner):
+    """Await a callback in place of starting a process, then exit successfully."""
+
+    def __init__(self, on_run: Callable[[], Awaitable[None]]) -> None:
+        super().__init__()
+        self.on_run = on_run
+
+    @override
+    async def run(
+        self,
+        request: CommandRequest,
+        *,
+        on_stdout_line: Callable[[str], Awaitable[None]] | None = None,
+    ) -> ProcessResult:
+        await self.on_run()
+        return ProcessResult(returncode=0)
+
+
+class AssigningAdapter(CodingAgentCliAdapter):
+    """Use the shared run lifecycle with Curupira-assigned session identifiers."""
+
+    executable = "fake"
+    provider = "opencode"
+    assigns_session_id = True
+
+    def __init__(self, runner: AsyncProcessRunner) -> None:
+        super().__init__(runner)
+        self.requests: list[CodingTaskRequest] = []
+
+    @override
+    def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
+        self.requests.append(request)
+        return (request.message,)
