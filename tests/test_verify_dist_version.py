@@ -106,6 +106,37 @@ def test_mismatched_wheel_and_sdist_fail(tmp_path: Path) -> None:
         verifier.verify_distribution_version(tmp_path, "v0.1.0.dev0", require_dev=True)
 
 
+def test_wheels_only_artifact_is_allowed(tmp_path: Path) -> None:
+    verifier = _load_verifier()
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    _write_wheel(tmp_path, "0.1.0")
+
+    assert verifier.verify_distribution_version(tmp_path, require_sdist=False) == "0.1.0"
+    with pytest.raises(SystemExit, match="sdist"):
+        verifier.verify_distribution_version(tmp_path, require_sdist=True)
+
+
+def test_cli_allow_wheels_only(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    verifier = _load_verifier()
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    _write_wheel(tmp_path, "0.1.0")
+
+    verifier.main(["--dist", str(tmp_path), "--allow-wheels-only"])
+
+    assert capsys.readouterr().out == "0.1.0\n"
+
+
+def test_multiple_matching_wheels_share_one_version(tmp_path: Path) -> None:
+    verifier = _load_verifier()
+    _write_pair(tmp_path, "0.1.0")
+    metadata = "Metadata-Version: 2.1\nName: curupira\nVersion: 0.1.0\n"
+    second = tmp_path / "curupira-0.1.0-cp311-abi3-win_amd64.whl"
+    with zipfile.ZipFile(second, "w") as archive:
+        archive.writestr("curupira-0.1.0.dist-info/METADATA", metadata)
+
+    assert verifier.verify_distribution_version(tmp_path, "v0.1.0") == "0.1.0"
+
+
 def test_declared_version_is_canonical_release_or_dev() -> None:
     from curupira import __version__
 

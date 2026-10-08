@@ -53,7 +53,9 @@ impl NativeProcess {
 
     /// Kill the process group (or the child on non-POSIX systems).
     fn kill(&self) -> PyResult<()> {
-        let child = self
+        // Windows Child::kill needs &mut self; Unix only reads the pid.
+        #[allow(unused_mut)]
+        let mut child = self
             .child
             .lock()
             .map_err(|_| PyRuntimeError::new_err("process lock poisoned"))?;

@@ -39,32 +39,36 @@ jobs:
       - run: uv sync --frozen --dev
       - run: uv run --no-sync pyrefly check
 
-  test-linux:
-    name: Tests (Linux, Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+  test:
+    name: Tests (${{ matrix.label }}, Python ${{ matrix.python-version }})
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
-    steps:
-      # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      # astral-sh/setup-uv v10.2.0
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
-        with:
-          python-version: ${{ matrix.python-version }}
-          enable-cache: true
-      - run: uv sync --frozen --dev
-      - run: uv run --no-sync pytest
-      - run: uv run --no-sync curupira --config curupira.example.toml validate
-
-  test-portable:
-    name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest]
-        python-version: ["3.13"]
+        include:
+          - os: ubuntu-latest
+            label: Linux x86_64
+            python-version: "3.11"
+          - os: ubuntu-latest
+            label: Linux x86_64
+            python-version: "3.12"
+          - os: ubuntu-latest
+            label: Linux x86_64
+            python-version: "3.13"
+          - os: ubuntu-latest
+            label: Linux x86_64
+            python-version: "3.14"
+          - os: ubuntu-24.04-arm
+            label: Linux aarch64
+            python-version: "3.13"
+          - os: macos-latest
+            label: macOS arm64
+            python-version: "3.13"
+          - os: macos-15-intel
+            label: macOS x86_64
+            python-version: "3.13"
+          - os: windows-latest
+            label: Windows amd64
+            python-version: "3.13"
     runs-on: ${{ matrix.os }}
     steps:
       # actions/checkout v7.0.1
@@ -93,8 +97,27 @@ jobs:
       - run: uv run --no-sync pip-audit
 
   package:
-    name: Build and smoke-test distributions
-    runs-on: ubuntu-latest
+    name: Build and install (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: Linux x86_64
+            build_sdist: true
+          - os: ubuntu-24.04-arm
+            label: Linux aarch64
+            build_sdist: false
+          - os: macos-latest
+            label: macOS arm64
+            build_sdist: false
+          - os: macos-15-intel
+            label: macOS x86_64
+            build_sdist: false
+          - os: windows-latest
+            label: Windows amd64
+            build_sdist: false
+    runs-on: ${{ matrix.os }}
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -108,26 +131,32 @@ jobs:
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
         with:
           toolchain: stable
-      - run: uv build
+      - name: Build distributions
+        shell: bash
+        run: |
+          if [ "${{ matrix.build_sdist }}" = "true" ]; then
+            uv build
+          else
+            uv build --wheel
+          fi
       - run: uv run --no-sync twine check dist/*
       - name: Smoke-test the installed wheel outside the repository
+        shell: bash
         run: |
-          python -m venv /tmp/smoke
-          /tmp/smoke/bin/pip install dist/*.whl
-          cd /tmp
-          /tmp/smoke/bin/python -c "import curupira; print(curupira.__version__)"
-          /tmp/smoke/bin/python - <<'PY'
-          from curupira._native import rust_core_version
-          from curupira.native import rust_core_version as wrapped
+          uv run --no-sync python scripts/smoke_install.py \
+            --dist dist \
+            --config curupira.example.toml
 
-          version = rust_core_version()
-          if not isinstance(version, str) or not version.strip():
-              raise SystemExit(f"empty native version: {version!r}")
-          if wrapped() != version:
-              raise SystemExit("curupira.native.rust_core_version did not return the crate version")
-          print(version)
-          PY
-          /tmp/smoke/bin/curupira --help | grep -q 'usage: curupira'
-          /tmp/smoke/bin/curupira --version | grep -q '^curupira '
-          /tmp/smoke/bin/curu --help | grep -q 'usage: curu'
-          /tmp/smoke/bin/curu --version | grep -q '^curu '
+  package-gate:
+    name: Build and smoke-test distributions
+    needs: package
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require package matrix success
+        shell: bash
+        run: |
+          if [ "${{ needs.package.result }}" != "success" ]; then
+            echo "Package matrix result: ${{ needs.package.result }}" >&2
+            exit 1
+          fi

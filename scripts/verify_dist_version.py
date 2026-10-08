@@ -17,13 +17,14 @@ def verify_distribution_version(
     tag: str | None = None,
     *,
     require_dev: bool = False,
+    require_sdist: bool = True,
 ) -> str:
     """Return the shared dist version, optionally matching a Git tag.
 
     A development rehearsal tag must be the canonical ``vX.Y.Z.devN`` form. The
     package version is that tag without the leading ``v``.
     """
-    versions = _distribution_versions(dist)
+    versions = _distribution_versions(dist, require_sdist=require_sdist)
     if len(set(versions)) != 1:
         message = f"Distributions do not share one version: {versions}"
         raise SystemExit(message)
@@ -44,15 +45,17 @@ def verify_distribution_version(
     return version
 
 
-def _distribution_versions(dist: Path) -> list[str]:
+def _distribution_versions(dist: Path, *, require_sdist: bool = True) -> list[str]:
     wheels = sorted(dist.glob("*.whl"))
     sources = sorted(dist.glob("*.tar.gz"))
     if not wheels:
         message = f"Expected at least one wheel in {dist}"
         raise SystemExit(message)
     if not sources:
-        message = f"Expected at least one sdist in {dist}"
-        raise SystemExit(message)
+        if require_sdist:
+            message = f"Expected at least one sdist in {dist}"
+            raise SystemExit(message)
+        return [_wheel_version(wheel) for wheel in wheels]
     wheel_versions = [_wheel_version(wheel) for wheel in wheels]
     source_versions = [_sdist_version(source) for source in sources]
     return wheel_versions + source_versions
@@ -105,9 +108,21 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Require tag vX.Y.Z.devN and an equal distribution version",
     )
+    parser.add_argument(
+        "--allow-wheels-only",
+        action="store_true",
+        help="Allow a platform artifact directory that contains wheels but no sdist",
+    )
     args = parser.parse_args(argv)
     tag = args.tag or None
-    print(verify_distribution_version(args.dist, tag, require_dev=args.require_dev))
+    print(
+        verify_distribution_version(
+            args.dist,
+            tag,
+            require_dev=args.require_dev,
+            require_sdist=not args.allow_wheels_only,
+        )
+    )
 
 
 if __name__ == "__main__":

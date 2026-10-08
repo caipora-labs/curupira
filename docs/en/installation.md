@@ -10,12 +10,19 @@
 
 Install the published package from PyPI. The source repository is
 [caipora-labs/curupira](https://github.com/caipora-labs/curupira).
+The release pipeline publishes abi3 wheels for Linux (x86_64 and aarch64), macOS
+(arm64 and x86_64), and Windows (amd64) so installation does not need a local Rust
+toolchain.
 
 ```bash
 uv tool install "curupira==0.1.0"
 ```
 
-Confirm the command is available with `curupira --version`. The short alias `curu --version` runs the same program.
+Confirm the command is available with `curupira --version`. The short alias `curu --version` runs the same program. Validate a configuration without calling agent CLIs:
+
+```bash
+curupira --config curupira.example.toml validate
+```
 
 ## Create a configuration
 
