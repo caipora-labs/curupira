@@ -45,7 +45,7 @@ class TuiLogHandler(logging.Handler):
             style = _LEVEL_STYLES.get(record.levelno, "white")
             message = self.format(record)
             self._write(f"[{stamp}] [{style}][{level}][/] {message}")
-        except Exception:
+        except Exception:  # noqa: BLE001  (logging.Handler.emit contract)
             self.handleError(record)
 
 

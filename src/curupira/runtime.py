@@ -88,19 +88,19 @@ class DispatchInstanceLock:
 
     @staticmethod
     def _acquire_unix(lock_file: BinaryIO) -> None:
-        import fcntl
+        import fcntl  # noqa: PLC0415  (POSIX-only module)
 
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     @staticmethod
     def _release_unix(lock_file: BinaryIO) -> None:
-        import fcntl
+        import fcntl  # noqa: PLC0415  (POSIX-only module)
 
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     @staticmethod
     def _acquire_windows(lock_file: BinaryIO) -> None:
-        import msvcrt
+        import msvcrt  # noqa: PLC0415  (Windows-only module)
 
         lock_file.seek(0, os.SEEK_END)
         if lock_file.tell() == 0:
@@ -111,7 +111,7 @@ class DispatchInstanceLock:
 
     @staticmethod
     def _release_windows(lock_file: BinaryIO) -> None:
-        import msvcrt
+        import msvcrt  # noqa: PLC0415  (Windows-only module)
 
         lock_file.seek(0)
         msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)

@@ -77,7 +77,7 @@ async def merge_task_streams(
                 await queue.put(task)
         except asyncio.CancelledError:
             raise
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001  (re-raised by the consumer)
             await queue.put(error)
         else:
             await queue.put(None)

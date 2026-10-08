@@ -16,7 +16,7 @@ class CodexCliAdapter(CodingAgentCliAdapter):
         """Build the native initial or resumed exec command with optional profile options."""
         profile = request.profile
         if not isinstance(profile, CodexCliProfile):
-            raise ValueError("Codex requires a Codex profile")
+            raise TypeError("Codex requires a Codex profile")
         arguments = ["exec"]
         if request.session_id is not None:
             arguments.extend(("resume", request.session_id))

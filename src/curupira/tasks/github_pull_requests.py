@@ -32,7 +32,7 @@ class GitHubPullRequestSource(TaskSource):
         """Search pull requests using the automation's query and result limit."""
         config = automation.configuration
         if not isinstance(config, PullRequestAutomationConfiguration):
-            raise ValueError("GitHub pull-request source requires a pull-request configuration")
+            raise TypeError("GitHub pull-request source requires a pull-request configuration")
         items = await self._gh.list_pull_requests(
             GhPullRequestSearchRequest(
                 repo=config.repo, query=config.query, limit=limit, jq=config.jq

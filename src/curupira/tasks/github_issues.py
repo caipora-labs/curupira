@@ -26,7 +26,7 @@ class GitHubIssueSource(TaskSource):
         """Search issues using the automation's existing query and result limit."""
         config = automation.configuration
         if not isinstance(config, IssueAutomationConfiguration):
-            raise ValueError("GitHub issue source requires an issue configuration")
+            raise TypeError("GitHub issue source requires an issue configuration")
         issues = await self._gh.list_issues(
             GhIssueSearchRequest(repo=config.repo, query=config.query, limit=limit)
         )

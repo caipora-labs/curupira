@@ -87,7 +87,7 @@ class TaskExecutor:
             logger.exception(
                 "Failed task repo=%s type=%s id=%s result=failure error=%s",
                 *context,
-                str(error) or type(error).__name__,
+                str(error) or type(error).__name__,  # noqa: TRY401  (structured result field)
             )
             raise
 

@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from croniter import croniter
+from typing_extensions import override
 
 from curupira.models import (
     CronAutomationConfiguration,
@@ -48,7 +49,7 @@ class CronTaskFeed(TaskFeed):
         """Preview without writes, or atomically claim an available occurrence."""
         config = self.automation.configuration
         if not isinstance(config, CronAutomationConfiguration):
-            raise ValueError("cron feed requires a cron configuration")
+            raise TypeError("cron feed requires a cron configuration")
         now = self._now().astimezone(UTC)
         name = self.automation.automation_id
         if preview:
@@ -125,10 +126,12 @@ class CronTrigger(Trigger):
 
     trigger_type = "cron"
 
+    @override
     def prompt_context(self, task: Task) -> dict[str, str]:
         """Cron provides no trigger-specific prompt context."""
         return {}
 
+    @override
     def build_feed(
         self, automation: ResolvedAutomation, dependencies: FeedDependencies
     ) -> TaskFeed:
