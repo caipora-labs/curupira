@@ -167,7 +167,7 @@ max-complexity = 12
 "scripts/*.py" = ["T201"]
 
 [tool.pyrefly]
-project-includes = ["src", "tests", "scripts"]
+project-includes = ["src", "tests", "scripts", "docs/macros.py"]
 search-path = ["src", "."]
 python-version = "3.11"
 python-platform = ["linux", "darwin", "win32"]
