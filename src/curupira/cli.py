@@ -87,6 +87,8 @@ app = typer.Typer(
     help="Dispatch GitHub and cron automations to native coding-agent CLIs.",
     no_args_is_help=True,
     add_completion=False,
+    # Keep classic Click help so scripts and tests can match plain "Usage:" text.
+    rich_markup_mode=None,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 
