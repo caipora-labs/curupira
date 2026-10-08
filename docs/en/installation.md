@@ -14,8 +14,10 @@ The package is pure Python (`py3-none-any`), so installation needs no compiler
 toolchain on any supported platform.
 
 ```bash
-uv tool install "curupira==0.2.0"
+uv tool install curupira
 ```
+
+To pin a specific version, use `uv tool install "curupira==X.Y.Z"`.
 
 Confirm the command is available with `curupira --version`. The short alias `curu --version` runs the same program. Validate a configuration without calling agent CLIs:
 

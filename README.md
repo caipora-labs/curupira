@@ -22,8 +22,10 @@ while `watch` polls every automation continuously.
 Install the published package from PyPI:
 
 ```bash
-uv tool install "curupira==0.2.0"
+uv tool install curupira
 ```
+
+To pin a specific version, use `uv tool install "curupira==X.Y.Z"`.
 
 The project is [caipora-labs/curupira](https://github.com/caipora-labs/curupira).
 `curupira --version` and the short alias `curu --version` report the installed version.
@@ -146,26 +148,9 @@ two automations may process the same issue with different prompts.
 Polls that use the `project:` search qualifier keep the `open` state and filter board
 items to the `Todo` status automatically.
 
-### Trello listener
-
-The Trello listener is named `trello-cli` and uses the Scale-Flow CLI at
-<https://github.com/Scale-Flow/trello-cli>. If `trello` is not already installed,
-install it from that repository's [GitHub Releases](https://github.com/Scale-Flow/trello-cli/releases)
-or with Homebrew:
-
-```bash
-brew tap Scale-Flow/tap
-brew install trello-cli
-```
-
-Authenticate with the CLI Connector Power-Up on the Trello board:
-
-```bash
-trello auth login
-```
-
-Follow the pairing instructions printed by the CLI. This is the Scale-Flow CLI; do not
-install the unrelated npm packages also named `trello-cli`.
+Other task sources, such as Trello, can be added as trigger plugins registered under
+the `curupira.triggers` entry-point group; see the
+[plugins guide](https://github.com/caipora-labs/curupira/blob/main/docs/en/plugins.md).
 
 `max_active_tasks` bounds concurrently running coding agents (default 1). By default,
 each task runs in a new worktree beside its base checkout, so tasks for the same repository

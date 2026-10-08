@@ -16,6 +16,16 @@ All notable changes to this project are documented here. The format follows
 - `curu plugins list` appends one `agent:<provider>` line per coding-agent provider with
   its distribution and executable; trigger lines are unchanged.
 
+### Changed
+
+- Install instructions in the README and documentation use `uv tool install curupira`
+  without a version pin, with a note on pinning `curupira==X.Y.Z` when needed.
+
+### Documentation
+
+- Removed the README "Trello listener" section, which described a `trello-cli` trigger
+  that Curupira does not ship; the README now points to trigger plugins instead.
+
 ## [0.2.0] - 2026-10-08
 
 ### Added
