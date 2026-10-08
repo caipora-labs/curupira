@@ -248,17 +248,25 @@ Poll all automations with the shared bounded scheduler until interrupted:
 curupira watch
 ```
 
-The short alias `curu` accepts the same subcommands (`curu validate`, `curu run`, `curu watch`).
+Run the same continuous scheduler inside an interactive Textual dashboard:
+
+```bash
+curupira tui
+```
+
+The short alias `curu` accepts the same subcommands (`curu validate`, `curu run`,
+`curu watch`, `curu tui`).
 
 `validate` exits `0` when the configuration is valid and `2` on configuration errors.
 `run` exits with the agent process status, `0` when no task is available, and `1` on
-dispatch errors. `watch` exits `1` when any executed task failed, otherwise `0`.
+dispatch errors. `watch` and `tui` exit `1` when any executed task failed, otherwise `0`.
 `run --dry-run` never reserves or persists cron occurrences and does not perform checkout,
 worktree, or setup operations.
 
 `watch` runs every CLI non-interactively so concurrent workers never contend for the
-terminal UI. Transient `gh` failures are retried with backoff; authentication,
-configuration, output-format, and agent-task failures are not retried automatically.
+terminal UI. `tui` is the interactive alternative. Transient `gh` failures are retried with
+backoff; authentication, configuration, output-format, and agent-task failures are not
+retried automatically.
 
 ## Public interface
 

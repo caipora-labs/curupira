@@ -8,6 +8,7 @@ curupira run
 curupira run --dry-run
 curupira watch
 curupira batch [--size N]
+curupira tui
 ```
 
 - `validate` checks TOML and references without running an automation, calling external CLIs, or writing state. It exits `0` for valid configuration and `2` for configuration errors.
@@ -15,6 +16,7 @@ curupira batch [--size N]
 - `run --dry-run` previews selection without reserving or persisting cron occurrences, checking out a repository, or executing.
 - `watch` polls all automations continuously until interrupted. It exits `1` if an executed task failed, otherwise `0`.
 - `batch` drains currently available tasks; `--size N` limits the number.
+- `tui` runs the same continuous scheduler as `watch` inside an interactive Textual dashboard (metrics, active agents, and logs). Shortcuts: `F1` help, `F2` pause/resume admissions, `F3` config summary, `F5` refresh metrics, `Ctrl+C` quit.
 
 Select another TOML by placing the option before the command:
 

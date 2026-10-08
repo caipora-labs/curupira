@@ -134,7 +134,8 @@ def _assert_cli(executable: Path, program: str, expected_version: str | None) ->
         text=True,
         env=_cli_env(),
     ).stdout
-    if f"usage: {program}" not in help_text:
+    # Argparse used "usage:"; Typer/Click use "Usage:".
+    if f"usage: {program}" not in help_text.lower():
         message = f"{program} --help missing usage line"
         raise SystemExit(message)
 

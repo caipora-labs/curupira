@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Interactive orchestrator dashboard via `curu tui` (Textual): system metrics,
+  running agents with elapsed timers, and live orchestrator logs.
 - Azure DevOps pull-request discovery through the Azure CLI under the explicit
   trigger `azure-cli-pull-requests` (`az repos pr list`). Configure
   `repo` as `organization/project/repository`, with optional `status`,
@@ -25,6 +27,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- CLI parsing now uses Typer instead of argparse. Command names and flags are
+  unchanged (`validate`, `run`, `watch`, `batch`, plus `tui`).
 - Packaging is a pure-Python `py3-none-any` wheel plus sdist. CI and publish
   workflows build distributions once and reuse that artifact for multi-platform
   install smoke tests.
