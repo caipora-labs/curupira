@@ -22,6 +22,7 @@ plugins:
             - Configuração: configuration.md
             - Operação: operations.md
             - Providers e agentes: providers.md
+            - Plugins: plugins.md
         - locale: es
           name: Español
           nav:
@@ -30,6 +31,7 @@ plugins:
             - Configuración: configuration.md
             - Operaciones: operations.md
             - Proveedores y agentes: providers.md
+            - Plugins: plugins.md
   - macros:
       module_name: main
   - mkdocstrings:
@@ -78,3 +80,4 @@ nav:
   - Configuration: configuration.md
   - Operations: operations.md
   - Providers and agents: providers.md
+  - Plugins: plugins.md
