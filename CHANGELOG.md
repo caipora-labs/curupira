@@ -12,26 +12,29 @@ All notable changes to this project are documented here. The format follows
   `repo` as `organization/project/repository`, with optional `status`,
   `source_branch`, and `target_branch` filters.
 
+### Removed
+
+- The Rust `crates/curupira-core` / `curupira._native` PyO3 extension, maturin
+  build hook, and compiler toolchain requirement for wheels. Process supervision
+  now uses only Python `asyncio` subprocess APIs.
+
 ### Fixed
 
-- PyPI and TestPyPI publishing now build abi3 wheels on Linux (x86_64 and aarch64),
-  macOS (arm64 and x86_64), and Windows (amd64) before upload. The previous Linux-only
-  wheel left Windows and macOS installs falling back to an sdist that requires a local
-  Rust toolchain.
-- Release workflows install each platform wheel and run
-  `curupira --config curupira.example.toml validate` before publishing.
-- Make `NativeProcess.kill` borrow the child mutably so the Windows wheel compiles
-  (`Child::kill` requires `&mut self`).
+- Release and TestPyPI workflows install the published wheel and run
+  `curupira --config curupira.example.toml validate` before uploading.
 
 ### Changed
 
+- Packaging is a pure-Python `py3-none-any` wheel plus sdist. CI and publish
+  workflows build distributions once and reuse that artifact for multi-platform
+  install smoke tests.
 - Pull-request automations use only the explicit trigger
   `github-cli-pull-requests`. The short `pull_request` alias is no longer accepted,
   and discovered task identities use the same explicit type.
 - Use Curupira as the sole product name across documentation and branding. Remove
   the legacy source-checkout module shim that reused the previous package name.
-- CI runs the test suite and wheel install smoke tests across the same multi-platform,
-  multi-architecture matrix that publishing uses.
+- CI runs the test suite and wheel install smoke tests across Linux, macOS, and
+  Windows.
 
 ## [0.1.0] - 2026-10-07
 

@@ -1,4 +1,4 @@
-"""Install a platform wheel from dist/ and smoke-test the CLI and native module."""
+"""Install a wheel from dist/ and smoke-test the CLI entry points."""
 
 from __future__ import annotations
 
@@ -107,19 +107,11 @@ def _assert_import(python: Path, expected_version: str | None) -> None:
     script = """
 import os
 import curupira
-from curupira._native import rust_core_version
-from curupira.native import rust_core_version as wrapped
 
 expected = os.environ.get("CURUPIRA_EXPECTED_VERSION", "")
 if expected and curupira.__version__ != expected:
     raise SystemExit(f"installed version {curupira.__version__!r} != {expected!r}")
-version = rust_core_version()
-if not isinstance(version, str) or not version.strip():
-    raise SystemExit(f"empty native version: {version!r}")
-if wrapped() != version:
-    raise SystemExit("curupira.native.rust_core_version did not return the crate version")
 print(curupira.__version__)
-print(version)
 """
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
