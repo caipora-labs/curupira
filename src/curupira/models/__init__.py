@@ -35,6 +35,7 @@ from curupira.models.process import (
 from curupira.models.profiles import (
     ClaudeCodeCliProfile,
     CliProfile,
+    CliProfileBase,
     CodexCliProfile,
     CursorCliProfile,
     OpenCodeCliProfile,
@@ -58,6 +59,7 @@ __all__ = [
     "AzurePullRequestStatus",
     "ClaudeCodeCliProfile",
     "CliProfile",
+    "CliProfileBase",
     "CodexCliProfile",
     "CodingAgentDefaults",
     "CodingAgentsSettings",

@@ -1,6 +1,7 @@
 """Native Cursor CLI argument translation."""
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.registry import register
 from curupira.models import CodingTaskRequest, CursorCliProfile
 
 
@@ -9,6 +10,9 @@ class CursorCliAdapter(CodingAgentCliAdapter):
 
     executable = "agent"
     provider = "cursor"
+    profile_model = CursorCliProfile
+    display_name = "Cursor"
+    install_url = "https://docs.cursor.com/en/cli/overview"
 
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
         """Build a headless invocation with native mode and permission overrides."""
@@ -27,3 +31,6 @@ class CursorCliAdapter(CodingAgentCliAdapter):
         if profile.trust:
             arguments.append("--trust")
         return (*arguments, "--", request.message)
+
+
+register(CursorCliAdapter)

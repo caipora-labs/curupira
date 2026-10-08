@@ -182,16 +182,16 @@ def tui_command(ctx: typer.Context) -> None:
 
 
 plugins_app = typer.Typer(
-    help="Inspect trigger plugins.", no_args_is_help=True, rich_markup_mode=None
+    help="Inspect trigger and coding-agent plugins.", no_args_is_help=True, rich_markup_mode=None
 )
 app.add_typer(plugins_app, name="plugins")
 
 
 @plugins_app.command("list")
 def plugins_list_command() -> None:
-    """List every registered trigger type and the distribution that provides it."""
+    """List every registered trigger type and agent provider and their distributions."""
     try:
-        lines = describe_triggers()
+        lines = [*describe_triggers(), *describe_agents()]
     except DispatchError as error:
         typer.echo(f"Plugin error: {error}", err=True)
         raise typer.Exit(1) from error
@@ -214,6 +214,23 @@ def describe_triggers() -> list[str]:
         fields = ", ".join(sorted(trigger.prompt_fields())) or "-"
         lines.append(f"{trigger_type}\t{origin}\tprompt fields: {fields}")
     return lines
+
+
+def describe_agents() -> list[str]:
+    """Describe built-in and plugin coding-agent providers with their executables."""
+    from curupira.agents.registry import registered
+    from curupira.plugins import loaded_agent_plugins
+
+    origins = {
+        plugin.provider: f"{plugin.distribution} {plugin.version}"
+        for plugin in loaded_agent_plugins()
+    }
+    return [
+        f"agent:{provider}\t"
+        f"{origins.get(provider, f'curupira {__version__} (built-in)')}\t"
+        f"executable: {adapter.executable}"
+        for provider, adapter in registered().items()
+    ]
 
 
 async def _batch_stream(feeds: Sequence[TaskFeed], size: int | None) -> AsyncIterator[Task]:

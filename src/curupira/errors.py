@@ -65,7 +65,7 @@ class PromptRenderError(DispatchError):
 
 
 class PluginLoadError(DispatchError):
-    """An installed trigger plugin could not be imported or does not meet the contract."""
+    """An installed trigger or agent plugin could not be imported or does not meet the contract."""
 
     def __init__(self, entry_point: str, distribution: str, detail: str) -> None:
         super().__init__(f"could not load plugin {entry_point!r} from {distribution}: {detail}")

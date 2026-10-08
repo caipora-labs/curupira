@@ -1,5 +1,8 @@
 """Coding-agent adapters and provider factory."""
 
+# Import concrete adapters so registry lookups work regardless of which application
+# entry point is used first.
+from curupira.agents import claude, codex, cursor, opencode  # noqa: F401
 from curupira.agents.base import (
     CliAdapterFactory as CliAdapterFactory,
 )
@@ -13,21 +16,12 @@ from curupira.errors import UnsupportedCodingAgentError
 def create_cli_adapter(
     provider: str, runner: AsyncProcessRunner | None = None
 ) -> CodingAgentCliAdapter:
-    """Construct the native adapter for a supported provider."""
-    from curupira.agents.claude import ClaudeCodeCliAdapter
-    from curupira.agents.codex import CodexCliAdapter
-    from curupira.agents.cursor import CursorCliAdapter
-    from curupira.agents.opencode import OpenCodeCliAdapter
+    """Construct the registered adapter for a provider."""
+    from curupira.agents.registry import get
 
-    adapters: dict[str, type[CodingAgentCliAdapter]] = {
-        "opencode": OpenCodeCliAdapter,
-        "codex": CodexCliAdapter,
-        "claude": ClaudeCodeCliAdapter,
-        "cursor": CursorCliAdapter,
-    }
     try:
-        adapter = adapters[provider]
-    except KeyError as error:
+        adapter = get(provider)
+    except ValueError as error:
         raise UnsupportedCodingAgentError(
             f"unsupported coding agent provider: {provider}"
         ) from error

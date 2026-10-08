@@ -1,6 +1,7 @@
 """Native Claude Code CLI argument translation."""
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.registry import register
 from curupira.models import ClaudeCodeCliProfile, CodingTaskRequest
 
 
@@ -9,6 +10,9 @@ class ClaudeCodeCliAdapter(CodingAgentCliAdapter):
 
     executable = "claude"
     provider = "claude"
+    profile_model = ClaudeCodeCliProfile
+    display_name = "Claude Code"
+    install_url = "https://code.claude.com/docs/en/cli-reference"
 
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
         """Build a print-mode invocation preserving native policies by default."""
@@ -28,3 +32,6 @@ class ClaudeCodeCliAdapter(CodingAgentCliAdapter):
             if value is not None:
                 arguments.extend((flag, value))
         return (*arguments, "--", request.message)
+
+
+register(ClaudeCodeCliAdapter)

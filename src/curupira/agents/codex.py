@@ -3,6 +3,7 @@
 import json
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.registry import register
 from curupira.models import CodexCliProfile, CodingTaskRequest
 
 
@@ -11,6 +12,9 @@ class CodexCliAdapter(CodingAgentCliAdapter):
 
     executable = "codex"
     provider = "codex"
+    profile_model = CodexCliProfile
+    display_name = "Codex"
+    install_url = "https://developers.openai.com/codex/cli/"
 
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
         """Build the native initial or resumed exec command with optional profile options."""
@@ -38,3 +42,6 @@ class CodexCliAdapter(CodingAgentCliAdapter):
                 )
             )
         return (*arguments, "--json", "--", request.message)
+
+
+register(CodexCliAdapter)
