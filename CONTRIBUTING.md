@@ -4,20 +4,18 @@
 
 ## Environment setup
 
-Requirements: Python 3.11+, [`uv`](https://docs.astral.sh/uv/), `gh` for live
-discovery (tests use fakes and need no authentication), and a stable [Rust](https://rustup.rs/)
-toolchain when building the native extension or a wheel.
+Requirements: Python 3.11+, [`uv`](https://docs.astral.sh/uv/), and `gh` for live
+discovery (tests use fakes and need no authentication). The package is pure Python;
+building a wheel needs no compiler toolchain.
 
 ```bash
 uv sync --dev
 ```
 
-`uv sync` installs the Python package and the `curupira` and `curu` console scripts. It does not
-compile Rust, so the CLI and the Python test suite run without a toolchain.
+`uv sync` installs the Python package and the `curupira` and `curu` console scripts.
 
 A fresh contributor verifies everything with the commands below. They must all pass
-before opening a pull request; CI runs the same steps. `uv build` compiles the native
-extension and therefore needs Rust on `PATH`.
+before opening a pull request; CI runs the same steps.
 
 ## Verification commands
 
@@ -33,41 +31,14 @@ uv build
 uv run --no-sync twine check dist/*
 ```
 
-## Native extension
+## Packaging
 
-The Rust crate is `crates/curupira-core`, matching the `curupira` distribution name.
-Hatchling stays the PEP 517 backend, keeps the version in `src/curupira/_version.py`,
-and keeps the `curupira` and `curu` script entry points. A wheel build hook runs maturin (PyO3)
-and packs the compiled module as `curupira._native`.
-Editable installs skip that compile.
-
-When the extension is unavailable (including an editable install that has not run
-`maturin develop`), `AsyncProcessRunner` explicitly keeps using its asyncio
-implementation with the same output and cleanup semantics. Built wheels use the
-native supervisor. To exercise the native runner locally, build the extension with
-the command below before running the process tests.
-
-Build the extension into the current environment:
-
-```bash
-uv sync --dev
-uv run maturin develop
-python -c "from curupira._native import rust_core_version; print(rust_core_version())"
-```
-
-`maturin develop` warns that the build backend is Hatchling. That warning is expected:
-Hatchling still packages the Python project and the `curupira` and `curu` scripts, and maturin only
-compiles the extension.
-
-`rust_core_version()` returns the `curupira-core` crate version. `curupira.native.rust_core_version`
-is a thin wrapper around that function. `tests/test_native.py` runs the same check when
-the extension is already built and skips otherwise.
-
-Build a wheel that includes the extension (this is what CI and `pip install` use):
-
-```bash
-uv build
-```
+Hatchling is the PEP 517 backend. It reads the version from `src/curupira/_version.py`
+and keeps the `curupira` and `curu` script entry points. `uv build` produces a
+pure-Python `py3-none-any` wheel and an sdist. CLI wrappers (`gh`, coding-agent
+CLIs, and Azure CLI) are invoked through `AsyncProcessRunner` using
+`asyncio.create_subprocess_exec` with bounded capture, timeouts, and process-group
+cleanup on POSIX.
 
 When collecting coverage, it must stay at or above 85% branch coverage
 (`fail_under = 85` in `pyproject.toml`). The example configuration is covered by tests:
@@ -185,14 +156,12 @@ git tag v0.1.0.dev1
 git push origin v0.1.0.dev1
 ```
 
-`publish.yml` builds Rust-enabled abi3 wheels on Linux (x86_64, aarch64), macOS
-(arm64, x86_64), and Windows (amd64), plus one sdist. Each platform job installs its
-wheel outside the repository and runs
-`curupira --config curupira.example.toml validate` before the publish job merges the
-artifacts, checks that the distribution version equals the tag without its leading
-`v`, and uploads with Trusted Publishing (`id-token: write`, environment `pypi`).
-Use the canonical dotted form `vX.Y.Z.devN`. PyPI keeps an uploaded file, so each
-rehearsal needs a new suffix.
+`publish.yml` builds a pure-Python wheel and sdist once, then install-smoke-tests that
+wheel on Linux (x86_64, aarch64), macOS (arm64, x86_64), and Windows (amd64) with
+`curupira --config curupira.example.toml validate`. The publish job checks that the
+distribution version equals the tag without its leading `v` and uploads with Trusted
+Publishing (`id-token: write`, environment `pypi`). Use the canonical dotted form
+`vX.Y.Z.devN`. PyPI keeps an uploaded file, so each rehearsal needs a new suffix.
 
 Tags that contain `.dev` do not open a GitHub Release (`release.yml` still skips
 them). `testpypi.yml` is unchanged: the same `v*.dev*` tags, and a manual

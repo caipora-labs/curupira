@@ -286,10 +286,8 @@ uv build
 uv run --no-sync twine check dist/*
 ```
 
-`uv sync` installs the Python package without compiling Rust. `uv build` produces a wheel
-that includes the `curupira._native` extension and needs a stable Rust toolchain. See
-[CONTRIBUTING.md](CONTRIBUTING.md) for `maturin develop` and the crate layout under
-`crates/curupira-core`.
+`uv sync` installs the pure-Python package. `uv build` produces a `py3-none-any` wheel
+and sdist with no compiler toolchain required.
 
 To inspect branch coverage locally, run `uv run --no-sync pytest --cov --cov-report=term-missing`;
 the configured minimum is 85%.

@@ -9,28 +9,9 @@ permissions: {}
 
 jobs:
   build:
-    name: Build (${{ matrix.label }})
+    name: Build distributions
     # Stable vX.Y.Z and rehearsal vX.Y.Z.devN tags both publish to PyPI.
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            label: linux-x86_64
-            build_sdist: true
-          - os: ubuntu-24.04-arm
-            label: linux-aarch64
-            build_sdist: false
-          - os: macos-latest
-            label: macos-arm64
-            build_sdist: false
-          - os: macos-15-intel
-            label: macos-x86_64
-            build_sdist: false
-          - os: windows-latest
-            label: windows-amd64
-            build_sdist: false
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -41,22 +22,12 @@ jobs:
         with:
           python-version: "3.11"
           enable-cache: true
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
-        with:
-          toolchain: stable
       - name: Build distributions
-        shell: bash
-        run: |
-          if [ "${{ matrix.build_sdist }}" = "true" ]; then
-            uv build
-          else
-            uv build --wheel
-          fi
+        run: uv build
       - name: Upload distributions
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: dist-${{ matrix.label }}
+          name: dist
           path: dist/
           if-no-files-found: error
 
@@ -88,16 +59,16 @@ jobs:
         with:
           python-version: "3.11"
           enable-cache: true
-      - name: Download platform distribution
+      - name: Download distributions
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: dist-${{ matrix.label }}
+          name: dist
           path: dist/
       - name: Install wheel and run validate
         shell: bash
         run: |
           uv sync --frozen --dev
-          version="$(uv run --no-sync python scripts/verify_dist_version.py --dist dist --allow-wheels-only)"
+          version="$(uv run --no-sync python scripts/verify_dist_version.py --dist dist)"
           uv run --no-sync python scripts/smoke_install.py \
             --dist dist \
             --config curupira.example.toml \
@@ -122,9 +93,8 @@ jobs:
       - name: Download distributions
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: dist-*
+          name: dist
           path: dist/
-          merge-multiple: true
       - name: Verify distribution version and tag
         id: distribution_version
         env:

@@ -10,9 +10,8 @@
 
 Install the published package from PyPI. The source repository is
 [caipora-labs/curupira](https://github.com/caipora-labs/curupira).
-The release pipeline publishes abi3 wheels for Linux (x86_64 and aarch64), macOS
-(arm64 and x86_64), and Windows (amd64) so installation does not need a local Rust
-toolchain.
+The package is pure Python (`py3-none-any`), so installation needs no compiler
+toolchain on any supported platform.
 
 ```bash
 uv tool install "curupira==0.1.0"

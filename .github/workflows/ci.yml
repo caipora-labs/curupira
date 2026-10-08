@@ -96,27 +96,44 @@ jobs:
       - run: uv sync --frozen --dev
       - run: uv run --no-sync pip-audit
 
+  package-build:
+    name: Build pure-Python distributions
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # astral-sh/setup-uv v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --frozen --dev
+      - run: uv build
+      - run: uv run --no-sync twine check dist/*
+      - name: Upload distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
   package:
     name: Build and install (${{ matrix.label }})
+    needs: package-build
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             label: Linux x86_64
-            build_sdist: true
           - os: ubuntu-24.04-arm
             label: Linux aarch64
-            build_sdist: false
           - os: macos-latest
             label: macOS arm64
-            build_sdist: false
           - os: macos-15-intel
             label: macOS x86_64
-            build_sdist: false
           - os: windows-latest
             label: Windows amd64
-            build_sdist: false
     runs-on: ${{ matrix.os }}
     steps:
       # actions/checkout v7.0.1
@@ -127,19 +144,11 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - run: uv sync --frozen --dev
-      # dtolnay/rust-toolchain (2026-10-01)
-      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+      - name: Download distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          toolchain: stable
-      - name: Build distributions
-        shell: bash
-        run: |
-          if [ "${{ matrix.build_sdist }}" = "true" ]; then
-            uv build
-          else
-            uv build --wheel
-          fi
-      - run: uv run --no-sync twine check dist/*
+          name: dist
+          path: dist/
       - name: Smoke-test the installed wheel outside the repository
         shell: bash
         run: |

@@ -16,7 +16,6 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
-  "Programming Language :: Rust",
   "Typing :: Typed",
 ]
 dependencies = [
@@ -55,7 +54,6 @@ dev = [
   "pre-commit>=4,<5",
   "twine>=7,<8",
   "pip-audit>=2.9,<3",
-  "maturin>=1.8,<2",
   "types-psutil>=6,<8",
 ]
 docs = [
@@ -68,7 +66,7 @@ docs = [
 ]
 
 [build-system]
-requires = ["hatchling>=1.27,<2", "maturin>=1.8,<2"]
+requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
@@ -77,21 +75,11 @@ packages = ["src/curupira"]
 [tool.hatch.version]
 path = "src/curupira/_version.py"
 
-[tool.hatch.build.targets.wheel.hooks.custom]
-
-[tool.maturin]
-manifest-path = "crates/curupira-core/Cargo.toml"
-module-name = "curupira._native"
-python-source = "src"
-bindings = "pyo3"
-
 [tool.hatch.build.targets.sdist]
 include = [
   "src",
   "tests",
   "scripts",
-  "crates",
-  "hatch_build.py",
   "pyproject.toml",
   "uv.lock",
   "README.md",
@@ -123,7 +111,7 @@ max-complexity = 12
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["D", "S101", "ASYNC240", "ANN401"]
-# Native executable discovery is intentional; arguments never pass through a shell.
+# Executable discovery is intentional; arguments never pass through a shell.
 "src/curupira/clients/process.py" = ["S603", "S607"]
 # SQL identifiers are private constants; all externally supplied values are bound parameters.
 "src/curupira/storage/*.py" = ["S608"]

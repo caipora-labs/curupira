@@ -76,14 +76,15 @@ async def test_different_checkouts_run_concurrently_and_same_checkout_is_serial(
         pull_request_task(tmp_path / "second", 3),
     ]
     running = asyncio.create_task(scheduler.run(stream(tasks)))
-    await asyncio.wait_for(adapter.started.wait(), 1)
-    for _ in range(100):
+    await asyncio.wait_for(adapter.started.wait(), 5)
+    for _ in range(1000):
         if adapter.peak == 2:
             break
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(0.01)
     assert adapter.peak == 2
     adapter.release.set()
-    await asyncio.wait_for(running, 2)
+    # Windows SQLite writers serialize through asyncio.to_thread; keep headroom.
+    await asyncio.wait_for(running, 10)
     assert len(adapter.requests) == 3
     assert scheduler.failed_tasks == 0
 
