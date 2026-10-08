@@ -33,7 +33,6 @@ from curupira.tasks.base import TaskFeed
 from curupira.tasks.feed import merge_task_streams
 from curupira.telemetry import TaskTelemetry
 from curupira.vcs.base import VersionControl
-from curupira.vcs.github_cli import GitHubCliVersionControl
 
 
 class CliOptions(ValidatedModel):
@@ -182,6 +181,41 @@ def tui_command(ctx: typer.Context) -> None:
     _exit_with(CliOptions(command="tui", config=ctx.obj["config"]))
 
 
+plugins_app = typer.Typer(
+    help="Inspect trigger plugins.", no_args_is_help=True, rich_markup_mode=None
+)
+app.add_typer(plugins_app, name="plugins")
+
+
+@plugins_app.command("list")
+def plugins_list_command() -> None:
+    """List every registered trigger type and the distribution that provides it."""
+    try:
+        lines = describe_triggers()
+    except DispatchError as error:
+        typer.echo(f"Plugin error: {error}", err=True)
+        raise typer.Exit(1) from error
+    for line in lines:
+        typer.echo(line)
+
+
+def describe_triggers() -> list[str]:
+    """Describe built-in and plugin triggers with their prompt placeholders."""
+    from curupira.plugins import loaded_plugins
+    from curupira.tasks.registry import registered
+
+    origins = {
+        plugin.trigger_type: f"{plugin.distribution} {plugin.version}"
+        for plugin in loaded_plugins()
+    }
+    lines: list[str] = []
+    for trigger_type, trigger in registered().items():
+        origin = origins.get(trigger_type, f"curupira {__version__} (built-in)")
+        fields = ", ".join(sorted(trigger.prompt_fields())) or "-"
+        lines.append(f"{trigger_type}\t{origin}\tprompt fields: {fields}")
+    return lines
+
+
 async def _batch_stream(feeds: Sequence[TaskFeed], size: int | None) -> AsyncIterator[Task]:
     """Poll each feed until it has no newly available work, optionally capping admissions."""
     admitted = 0
@@ -230,7 +264,7 @@ async def _execute_command(options: CliOptions) -> int:
     """Run a validated command after acquiring any required process lock."""
     try:
         settings = await load_settings(options.config)
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, DispatchError) as error:
         print(f"Configuration error: {error}", file=sys.stderr)
         return 2
     if options.command == "validate":
@@ -257,10 +291,8 @@ async def _execute_command(options: CliOptions) -> int:
         if options.command == "tui":
             from curupira.tui.app import run_orchestrator_tui
 
-            return await run_orchestrator_tui(settings, gh, GitHubCliVersionControl(), telemetry)
-        return await _execute_scheduled_command(
-            settings, gh, GitHubCliVersionControl(), telemetry, options
-        )
+            return await run_orchestrator_tui(settings, gh, None, telemetry)
+        return await _execute_scheduled_command(settings, gh, None, telemetry, options)
     except (DispatchError, OSError, ValidationError) as error:
         print(f"Dispatch error: {error}", file=sys.stderr)
         return 1
@@ -314,7 +346,7 @@ async def _execute_run_command(
 async def _execute_scheduled_command(
     settings: ApplicationSettings,
     gh: GhClient,
-    version_control: VersionControl,
+    version_control: VersionControl | None,
     telemetry: TaskTelemetry,
     options: CliOptions,
 ) -> int:
