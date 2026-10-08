@@ -1,6 +1,6 @@
 # Cursor
 
-Runs `agent --print --output-format stream-json`, passing model with `--model` and mode with `--mode`. Effort is not supported.
+Runs `agent --print --output-format stream-json`, passing model with `--model` and mode with `--mode`. Resumes with `--resume <session_id>`. Effort is not supported.
 
 | Option | Native argument |
 | --- | --- |
