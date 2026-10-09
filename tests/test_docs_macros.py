@@ -50,15 +50,19 @@ def _table_rows(table: str) -> list[str]:
 
 
 def test_providers_table_has_one_row_per_built_in(macros: dict[str, Callable[[], str]]) -> None:
+    adapters = agent_registry.registered()
     rows = _table_rows(macros["providers_table"]())
 
     assert rows == [
         f"| [{adapter.display_name}](providers/{provider}.md) | `{adapter.executable}` "
         f"| <{adapter.install_url}> |"
-        for provider, adapter in agent_registry.registered().items()
+        for provider, adapter in adapters.items()
     ]
-    assert len(rows) == 4
-    assert "| [Cursor](providers/cursor.md) | `agent` |" in rows[2]
+    cursor = adapters["cursor"]
+    assert (
+        f"| [{cursor.display_name}](providers/cursor.md) | `{cursor.executable}` "
+        f"| <{cursor.install_url}> |"
+    ) in rows
 
 
 def test_requirements_list_reads_install_urls_from_registry(
