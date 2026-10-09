@@ -289,7 +289,9 @@ echo = "curupira_echo:EchoCliAdapter"
 | `display_name` | Yes | Name shown in the dashboard. |
 | `install_url` | Yes | Where users install or learn about the CLI. |
 | `build_arguments(request)` | Yes | Native argument vector for one task; resume with `request.session_id` when it is set. |
-| `render_output(output)` | No | Turns captured stdout into readable text; the default understands the built-in JSONL formats. |
+| `session_id_from_line(line)` | No | Returns the native session ID announced by one stdout line, or `None`; the default reads `sessionID`, `session_id`, or `thread_id` from a JSON event. Each distinct ID is reported once per run. |
+| `assigns_session_id` | No | Set to `True` for CLIs that accept a caller-chosen session ID. On new runs Curupira generates a UUID, persists it before the process starts, and passes it as `request.new_session_id`; resumed runs keep `request.session_id`. Defaults to `False`. |
+| `render_output(output)` | No | Extracts the final answer from captured stdout; the default understands the built-in JSONL formats. Override it when the CLI emits a different final-answer shape. |
 | `api_version` | No | Plugin API version the plugin targets; defaults to the running Curupira's `PLUGIN_API_VERSION`. Set it explicitly to fail fast on an incompatible Curupira release. |
 
 Curupira starts the executable through `AsyncProcessRunner` with the argument vector from

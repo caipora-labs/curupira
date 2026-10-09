@@ -52,8 +52,14 @@ task layer's `base.py` contract. A new version-control provider implements `Vers
 and belongs in its own issue/PR after `vcs/base.py`. A new coding-agent adapter
 implements `CodingAgentCliAdapter.build_arguments`, declares its `provider`,
 `profile_model`, `display_name`, and `install_url`, and calls `register` from
-`agents/registry.py` at the bottom of its module. A built-in adapter lives in its own
-module under `agents/` and is imported by `agents/__init__.py`, so `create_cli_adapter`
+`agents/registry.py` at the bottom of its module. When its CLI reports the session in a
+shape other than a `sessionID`, `session_id`, or `thread_id` JSON field, the adapter
+overrides `session_id_from_line`; when the CLI instead accepts a caller-chosen session
+ID, it sets `assigns_session_id = True` and passes `request.new_session_id` to the CLI.
+When the final answer is not a shape the shared `render_output` already understands, it
+overrides `render_output`. Adapters never start processes or handle timeouts and output
+limits themselves; `run_task` and `AsyncProcessRunner` own that. A built-in adapter lives
+in its own module under `agents/` and is imported by `agents/__init__.py`, so `create_cli_adapter`
 and profile validation find it through the registry; it belongs in its own issue/PR after
 `agents/base.py`. Third-party adapters register under the `curupira.agents` entry-point
 group instead. A trigger can

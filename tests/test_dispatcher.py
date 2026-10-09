@@ -17,7 +17,7 @@ from curupira.models import (
 )
 from curupira.runtime import create_execution_log_handler
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
-from tests.fakes import FakeGitHub, RecordingAdapter
+from tests.fakes import AssigningAdapter, CallbackRunner, FakeGitHub, RecordingAdapter
 from tests.helpers import issue_task
 
 
@@ -168,6 +168,29 @@ async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
     assert result.selected == original
     assert adapter.requests[0].session_id == "original"
     assert "Continue the interrupted task" in adapter.requests[0].message
+
+
+async def test_assigned_session_is_persisted_before_the_process_runs(tmp_path: Path) -> None:
+    configured = settings(tmp_path)
+    repository = RunningSessionRepository(configured.settings.state_db_path)
+    persisted_during_run: list[RunningCodingSession] = []
+
+    async def snapshot() -> None:
+        persisted_during_run.extend(await repository.list_all())
+
+    adapter = AssigningAdapter(CallbackRunner(snapshot))
+    gh = FakeGitHub(
+        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    )
+    outcome = await dispatch_next_task(
+        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
+    assert outcome.selected is not None
+    assert [session.session_id for session in persisted_during_run] == [
+        adapter.requests[0].new_session_id
+    ]
+    assert persisted_during_run[0].task == outcome.selected
+    assert await repository.list_all() == []
 
 
 async def test_checkout_main_uses_shared_checkout_without_worktree(tmp_path: Path) -> None:
