@@ -21,6 +21,8 @@ All notable changes to this project are documented here. The format follows
   persisted before the process starts and passed as `CodingTaskRequest.new_session_id`,
   or override `render_output` for a different final-answer shape. Built-in adapters keep
   their arguments and output unchanged.
+- Gemini CLI is available as a coding-agent provider with native model, approval, trust,
+  and resume options, plus assistant text rendered from its `stream-json` output.
 
 ### Changed
 

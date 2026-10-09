@@ -50,6 +50,12 @@ provider = "cursor"
 # force = true
 # Standalone effort is not supported by this adapter.
 
+# [coding_agents.profiles.gemini]
+# provider = "gemini"
+# model = "gemini-2.5-flash"
+# approval_mode = "default" # default, auto_edit, yolo, or plan
+# skip_trust = false
+
 [coding_agents.automations.resolve-ready-issues]
 trigger_type = "issue"
 repo = "acme/api"
