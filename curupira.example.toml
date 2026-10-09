@@ -50,6 +50,12 @@ provider = "cursor"
 # force = true
 # Standalone effort is not supported by this adapter.
 
+# [coding_agents.profiles.qwen]
+# provider = "qwen"
+# model = "qwen3-coder-plus"
+# approval_mode = "plan" # plan, default, auto-edit, auto, or yolo
+# max_session_turns = 20
+
 [coding_agents.automations.resolve-ready-issues]
 trigger_type = "issue"
 repo = "acme/api"

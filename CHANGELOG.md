@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Built-in Qwen Code support through `provider = "qwen"`, including native model,
+  approval-mode, and session-turn limit options. Stream-JSON session IDs are persisted and
+  resumed, and the final `result` text is rendered as task output.
 - Coding-agent plugins: installed distributions register new coding-agent adapters under
   the `curupira.agents` entry-point group, using the public `curupira.plugins` API. Each
   adapter declares its own `profile_model`, `display_name`, and `install_url`, so plugin

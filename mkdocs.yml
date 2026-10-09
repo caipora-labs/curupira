@@ -85,4 +85,5 @@ nav:
       - Codex: providers/codex.md
       - Cursor: providers/cursor.md
       - OpenCode: providers/opencode.md
+      - Qwen Code: providers/qwen.md
   - Plugins: plugins.md
