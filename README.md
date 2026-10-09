@@ -15,7 +15,8 @@ while `watch` polls every automation continuously.
 - [`gh`](https://cli.github.com/) installed and authenticated (`gh auth login`)
 - Only the CLIs used by the configured profiles need to be installed:
   [`opencode`](https://opencode.ai/), [`codex`](https://developers.openai.com/codex/cli/),
-  [`claude`](https://code.claude.com/docs/en/cli-reference), or the Cursor CLI (`agent`)
+  [`claude`](https://code.claude.com/docs/en/cli-reference), the Cursor CLI (`agent`), or
+  [`kilo`](https://kilo.ai/docs/code-with-ai/platforms/cli)
 
 ## Installation
 
@@ -105,6 +106,7 @@ Curupira supports these coding-agent CLIs, selected with `provider` in a profile
 - Claude Code (`claude`)
 - Codex (`codex`)
 - Cursor (`cursor`)
+- Kilo CLI (`kilo`)
 - OpenCode (`opencode`)
 
 How `model`, `effort`, `agent`, and permission options map to each CLI's native
