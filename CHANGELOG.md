@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Built-in pi coding-agent support through `provider = "pi"`, including native model,
+  thinking, tool allowlist/exclusion, and project-trust options. JSON-mode session IDs are
+  persisted and resumed, and task output contains only assistant text blocks.
 - Coding-agent plugins: installed distributions register new coding-agent adapters under
   the `curupira.agents` entry-point group, using the public `curupira.plugins` API. Each
   adapter declares its own `profile_model`, `display_name`, and `install_url`, so plugin
