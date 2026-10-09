@@ -7,8 +7,8 @@ Explicit instructions in a task or prompt override this file.
 ## Project
 
 Curupira dispatches GitHub, Azure DevOps, and cron tasks to local coding-agent CLIs
-(OpenCode, Codex, Claude Code, Cursor). The package, import, and main console script are
-`curupira`; `curu` is the short alias.
+(OpenCode, Codex, Claude Code, Cursor, pi). The package, import, and main console script
+are `curupira`; `curu` is the short alias.
 
 Stack: Python 3.11+ (pure Python, `src/` layout), [uv](https://docs.astral.sh/uv/),
 Pydantic v2 and pydantic-settings (TOML configuration), Typer (CLI), Textual (TUI),

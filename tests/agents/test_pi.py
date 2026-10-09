@@ -79,6 +79,22 @@ def test_pi_omits_unset_arguments_and_places_dash_prompt_after_separator(
     )
 
 
+def test_pi_disables_project_trust_when_approve_is_false(tmp_path: Path) -> None:
+    request = CodingTaskRequest(
+        cwd=tmp_path,
+        profile=PiCliProfile(approve=False),
+        message="Inspect safely",
+    )
+
+    assert PiCliAdapter().build_arguments(request) == (
+        "--mode",
+        "json",
+        "--no-approve",
+        "--",
+        "Inspect safely",
+    )
+
+
 def test_pi_resumes_with_the_native_session_id(tmp_path: Path) -> None:
     request = CodingTaskRequest(
         cwd=tmp_path,

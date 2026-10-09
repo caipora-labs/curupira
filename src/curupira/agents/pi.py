@@ -16,7 +16,6 @@ class PiCliProfile(CliProfileBase):
 
     Attributes:
         provider: Discriminator identifying the pi CLI.
-        model: Optional pi model pattern.
         model_provider: Optional provider constraint for the selected model.
         effort: Optional pi thinking level.
         tools: Tool allowlist passed to pi.
