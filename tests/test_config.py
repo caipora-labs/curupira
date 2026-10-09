@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from curupira.agents.kilo import KiloCliProfile
 from curupira.config import ApplicationSettings, load_settings
 from curupira.models import (
     AzurePullRequestAutomationConfiguration,
@@ -149,6 +150,32 @@ def test_codex_agent_selects_a_named_cli_profile() -> None:
 
     assert isinstance(profile, CodexCliProfile)
     assert profile.agent == "work"
+
+
+def test_kilo_provider_selects_its_registered_profile() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {
+        "provider": "kilo",
+        "model": "anthropic/claude-sonnet-4",
+        "effort": "high",
+    }
+
+    profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
+
+    assert isinstance(profile, KiloCliProfile)
+    assert profile.provider == "kilo"
+    assert profile.model == "anthropic/claude-sonnet-4"
+
+
+def test_kilo_rejects_model_without_provider_prefix() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {
+        "provider": "kilo",
+        "model": "claude-sonnet-4",
+    }
+
+    with pytest.raises(ValidationError, match="provider/model"):
+        ApplicationSettings.model_validate(data)
 
 
 @pytest.mark.parametrize("mode", ["agent", "ask", "plan"])

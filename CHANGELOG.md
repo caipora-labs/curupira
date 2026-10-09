@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Kilo CLI (`kilo`) as a built-in coding-agent provider, with OpenCode-compatible JSONL
+  session detection and text rendering plus native model, agent, reasoning-variant, and
+  permission options.
 - Coding-agent plugins: installed distributions register new coding-agent adapters under
   the `curupira.agents` entry-point group, using the public `curupira.plugins` API. Each
   adapter declares its own `profile_model`, `display_name`, and `install_url`, so plugin
