@@ -1,0 +1,3 @@
+{"type":"system","subtype":"session_start","uuid":"event-123","session_id":"qwen-session-123"}
+{"type":"assistant","session_id":"qwen-session-123","message":{"role":"assistant","content":[{"type":"text","text":"Working through the task."}]}}
+{"type":"result","subtype":"success","session_id":"qwen-session-123","result":"Qwen task completed."}
