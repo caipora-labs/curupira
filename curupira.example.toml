@@ -50,6 +50,15 @@ provider = "cursor"
 # force = true
 # Standalone effort is not supported by this adapter.
 
+# [coding_agents.profiles.copilot]
+# provider = "copilot"
+# model = "claude-sonnet-4.5"
+# agent = "issue-resolver" # existing Copilot custom agent
+# effort = "high"
+# allow_tools = ["shell(git:*)", "write"]
+# deny_tools = ["shell(rm:*)"]
+# allow_all_tools = true # permits every supported Copilot tool
+
 [coding_agents.automations.resolve-ready-issues]
 trigger_type = "issue"
 repo = "acme/api"

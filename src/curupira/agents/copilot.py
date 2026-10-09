@@ -16,7 +16,6 @@ class CopilotCliProfile(CliProfileBase):
 
     Attributes:
         provider: Discriminator identifying the GitHub Copilot CLI.
-        model: Optional Copilot model identifier.
         agent: Optional configured Copilot custom-agent name.
         effort: Optional Copilot reasoning effort level.
         allow_all_tools: Whether to allow every tool supported by the CLI.

@@ -6,6 +6,7 @@ from pydantic import ValidationError
 import curupira.agents.registry as agent_registry
 from curupira.agents.claude import ClaudeCodeCliAdapter
 from curupira.agents.codex import CodexCliAdapter
+from curupira.agents.copilot import CopilotCliAdapter
 from curupira.agents.cursor import CursorCliAdapter
 from curupira.agents.opencode import OpenCodeCliAdapter
 from curupira.models import CodingTaskRequest, CursorCliProfile
@@ -25,12 +26,14 @@ def test_built_in_providers_are_registered() -> None:
     assert adapters == {
         "claude": ClaudeCodeCliAdapter,
         "codex": CodexCliAdapter,
+        "copilot": CopilotCliAdapter,
         "cursor": CursorCliAdapter,
         "opencode": OpenCodeCliAdapter,
     }
     assert {provider: adapter.display_name for provider, adapter in adapters.items()} == {
         "claude": "Claude Code",
         "codex": "Codex",
+        "copilot": "GitHub Copilot CLI",
         "cursor": "Cursor",
         "opencode": "OpenCode",
     }

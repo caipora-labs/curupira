@@ -11,8 +11,8 @@ All notable changes to this project are documented here. The format follows
   the `curupira.agents` entry-point group, using the public `curupira.plugins` API. Each
   adapter declares its own `profile_model`, `display_name`, and `install_url`, so plugin
   profile options are validated by `curu validate` and select the adapter with
-  `provider = "<name>"`. OpenCode, Codex, Claude Code, and Cursor stay built in and
-  register through the same registry (`curupira.agents.registry`).
+  `provider = "<name>"`. OpenCode, Codex, Claude Code, Cursor, and GitHub Copilot CLI stay
+  built in and register through the same registry (`curupira.agents.registry`).
 - `curu plugins list` appends one `agent:<provider>` line per coding-agent provider with
   its distribution and executable; trigger lines are unchanged.
 - Coding-agent adapters can declare how they obtain session IDs and final answers without
@@ -21,6 +21,9 @@ All notable changes to this project are documented here. The format follows
   persisted before the process starts and passed as `CodingTaskRequest.new_session_id`,
   or override `render_output` for a different final-answer shape. Built-in adapters keep
   their arguments and output unchanged.
+- GitHub Copilot CLI (`copilot`) as a built-in provider, with profile options for model,
+  custom agent, reasoning effort, and explicit tool permissions. Curupira assigns its
+  session UUID, disables user questions, and preserves the CLI's raw JSONL output.
 
 ### Changed
 
@@ -35,6 +38,8 @@ All notable changes to this project are documented here. The format follows
   table and the coding-agent CLIs in the installation requirements are generated from the
   agent registry, so a new provider only adds its page and one nav line. The README
   provider section now links to the documentation instead of repeating CLI arguments.
+- Added the GitHub Copilot CLI provider guide, including its headless permissions and
+  authentication environment-variable precedence.
 
 ## [0.2.0] - 2026-10-08
 
