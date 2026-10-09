@@ -69,9 +69,14 @@ GitHub CLI version-control adapter unless `path` points at an existing checkout.
 and Monday are examples of services that fit a plugin. Configuration accepts only the
 trigger types and agent providers registered by built-ins and installed plugins.
 
-When adding a provider or CLI, update `docs/data/requirements.toml` and the corresponding
-adapter in `src/curupira/agents/`; the English installation requirements are rendered from
-that TOML file during the MkDocs build.
+When adding a provider, add its adapter in `src/curupira/agents/`, a page at
+`docs/en/providers/<provider>.md`, and one line under "Providers and agents" in the
+`mkdocs.yml` nav. Keep that nav line and the provider's entry in the README "Providers and
+native options" list in alphabetical order by display name. The provider table on
+`docs/en/providers.md` and the coding-agent CLIs in the installation requirements are
+generated from the agent registry (`display_name`, `executable`, and `install_url`) during
+the MkDocs build, so they update automatically. Other tools, such as forge CLIs, are listed
+by hand in `docs/data/requirements.toml`.
 
 ## Documentation translations
 

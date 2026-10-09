@@ -118,7 +118,7 @@ max-complexity = 12
 "src/curupira/storage/*.py" = ["S608"]
 
 [tool.pyrefly]
-project-includes = ["src", "tests", "scripts"]
+project-includes = ["src", "tests", "scripts", "main.py"]
 search-path = ["src", "."]
 python-version = "3.11"
 python-platform = ["linux", "darwin", "win32"]

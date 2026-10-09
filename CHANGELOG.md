@@ -31,6 +31,10 @@ All notable changes to this project are documented here. The format follows
 
 - Removed the README "Trello listener" section, which described a `trello-cli` trigger
   that Curupira does not ship; the README now points to trigger plugins instead.
+- Each coding-agent provider has its own page under "Providers and agents". The provider
+  table and the coding-agent CLIs in the installation requirements are generated from the
+  agent registry, so a new provider only adds its page and one nav line. The README
+  provider section now links to the documentation instead of repeating CLI arguments.
 
 ## [0.2.0] - 2026-10-08
 

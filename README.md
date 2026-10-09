@@ -100,32 +100,16 @@ path. Automations keep file order, and one-shot selection follows that order.
 
 ### Providers and native options
 
-`model`, `effort`, and `agent` are optional and their flags are omitted when unconfigured.
-`agent` uses the provider's native setting: it selects a custom agent in OpenCode and
-Claude Code, a named Codex CLI profile, and Cursor's execution mode.
+Curupira supports these coding-agent CLIs, selected with `provider` in a profile:
 
-| Provider   | `agent` mapping                | `model`            | `effort`                                |
-| ---------- | ------------------------------ | ------------------ | --------------------------------------- |
-| `opencode` | Custom agent via `--agent`     | Optional `--model` | Optional `--variant`                   |
-| `claude`   | Custom agent via `--agent`     | Optional `--model` | Optional `--effort`                    |
-| `codex`    | Config profile via `--profile` | Optional `--model` | `model_reasoning_effort` via `--config` |
-| `cursor`   | Mode via `--mode`              | Optional `--model` | Not supported; rejected                |
+- Claude Code (`claude`)
+- Codex (`codex`)
+- Cursor (`cursor`)
+- OpenCode (`opencode`)
 
-Cursor `agent` accepts `agent`, `ask`, or `plan` as the value of `--mode`.
-
-OpenCode runs `opencode run --format json`; a saved session resumes with `--session`.
-Codex runs `codex exec --json`, resumes with `codex exec resume <thread_id>`, maps
-`agent` to `--profile`, and maps `effort` to `--config model_reasoning_effort=<level>`.
-Codex effort levels include `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; which
-levels are available depends on the selected model and CLI version. Claude Code runs
-`claude -p --output-format stream-json --verbose`, resumes with `--resume`, and passes
-`agent` and `effort` through their native flags. Cursor runs `agent --print
---output-format stream-json`, resumes with `--resume`, and maps `agent` to `--mode`; it
-does not accept `effort`.
-
-Explicit permission overrides are also provider-specific (`auto_approve` for OpenCode,
-`sandbox`/`auto_review` for Codex, `permission_mode`/`permission_prompts` for Claude
-Code, `force`/`trust` for Cursor). When omitted, each CLI keeps its native policy.
+How `model`, `effort`, `agent`, and permission options map to each CLI's native
+arguments is documented on the
+[Providers page](https://caipora-labs.github.io/curupira/providers/).
 
 ### Prompts and placeholders
 
