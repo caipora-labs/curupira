@@ -54,16 +54,32 @@ def test_cli_supports_source_independent_commands(tmp_path: Path) -> None:
     assert "No such option" not in result.output
     assert result.exit_code in {0, 1, 2}
 
-    assert runner.invoke(app, ["watch", "--help"]).exit_code == 0
+    run_help = runner.invoke(app, ["run", "--help"]).output
+    assert "--watch" in run_help
+    assert "--size" in run_help
     assert "tui" in runner.invoke(app, ["--help"]).output
-    batch_help = runner.invoke(app, ["batch", "--help"]).output
-    assert "--size" in batch_help
+    assert runner.invoke(app, ["watch", "--help"]).exit_code != 0
+    assert runner.invoke(app, ["batch", "--help"]).exit_code != 0
 
 
 @pytest.mark.parametrize("value", ["0", "-1", "nope"])
-def test_batch_size_must_be_a_positive_integer(value: str) -> None:
-    result = runner.invoke(app, ["batch", "--size", value])
+def test_run_size_must_be_a_positive_integer(value: str) -> None:
+    result = runner.invoke(app, ["run", "--size", value])
     assert result.exit_code != 0
+
+
+@pytest.mark.parametrize(
+    ("args", "needle"),
+    [
+        (["run", "--watch", "--dry-run"], "--dry-run"),
+        (["run", "--watch", "--size", "2"], "--size"),
+        (["run", "--dry-run", "--size", "2"], "--size"),
+    ],
+)
+def test_run_rejects_incompatible_option_combinations(args: list[str], needle: str) -> None:
+    result = runner.invoke(app, args)
+    assert result.exit_code != 0
+    assert needle in result.output
 
 
 def test_main_accepts_tui_subcommand_in_help() -> None:

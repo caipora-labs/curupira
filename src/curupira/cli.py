@@ -36,16 +36,25 @@ from curupira.vcs.base import VersionControl
 
 
 class CliOptions(ValidatedModel):
-    """Validated command-line options."""
+    """Validated command-line options.
 
-    command: Literal["validate", "run", "watch", "batch", "tui"]
+    Attributes:
+        command: Selected Curupira subcommand.
+        config: Path to the TOML configuration file.
+        dry_run: When true, preview one task without reserving or executing.
+        watch: When true, poll continuously instead of draining available work.
+        size: Optional admission cap for a finite ``run`` drain.
+    """
+
+    command: Literal["validate", "run", "tui"]
     config: Path
     dry_run: bool = False
+    watch: bool = False
     size: int | None = None
 
 
 _CONSOLE_SCRIPTS = frozenset({"curupira", "curu"})
-_DISPATCH_COMMANDS = frozenset({"run", "watch", "batch", "tui"})
+_DISPATCH_COMMANDS = frozenset({"run", "tui"})
 
 
 def _program_name(argv0: str | None = None) -> str:
@@ -148,31 +157,38 @@ def run_command(
             help="Preview a task without reserving, persisting, cloning, or executing",
         ),
     ] = False,
-) -> None:
-    """Execute one currently available automation task."""
-    _exit_with(CliOptions(command="run", config=ctx.obj["config"], dry_run=dry_run))
-
-
-@app.command("watch")
-def watch_command(ctx: typer.Context) -> None:
-    """Poll all automations using the shared bounded scheduler."""
-    _exit_with(CliOptions(command="watch", config=ctx.obj["config"]))
-
-
-@app.command("batch")
-def batch_command(
-    ctx: typer.Context,
+    watch: Annotated[
+        bool,
+        typer.Option(
+            "--watch",
+            help="Poll all automations continuously until interrupted",
+        ),
+    ] = False,
     size: Annotated[
         int | None,
         typer.Option(
             "--size",
-            help="Process at most N tasks",
+            help="Process at most N tasks (finite drain only)",
             callback=_optional_positive_int,
         ),
     ] = None,
 ) -> None:
-    """Drain currently available automation tasks."""
-    _exit_with(CliOptions(command="batch", config=ctx.obj["config"], size=size))
+    """Drain currently available automation tasks, or watch continuously with ``--watch``."""
+    if watch and dry_run:
+        raise typer.BadParameter("--dry-run cannot be combined with --watch")
+    if watch and size is not None:
+        raise typer.BadParameter("--size cannot be combined with --watch")
+    if dry_run and size is not None:
+        raise typer.BadParameter("--size cannot be combined with --dry-run")
+    _exit_with(
+        CliOptions(
+            command="run",
+            config=ctx.obj["config"],
+            dry_run=dry_run,
+            watch=watch,
+            size=size,
+        )
+    )
 
 
 @app.command("tui")
@@ -298,13 +314,13 @@ async def _execute_command(options: CliOptions) -> int:
     root_logger = logging.getLogger()
     try:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-        if options.command in {"watch", "batch", "tui"} or not options.dry_run:
+        if options.command == "tui" or not options.dry_run:
             log_handler = create_execution_log_handler()
             root_logger.setLevel(logging.INFO)
             root_logger.addHandler(log_handler)
         gh = GhClient()
-        if options.command == "run":
-            return await _execute_run_command(settings, gh, telemetry, options.dry_run)
+        if options.command == "run" and options.dry_run:
+            return await _execute_dry_run(settings, gh, telemetry)
         if options.command == "tui":
             from curupira.tui.app import run_orchestrator_tui
 
@@ -322,19 +338,18 @@ async def _execute_command(options: CliOptions) -> int:
                 log_handler.close()
 
 
-async def _execute_run_command(
+async def _execute_dry_run(
     settings: ApplicationSettings,
     gh: GhClient,
     telemetry: TaskTelemetry,
-    dry_run: bool,
 ) -> int:
-    """Select and optionally execute a single currently available task."""
+    """Preview one currently available task without reserving or executing it."""
     status = TerminalTaskStatus()
     try:
         outcome = await dispatch_next_task(
             settings,
             gh,
-            dry_run=dry_run,
+            dry_run=True,
             telemetry=telemetry,
             on_task_selected=lambda task: status.update(
                 (task,), settings.settings.max_active_tasks
@@ -349,14 +364,7 @@ async def _execute_run_command(
     identity = selected.identity
     print(f"Selected {identity.automation_id}: {identity.repo}#{identity.id}: {selected.title}")
     print(selected.url)
-    if dry_run:
-        print("Dry run: no task was reserved or executed.")
-    elif outcome.process is not None:
-        if outcome.process.stdout:
-            print(outcome.process.stdout)
-        if outcome.process.stderr:
-            print(outcome.process.stderr, file=sys.stderr)
-        return outcome.process.returncode
+    print("Dry run: no task was reserved or executed.")
     return 0
 
 
@@ -367,7 +375,7 @@ async def _execute_scheduled_command(
     telemetry: TaskTelemetry,
     options: CliOptions,
 ) -> int:
-    """Execute finite batch or continuous watch work through the shared scheduler."""
+    """Execute a finite drain or continuous watch through the shared scheduler."""
     sessions = RunningSessionRepository(settings.settings.state_db_path)
     recovered = await sessions.list_all()
     cron = CronScheduleRepository(settings.settings.state_db_path)
@@ -381,12 +389,12 @@ async def _execute_scheduled_command(
             tasks, settings.settings.max_active_tasks
         ),
     )
-    if options.command == "batch":
-        tasks = _batch_stream(feeds, options.size)
-    else:
+    if options.watch:
         tasks = merge_task_streams(
             [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
         )
+    else:
+        tasks = _batch_stream(feeds, options.size)
     try:
         await scheduler.run(tasks, resume_sessions=recovered)
     finally:
