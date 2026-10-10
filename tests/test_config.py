@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from curupira.agents.copilot import CopilotCliProfile
+from curupira.agents.gemini import GeminiCliProfile
 from curupira.agents.pi import PiCliProfile
 from curupira.config import ApplicationSettings, load_settings
 from curupira.models import (
@@ -173,6 +174,16 @@ def test_cursor_rejects_unknown_agent_modes() -> None:
 
     with pytest.raises(ValidationError, match="agent"):
         ApplicationSettings.model_validate(data)
+
+
+def test_gemini_provider_selects_a_gemini_cli_profile() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {"provider": "gemini"}
+
+    profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
+
+    assert isinstance(profile, GeminiCliProfile)
+    assert profile.provider == "gemini"
 
 
 def test_copilot_provider_validates_as_a_registered_profile() -> None:

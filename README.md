@@ -15,8 +15,10 @@ while `watch` polls every automation continuously.
 - [`gh`](https://cli.github.com/) installed and authenticated (`gh auth login`)
 - Only the CLIs used by the configured profiles need to be installed:
   [`opencode`](https://opencode.ai/), [`codex`](https://developers.openai.com/codex/cli/),
-  [`claude`](https://code.claude.com/docs/en/cli-reference), the Cursor CLI (`agent`), or
-  [GitHub Copilot CLI (`copilot`)](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli)
+  [`claude`](https://code.claude.com/docs/en/cli-reference), the Cursor CLI (`agent`),
+  [`gemini`](https://github.com/google-gemini/gemini-cli),
+  [GitHub Copilot CLI (`copilot`)](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli),
+  or [`pi`](https://pi.dev/docs/latest)
 
 ## Installation
 
@@ -105,9 +107,11 @@ Curupira supports these coding-agent CLIs, selected with `provider` in a profile
 
 - Claude Code (`claude`)
 - Codex (`codex`)
-- GitHub Copilot CLI (`copilot`)
 - Cursor (`cursor`)
+- Gemini CLI (`gemini`)
+- GitHub Copilot CLI (`copilot`)
 - OpenCode (`opencode`)
+- pi (`pi`)
 
 How `model`, `effort`, `agent`, and permission options map to each CLI's native
 arguments is documented on the

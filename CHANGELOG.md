@@ -24,6 +24,8 @@ All notable changes to this project are documented here. The format follows
   persisted before the process starts and passed as `CodingTaskRequest.new_session_id`,
   or override `render_output` for a different final-answer shape. Built-in adapters keep
   their arguments and output unchanged.
+- Gemini CLI is available as a coding-agent provider with native model, approval, trust,
+  and resume options, plus assistant text rendered from its `stream-json` output.
 - GitHub Copilot CLI (`copilot`) as a built-in provider, with profile options for model,
   custom agent, reasoning effort, and explicit tool permissions. Curupira assigns its
   session UUID, disables user questions, and preserves the CLI's raw JSONL output.

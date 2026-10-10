@@ -8,6 +8,7 @@ from curupira.agents.claude import ClaudeCodeCliAdapter
 from curupira.agents.codex import CodexCliAdapter
 from curupira.agents.copilot import CopilotCliAdapter
 from curupira.agents.cursor import CursorCliAdapter
+from curupira.agents.gemini import GeminiCliAdapter
 from curupira.agents.opencode import OpenCodeCliAdapter
 from curupira.agents.pi import PiCliAdapter
 from curupira.models import CodingTaskRequest, CursorCliProfile
@@ -29,6 +30,7 @@ def test_built_in_providers_are_registered() -> None:
         "codex": CodexCliAdapter,
         "copilot": CopilotCliAdapter,
         "cursor": CursorCliAdapter,
+        "gemini": GeminiCliAdapter,
         "opencode": OpenCodeCliAdapter,
         "pi": PiCliAdapter,
     }
@@ -37,6 +39,7 @@ def test_built_in_providers_are_registered() -> None:
         "codex": "Codex",
         "copilot": "GitHub Copilot CLI",
         "cursor": "Cursor",
+        "gemini": "Gemini CLI",
         "opencode": "OpenCode",
         "pi": "pi",
     }
