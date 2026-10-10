@@ -6,8 +6,8 @@ Curupira runs automations on your machine. It takes a GitHub issue or pull reque
 
 Each automation in the settings TOML watches one source (issues, pull requests, Trello
 cards, or a cron schedule) and carries its own prompt. All automations share one discovery,
-scheduling, and execution pipeline: `run` executes a single currently available task,
-while `watch` polls every automation continuously.
+scheduling, and execution pipeline: `run` drains currently available tasks, while
+`run --watch` polls every automation continuously.
 
 ## Requirements
 
@@ -148,8 +148,8 @@ two automations may process the same issue with different prompts.
 Polls that use the `project:` search qualifier keep the `open` state and filter board
 items to the `Todo` status automatically.
 
-Other task sources, such as Trello, can be added as trigger plugins registered under
-the `curupira.triggers` entry-point group; see the
+Other task sources can be added as trigger plugins registered under the
+`curupira.triggers` entry-point group; see the
 [plugins guide](https://github.com/caipora-labs/curupira/blob/main/docs/en/plugins.md).
 
 `max_active_tasks` bounds concurrently running coding agents (default 1). By default,
@@ -193,16 +193,15 @@ accept OTLP over HTTP/protobuf. If the field is omitted, no telemetry is exporte
 Running sessions and cron schedule state live in `state_db_path` (default
 `~/.curupira/state.sqlite3`). The per-user dispatch lock is stored in
 `~/.curupira/dispatch.lock`, and the dedicated log directory is
-`~/.curupira/logs`. Only one `run` or `watch` process can dispatch at a time; a second
+`~/.curupira/logs`. Only one `run` or `tui` process can dispatch at a time; a second
 process exits with an error rather than running tasks in parallel. Session records are
-removed when the agent process ends; `watch` resumes all saved sessions after a restart,
-and `run` resumes the saved session of the task it selects. If the file exists but is not
-a compatible database, the application exits with an error instead of deleting it —
-delete or move the file yourself to start fresh.
+removed when the agent process ends; `run` and `run --watch` resume saved sessions after
+a restart. If the file exists but is not a compatible database, the application exits with
+an error instead of deleting it — delete or move the file yourself to start fresh.
 
 ### Log file
 
-The `run` and `watch` commands append records to
+The `run` and `run --watch` commands append records to
 `~/.curupira/logs/curupira.log`; restarting the process does not erase existing
 content. Each task records its start and completion time, repository, type, and
 identifier. If a task fails, the record includes the error.
@@ -215,13 +214,14 @@ Validate configuration without calling external CLIs or writing state:
 curupira validate
 ```
 
-Execute one currently available task and wait for the agent to finish:
+Drain currently available tasks through the shared scheduler:
 
 ```bash
 curupira run
+curupira run --size 5
 ```
 
-Preview the selected task without reserving, persisting, cloning, or executing:
+Preview one selected task without reserving, persisting, cloning, or executing:
 
 ```bash
 curupira run --dry-run
@@ -230,7 +230,7 @@ curupira run --dry-run
 Poll all automations with the shared bounded scheduler until interrupted:
 
 ```bash
-curupira watch
+curupira run --watch
 ```
 
 Run the same continuous scheduler inside an interactive Textual dashboard:
@@ -240,15 +240,14 @@ curupira tui
 ```
 
 The short alias `curu` accepts the same subcommands (`curu validate`, `curu run`,
-`curu watch`, `curu tui`).
+`curu run --watch`, `curu tui`).
 
 `validate` exits `0` when the configuration is valid and `2` on configuration errors.
-`run` exits with the agent process status, `0` when no task is available, and `1` on
-dispatch errors. `watch` and `tui` exit `1` when any executed task failed, otherwise `0`.
+`run`, `run --watch`, and `tui` exit `1` when any executed task failed, otherwise `0`.
 `run --dry-run` never reserves or persists cron occurrences and does not perform checkout,
 worktree, or setup operations.
 
-`watch` runs every CLI non-interactively so concurrent workers never contend for the
+`run --watch` runs every CLI non-interactively so concurrent workers never contend for the
 terminal UI. `tui` is the interactive alternative. Transient `gh` failures are retried with
 backoff; authentication, configuration, output-format, and agent-task failures are not
 retried automatically.

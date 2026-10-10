@@ -2,7 +2,7 @@
 
 Curupira runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
 
-Each automation in the settings TOML watches one source and carries its own prompt. All automations share one discovery, scheduling, and execution pipeline: `run` executes a single currently available task, while `watch` polls every automation continuously.
+Each automation in the settings TOML watches one source and carries its own prompt. All automations share one discovery, scheduling, and execution pipeline: `run` drains currently available tasks, while `run --watch` polls every automation continuously.
 
 ## Get started
 
