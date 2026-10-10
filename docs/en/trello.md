@@ -39,12 +39,17 @@ Commands return a JSON envelope (`{"ok":true,"data":...}` on success). Curupira 
 
 ## Configure an automation
 
-Set `trigger_type = "trello-cli-cards"`, provide the Trello `board_id`, and keep `repo` pointed at the Git repository that the coding agent should check out. `list_ids` is optional; when present, only cards in those board lists are scheduled.
+Set `trigger_type = "trello-cli-cards"`, provide the Trello `board_id`, and point
+`repository` at a `[repositories.<alias>]` checkout. `list_ids` is optional; when present,
+only cards in those board lists are scheduled.
 
 ```toml
-[coding_agents.automations.update-board-cards]
+[repositories.product]
+remote = "https://github.com/acme/product.git"
+
+[automations.update-board-cards]
 trigger_type = "trello-cli-cards"
-repo = "acme/product"
+repository = "product"
 board_id = "66f6b55a1a2b3c4d5e6f7788"
 list_ids = ["66f6b55a1a2b3c4d5e6f7790"]
 prompt = "Handle Trello card ${card_id}: ${card_title}\n\n${card_body}\n\n${card_url}"
