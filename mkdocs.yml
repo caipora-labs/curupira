@@ -86,4 +86,5 @@ nav:
       - Cursor: providers/cursor.md
       - Kilo CLI: providers/kilo.md
       - OpenCode: providers/opencode.md
+      - pi: providers/pi.md
   - Plugins: plugins.md

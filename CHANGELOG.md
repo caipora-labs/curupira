@@ -10,12 +10,15 @@ All notable changes to this project are documented here. The format follows
 - Kilo CLI (`kilo`) as a built-in coding-agent provider, with OpenCode-compatible JSONL
   session detection and text rendering plus native model, agent, reasoning-variant, and
   permission options.
+- Built-in pi coding-agent support through `provider = "pi"`, including native model,
+  thinking, tool allowlist/exclusion, and project-trust options. JSON-mode session IDs are
+  persisted and resumed, and task output contains only assistant text blocks.
 - Coding-agent plugins: installed distributions register new coding-agent adapters under
   the `curupira.agents` entry-point group, using the public `curupira.plugins` API. Each
   adapter declares its own `profile_model`, `display_name`, and `install_url`, so plugin
   profile options are validated by `curu validate` and select the adapter with
-  `provider = "<name>"`. OpenCode, Codex, Claude Code, and Cursor stay built in and
-  register through the same registry (`curupira.agents.registry`).
+  `provider = "<name>"`. OpenCode, Codex, Claude Code, Cursor, Kilo CLI, and pi stay built
+  in and register through the same registry (`curupira.agents.registry`).
 - `curu plugins list` appends one `agent:<provider>` line per coding-agent provider with
   its distribution and executable; trigger lines are unchanged.
 - Coding-agent adapters can declare how they obtain session IDs and final answers without
@@ -38,6 +41,7 @@ All notable changes to this project are documented here. The format follows
   table and the coding-agent CLIs in the installation requirements are generated from the
   agent registry, so a new provider only adds its page and one nav line. The README
   provider section now links to the documentation instead of repeating CLI arguments.
+- The provider overview lists Kilo's `auto_approve` permission override.
 
 ## [0.2.0] - 2026-10-08
 
