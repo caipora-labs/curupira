@@ -85,7 +85,9 @@ Each profile's `provider` selects a registered coding agent: `opencode`, `codex`
 
 `trigger_type` selects the source:
 
-- `issue` discovers matching GitHub issues using GitHub Search syntax in `query`.
+- `issue` discovers matching GitHub issues using GitHub Search syntax in `query`. Add
+  `-linked:pr` to avoid newly discovering issues that already have a linked pull request;
+  scheduler validation is still required for sessions saved before the issue was linked.
 - `github-cli-pull-requests` discovers matching GitHub pull requests using `query`.
 - `azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
 - `cron` produces occurrences from a five-field `schedule` instead of querying a forge.

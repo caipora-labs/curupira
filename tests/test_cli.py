@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from curupira.cli import CliOptions, _batch_stream, _program_name, app, async_main, main
 from curupira.config import load_settings
-from curupira.models import Task
+from curupira.models import IssueAutomationConfiguration, Task
 from curupira.runtime import DispatchInstanceLock, dispatch_home
 from curupira.tasks.base import TaskFeed
 from tests.helpers import issue_task
@@ -168,6 +168,9 @@ async def test_example_configuration_is_valid(tmp_path: Path) -> None:
         "review-pull-requests",
         "weekly-maintenance",
     ]
+    issue_automation = settings.coding_agents.automations["resolve-ready-issues"]
+    assert isinstance(issue_automation, IssueAutomationConfiguration)
+    assert issue_automation.query == "is:open label:agent-ready -linked:pr sort:created-asc"
     assert list(tmp_path.iterdir()) == []
 
 

@@ -30,6 +30,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The example issue automation excludes issues already linked to pull requests with
+  `-linked:pr`; this search filter protects new discovery, while recovered sessions still
+  require scheduler-side revalidation.
 - Install instructions in the README and documentation use `uv tool install curupira`
   without a version pin, with a note on pinning `curupira==X.Y.Z` when needed.
 
