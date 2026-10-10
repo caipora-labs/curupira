@@ -60,6 +60,71 @@ def test_discriminator_supports_independent_source_types(trigger: str, expected:
     assert settings.coding_agents.automations["daily"].checkout == "worktree"
 
 
+def test_task_timeout_minutes_defaults_to_twenty() -> None:
+    settings = configuration()
+    assert settings.settings.task_timeout_minutes == 20
+    assert settings.settings.task_timeout_seconds == 1200.0
+
+
+def test_task_timeout_minutes_converts_to_seconds() -> None:
+    settings = ApplicationSettings.model_validate(
+        {
+            "settings": {"task_timeout_minutes": 5},
+            "coding_agents": {
+                "automations": {
+                    "daily": {
+                        "trigger_type": "issue",
+                        "repo": "acme/api",
+                        "query": "is:open",
+                        "prompt": "Handle ${task_title}",
+                    }
+                }
+            },
+        }
+    )
+    assert settings.settings.task_timeout_minutes == 5
+    assert settings.settings.task_timeout_seconds == 300.0
+
+
+@pytest.mark.parametrize("value", [0, -1])
+def test_task_timeout_minutes_must_be_positive(value: int) -> None:
+    with pytest.raises(ValidationError, match="task_timeout_minutes"):
+        ApplicationSettings.model_validate(
+            {
+                "settings": {"task_timeout_minutes": value},
+                "coding_agents": {
+                    "automations": {
+                        "daily": {
+                            "trigger_type": "issue",
+                            "repo": "acme/api",
+                            "query": "is:open",
+                            "prompt": "Handle ${task_title}",
+                        }
+                    }
+                },
+            }
+        )
+
+
+def test_legacy_task_timeout_seconds_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="task_timeout_seconds"):
+        ApplicationSettings.model_validate(
+            {
+                "settings": {"task_timeout_seconds": 3600},
+                "coding_agents": {
+                    "automations": {
+                        "daily": {
+                            "trigger_type": "issue",
+                            "repo": "acme/api",
+                            "query": "is:open",
+                            "prompt": "Handle ${task_title}",
+                        }
+                    }
+                },
+            }
+        )
+
+
 @pytest.mark.parametrize(
     "setup_script", ["", "/absolute/setup", "../setup", r"C:\\setup", "nested/../setup"]
 )

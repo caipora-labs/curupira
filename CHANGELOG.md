@@ -51,6 +51,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Task deadlines use `settings.task_timeout_minutes` (default 20) instead of optional
+  `task_timeout_seconds`. Omit the key to keep the 20-minute default; the value is
+  converted to seconds when starting the coding agent or setup script.
 - CLI dispatch is unified under `run`: a finite drain (formerly `batch`, with optional
   `--size`) is the default, and continuous polling is `run --watch` (formerly `watch`).
   The standalone `batch` and `watch` commands are removed. `run --dry-run` still previews
