@@ -85,6 +85,7 @@ nav:
       - Codex: providers/codex.md
       - Cursor: providers/cursor.md
       - Gemini CLI: providers/gemini.md
+      - GitHub Copilot CLI: providers/copilot.md
       - OpenCode: providers/opencode.md
       - pi: providers/pi.md
   - Plugins: plugins.md
