@@ -183,7 +183,7 @@ class OrchestratorApp(App[int]):
             await asyncio.gather(self._scheduler_task, return_exceptions=True)
 
     async def _run_scheduler(self) -> None:
-        """Drive the same watch pipeline used by ``curu watch``."""
+        """Drive the same continuous pipeline used by ``curu run --watch``."""
         settings = self._settings
         sessions = RunningSessionRepository(settings.settings.state_db_path)
         recovered = await sessions.list_all()
