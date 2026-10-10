@@ -188,8 +188,10 @@ async def test_example_configuration_is_valid(tmp_path: Path) -> None:
 
 
 async def test_configuration_error_has_actionable_exit_code(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     assert await async_main(CliOptions(command="run", config=tmp_path / "absent.toml")) == 2
     assert "configuration file not found" in capsys.readouterr().err
 
