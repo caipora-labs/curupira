@@ -60,6 +60,7 @@ class MondayItemSource(TaskSource):
 
     def __init__(self, runner: AsyncProcessRunner) -> None:
         self._runner = runner
+        self._cursor = ""
 
     @override
     async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
@@ -73,7 +74,7 @@ class MondayItemSource(TaskSource):
         tasks: list[Task] = []
         seen_ids: set[str] = set()
         seen_cursors: set[str] = set()
-        cursor = ""
+        cursor = self._cursor
         while len(tasks) < limit:
             page_limit = min(limit - len(tasks), MAX_MCLI_PAGE_SIZE)
             arguments = [
@@ -89,6 +90,11 @@ class MondayItemSource(TaskSource):
                 arguments.extend(("--cursor", cursor))
             result = await self._run(tuple(arguments))
             page = _parse_page(result)
+            if not page.cursor or page.cursor == cursor or page.cursor in seen_cursors:
+                self._cursor = ""
+            else:
+                self._cursor = page.cursor
+                seen_cursors.add(page.cursor)
             for item in page.items:
                 if item.id in seen_ids:
                     continue
@@ -109,10 +115,9 @@ class MondayItemSource(TaskSource):
                 )
                 if len(tasks) >= limit:
                     return tasks
-            if not page.cursor or page.cursor in seen_cursors:
+            if not self._cursor:
                 break
-            seen_cursors.add(page.cursor)
-            cursor = page.cursor
+            cursor = self._cursor
         return tasks
 
     async def _run(self, arguments: tuple[str, ...]) -> ProcessResult:

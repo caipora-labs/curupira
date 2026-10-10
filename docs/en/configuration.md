@@ -37,6 +37,7 @@ than maintaining a parallel field table here.
 ::: curupira.models.configuration.AzurePullRequestAutomationConfiguration
 
 ::: curupira.models.configuration.MondayAutomationConfiguration
+::: curupira.models.configuration.TrelloAutomationConfiguration
 
 ::: curupira.models.configuration.CronAutomationConfiguration
 
@@ -94,10 +95,11 @@ provider and its executable.
 - `github-cli-pull-requests` discovers matching GitHub pull requests using `query`.
 - `azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
 - `monday-cli-items` discovers items from a configured monday.com board through the official `mcli` CLI.
+- `trello-cli-cards` discovers Trello cards through Scale-Flow's `trello-cli` for a configured `board_id`, optionally restricted to `list_ids`.
 - `cron` produces occurrences from a five-field `schedule` instead of querying a forge.
 - Installed [plugins](plugins.md) add their own trigger types; `curu plugins list` shows every available type and its prompt placeholders.
 
-Each automation requires `repo` and `prompt`. GitHub triggers also require `query`; cron requires `schedule`. Azure DevOps automations use `repo` as `organization/project/repository` and optional `status` / branch filters instead of a search query. Optional `profile` selects a CLI profile. Optional `path` pins the automation to an existing checkout or an alternative clone destination. Relative paths are resolved from the TOML file's directory. Different repositories cannot share one workspace path. Automations keep file order, and one-shot selection follows that order.
+Each automation requires `repo` and `prompt`. GitHub triggers also require `query`; cron requires `schedule`. Azure DevOps automations use `repo` as `organization/project/repository` and optional `status` / branch filters instead of a search query. Trello automations require `board_id` and may set `list_ids` to select lists on that board; `repo` remains the repository Curupira checks out for coding tasks. Optional `profile` selects a CLI profile. Optional `path` pins the automation to an existing checkout or an alternative clone destination. Relative paths are resolved from the TOML file's directory. Different repositories cannot share one workspace path. Automations keep file order, and one-shot selection follows that order.
 
 ## monday.com source
 

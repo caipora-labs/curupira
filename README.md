@@ -2,11 +2,11 @@
 
 **Curupira** (by Caipora Labs) is the product name. The PyPI project, primary console script, and Python import are `curupira`. The short command `curu` is the same entry point.
 
-Curupira runs automations on your machine. It takes a GitHub issue or pull request, a monday.com board item, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
+Curupira runs automations on your machine. It takes a GitHub issue or pull request, a Trello card, a monday.com board item, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
 
-Each automation in the settings TOML watches one source (issues, pull requests, monday.com
-items, or a cron schedule) and carries its own prompt. All automations share one discovery,
-scheduling, and execution pipeline: `run` drains currently available tasks, while
+Each automation in the settings TOML watches one source (issues, pull requests, Trello
+cards, monday.com items, or a cron schedule) and carries its own prompt. All automations
+share one discovery, scheduling, and execution pipeline: `run` drains currently available tasks, while
 `run --watch` polls every automation continuously.
 
 ## Requirements
@@ -22,6 +22,8 @@ scheduling, and execution pipeline: `run` drains currently available tasks, whil
   [`kilo`](https://kilo.ai/docs/code-with-ai/platforms/cli),
   [`opencode`](https://opencode.ai/), [`pi`](https://pi.dev/docs/latest), or
   [`qwen`](https://github.com/QwenLM/qwen-code)
+- For Trello automations, install and authenticate the
+  [Scale-Flow `trello-cli`](https://github.com/Scale-Flow/trello-cli).
 
 ## Installation
 
@@ -93,10 +95,13 @@ and is carried into every task identity. `trigger_type` selects the source:
 - `"github-cli-pull-requests"` — discovers matching GitHub pull requests with `query`
 - `"azure-cli-pull-requests"` — lists Azure DevOps pull requests with `az repos pr list`
 - `"monday-cli-items"` — discovers items from a board with the official `mcli` CLI
+- `"trello-cli-cards"` — discovers cards from a configured board with Scale-Flow's `trello-cli`
 - `"cron"` — produces occurrences from `schedule` instead of querying a forge
 
 Every automation requires `repo` and `prompt`. GitHub triggers also require `query`;
-cron requires `schedule`, and monday.com requires a numeric-string `board_id`. For Azure DevOps, `repo` uses
+cron requires `schedule`, and monday.com requires a numeric-string `board_id`. Trello
+automations require `board_id` and optionally accept `list_ids`; see the
+[Trello task source guide](https://caipora-labs.github.io/curupira/trello/). For Azure DevOps, `repo` uses
 `organization/project/repository` (organization name, not a full URL). Optional
 `status` (`active` by default), `source_branch`, and `target_branch` filter the Azure
 list. Optional `profile` selects a named CLI profile; otherwise the default profile
@@ -127,7 +132,8 @@ arguments is documented on the
 
 Placeholders use `${name}` syntax and are validated when the configuration loads.
 Common fields: `${repo}`, `${automation_id}`, `${task_type}`, `${task_number}`,
-`${task_title}`, `${task_body}`, `${task_url}`. Issues add `${issue_number}`,
+`${task_title}`, `${task_body}`, `${task_url}`. Trello cards add `${card_id}`,
+`${card_title}`, `${card_body}`, `${card_url}`, `${card_list_id}`. Issues add `${issue_number}`,
 `${issue_title}`, `${issue_body}`, `${issue_url}`. Pull requests add
 `${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
 `${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`, and
@@ -146,8 +152,8 @@ two automations may process the same issue with different prompts.
 Polls that use the `project:` search qualifier keep the `open` state and filter board
 items to the `Todo` status automatically.
 
-Other task sources, such as Trello, can be added as trigger plugins registered under
-the `curupira.triggers` entry-point group; see the
+Other task sources can be added as trigger plugins registered under the
+`curupira.triggers` entry-point group; see the
 [plugins guide](https://github.com/caipora-labs/curupira/blob/main/docs/en/plugins.md).
 
 For monday.com, install the official CLI (`go install github.com/mondaycom/mcli/cmd/mcli@latest`

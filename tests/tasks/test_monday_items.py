@@ -140,6 +140,29 @@ async def test_source_pages_are_deduplicated_between_repeated_polls(tmp_path: Pa
 
 
 @pytest.mark.asyncio
+async def test_source_resumes_next_page_on_later_poll(tmp_path: Path) -> None:
+    runner = RecordingRunner(
+        ProcessResult(
+            returncode=0,
+            stdout='{"items":[{"id":"1","name":"One"},{"id":"2","name":"Two"}],"cursor":"next"}',
+        ),
+        ProcessResult(
+            returncode=0,
+            stdout='{"items":[{"id":"3","name":"Three"},{"id":"4","name":"Four"}],"cursor":""}',
+        ),
+    )
+    automation = resolved_automation(tmp_path, "monday-work", "monday-cli-items")
+    feed = PollingTaskFeed(automation, PollingSettings(batch_size=2), MondayItemSource(runner))
+
+    first_poll = await feed.poll()
+    second_poll = await feed.poll()
+
+    assert [task.identity.id for task in first_poll] == ["1", "2"]
+    assert [task.identity.id for task in second_poll] == ["3", "4"]
+    assert runner.requests[1].arguments[-2:] == ("--cursor", "next")
+
+
+@pytest.mark.asyncio
 async def test_source_reports_missing_cli_with_install_help(tmp_path: Path) -> None:
     source = MondayItemSource(MissingMcliRunner())
 
