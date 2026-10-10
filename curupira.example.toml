@@ -56,6 +56,15 @@ provider = "cursor"
 # approval_mode = "default" # default, auto_edit, yolo, or plan
 # skip_trust = false
 
+# [coding_agents.profiles.pi]
+# provider = "pi"
+# model = "anthropic/claude-sonnet-4"
+# model_provider = "anthropic" # requires model
+# effort = "high"
+# tools = ["read", "edit", "write"]
+# exclude_tools = ["bash"]
+# approve = false # explicitly decline project trust for this process
+
 [coding_agents.automations.resolve-ready-issues]
 trigger_type = "issue"
 repo = "acme/api"

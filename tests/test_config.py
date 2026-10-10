@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from curupira.agents.gemini import GeminiCliProfile
+from curupira.agents.pi import PiCliProfile
 from curupira.config import ApplicationSettings, load_settings
 from curupira.models import (
     AzurePullRequestAutomationConfiguration,
@@ -202,6 +203,21 @@ def test_cursor_rejects_effort_and_codex_accepts_optional_effort() -> None:
         ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile.provider
         == "codex"
     )
+
+
+def test_pi_provider_selects_pi_profile() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {
+        "provider": "pi",
+        "model": "anthropic/claude-sonnet-4",
+        "model_provider": "anthropic",
+    }
+
+    profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
+
+    assert isinstance(profile, PiCliProfile)
+    assert profile.provider == "pi"
+    assert profile.model_provider == "anthropic"
 
 
 def test_cron_defaults_normalize_dates_before_comparing_windows() -> None:
