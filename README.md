@@ -71,42 +71,49 @@ poll_interval_seconds = 30
 batch_size = 100
 cron_poll_interval_seconds = 1
 
-[coding_agents.defaults]
+[repositories.api]
+remote = "https://github.com/acme/api.git"
+# setup_script = "scripts/bootstrap.sh"
+
+[agents.defaults]
 profile = "opencode-default"
 timezone = "UTC"
 
-[coding_agents.profiles.opencode-default]
+[agents.profiles.opencode-default]
 provider = "opencode"
 
-[coding_agents.automations.resolve-ready-issues]
-trigger_type = "issue"
+[automations.resolve-ready-issues]
+trigger_type = "github-issues"
+repository = "api"
 repo = "acme/api"
-query = "is:open label:agent-ready sort:created-asc"
+labels = ["agent-ready"]
+linked_pull_request = false
 prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 ```
 
 ### Automations
 
-`[coding_agents.automations.<name>]` is a keyed map; the map key is the automation ID
-and is carried into every task identity. `trigger_type` selects the source:
+`[automations.<name>]` is a keyed map; the map key is the automation ID and is carried
+into every task identity. `repository` selects a `[repositories.<alias>]` checkout with a
+full Git `remote` URL (and optional `path` / `setup_script`). `trigger_type` selects the
+source:
 
-- `"issue"` — discovers matching GitHub issues with `query`
-- `"github-cli-pull-requests"` — discovers matching GitHub pull requests with `query`
+- `"github-issues"` — discovers matching GitHub issues with typed GraphQL Search filters
+- `"github-pull-requests"` — discovers matching GitHub pull requests with typed filters
 - `"azure-cli-pull-requests"` — lists Azure DevOps pull requests with `az repos pr list`
 - `"trello-cli-cards"` — discovers cards from a configured board with Scale-Flow's `trello-cli`
 - `"cron"` — produces occurrences from `schedule` instead of querying a forge
 
-Every automation requires `repo` and `prompt`. GitHub triggers also require `query`;
-cron requires `schedule`. Trello automations require `board_id` and optionally accept
-`list_ids`; see the [Trello task source guide](https://caipora-labs.github.io/curupira/trello/).
-For Azure DevOps, `repo` uses
-`organization/project/repository` (organization name, not a full URL). Optional
-`status` (`active` by default), `source_branch`, and `target_branch` filter the Azure
-list. Optional `profile` selects a named CLI profile; otherwise the default profile
-applies. Optional `path` pins the automation to an existing checkout or an alternative
-clone destination; relative paths resolve from the TOML directory, as do
-`workspace_dir` and `state_db_path`. Different repositories cannot share one workspace
-path. Automations keep file order, and one-shot selection follows that order.
+Every automation requires `repository` and `prompt`. GitHub/Azure triggers also require
+forge `repo` identity; cron requires `schedule`. Trello automations require `board_id` and
+optionally accept `list_ids`; see the
+[Trello task source guide](https://caipora-labs.github.io/curupira/trello/).
+For Azure DevOps, forge `repo` uses `organization/project/repository` (organization name,
+not a full URL). Optional `status` (`active` by default), `source_branch`, and
+`target_branch` filter the Azure list. Optional `profile` selects a named CLI profile;
+otherwise the default profile applies. Relative paths resolve from the TOML directory.
+Different repository aliases cannot share one workspace path. Automations keep file order,
+and one-shot selection follows that order.
 
 ### Providers and native options
 
@@ -129,8 +136,8 @@ arguments is documented on the
 ### Prompts and placeholders
 
 Placeholders use `${name}` syntax and are validated when the configuration loads.
-Common fields: `${repo}`, `${automation_id}`, `${task_type}`, `${task_number}`,
-`${task_title}`, `${task_body}`, `${task_url}`. Trello cards add `${card_id}`,
+Common fields: `${repo}`, `${repository}`, `${automation_id}`, `${task_type}`,
+`${task_number}`, `${task_title}`, `${task_body}`, `${task_url}`. Trello cards add `${card_id}`,
 `${card_title}`, `${card_body}`, `${card_url}`, `${card_list_id}`. Issues add `${issue_number}`,
 `${issue_title}`, `${issue_body}`, `${issue_url}`. Pull requests add
 `${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
@@ -139,14 +146,12 @@ Common fields: `${repo}`, `${automation_id}`, `${task_type}`, `${task_number}`,
 
 ### Discovery, concurrency, and cron semantics
 
-Queries use GitHub search syntax and fetch up to `batch_size` items per poll (default
-100, up to 1000). When a full cycle finds nothing, the shared poller waits
+GitHub filters are typed TOML fields compiled into GitHub Search and executed through
+GraphQL (`httpx` + `gh auth token`). Polls fetch up to `batch_size` items (default 100,
+up to 1000). When a full cycle finds nothing, the shared poller waits
 `poll_interval_seconds` (default 30s); consecutive empty cycles double the wait up to
 5 minutes, and any discovery resets it. Each automation deduplicates its own items, so
 two automations may process the same issue with different prompts.
-
-Polls that use the `project:` search qualifier keep the `open` state and filter board
-items to the `Todo` status automatically.
 
 Other task sources can be added as trigger plugins registered under the
 `curupira.triggers` entry-point group; see the
@@ -159,24 +164,22 @@ fetched remote default branch and is not pushed. Set `checkout = "main"` to use 
 shared checkout instead (this means the shared checkout, not a branch named `main`, and
 restores the previous exclusive behavior). `path` continues to select the base checkout.
 With `checkout = "main"`, the agent runs on the shared checkout exactly as it is: Curupira does not fetch, pull, or switch branches there.
-Checkouts are created on demand with `gh repo clone` under `workspace_dir/owner/repo`.
-Nothing modifies issues or pull requests.
+Checkouts are created on demand with `git clone <remote>` under
+`workspace_dir/<repository-alias>` (or the alias `path`). Nothing modifies issues or pull
+requests.
 
-An optional `setup_script` is a repository-relative executable path (no absolute paths
-or `..`). It runs directly, with the checkout root as its working directory, only when
-the base checkout has just been cloned. It does not run for an existing checkout or in
-the task worktree, so files or dependencies installed there are not available to the
-agent. Use `checkout = "main"` when the agent must run where setup wrote files. A nonzero
-setup exit prevents the agent from starting; the newly cloned checkout is removed, while
-an existing checkout is preserved. `validate` checks the path syntax but does not require
-the script to exist. `run --dry-run` does not fetch, clone, create a worktree, or run setup,
-so it cannot verify that the script or worktree will work. Existing automation TOML remains
-valid, but now uses a worktree by default; configure `checkout = "main"` to keep the old
-shared-checkout behavior.
+An optional `setup_script` on the repository alias is a repository-relative executable
+path (no absolute paths or `..`). It runs directly, with the checkout root as its working
+directory, only when the base checkout has just been cloned. It does not run for an
+existing checkout or in the task worktree. Use `checkout = "main"` when the agent must run
+where setup wrote files. A nonzero setup exit prevents the agent from starting; the newly
+cloned checkout is removed, while an existing checkout is preserved. `validate` checks the
+path syntax but does not require the script to exist. `run --dry-run` does not fetch, clone,
+create a worktree, or run setup.
 
 Each cron automation coalesces overdue ticks into a single pending occurrence; the same
 automation never runs concurrently with itself. `schedule` is a five-field cron
-expression, `timezone` is IANA (defaulting to `coding_agents.defaults.timezone`), and
+expression, `timezone` is IANA (defaulting to `agents.defaults.timezone`), and
 `start_date`/`end_date` form an optional inclusive window interpreted in that timezone.
 Without `start_date`, the window starts when the automation is first recorded.
 

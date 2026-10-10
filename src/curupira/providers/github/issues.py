@@ -2,9 +2,10 @@
 
 from typing_extensions import override
 
-from curupira.clients.gh import GhClient
+from curupira.clients.github_graphql import GitHubGraphQLClient
+from curupira.clients.github_search import build_github_search_query
 from curupira.models import (
-    GhIssueSearchRequest,
+    GitHubSearchRequest,
     IssueAutomationConfiguration,
     ResolvedAutomation,
     Task,
@@ -16,26 +17,33 @@ from curupira.tasks.feed import PollingTaskFeed
 
 
 class GitHubIssueSource(TaskSource):
-    """Discover GitHub issue tasks through the authenticated gh client."""
+    """Discover GitHub issue tasks through the GraphQL Search API."""
 
-    def __init__(self, gh: GhClient) -> None:
-        self._gh = gh
+    def __init__(self, client: GitHubGraphQLClient) -> None:
+        self._client = client
 
     @override
     async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
-        """Search issues using the automation's existing query and result limit."""
+        """Search issues using the automation's typed filters and result limit."""
         config = automation.configuration
         if not isinstance(config, IssueAutomationConfiguration):
             raise ValueError("GitHub issue source requires an issue configuration")
-        issues = await self._gh.list_issues(
-            GhIssueSearchRequest(repo=config.repo, query=config.query, limit=limit)
+        query = build_github_search_query(config, item_kind="issue")
+        issues = await self._client.list_issues(
+            GitHubSearchRequest(
+                repo=config.repo,
+                query=query,
+                limit=limit,
+                item_kind="issue",
+            ),
+            configuration=config,
         )
         return [
             Task(
                 identity=TaskIdentity(
                     automation_id=automation.automation_id,
-                    repo=config.repo,
-                    task_type="issue",
+                    repo=automation.identity_repo,
+                    task_type="github-issues",
                     id=str(issue.number),
                 ),
                 automation=automation,
@@ -55,7 +63,7 @@ class GitHubIssueSource(TaskSource):
 class IssueTrigger(Trigger):
     """Trigger implementation for GitHub issue automations."""
 
-    trigger_type = "issue"
+    trigger_type = "github-issues"
     configuration_model = IssueAutomationConfiguration
     item_model = IssueItem
 
@@ -67,5 +75,5 @@ class IssueTrigger(Trigger):
         return PollingTaskFeed(
             automation,
             dependencies.polling,
-            GitHubIssueSource(GhClient(dependencies.runner)),
+            GitHubIssueSource(GitHubGraphQLClient(dependencies.runner)),
         )

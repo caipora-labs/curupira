@@ -28,8 +28,39 @@ from curupira.models.base import (
 from curupira.models.profiles import CliProfile, OpenCodeCliProfile
 
 COMMON_PROMPT_FIELDS = frozenset(
-    {"repo", "automation_id", "task_type", "task_number", "task_title", "task_body", "task_url"}
+    {
+        "repo",
+        "repository",
+        "automation_id",
+        "task_type",
+        "task_number",
+        "task_title",
+        "task_body",
+        "task_url",
+    }
 )
+
+GitHubItemState = Literal["open", "closed", "all"]
+GitHubSort = Literal[
+    "created-asc",
+    "created-desc",
+    "updated-asc",
+    "updated-desc",
+    "comments-asc",
+    "comments-desc",
+]
+GitHubReviewFilter = Literal["none", "required", "approved", "changes_requested"]
+GitHubCiStatus = Literal["success", "failure", "pending"]
+GitHubMergeStateStatus = Literal[
+    "BEHIND",
+    "BLOCKED",
+    "CLEAN",
+    "DIRTY",
+    "DRAFT",
+    "HAS_HOOKS",
+    "UNKNOWN",
+    "UNSTABLE",
+]
 
 
 def validate_timezone(value: str) -> str:
@@ -41,12 +72,47 @@ def validate_timezone(value: str) -> str:
     return value
 
 
+def validate_setup_script(value: str | None) -> str | None:
+    """Require an optional repository-relative script path without traversal."""
+    if value is None:
+        return None
+    if not value.strip():
+        raise ValueError("setup_script must not be empty")
+    path = Path(value)
+    posix_path = PurePosixPath(value)
+    windows_path = PureWindowsPath(value)
+    if (
+        path.is_absolute()
+        or posix_path.is_absolute()
+        or windows_path.is_absolute()
+        or bool(windows_path.root)
+        or ".." in path.parts
+        or ".." in windows_path.parts
+    ):
+        raise ValueError("setup_script must be a relative path without '..'")
+    return value
+
+
+def validate_git_remote(value: str) -> str:
+    """Require a full Git remote URL (HTTPS, SSH, or git protocol)."""
+    remote = value.strip()
+    if not remote or any(character.isspace() for character in remote):
+        raise ValueError("remote must be a non-empty Git URL without whitespace")
+    if remote.startswith(("http://", "https://", "ssh://", "git://", "file://")):
+        return remote
+    if re.fullmatch(r"[^/@\s]+@[^:\s]+:\S+", remote) is not None:
+        return remote
+    raise ValueError(
+        "remote must be a full Git URL (https://, ssh://, git://, file://, or user@host:path)"
+    )
+
+
 class PollingSettings(ValidatedModel):
-    """Global discovery intervals and GitHub query size.
+    """Global discovery intervals and fetch batch size.
 
     Attributes:
         poll_interval_seconds: Delay between discovery polls, in seconds.
-        batch_size: Maximum number of GitHub items fetched by one poll.
+        batch_size: Maximum number of forge items fetched by one poll.
         cron_poll_interval_seconds: Maximum delay between cron schedule checks.
     """
 
@@ -90,7 +156,39 @@ class ExecutionSettings(ValidatedModel):
         return Path(value).expanduser()
 
 
-class CodingAgentDefaults(ValidatedModel):
+class RepositoryConfiguration(ValidatedModel):
+    """Local Git checkout identity shared by one or more automations.
+
+    Attributes:
+        remote: Full Git remote URL used for ``git clone``.
+        path: Optional base checkout path; relative paths resolve from the TOML file.
+        setup_script: Optional repository-relative script run after a fresh clone.
+    """
+
+    remote: NonEmptyString
+    path: Path | None = None
+    setup_script: str | None = None
+
+    @field_validator("remote")
+    @classmethod
+    def validate_remote(cls, value: str) -> str:
+        """Require a full Git remote URL."""
+        return validate_git_remote(value)
+
+    @field_validator("setup_script")
+    @classmethod
+    def validate_setup_script_field(cls, value: str | None) -> str | None:
+        """Validate the optional setup script path."""
+        return validate_setup_script(value)
+
+    @field_validator("path")
+    @classmethod
+    def expand_path(cls, value: Path | None) -> Path | None:
+        """Expand the optional user-relative workspace override."""
+        return value.expanduser() if value is not None else None
+
+
+class AgentDefaults(ValidatedModel):
     """Profile reference and timezone inherited by automation definitions.
 
     Attributes:
@@ -108,6 +206,10 @@ class CodingAgentDefaults(ValidatedModel):
         return validate_timezone(value)
 
 
+# Compatibility alias while documentation and imports settle.
+CodingAgentDefaults = AgentDefaults
+
+
 class AutomationConfigurationBase(ValidatedModel):
     """Shared options for one automation, keyed by its enclosing TOML table name.
 
@@ -116,49 +218,17 @@ class AutomationConfigurationBase(ValidatedModel):
 
     Attributes:
         trigger_type: Registered trigger type selecting the configuration model.
-        repo: Repository identifier whose format depends on the trigger type.
-        path: Optional base checkout path; relative paths are resolved from the TOML file.
-        setup_script: Optional repository-relative script run after a fresh clone.
+        repository: Alias of a ``[repositories.<alias>]`` entry used for Git checkout.
         checkout: Whether tasks use isolated worktrees or the shared checkout.
         prompt: Template sent to the selected coding-agent CLI.
         profile: Optional named CLI profile overriding the configured default.
     """
 
     trigger_type: NonEmptyString
-    repo: NonEmptyString
-    path: Path | None = None
-    setup_script: str | None = None
+    repository: Identifier
     checkout: Literal["worktree", "main"] = "worktree"
     prompt: str
     profile: Identifier | None = None
-
-    @field_validator("setup_script")
-    @classmethod
-    def validate_setup_script(cls, value: str | None) -> str | None:
-        """Require an optional repository-relative script path without traversal."""
-        if value is None:
-            return None
-        if not value.strip():
-            raise ValueError("setup_script must not be empty")
-        path = Path(value)
-        posix_path = PurePosixPath(value)
-        windows_path = PureWindowsPath(value)
-        if (
-            path.is_absolute()
-            or posix_path.is_absolute()
-            or windows_path.is_absolute()
-            or bool(windows_path.root)
-            or ".." in path.parts
-            or ".." in windows_path.parts
-        ):
-            raise ValueError("setup_script must be a relative path without '..'")
-        return value
-
-    @field_validator("path")
-    @classmethod
-    def expand_path(cls, value: Path | None) -> Path | None:
-        """Expand the optional user-relative workspace override."""
-        return value.expanduser() if value is not None else None
 
     @field_validator("prompt")
     @classmethod
@@ -172,13 +242,29 @@ class AutomationConfigurationBase(ValidatedModel):
 
 
 class GitHubAutomationConfiguration(AutomationConfigurationBase):
-    """Options for issue and pull-request discovery.
+    """Shared GitHub GraphQL discovery filters for issues and pull requests.
 
     Attributes:
-        query: GitHub Search query used to select matching items.
+        repo: GitHub ``owner/repository`` identity used for GraphQL search.
+        state: Open/closed/all filter compiled into the search query.
+        labels: Labels that must all be present (AND).
+        exclude_labels: Labels that must be absent.
+        assignee: Login, ``@me``, ``none``, or ``any``.
+        author: Issue or pull-request author login.
+        milestone: Milestone title filter.
+        project: GitHub project qualifier (``owner/number``).
+        sort: Search sort qualifier.
     """
 
-    query: NonEmptyString
+    repo: NonEmptyString
+    state: GitHubItemState = "open"
+    labels: tuple[NonEmptyString, ...] = ()
+    exclude_labels: tuple[NonEmptyString, ...] = ()
+    assignee: NonEmptyString | None = None
+    author: NonEmptyString | None = None
+    milestone: NonEmptyString | None = None
+    project: NonEmptyString | None = None
+    sort: GitHubSort = "created-asc"
 
     @field_validator("repo")
     @classmethod
@@ -192,16 +278,39 @@ class GitHubAutomationConfiguration(AutomationConfigurationBase):
 
 
 class IssueAutomationConfiguration(GitHubAutomationConfiguration):
-    """Discover issues matching a GitHub Search query."""
+    """Discover GitHub issues through typed filters compiled to GraphQL search.
 
-    trigger_type: NonEmptyString = "issue"
+    Attributes:
+        linked_pull_request: When set, require or exclude a linked closing PR.
+    """
+
+    trigger_type: NonEmptyString = "github-issues"
+    linked_pull_request: bool | None = None
 
 
 class PullRequestAutomationConfiguration(GitHubAutomationConfiguration):
-    """Discover pull requests matching a GitHub Search query."""
+    """Discover GitHub pull requests through typed filters and merge post-filters.
 
-    trigger_type: NonEmptyString = "github-cli-pull-requests"
-    jq: NonEmptyString | None = None
+    Attributes:
+        draft: When set, require draft or ready-for-review pull requests.
+        base: Base branch name filter.
+        head: Head branch name filter.
+        review: Review-state search qualifier.
+        ci_status: Commit-status search qualifier.
+        linked_issue: When set, require or exclude a linked closing issue.
+        mergeable: Post-filter on GraphQL ``mergeable`` (true=MERGEABLE, false=CONFLICTING).
+        merge_state: Optional post-filter on GraphQL ``mergeStateStatus`` values.
+    """
+
+    trigger_type: NonEmptyString = "github-pull-requests"
+    draft: bool | None = None
+    base: NonEmptyString | None = None
+    head: NonEmptyString | None = None
+    review: GitHubReviewFilter | None = None
+    ci_status: GitHubCiStatus | None = None
+    linked_issue: bool | None = None
+    mergeable: bool | None = None
+    merge_state: tuple[GitHubMergeStateStatus, ...] = ()
 
 
 class AzurePullRequestAutomationConfiguration(AutomationConfigurationBase):
@@ -215,6 +324,7 @@ class AzurePullRequestAutomationConfiguration(AutomationConfigurationBase):
     """
 
     trigger_type: NonEmptyString = "azure-cli-pull-requests"
+    repo: NonEmptyString
     status: AzurePullRequestStatus = "active"
     source_branch: NonEmptyString | None = None
     target_branch: NonEmptyString | None = None
@@ -265,16 +375,6 @@ class CronAutomationConfiguration(AutomationConfigurationBase):
     start_date: datetime | None = None
     end_date: datetime | None = None
 
-    @field_validator("repo")
-    @classmethod
-    def validate_repository(cls, value: str) -> str:
-        """Require the owner/repository format without traversal segments."""
-        if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", value) is None:
-            raise ValueError("repo must use the owner/repository format")
-        if any(part in {".", ".."} for part in value.split("/")):
-            raise ValueError("repo must not contain traversal segments")
-        return value
-
     @field_validator("schedule")
     @classmethod
     def validate_schedule(cls, value: str) -> str:
@@ -298,7 +398,7 @@ def parse_automation_configuration(value: object) -> object:
 
     trigger_type = value.get("trigger_type")
     if trigger_type is None:
-        trigger_type = "cron" if "schedule" in value else "issue"
+        trigger_type = "cron" if "schedule" in value else "github-issues"
     if not isinstance(trigger_type, str):
         raise ValueError("trigger_type must be a string")
     return get(trigger_type).configuration_model.model_validate(value)
@@ -316,43 +416,27 @@ def default_profiles() -> dict[str, CliProfile]:
     return {"opencode": OpenCodeCliProfile()}
 
 
-class CodingAgentsSettings(ValidatedModel):
-    """Named CLI profiles, inherited defaults, and keyed automation definitions.
+class AgentsSettings(ValidatedModel):
+    """Named CLI profiles and inherited defaults for coding agents.
 
     Attributes:
         defaults: Profile and timezone inherited by automations.
         profiles: Non-empty mapping of user-chosen names to provider-specific CLI options.
-        automations: Non-empty mapping of user-chosen names to trigger definitions.
     """
 
-    defaults: CodingAgentDefaults = Field(default_factory=CodingAgentDefaults)
+    defaults: AgentDefaults = Field(default_factory=AgentDefaults)
     profiles: dict[Identifier, CliProfile] = Field(default_factory=default_profiles, min_length=1)
-    automations: dict[Identifier, AutomationConfiguration] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_references_and_prompts(self) -> "CodingAgentsSettings":
-        """Check profile references and prompt placeholders."""
+    def validate_default_profile(self) -> "AgentsSettings":
+        """Require the default profile to exist among configured profiles."""
         if self.defaults.profile not in self.profiles:
             raise ValueError(f"default profile does not exist: {self.defaults.profile}")
-        from curupira.tasks.registry import get
-
-        for name, automation in self.automations.items():
-            profile = automation.profile or self.defaults.profile
-            if profile not in self.profiles:
-                raise ValueError(f"profile {profile!r} for automation {name!r} does not exist")
-            allowed = COMMON_PROMPT_FIELDS | get(automation.trigger_type).prompt_fields()
-            unknown = set(Template(automation.prompt).get_identifiers()) - allowed
-            if unknown:
-                raise ValueError(f"unsupported prompt placeholders for {name!r}: {sorted(unknown)}")
-            if isinstance(automation, CronAutomationConfiguration):
-                timezone = ZoneInfo(automation.timezone or self.defaults.timezone)
-                start = normalize_date(automation.start_date, timezone)
-                end = normalize_date(automation.end_date, timezone)
-                if start is not None and end is not None and end < start:
-                    raise ValueError(
-                        f"end_date must be greater than or equal to start_date: {name}"
-                    )
         return self
+
+
+# Compatibility alias for older imports.
+CodingAgentsSettings = AgentsSettings
 
 
 def normalize_date(value: datetime | None, timezone: ZoneInfo) -> datetime | None:
@@ -360,3 +444,11 @@ def normalize_date(value: datetime | None, timezone: ZoneInfo) -> datetime | Non
     if value is None:
         return None
     return value.replace(tzinfo=timezone) if value.tzinfo is None else value.astimezone(timezone)
+
+
+def forge_identity(configuration: AutomationConfigurationBase, repository_id: str) -> str:
+    """Return the forge repository string when present, else the repository alias."""
+    repo = getattr(configuration, "repo", None)
+    if isinstance(repo, str) and repo:
+        return repo
+    return repository_id

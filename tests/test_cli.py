@@ -134,8 +134,11 @@ async def test_default_configuration_is_loaded_from_user_home(
     config = tmp_path / ".curupira" / "settings.toml"
     config.parent.mkdir()
     config.write_text(
-        '[coding_agents.automations.daily]\ntrigger_type="cron"\nrepo="acme/api"\n'
-        'schedule="0 9 * * *"\nprompt="Maintain ${repo}"\n',
+        '[repositories.api]\nremote="https://github.com/acme/api.git"\n'
+        '[agents.defaults]\nprofile="opencode"\n'
+        '[agents.profiles.opencode]\nprovider="opencode"\n'
+        '[automations.daily]\ntrigger_type="cron"\nrepository="api"\n'
+        'schedule="0 9 * * *"\nprompt="Maintain ${repository}"\n',
         encoding="utf-8",
     )
     options = CliOptions(command="validate", config=config)
@@ -166,8 +169,11 @@ async def test_validate_is_side_effect_free_for_cron_only_configuration(
     path = tmp_path / "config.toml"
     path.write_text(
         '[settings]\nstate_db_path="state.sqlite3"\n'
-        '[coding_agents.automations.daily]\ntrigger_type="cron"\nrepo="acme/api"\n'
-        'schedule="0 9 * * *"\nprompt="Maintain ${repo}"\n',
+        '[repositories.api]\nremote="https://github.com/acme/api.git"\n'
+        '[agents.defaults]\nprofile="opencode"\n'
+        '[agents.profiles.opencode]\nprovider="opencode"\n'
+        '[automations.daily]\ntrigger_type="cron"\nrepository="api"\n'
+        'schedule="0 9 * * *"\nprompt="Maintain ${repository}"\n',
         encoding="utf-8",
     )
     assert await async_main(CliOptions(command="validate", config=path)) == 0

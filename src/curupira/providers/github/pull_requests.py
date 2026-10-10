@@ -2,9 +2,10 @@
 
 from typing_extensions import override
 
-from curupira.clients.gh import GhClient
+from curupira.clients.github_graphql import GitHubGraphQLClient
+from curupira.clients.github_search import build_github_search_query
 from curupira.models import (
-    GhPullRequestSearchRequest,
+    GitHubSearchRequest,
     PullRequestAutomationConfiguration,
     ResolvedAutomation,
     Task,
@@ -16,28 +17,33 @@ from curupira.tasks.feed import PollingTaskFeed
 
 
 class GitHubPullRequestSource(TaskSource):
-    """Discover pull-request tasks through the authenticated gh client."""
+    """Discover pull-request tasks through the GraphQL Search API."""
 
-    def __init__(self, gh: GhClient) -> None:
-        self._gh = gh
+    def __init__(self, client: GitHubGraphQLClient) -> None:
+        self._client = client
 
     @override
     async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
-        """Search pull requests using the automation's query and result limit."""
+        """Search pull requests using the automation's typed filters and result limit."""
         config = automation.configuration
         if not isinstance(config, PullRequestAutomationConfiguration):
             raise ValueError("GitHub pull-request source requires a pull-request configuration")
-        items = await self._gh.list_pull_requests(
-            GhPullRequestSearchRequest(
-                repo=config.repo, query=config.query, limit=limit, jq=config.jq
-            )
+        query = build_github_search_query(config, item_kind="pull_request")
+        items = await self._client.list_pull_requests(
+            GitHubSearchRequest(
+                repo=config.repo,
+                query=query,
+                limit=limit,
+                item_kind="pull_request",
+            ),
+            configuration=config,
         )
         return [
             Task(
                 identity=TaskIdentity(
                     automation_id=automation.automation_id,
-                    repo=config.repo,
-                    task_type="github-cli-pull-requests",
+                    repo=automation.identity_repo,
+                    task_type="github-pull-requests",
                     id=str(item.number),
                 ),
                 automation=automation,
@@ -60,7 +66,7 @@ class GitHubPullRequestSource(TaskSource):
 class PullRequestTrigger(Trigger):
     """Trigger implementation for GitHub pull-request automations."""
 
-    trigger_type = "github-cli-pull-requests"
+    trigger_type = "github-pull-requests"
     configuration_model = PullRequestAutomationConfiguration
     item_model = PullRequestItem
 
@@ -72,5 +78,5 @@ class PullRequestTrigger(Trigger):
         return PollingTaskFeed(
             automation,
             dependencies.polling,
-            GitHubPullRequestSource(GhClient(dependencies.runner)),
+            GitHubPullRequestSource(GitHubGraphQLClient(dependencies.runner)),
         )

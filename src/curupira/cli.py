@@ -300,7 +300,7 @@ async def _execute_command(options: CliOptions) -> int:
         print(f"Configuration error: {error}", file=sys.stderr)
         return 2
     if options.command == "validate":
-        count = len(settings.coding_agents.automations)
+        count = len(settings.automations)
         limit = settings.settings.max_active_tasks
         print(f"Configuration is valid ({count} automations; max active tasks: {limit}).")
         return 0

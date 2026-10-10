@@ -27,6 +27,7 @@ def common_prompt_context(
     task_title: str,
     task_url: str,
     item: BaseModel,
+    repository: str | None = None,
 ) -> dict[str, str]:
     """Build the shared prompt context plus flattened item fields.
 
@@ -35,6 +36,7 @@ def common_prompt_context(
     item_context = flatten_for_template(item)
     return {
         "repo": repo,
+        "repository": repository if repository is not None else repo,
         "automation_id": automation_id,
         "task_type": task_type,
         "task_number": task_number,

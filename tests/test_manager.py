@@ -61,14 +61,14 @@ def test_collect_built_in_triggers_includes_official_providers() -> None:
     by_type = {trigger.trigger_type: trigger for trigger in triggers}
 
     assert set(by_type) == {
-        "issue",
-        "github-cli-pull-requests",
+        "github-issues",
+        "github-pull-requests",
         "azure-cli-pull-requests",
         "cron",
         "trello-cli-cards",
     }
-    assert isinstance(by_type["issue"], IssueTrigger)
-    assert isinstance(by_type["github-cli-pull-requests"], PullRequestTrigger)
+    assert isinstance(by_type["github-issues"], IssueTrigger)
+    assert isinstance(by_type["github-pull-requests"], PullRequestTrigger)
     assert len(triggers) == len(trigger_registry.registered())
 
 
@@ -86,7 +86,7 @@ def test_load_built_in_providers_is_idempotent(monkeypatch: pytest.MonkeyPatch) 
     assert first_agents == agent_registry._ADAPTERS
     assert first_triggers == trigger_registry._TRIGGERS
     assert "cursor" in first_agents
-    assert "issue" in first_triggers
+    assert "github-issues" in first_triggers
 
 
 def test_coding_agent_provider_modules_implement_the_pluggy_hook() -> None:
@@ -99,8 +99,8 @@ def test_github_provider_contributes_multiple_triggers() -> None:
     contributed = github_provider.curupira_triggers()
     assert len(contributed) == 2
     assert {trigger.trigger_type for trigger in contributed} == {
-        "issue",
-        "github-cli-pull-requests",
+        "github-issues",
+        "github-pull-requests",
     }
     assert all(isinstance(trigger, Trigger) for trigger in contributed)
 
@@ -125,6 +125,6 @@ def test_provider_can_contribute_agents_and_triggers() -> None:
 
     assert adapters == [CursorCliAdapter]
     assert {trigger.trigger_type for trigger in triggers} == {
-        "issue",
-        "github-cli-pull-requests",
+        "github-issues",
+        "github-pull-requests",
     }

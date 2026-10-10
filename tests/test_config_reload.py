@@ -26,11 +26,17 @@ def _write_config(path: Path, *, max_active_tasks: int = 1) -> None:
         f"[settings]\nmax_active_tasks = {max_active_tasks}\n"
         f'workspace_dir = "{path.parent / "workspaces"}"\n'
         f'state_db_path = "{path.parent / "state.sqlite3"}"\n'
-        "[coding_agents.automations.daily]\n"
+        "[repositories.api]\n"
+        'remote = "https://github.com/acme/api.git"\n'
+        "[agents.defaults]\n"
+        'profile = "opencode"\n'
+        "[agents.profiles.opencode]\n"
+        'provider = "opencode"\n'
+        "[automations.daily]\n"
         'trigger_type = "cron"\n'
-        'repo = "acme/api"\n'
+        'repository = "api"\n'
         'schedule = "0 9 * * *"\n'
-        'prompt = "Maintain ${repo}"\n',
+        'prompt = "Maintain ${repository}"\n',
         encoding="utf-8",
     )
 

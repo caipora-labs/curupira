@@ -5,8 +5,9 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from curupira.clients.gh import GhClient
-from curupira.models import GhPullRequest, GhPullRequestSearchRequest, PollingSettings
+from curupira.clients.github_graphql import GitHubGraphQLClient
+from curupira.models import GhPullRequest, GitHubSearchRequest, PollingSettings
+from curupira.models.configuration import PullRequestAutomationConfiguration
 from curupira.models.items import PullRequestItem
 from curupira.providers.github import GitHubPullRequestSource, PullRequestTrigger
 from curupira.storage import CronScheduleRepository
@@ -16,23 +17,30 @@ from curupira.tasks.registry import get
 from tests.helpers import pull_request_task, resolved_automation
 
 
-class FakeGhClient(GhClient):
+class FakeGitHubClient(GitHubGraphQLClient):
     """Return controlled pull requests and retain the search request."""
 
     def __init__(self, pull_requests: list[GhPullRequest]) -> None:
         super().__init__()
         self.pull_requests = pull_requests
-        self.request: GhPullRequestSearchRequest | None = None
+        self.request: GitHubSearchRequest | None = None
+        self.configuration: PullRequestAutomationConfiguration | None = None
 
     @override
-    async def list_pull_requests(self, request: GhPullRequestSearchRequest) -> list[GhPullRequest]:
+    async def list_pull_requests(
+        self,
+        request: GitHubSearchRequest,
+        *,
+        configuration: PullRequestAutomationConfiguration | None = None,
+    ) -> list[GhPullRequest]:
         self.request = request
+        self.configuration = configuration
         return self.pull_requests
 
 
 @pytest.mark.asyncio
 async def test_source_searches_pull_requests_and_builds_tasks(tmp_path: Path) -> None:
-    gh = FakeGhClient(
+    client = FakeGitHubClient(
         [
             GhPullRequest(
                 number=42,
@@ -48,21 +56,23 @@ async def test_source_searches_pull_requests_and_builds_tasks(tmp_path: Path) ->
     automation = resolved_automation(
         tmp_path,
         "reviews",
-        "github-cli-pull-requests",
-        jq='.[] | select(.mergeable == "MERGEABLE")',
+        "github-pull-requests",
+        mergeable=True,
+        draft=False,
     )
 
-    tasks = await GitHubPullRequestSource(gh).discover(automation, 7)
+    tasks = await GitHubPullRequestSource(client).discover(automation, 7)
 
-    assert gh.request == GhPullRequestSearchRequest(
-        repo="acme/api",
-        query="is:open",
-        limit=7,
-        jq='.[] | select(.mergeable == "MERGEABLE")',
-    )
+    assert client.request is not None
+    assert client.request.repo == "acme/api"
+    assert client.request.limit == 7
+    assert "is:pr" in client.request.query
+    assert "draft:false" in client.request.query
+    assert client.configuration is not None
+    assert client.configuration.mergeable is True
     assert len(tasks) == 1
     assert tasks[0].identity.id == "42"
-    assert tasks[0].identity.task_type == "github-cli-pull-requests"
+    assert tasks[0].identity.task_type == "github-pull-requests"
     assert tasks[0].title == "Review change"
     assert tasks[0].url == "https://github.com/acme/api/pull/42"
     assert tasks[0].item == PullRequestItem(
@@ -77,8 +87,8 @@ async def test_source_searches_pull_requests_and_builds_tasks(tmp_path: Path) ->
 
 
 def test_pull_request_trigger_is_registered_and_provides_prompt_context(tmp_path: Path) -> None:
-    trigger = get("github-cli-pull-requests")
-    assert trigger.trigger_type == "github-cli-pull-requests"
+    trigger = get("github-pull-requests")
+    assert trigger.trigger_type == "github-pull-requests"
     task = pull_request_task(tmp_path, number=54)
 
     assert isinstance(trigger, PullRequestTrigger)
@@ -105,7 +115,7 @@ def test_pull_request_trigger_is_registered_and_provides_prompt_context(tmp_path
 
 
 def test_pull_request_trigger_builds_polling_feed(tmp_path: Path) -> None:
-    automation = resolved_automation(tmp_path, "reviews", "github-cli-pull-requests")
+    automation = resolved_automation(tmp_path, "reviews", "github-pull-requests")
 
     feed = PullRequestTrigger().build_feed(
         automation,

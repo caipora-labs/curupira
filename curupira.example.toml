@@ -14,18 +14,27 @@ poll_interval_seconds = 30
 batch_size = 100
 cron_poll_interval_seconds = 1
 
-[coding_agents.defaults]
+# Git checkouts are independent from forge discovery. Automations reference these aliases.
+[repositories.api]
+remote = "https://github.com/acme/api.git"
+# path = "~/code/api" # optional existing checkout or alternative clone destination
+# setup_script = "scripts/bootstrap.sh" # runs only after a fresh clone
+
+[repositories.azure-api]
+remote = "https://dev.azure.com/contoso/api-project/_git/api"
+
+[agents.defaults]
 profile = "opencode-default"
 timezone = "UTC"
 
-[coding_agents.profiles.opencode-default]
+[agents.profiles.opencode-default]
 provider = "opencode"
 # agent = "issue-resolver" # existing native OpenCode custom agent
 # model = "provider/model"
 # effort = "high"
 # auto_approve = true # explicit native permission override
 
-[coding_agents.profiles.claude-reviewer]
+[agents.profiles.claude-reviewer]
 provider = "claude"
 # agent = "pull-request-reviewer" # existing native Claude Code custom agent
 # model = "sonnet"
@@ -33,7 +42,7 @@ provider = "claude"
 # permission_mode = "dontAsk"
 # permission_prompts = "none"
 
-[coding_agents.profiles.codex]
+[agents.profiles.codex]
 provider = "codex"
 # model = "gpt-5.4"
 # agent = "work" # existing Codex CLI configuration profile (--profile)
@@ -42,7 +51,7 @@ provider = "codex"
 # auto_review = true
 # Native custom-agent selection is not supported by a verified flag.
 
-[coding_agents.profiles.cursor]
+[agents.profiles.cursor]
 provider = "cursor"
 # agent = "ask" # native mode: agent, ask, or plan
 # model = "composer-2.5"
@@ -50,13 +59,13 @@ provider = "cursor"
 # force = true
 # Standalone effort is not supported by this adapter.
 
-# [coding_agents.profiles.kilo]
+# [agents.profiles.kilo]
 # provider = "kilo"
 # model = "provider/model"
 # agent = "reviewer" # existing native Kilo agent
 # effort = "high" # maps to Kilo's --variant
 # auto_approve = true # dangerous: auto-approves permissions not explicitly denied
-# [coding_agents.profiles.copilot]
+# [agents.profiles.copilot]
 # provider = "copilot"
 # model = "claude-sonnet-4.5"
 # agent = "issue-resolver" # existing Copilot custom agent
@@ -65,19 +74,19 @@ provider = "cursor"
 # deny_tools = ["shell(rm:*)"]
 # allow_all_tools = true # permits every supported Copilot tool
 
-# [coding_agents.profiles.gemini]
+# [agents.profiles.gemini]
 # provider = "gemini"
 # model = "gemini-2.5-flash"
 # approval_mode = "default" # default, auto_edit, yolo, or plan
 # skip_trust = false
 
-# [coding_agents.profiles.qwen]
+# [agents.profiles.qwen]
 # provider = "qwen"
 # model = "qwen3-coder-plus"
 # approval_mode = "plan" # plan, default, auto-edit, auto, or yolo
 # max_session_turns = 20
 
-# [coding_agents.profiles.pi]
+# [agents.profiles.pi]
 # provider = "pi"
 # model = "anthropic/claude-sonnet-4"
 # model_provider = "anthropic" # requires model
@@ -86,24 +95,32 @@ provider = "cursor"
 # exclude_tools = ["bash"]
 # approve = false # explicitly decline project trust for this process
 
-[coding_agents.automations.resolve-ready-issues]
-trigger_type = "issue"
+[automations.resolve-ready-issues]
+trigger_type = "github-issues"
+repository = "api"
 repo = "acme/api"
-query = "is:open label:agent-ready sort:created-asc"
-# path = "~/code/api" # optional existing checkout or alternative clone destination
+labels = ["agent-ready"]
+exclude_labels = ["blocked"]
+linked_pull_request = false
+sort = "created-asc"
 prompt = """
 Resolve issue ${issue_number}: ${issue_title}
 
 ${issue_body}
 
 Repository: ${repo}
+Checkout: ${repository}
 URL: ${issue_url}
 """
 
-[coding_agents.automations.review-pull-requests]
-trigger_type = "github-cli-pull-requests"
+[automations.review-pull-requests]
+trigger_type = "github-pull-requests"
+repository = "api"
 repo = "acme/api"
-query = "is:open label:review-needed"
+labels = ["review-needed"]
+draft = false
+mergeable = true
+ci_status = "success"
 profile = "claude-reviewer"
 prompt = """
 Review pull request ${pull_request_number}: ${pull_request_title}
@@ -115,8 +132,9 @@ URL: ${pull_request_url}
 Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
 """
 
-[coding_agents.automations.review-azure-pull-requests]
+[automations.review-azure-pull-requests]
 trigger_type = "azure-cli-pull-requests"
+repository = "azure-api"
 repo = "contoso/api-project/api"
 # status = "active"
 # source_branch = "feature"
@@ -132,14 +150,11 @@ URL: ${pull_request_url}
 Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
 """
 
-[coding_agents.automations.weekly-maintenance]
+[automations.weekly-maintenance]
 trigger_type = "cron"
-repo = "acme/api"
+repository = "api"
 schedule = "0 9 * * 1"
-# timezone = "Europe/Rome" # overrides coding_agents.defaults.timezone
+# timezone = "Europe/Rome" # overrides agents.defaults.timezone
 # start_date = 2026-10-05T00:00:00+02:00
 # end_date = 2026-12-31T23:59:00+01:00
-prompt = "Perform weekly maintenance for ${repo} (occurrence ${task_number})."
-
-# Project queries retain open items and filter the board's Todo status.
-# Add an independent automation using query = "project:owner/5" as needed.
+prompt = "Perform weekly maintenance for ${repository} (occurrence ${task_number})."

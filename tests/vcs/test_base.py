@@ -22,10 +22,10 @@ class LocalGitVersionControl(VersionControl):
         self.clone_count = 0
 
     @override
-    async def clone(self, repo: str, destination: Path) -> None:
+    async def clone(self, remote: str, destination: Path) -> None:
         self.clone_count += 1
         result = await self._runner.run(
-            CommandRequest(executable="git", arguments=("clone", repo, str(destination)))
+            CommandRequest(executable="git", arguments=("clone", remote, str(destination)))
         )
         assert result.returncode == 0, result.stderr
         result = await self._runner.run(
@@ -67,13 +67,13 @@ async def test_checkout_clones_local_repository_and_reuses_it(
 ) -> None:
     vcs = LocalGitVersionControl()
     destination = tmp_path / "workspace" / "checkout"
-    request = CheckoutRequest(repo=str(local_repository), destination=destination)
+    request = CheckoutRequest(remote=str(local_repository), destination=destination)
 
     fresh = await vcs.ensure_checkout(request)
     reused = await vcs.ensure_checkout(request)
 
-    assert fresh == Checkout(repo=str(local_repository), path=destination, cloned=True)
-    assert reused == Checkout(repo=str(local_repository), path=destination, cloned=False)
+    assert fresh == Checkout(remote=str(local_repository), path=destination, cloned=True)
+    assert reused == Checkout(remote=str(local_repository), path=destination, cloned=False)
     assert vcs.clone_count == 1
 
 
@@ -84,7 +84,7 @@ async def test_checkout_rejects_existing_non_git_destination(tmp_path: Path) -> 
 
     with pytest.raises(WorkspacePathError, match="not a Git checkout"):
         await LocalGitVersionControl().ensure_checkout(
-            CheckoutRequest(repo="local/repo", destination=destination)
+            CheckoutRequest(remote="local/repo", destination=destination)
         )
 
     assert (destination / "keep.txt").read_text() == "preserve\n"
@@ -95,21 +95,23 @@ async def test_worktree_is_created_reused_and_removed(
 ) -> None:
     vcs = LocalGitVersionControl()
     checkout = await vcs.ensure_checkout(
-        CheckoutRequest(repo=str(local_repository), destination=tmp_path / "checkout")
+        CheckoutRequest(remote=str(local_repository), destination=tmp_path / "checkout")
     )
 
     worktree = await vcs.ensure_worktree(
-        checkout, automation_id="automation", task_type="issue", task_id="42"
+        checkout, automation_id="automation", task_type="github-issues", task_id="42"
     )
     assert worktree.is_dir()
     assert (
         await vcs.ensure_worktree(
-            checkout, automation_id="automation", task_type="issue", task_id="42"
+            checkout, automation_id="automation", task_type="github-issues", task_id="42"
         )
         == worktree
     )
 
-    await vcs.remove_worktree(checkout, automation_id="automation", task_type="issue", task_id="42")
+    await vcs.remove_worktree(
+        checkout, automation_id="automation", task_type="github-issues", task_id="42"
+    )
     assert not worktree.exists()
     branches = await vcs._runner.run(
         CommandRequest(
@@ -117,7 +119,7 @@ async def test_worktree_is_created_reused_and_removed(
             arguments=(
                 "branch",
                 "--list",
-                f"curupira/automation/issue-{hashlib.sha256(b'42').hexdigest()}",
+                f"curupira/automation/github-issues-{hashlib.sha256(b'42').hexdigest()}",
             ),
             cwd=checkout.path,
         )
@@ -129,7 +131,7 @@ async def test_worktree_is_created_reused_and_removed(
 async def test_failed_setup_removes_new_clone(tmp_path: Path, local_repository: Path) -> None:
     vcs = LocalGitVersionControl()
     checkout = await vcs.ensure_checkout(
-        CheckoutRequest(repo=str(local_repository), destination=tmp_path / "checkout")
+        CheckoutRequest(remote=str(local_repository), destination=tmp_path / "checkout")
     )
 
     class FailedSetupRunner(AsyncProcessRunner):

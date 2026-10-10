@@ -30,27 +30,34 @@ def ticket(install: Install) -> TicketTrigger:
 
 
 def ticket_settings(path: Path, **overrides: object) -> ApplicationSettings:
+    from tests.helpers import settings_dict
+
     automation: dict[str, object] = {
         "trigger_type": "ticket",
-        "repo": "acme/api",
-        "path": path,
+        "repository": "api",
         "project": "OPS",
         "priority": "high",
-        "prompt": "Fix ${ticket_key} (${ticket_priority}) in ${repo}",
+        "prompt": "Fix ${ticket_key} (${ticket_priority}) in ${repository}",
     }
     automation.update(overrides)
     return ApplicationSettings.model_validate(
-        {
-            "settings": {"state_db_path": path / "state.sqlite3"},
-            "coding_agents": {"automations": {"tickets": automation}},
-        }
+        settings_dict(
+            {"tickets": automation},
+            repositories={
+                "api": {
+                    "remote": "https://github.com/acme/api.git",
+                    "path": str(path),
+                }
+            },
+            settings={"state_db_path": str(path / "state.sqlite3")},
+        )
     )
 
 
 def ticket_task(settings: ApplicationSettings, key: str = "OPS-7") -> Task:
     automation = settings.resolve_automations()["tickets"]
     return Task(
-        identity=TaskIdentity(automation_id="tickets", repo="acme/api", task_type="ticket", id=key),
+        identity=TaskIdentity(automation_id="tickets", repo="api", task_type="ticket", id=key),
         automation=automation,
         title=f"Ticket {key}",
         url=f"https://tracker.example/OPS/{key}",
@@ -87,7 +94,7 @@ def test_entry_point_may_export_a_trigger_instance(install: Install) -> None:
         (f"{MODULE}:NOT_A_TRIGGER", "not a Trigger subclass or instance"),
         (f"{MODULE}:BrokenTrigger", "tracker token missing"),
         (f"{MODULE}:FutureTrigger", "requires plugin API 3, Curupira provides 2"),
-        (f"{MODULE}:DuplicateIssueTrigger", "trigger type already registered: issue"),
+        (f"{MODULE}:DuplicateIssueTrigger", "trigger type already registered: github-issues"),
     ],
 )
 def test_invalid_plugins_raise_actionable_errors(install: Install, value: str, detail: str) -> None:
@@ -103,7 +110,7 @@ def test_invalid_plugins_raise_actionable_errors(install: Install, value: str, d
 def test_plugin_configuration_is_validated_by_its_own_model(
     ticket: TicketTrigger, tmp_path: Path
 ) -> None:
-    automation = ticket_settings(tmp_path).coding_agents.automations["tickets"]
+    automation = ticket_settings(tmp_path).automations["tickets"]
 
     assert isinstance(automation, TicketAutomationConfiguration)
     assert (automation.project, automation.priority) == ("OPS", "high")
@@ -129,10 +136,19 @@ async def test_plugin_fields_survive_toml_loading(ticket: TicketTrigger, tmp_pat
     config = tmp_path / "settings.toml"
     config.write_text(
         """
-[coding_agents.automations.tickets]
-trigger_type = "ticket"
-repo = "acme/api"
+[repositories.api]
+remote = "https://github.com/acme/api.git"
 path = "checkout"
+
+[agents.defaults]
+profile = "opencode"
+
+[agents.profiles.opencode]
+provider = "opencode"
+
+[automations.tickets]
+trigger_type = "ticket"
+repository = "api"
 project = "OPS"
 prompt = "Fix ${ticket_key}"
 """,
@@ -163,9 +179,7 @@ async def test_plugin_task_snapshot_round_trips_through_sqlite(
 
 
 def test_plugin_prompt_uses_typed_item(ticket: TicketTrigger, tmp_path: Path) -> None:
-    assert render_task_prompt(ticket_task(ticket_settings(tmp_path))) == (
-        "Fix OPS-7 (high) in acme/api"
-    )
+    assert render_task_prompt(ticket_task(ticket_settings(tmp_path))) == ("Fix OPS-7 (high) in api")
 
 
 def test_plugin_rejects_scheduled_occurrence_by_default(
@@ -207,7 +221,7 @@ async def test_executor_uses_plugin_hooks_and_version_control(
     result = await executor.execute(ticket_task(settings))
 
     assert result.returncode == 0
-    assert adapter.requests[0].message == "Fix OPS-7 (high) in acme/api"
+    assert adapter.requests[0].message == "Fix OPS-7 (high) in api"
     assert plugin_vcs.checkouts == [tmp_path]
     assert ticket.events == ["started:OPS-7", "finished:OPS-7"]
     assert await sessions.list_all() == []
@@ -239,8 +253,11 @@ def test_validate_reports_plugin_failures_as_configuration_errors(
     install(FakeEntryPoint("bad", f"{MODULE}:NOT_A_TRIGGER"))
     config = tmp_path / "settings.toml"
     config.write_text(
-        '[coding_agents.automations.work]\ntrigger_type = "issue"\nrepo = "acme/api"\n'
-        'query = "is:open"\nprompt = "Fix"\n',
+        '[repositories.api]\nremote = "https://github.com/acme/api.git"\n'
+        '[agents.defaults]\nprofile = "opencode"\n'
+        '[agents.profiles.opencode]\nprovider = "opencode"\n'
+        '[automations.work]\ntrigger_type = "github-issues"\nrepository = "api"\n'
+        'repo = "acme/api"\nlabels = ["agent-ready"]\nprompt = "Fix"\n',
         encoding="utf-8",
     )
 

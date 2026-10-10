@@ -22,20 +22,20 @@ from curupira.models.base import NonEmptyString, ValidatedModel
 class CheckoutRequest(ValidatedModel):
     """A request to make a repository available at a local destination."""
 
-    repo: NonEmptyString
+    remote: NonEmptyString
     destination: Path
 
 
 class Checkout(ValidatedModel):
     """A local repository checkout and whether this operation created it."""
 
-    repo: NonEmptyString
+    remote: NonEmptyString
     path: Path
     cloned: bool
 
 
 class VersionControl(ABC):
-    """Provider-specific clone operation with shared Git checkout behavior."""
+    """Provider-independent clone operation with shared Git checkout behavior."""
 
     def __init__(self, runner: AsyncProcessRunner | None = None) -> None:
         self._runner = runner or AsyncProcessRunner()
@@ -43,8 +43,8 @@ class VersionControl(ABC):
         self._worktree_locks: dict[Path, asyncio.Lock] = {}
 
     @abstractmethod
-    async def clone(self, repo: str, destination: Path) -> None:
-        """Clone a repository using the provider's native mechanism."""
+    async def clone(self, remote: str, destination: Path) -> None:
+        """Clone a repository from a full Git remote URL."""
 
     async def ensure_checkout(self, request: CheckoutRequest) -> Checkout:
         """Reuse a Git checkout or clone it once, serialized by destination."""
@@ -52,7 +52,7 @@ class VersionControl(ABC):
         lock = self._clone_locks.setdefault(destination, asyncio.Lock())
         async with lock:
             if await asyncio.to_thread(_is_git_checkout, destination):
-                return Checkout(repo=request.repo, path=destination, cloned=False)
+                return Checkout(remote=request.remote, path=destination, cloned=False)
             if await asyncio.to_thread(destination.exists):
                 raise WorkspacePathError(
                     f"workspace destination exists but is not a Git checkout: {destination}"
@@ -63,12 +63,12 @@ class VersionControl(ABC):
                 raise WorkspacePathError(
                     f"cannot create workspace directory {destination.parent}: {error}"
                 ) from error
-            await self.clone(request.repo, destination)
+            await self.clone(request.remote, destination)
             if not await asyncio.to_thread(_is_git_checkout, destination):
                 raise CliOutputError(
                     f"clone reported success, but no Git checkout was created at {destination}"
                 )
-            return Checkout(repo=request.repo, path=destination, cloned=True)
+            return Checkout(remote=request.remote, path=destination, cloned=True)
 
     async def ensure_worktree(
         self,

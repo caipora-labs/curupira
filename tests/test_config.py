@@ -21,32 +21,34 @@ from curupira.providers.gemini import GeminiCliProfile
 from curupira.providers.kilo import KiloCliProfile
 from curupira.providers.pi import PiCliProfile
 from curupira.providers.qwen import QwenCodeCliProfile
+from tests.helpers import settings_dict
 
 
-def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettings:
+def configuration(trigger: str = "github-issues", **overrides: Any) -> ApplicationSettings:
     """Build one independently named automation for boundary tests."""
     automation: dict[str, object] = {
         "trigger_type": trigger,
-        "repo": ("contoso/api-project/api" if trigger == "azure-cli-pull-requests" else "acme/api"),
         "prompt": "Handle ${task_title}",
     }
     if trigger == "cron":
         automation["schedule"] = "0 9 * * 1"
     elif trigger == "trello-cli-cards":
         automation["board_id"] = "board123"
-    elif trigger != "azure-cli-pull-requests":
-        automation["query"] = "is:open"
+    elif trigger == "azure-cli-pull-requests":
+        automation["repo"] = "contoso/api-project/api"
+        automation["repository"] = "azure-api"
+    else:
+        automation["repo"] = "acme/api"
+        automation["labels"] = ["agent-ready"]
     automation.update(overrides)
-    return ApplicationSettings.model_validate(
-        {"coding_agents": {"automations": {"daily": automation}}}
-    )
+    return ApplicationSettings.model_validate(settings_dict({"daily": automation}))
 
 
 @pytest.mark.parametrize(
     ("trigger", "expected"),
     [
-        ("issue", IssueAutomationConfiguration),
-        ("github-cli-pull-requests", PullRequestAutomationConfiguration),
+        ("github-issues", IssueAutomationConfiguration),
+        ("github-pull-requests", PullRequestAutomationConfiguration),
         ("azure-cli-pull-requests", AzurePullRequestAutomationConfiguration),
         ("trello-cli-cards", TrelloAutomationConfiguration),
         ("cron", CronAutomationConfiguration),
@@ -54,10 +56,10 @@ def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettin
 )
 def test_discriminator_supports_independent_source_types(trigger: str, expected: type) -> None:
     settings = configuration(trigger)
-    assert isinstance(settings.coding_agents.automations["daily"], expected)
+    assert isinstance(settings.automations["daily"], expected)
     assert settings.settings.max_active_tasks == 1
     assert settings.resolve_automations()["daily"].profile.provider == "opencode"
-    assert settings.coding_agents.automations["daily"].checkout == "worktree"
+    assert settings.automations["daily"].checkout == "worktree"
 
 
 def test_task_timeout_minutes_defaults_to_twenty() -> None:
@@ -68,19 +70,17 @@ def test_task_timeout_minutes_defaults_to_twenty() -> None:
 
 def test_task_timeout_minutes_converts_to_seconds() -> None:
     settings = ApplicationSettings.model_validate(
-        {
-            "settings": {"task_timeout_minutes": 5},
-            "coding_agents": {
-                "automations": {
-                    "daily": {
-                        "trigger_type": "issue",
-                        "repo": "acme/api",
-                        "query": "is:open",
-                        "prompt": "Handle ${task_title}",
-                    }
+        settings_dict(
+            {
+                "daily": {
+                    "trigger_type": "github-issues",
+                    "repo": "acme/api",
+                    "labels": ["agent-ready"],
+                    "prompt": "Handle ${task_title}",
                 }
             },
-        }
+            settings={"task_timeout_minutes": 5},
+        )
     )
     assert settings.settings.task_timeout_minutes == 5
     assert settings.settings.task_timeout_seconds == 300.0
@@ -90,38 +90,32 @@ def test_task_timeout_minutes_converts_to_seconds() -> None:
 def test_task_timeout_minutes_must_be_positive(value: int) -> None:
     with pytest.raises(ValidationError, match="task_timeout_minutes"):
         ApplicationSettings.model_validate(
-            {
-                "settings": {"task_timeout_minutes": value},
-                "coding_agents": {
-                    "automations": {
-                        "daily": {
-                            "trigger_type": "issue",
-                            "repo": "acme/api",
-                            "query": "is:open",
-                            "prompt": "Handle ${task_title}",
-                        }
+            settings_dict(
+                {
+                    "daily": {
+                        "trigger_type": "github-issues",
+                        "repo": "acme/api",
+                        "prompt": "Handle ${task_title}",
                     }
                 },
-            }
+                settings={"task_timeout_minutes": value},
+            )
         )
 
 
 def test_legacy_task_timeout_seconds_is_rejected() -> None:
     with pytest.raises(ValidationError, match="task_timeout_seconds"):
         ApplicationSettings.model_validate(
-            {
-                "settings": {"task_timeout_seconds": 3600},
-                "coding_agents": {
-                    "automations": {
-                        "daily": {
-                            "trigger_type": "issue",
-                            "repo": "acme/api",
-                            "query": "is:open",
-                            "prompt": "Handle ${task_title}",
-                        }
+            settings_dict(
+                {
+                    "daily": {
+                        "trigger_type": "github-issues",
+                        "repo": "acme/api",
+                        "prompt": "Handle ${task_title}",
                     }
                 },
-            }
+                settings={"task_timeout_seconds": 3600},
+            )
         )
 
 
@@ -130,26 +124,57 @@ def test_legacy_task_timeout_seconds_is_rejected() -> None:
 )
 def test_invalid_setup_script_path_is_rejected(setup_script: str) -> None:
     with pytest.raises(ValidationError, match="setup_script"):
-        configuration(setup_script=setup_script)
+        ApplicationSettings.model_validate(
+            settings_dict(
+                {
+                    "daily": {
+                        "trigger_type": "github-issues",
+                        "repo": "acme/api",
+                        "prompt": "Handle ${task_title}",
+                    }
+                },
+                repositories={
+                    "api": {
+                        "remote": "https://github.com/acme/api.git",
+                        "setup_script": setup_script,
+                    }
+                },
+            )
+        )
 
 
-def test_checkout_options_and_relative_setup_script_are_validated() -> None:
-    automation = configuration(checkout="main", setup_script="scripts/setup.sh")
-    config = automation.coding_agents.automations["daily"]
-    assert config.checkout == "main"
-    assert config.setup_script == "scripts/setup.sh"
+def test_checkout_options_and_repository_setup_script_are_validated() -> None:
+    settings = ApplicationSettings.model_validate(
+        settings_dict(
+            {
+                "daily": {
+                    "trigger_type": "github-issues",
+                    "repo": "acme/api",
+                    "checkout": "main",
+                    "prompt": "Handle ${task_title}",
+                }
+            },
+            repositories={
+                "api": {
+                    "remote": "https://github.com/acme/api.git",
+                    "setup_script": "scripts/setup.sh",
+                }
+            },
+        )
+    )
+    assert settings.automations["daily"].checkout == "main"
+    assert settings.resolve_automations()["daily"].setup_script == "scripts/setup.sh"
     with pytest.raises(ValidationError, match="checkout"):
         configuration(checkout="develop")
 
 
-def test_pull_request_automation_accepts_jq_filter() -> None:
-    settings = configuration(
-        "github-cli-pull-requests", jq='.[] | select(.mergeable == "MERGEABLE")'
-    )
+def test_pull_request_automation_accepts_mergeable_filter() -> None:
+    settings = configuration("github-pull-requests", mergeable=True, draft=False)
 
-    automation = settings.coding_agents.automations["daily"]
+    automation = settings.automations["daily"]
     assert isinstance(automation, PullRequestAutomationConfiguration)
-    assert automation.jq == '.[] | select(.mergeable == "MERGEABLE")'
+    assert automation.mergeable is True
+    assert automation.draft is False
 
 
 @pytest.mark.parametrize(
@@ -160,12 +185,12 @@ def test_pull_request_automation_accepts_jq_filter() -> None:
         {"unexpected": True},
         {"repo": "../api"},
         {"repo": "invalid"},
-        {"query": " "},
         {"prompt": " "},
         {"prompt": "${unknown}"},
         {"prompt": "$"},
         {"prompt": "${pull_request_number}"},
         {"profile": "absent"},
+        {"repository": "missing"},
     ],
 )
 def test_invalid_automation_is_rejected(overrides: dict[str, Any]) -> None:
@@ -188,9 +213,9 @@ def test_registered_alias_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
     from curupira.tasks import registry
 
     monkeypatch.setattr(registry, "_ALIASES", {})
-    registry.register_alias("issue", "legacy_issue")
+    registry.register_alias("github-issues", "legacy_issue")
 
-    automation = configuration("legacy_issue").coding_agents.automations["daily"]
+    automation = configuration("legacy_issue").automations["daily"]
 
     assert automation.trigger_type == "legacy_issue"
 
@@ -214,7 +239,7 @@ def test_poll_interval_requires_finite_positive_value(value: float) -> None:
 
 def test_codex_agent_selects_a_named_cli_profile() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {
+    data["agents"]["profiles"]["opencode"] = {
         "provider": "codex",
         "agent": "work",
     }
@@ -227,7 +252,7 @@ def test_codex_agent_selects_a_named_cli_profile() -> None:
 
 def test_kilo_provider_selects_its_registered_profile() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {
+    data["agents"]["profiles"]["opencode"] = {
         "provider": "kilo",
         "model": "anthropic/claude-sonnet-4",
         "effort": "high",
@@ -242,7 +267,7 @@ def test_kilo_provider_selects_its_registered_profile() -> None:
 
 def test_kilo_rejects_model_without_provider_prefix() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {
+    data["agents"]["profiles"]["opencode"] = {
         "provider": "kilo",
         "model": "claude-sonnet-4",
     }
@@ -254,7 +279,7 @@ def test_kilo_rejects_model_without_provider_prefix() -> None:
 @pytest.mark.parametrize("mode", ["agent", "ask", "plan"])
 def test_cursor_agent_selects_a_native_mode(mode: str) -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {"provider": "cursor", "agent": mode}
+    data["agents"]["profiles"]["opencode"] = {"provider": "cursor", "agent": mode}
 
     profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
 
@@ -264,7 +289,7 @@ def test_cursor_agent_selects_a_native_mode(mode: str) -> None:
 
 def test_cursor_rejects_unknown_agent_modes() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {
+    data["agents"]["profiles"]["opencode"] = {
         "provider": "cursor",
         "agent": "reviewer",
     }
@@ -275,7 +300,7 @@ def test_cursor_rejects_unknown_agent_modes() -> None:
 
 def test_gemini_provider_selects_a_gemini_cli_profile() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {"provider": "gemini"}
+    data["agents"]["profiles"]["opencode"] = {"provider": "gemini"}
 
     profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
 
@@ -285,7 +310,7 @@ def test_gemini_provider_selects_a_gemini_cli_profile() -> None:
 
 def test_copilot_provider_validates_as_a_registered_profile() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {
+    data["agents"]["profiles"]["opencode"] = {
         "provider": "copilot",
         "allow_tools": ["shell(git:*)"],
     }
@@ -298,7 +323,7 @@ def test_copilot_provider_validates_as_a_registered_profile() -> None:
 
 def test_trello_provider_is_rejected() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {"provider": "trello"}
+    data["agents"]["profiles"]["opencode"] = {"provider": "trello"}
 
     with pytest.raises(ValidationError, match="unknown coding agent provider: trello"):
         ApplicationSettings.model_validate(data)
@@ -306,10 +331,10 @@ def test_trello_provider_is_rejected() -> None:
 
 def test_cursor_rejects_effort_and_codex_accepts_optional_effort() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {"provider": "cursor", "effort": "high"}
+    data["agents"]["profiles"]["opencode"] = {"provider": "cursor", "effort": "high"}
     with pytest.raises(ValidationError, match="effort"):
         ApplicationSettings.model_validate(data)
-    data["coding_agents"]["profiles"]["opencode"] = {"provider": "codex", "effort": "high"}
+    data["agents"]["profiles"]["opencode"] = {"provider": "codex", "effort": "high"}
     assert (
         ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile.provider
         == "codex"
@@ -318,7 +343,7 @@ def test_cursor_rejects_effort_and_codex_accepts_optional_effort() -> None:
 
 def test_qwen_provider_selects_qwen_code_profile() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {
+    data["agents"]["profiles"]["opencode"] = {
         "provider": "qwen",
         "model": "qwen3-coder-plus",
         "approval_mode": "auto-edit",
@@ -335,7 +360,7 @@ def test_qwen_provider_selects_qwen_code_profile() -> None:
 
 def test_pi_provider_selects_pi_profile() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["profiles"]["opencode"] = {
+    data["agents"]["profiles"]["opencode"] = {
         "provider": "pi",
         "model": "anthropic/claude-sonnet-4",
         "model_provider": "anthropic",
@@ -350,7 +375,7 @@ def test_pi_provider_selects_pi_profile() -> None:
 
 def test_cron_defaults_normalize_dates_before_comparing_windows() -> None:
     data = configuration("cron", start_date="2026-10-05T09:00:00").model_dump()
-    data["coding_agents"]["defaults"]["timezone"] = "Europe/Rome"
+    data["agents"]["defaults"]["timezone"] = "Europe/Rome"
     resolved = ApplicationSettings.model_validate(data).resolve_automations()["daily"]
     assert isinstance(resolved.configuration, CronAutomationConfiguration)
     start = resolved.configuration.start_date
@@ -377,11 +402,11 @@ def test_invalid_cron_schedule_is_rejected(overrides: dict[str, Any]) -> None:
 
 def test_automation_keys_and_profile_references_are_validated() -> None:
     data = configuration().model_dump()
-    data["coding_agents"]["automations"]["bad key"] = data["coding_agents"]["automations"]["daily"]
+    data["automations"]["bad key"] = data["automations"]["daily"]
     with pytest.raises(ValidationError):
         ApplicationSettings.model_validate(data)
     data = configuration().model_dump()
-    data["coding_agents"]["defaults"]["profile"] = "absent"
+    data["agents"]["defaults"]["profile"] = "absent"
     with pytest.raises(ValidationError, match="default profile"):
         ApplicationSettings.model_validate(data)
 
@@ -390,8 +415,11 @@ async def test_relative_paths_resolve_without_creating_workspaces(tmp_path: Path
     config = tmp_path / "config.toml"
     config.write_text(
         '[settings]\nworkspace_dir="workspaces"\nstate_db_path="state/db.sqlite3"\n'
-        '[coding_agents.automations.daily]\ntrigger_type="cron"\nrepo="acme/api"\n'
-        'schedule="0 9 * * *"\nprompt="Maintain ${repo}"\npath="checkout"\n',
+        '[repositories.api]\nremote="https://github.com/acme/api.git"\npath="checkout"\n'
+        '[agents.defaults]\nprofile="opencode"\n'
+        '[agents.profiles.opencode]\nprovider="opencode"\n'
+        '[automations.daily]\ntrigger_type="cron"\nrepository="api"\n'
+        'schedule="0 9 * * *"\nprompt="Maintain ${repository}"\n',
         encoding="utf-8",
     )
     settings = await load_settings(config)
@@ -405,8 +433,11 @@ async def test_otlp_endpoint_is_optional_and_loaded_from_toml(tmp_path: Path) ->
     config = tmp_path / "settings.toml"
     config.write_text(
         '[settings]\notlp_endpoint="http://collector:4318/v1/traces"\n'
-        '[coding_agents.automations.daily]\ntrigger_type="cron"\nrepo="acme/api"\n'
-        'schedule="0 9 * * *"\nprompt="Maintain ${repo}"\n',
+        '[repositories.api]\nremote="https://github.com/acme/api.git"\n'
+        '[agents.defaults]\nprofile="opencode"\n'
+        '[agents.profiles.opencode]\nprovider="opencode"\n'
+        '[automations.daily]\ntrigger_type="cron"\nrepository="api"\n'
+        'schedule="0 9 * * *"\nprompt="Maintain ${repository}"\n',
         encoding="utf-8",
     )
 
@@ -424,14 +455,32 @@ def test_otlp_endpoint_rejects_non_http_urls() -> None:
         ApplicationSettings.model_validate(data)
 
 
-def test_shared_workspaces_require_the_same_repository(tmp_path: Path) -> None:
-    data = configuration(path=tmp_path).model_dump()
-    other = {**data["coding_agents"]["automations"]["daily"], "repo": "acme/other"}
-    data["coding_agents"]["automations"]["other"] = other
+def test_shared_workspaces_require_the_same_repository_alias(tmp_path: Path) -> None:
+    data = settings_dict(
+        {
+            "daily": {
+                "trigger_type": "github-issues",
+                "repository": "api",
+                "repo": "acme/api",
+                "prompt": "Handle ${task_title}",
+            },
+            "other": {
+                "trigger_type": "github-issues",
+                "repository": "other",
+                "repo": "acme/other",
+                "prompt": "Handle ${task_title}",
+            },
+        },
+        repositories={
+            "api": {"remote": "https://github.com/acme/api.git", "path": str(tmp_path)},
+            "other": {"remote": "https://github.com/acme/other.git", "path": str(tmp_path)},
+        },
+    )
     with pytest.raises(ValidationError, match="share a workspace"):
         ApplicationSettings.model_validate(data)
-    other["repo"] = "acme/api"
-    assert len(ApplicationSettings.model_validate(data).coding_agents.automations) == 2
+    data["automations"]["other"]["repository"] = "api"
+    del data["repositories"]["other"]
+    assert len(ApplicationSettings.model_validate(data).automations) == 2
 
 
 async def test_missing_file_and_environment_precedence(
@@ -445,11 +494,12 @@ async def test_missing_file_and_environment_precedence(
 
 def test_json_schema_describes_the_shared_automation_contract() -> None:
     schema = ApplicationSettings.model_json_schema()
-    automations = schema["$defs"]["CodingAgentsSettings"]["properties"]["automations"]
+    automations = schema["properties"]["automations"]
     values = next(iter(automations["patternProperties"].values()))
     assert values["$ref"].endswith("/AutomationConfigurationBase")
     base = schema["$defs"]["AutomationConfigurationBase"]
-    assert {"trigger_type", "repo", "prompt"} <= set(base["required"])
+    assert {"trigger_type", "repository", "prompt"} <= set(base["required"])
+    assert "RepositoryConfiguration" in schema["$defs"]
 
 
 def test_azure_pull_request_automation_accepts_status_and_branch_filters() -> None:
@@ -460,7 +510,7 @@ def test_azure_pull_request_automation_accepts_status_and_branch_filters() -> No
         target_branch="main",
     )
 
-    automation = settings.coding_agents.automations["daily"]
+    automation = settings.automations["daily"]
     assert isinstance(automation, AzurePullRequestAutomationConfiguration)
     assert automation.status == "all"
     assert automation.source_branch == "feature"
@@ -471,3 +521,9 @@ def test_azure_pull_request_automation_accepts_status_and_branch_filters() -> No
 def test_azure_pull_request_rejects_non_three_part_repos(repo: str) -> None:
     with pytest.raises(ValidationError, match="organization/project/repository"):
         configuration("azure-cli-pull-requests", repo=repo)
+
+
+async def test_example_configuration_is_valid() -> None:
+    settings = await load_settings(Path("curupira.example.toml"))
+    assert "resolve-ready-issues" in settings.automations
+    assert settings.repositories["api"].remote.endswith("acme/api.git")

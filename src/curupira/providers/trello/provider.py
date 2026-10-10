@@ -40,7 +40,7 @@ class TrelloCardSource(TaskSource):
             Task(
                 identity=TaskIdentity(
                     automation_id=automation.automation_id,
-                    repo=config.repo,
+                    repo=automation.identity_repo,
                     task_type=config.trigger_type,
                     id=card.id,
                 ),

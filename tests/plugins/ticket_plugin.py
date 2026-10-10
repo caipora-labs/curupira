@@ -58,7 +58,7 @@ class TicketSource(TaskSource):
             Task(
                 identity=TaskIdentity(
                     automation_id=automation.automation_id,
-                    repo=config.repo,
+                    repo=automation.identity_repo,
                     task_type="ticket",
                     id=key,
                 ),
@@ -112,7 +112,7 @@ class FutureTrigger(TicketTrigger):
 class DuplicateIssueTrigger(TicketTrigger):
     """A plugin that tries to replace a built-in trigger type."""
 
-    trigger_type = "issue"
+    trigger_type = "github-issues"
     configuration_model = IssueAutomationConfiguration
 
 

@@ -63,7 +63,7 @@ async def test_pending_occurrence_is_not_overwritten_and_completion_is_atomic(
 
 def test_timezone_window_is_inclusive_and_dst_uses_local_clock() -> None:
     config = CronAutomationConfiguration(
-        repo="acme/api",
+        repository="api",
         prompt="Maintain",
         schedule="0 9 * * *",
         timezone="Europe/Rome",

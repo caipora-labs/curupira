@@ -13,8 +13,8 @@ short alias.
 
 Stack: Python 3.11+ (pure Python, `src/` layout), [uv](https://docs.astral.sh/uv/),
 Pydantic v2 and pydantic-settings (TOML configuration), Typer (CLI), Textual (TUI),
-asyncio subprocesses, SQLite, OpenTelemetry, pytest, Ruff, Pyrefly (strict), and
-[prek](https://prek.j178.dev/) for Git hooks.
+asyncio subprocesses, httpx (GitHub GraphQL), SQLite, OpenTelemetry, pytest, Ruff,
+Pyrefly (strict), and [prek](https://prek.j178.dev/) for Git hooks.
 
 ## Commands
 
@@ -56,7 +56,7 @@ on each other.
 | `src/curupira/vcs/` | Repository checkout and worktrees: `VersionControl`. |
 | `src/curupira/providers/` | Built-in providers: one package per integration (`providers/<name>/provider.py`), registered through Pluggy. A provider may contribute coding-agent adapters, triggers, or both. |
 | `src/curupira/agents/` | Shared coding-agent contract (`CodingAgentCliAdapter`), registry, and `create_cli_adapter`; compatibility re-exports of built-in coding-agent providers. |
-| `src/curupira/clients/` | `gh`/`az` wrappers and `AsyncProcessRunner`, the only place that starts processes. |
+| `src/curupira/clients/` | GitHub GraphQL/`gh auth token`, `az`/Trello wrappers, and `AsyncProcessRunner` (the only place that starts processes). |
 | `src/curupira/storage/` | SQLite persistence for sessions and cron state. |
 | `src/curupira/cli.py`, `tui/` | Typer commands and the Textual dashboard. |
 | `tests/` | Mirrors `src/` (`tests/providers/<name>/` for each provider); shared fakes in `tests/fakes.py`, builders in `tests/helpers.py`. |

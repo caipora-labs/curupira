@@ -32,7 +32,7 @@ def cron_task(path: Path) -> Task:
     return Task(
         identity=TaskIdentity(
             automation_id="maintenance",
-            repo="acme/api",
+            repo="api",
             task_type="cron",
             id=str(int(scheduled_for.timestamp())),
         ),
@@ -75,7 +75,7 @@ def test_task_spans_export_success_for_issues_pull_requests_and_cron(tmp_path: P
         assert len(spans) == 3
         for span, task in zip(spans, tasks, strict=True):
             attributes = span.attributes or {}
-            assert attributes["curupira.repo"] == "acme/api"
+            assert attributes["curupira.repo"] == task.identity.repo
             assert attributes["curupira.task.type"] == task.identity.task_type
             assert attributes["curupira.task.id"] == task.identity.id
             assert attributes["curupira.result"] == "success"
@@ -103,7 +103,7 @@ async def test_executor_exports_the_real_task_outcome(tmp_path: Path) -> None:
         [span] = exporter.get_finished_spans()
         attributes = span.attributes or {}
         assert attributes["curupira.repo"] == "acme/api"
-        assert attributes["curupira.task.type"] == "issue"
+        assert attributes["curupira.task.type"] == "github-issues"
         assert attributes["curupira.task.id"] == "42"
         assert attributes["curupira.result"] == "success"
     finally:
@@ -177,6 +177,6 @@ def test_configured_endpoint_is_given_to_otlp_exporter(
     [span] = exporter.get_finished_spans()
     attributes = span.attributes or {}
     assert attributes["curupira.repo"] == "acme/api"
-    assert attributes["curupira.task.type"] == "issue"
+    assert attributes["curupira.task.type"] == "github-issues"
     assert attributes["curupira.task.id"] == "42"
     assert attributes["curupira.result"] == "success"

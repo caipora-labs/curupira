@@ -5,8 +5,9 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from curupira.clients.gh import GhClient
-from curupira.models import GhIssue, GhIssueSearchRequest, PollingSettings
+from curupira.clients.github_graphql import GitHubGraphQLClient
+from curupira.models import GhIssue, GitHubSearchRequest, PollingSettings
+from curupira.models.configuration import IssueAutomationConfiguration
 from curupira.models.items import IssueItem
 from curupira.providers.github import GitHubIssueSource, IssueTrigger
 from curupira.storage import CronScheduleRepository
@@ -16,23 +17,29 @@ from curupira.tasks.registry import get
 from tests.helpers import issue_task, resolved_automation
 
 
-class FakeGhClient(GhClient):
+class FakeGitHubClient(GitHubGraphQLClient):
     """Return controlled issues and retain the search request for assertions."""
 
     def __init__(self, issues: list[GhIssue]) -> None:
         super().__init__()
         self.issues = issues
-        self.request: GhIssueSearchRequest | None = None
+        self.request: GitHubSearchRequest | None = None
 
     @override
-    async def list_issues(self, request: GhIssueSearchRequest) -> list[GhIssue]:
+    async def list_issues(
+        self,
+        request: GitHubSearchRequest,
+        *,
+        configuration: IssueAutomationConfiguration | None = None,
+    ) -> list[GhIssue]:
+        del configuration
         self.request = request
         return self.issues
 
 
 @pytest.mark.asyncio
 async def test_source_searches_issues_and_builds_tasks(tmp_path: Path) -> None:
-    gh = FakeGhClient(
+    client = FakeGitHubClient(
         [
             GhIssue(
                 number=42,
@@ -44,12 +51,17 @@ async def test_source_searches_issues_and_builds_tasks(tmp_path: Path) -> None:
     )
     automation = resolved_automation(tmp_path)
 
-    tasks = await GitHubIssueSource(gh).discover(automation, 7)
+    tasks = await GitHubIssueSource(client).discover(automation, 7)
 
-    assert gh.request == GhIssueSearchRequest(repo="acme/api", query="is:open", limit=7)
+    assert client.request is not None
+    assert client.request.repo == "acme/api"
+    assert client.request.limit == 7
+    assert "repo:acme/api" in client.request.query
+    assert "is:issue" in client.request.query
+    assert "label:agent-ready" in client.request.query
     assert len(tasks) == 1
     assert tasks[0].identity.id == "42"
-    assert tasks[0].identity.task_type == "issue"
+    assert tasks[0].identity.task_type == "github-issues"
     assert tasks[0].title == "Improve discovery"
     assert tasks[0].url == "https://github.com/acme/api/issues/42"
     assert tasks[0].item == IssueItem(
@@ -61,7 +73,7 @@ async def test_source_searches_issues_and_builds_tasks(tmp_path: Path) -> None:
 
 
 def test_issue_trigger_is_registered_and_provides_prompt_context(tmp_path: Path) -> None:
-    trigger = get("issue")
+    trigger = get("github-issues")
     task = issue_task(tmp_path, number=54)
 
     assert isinstance(trigger, IssueTrigger)

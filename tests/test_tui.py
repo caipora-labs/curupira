@@ -20,7 +20,7 @@ from curupira.tui.formatting import (
     task_display_id,
 )
 from curupira.tui.status import OrchestratorStatus
-from curupira.vcs.github_cli import GitHubCliVersionControl
+from curupira.vcs.git_cli import NativeGitVersionControl
 from tests.helpers import issue_task, resolved_automation
 
 
@@ -52,9 +52,7 @@ def test_task_display_helpers(tmp_path: Path) -> None:
     assert task_description(task) == "Task 101"
 
     cron = Task(
-        identity=TaskIdentity(
-            automation_id="daily", repo="acme/api", task_type="cron", id="1696118400"
-        ),
+        identity=TaskIdentity(automation_id="daily", repo="api", task_type="cron", id="1696118400"),
         automation=resolved_automation(tmp_path, "daily", "cron"),
         title="   ",
         url="https://example.invalid/cron",
@@ -81,27 +79,27 @@ def test_orchestrator_status_tracks_elapsed_timers(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_orchestrator_app_mounts_dashboard_panels(tmp_path: Path) -> None:
+    from tests.helpers import settings_dict
+
     settings = ApplicationSettings.model_validate(
-        {
-            "settings": {
+        settings_dict(
+            {
+                "daily": {
+                    "trigger_type": "cron",
+                    "repository": "api",
+                    "schedule": "0 9 * * *",
+                    "prompt": "Maintain ${repository}",
+                }
+            },
+            settings={
                 "state_db_path": str(tmp_path / "state.sqlite3"),
                 "workspace_dir": str(tmp_path / "workspaces"),
                 "max_active_tasks": 10,
             },
-            "coding_agents": {
-                "automations": {
-                    "daily": {
-                        "trigger_type": "cron",
-                        "repo": "acme/api",
-                        "schedule": "0 9 * * *",
-                        "prompt": "Maintain ${repo}",
-                    }
-                }
-            },
-        }
+        )
     )
     app = OrchestratorApp(
-        settings, tmp_path / "settings.toml", GitHubCliVersionControl(), TaskTelemetry()
+        settings, tmp_path / "settings.toml", NativeGitVersionControl(), TaskTelemetry()
     )
 
     async def _idle_scheduler() -> None:
