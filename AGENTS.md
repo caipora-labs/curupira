@@ -49,12 +49,12 @@ on each other.
 | --- | --- |
 | `src/curupira/models/` | Pydantic contracts: configuration, CLI profiles, tasks, CLI payloads. |
 | `src/curupira/config.py` | Loads and resolves the TOML configuration (`ApplicationSettings`). |
-| `src/curupira/hooks.py`, `manager.py` | Pluggy hookspecs and the manager that registers built-in coding-agent providers. |
-| `src/curupira/tasks/` | Task discovery: `Trigger`, `TaskSource`, `TaskFeed`; one module per trigger, registered in `tasks/registry.py`. Each trigger owns its `configuration_model`, typed `item_model` (prompt payload), and lifecycle hooks. |
+| `src/curupira/hooks.py`, `manager.py` | Pluggy hookspecs (`curupira_coding_agent_adapters`, `curupira_triggers`) and the manager that registers built-in providers. |
+| `src/curupira/tasks/` | Task discovery contracts: `Trigger`, `TaskSource`, `TaskFeed`, registry, and shared feed helpers. Built-in triggers live under `providers/` and register through Pluggy; compatibility re-exports keep `curupira.tasks.<name>` import paths working. |
 | `src/curupira/plugins.py` | Stable plugin API and `curupira.triggers`/`curupira.agents` entry-point discovery; plugins import only this module. |
 | `src/curupira/vcs/` | Repository checkout and worktrees: `VersionControl`. |
-| `src/curupira/providers/` | Built-in coding-agent providers: one package per integration (`providers/<name>/provider.py`), registered through Pluggy. Each adapter owns its `profile_model`. |
-| `src/curupira/agents/` | Shared coding-agent contract (`CodingAgentCliAdapter`), registry, and `create_cli_adapter`; compatibility re-exports of built-in providers. |
+| `src/curupira/providers/` | Built-in providers: one package per integration (`providers/<name>/provider.py`), registered through Pluggy. A provider may contribute coding-agent adapters, triggers, or both. |
+| `src/curupira/agents/` | Shared coding-agent contract (`CodingAgentCliAdapter`), registry, and `create_cli_adapter`; compatibility re-exports of built-in coding-agent providers. |
 | `src/curupira/clients/` | `gh`/`az` wrappers and `AsyncProcessRunner`, the only place that starts processes. |
 | `src/curupira/storage/` | SQLite persistence for sessions and cron state. |
 | `src/curupira/cli.py`, `tui/` | Typer commands and the Textual dashboard. |

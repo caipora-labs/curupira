@@ -228,9 +228,11 @@ and the distribution.
 
 ### Writing an agent plugin
 
-Built-in coding agents live under `src/curupira/providers/<name>/` and register through
-Pluggy; third-party plugins keep using entry points and do not need Pluggy. An agent
-plugin provides two things, both imported from `curupira.plugins`:
+Built-in integrations live under `src/curupira/providers/<name>/` and register through
+Pluggy. Each provider package may contribute coding-agent adapters, triggers, or both
+via `curupira_coding_agent_adapters` and `curupira_triggers`. Third-party plugins keep
+using entry points and do not need Pluggy. An agent plugin provides two things, both
+imported from `curupira.plugins`:
 
 1. A profile model that extends `CliProfileBase` and gives `provider` a default equal to
    the plugin's provider. It inherits `model` and adds the CLI's own options as Pydantic

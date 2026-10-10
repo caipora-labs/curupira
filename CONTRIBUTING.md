@@ -46,41 +46,46 @@ To add a task source, implement `TaskSource` and a `Trigger` that declares its
 `trigger_type` and Pydantic `configuration_model`. Sources specific to one service or
 company belong in a separate distribution that registers the trigger under the
 `curupira.triggers` entry-point group and imports only `curupira.plugins`; see the
-[plugin guide](docs/en/plugins.md). A built-in trigger lives in its own module under
-`tasks/`, is imported by `tasks/__init__.py`, and deserves a dedicated issue/PR after the
-task layer's `base.py` contract. A new version-control provider implements `VersionControl.clone`
-and belongs in its own issue/PR after `vcs/base.py`. A new coding-agent adapter
-implements `CodingAgentCliAdapter.build_arguments`, declares its `provider`,
-`profile_model`, `display_name`, and `install_url`, and contributes itself through the
-Pluggy hook `curupira_coding_agent_adapters` in its provider module. When its CLI reports
-the session in a shape other than a `sessionID`, `session_id`, or `thread_id` JSON field,
-the adapter overrides `session_id_from_line`; when the CLI instead accepts a caller-chosen
-session ID, it sets `assigns_session_id = True` and passes `request.new_session_id` to the
-CLI. When the final answer is not a shape the shared `render_output` already understands,
-it overrides `render_output`. Adapters never start processes or handle timeouts and output
-limits themselves; `run_task` and `AsyncProcessRunner` own that. A built-in adapter lives
-in its own package under `providers/<name>/`, is listed in `manager.py`, and is discovered
-through Pluggy so `create_cli_adapter` and profile validation find it through the registry;
-it belongs in its own issue/PR after `agents/base.py`. Providers that need extra Python
-packages should declare an optional dependency extra and use lazy imports so the default
-install stays lean; providers that only wrap an external CLI stay in the default install.
-Third-party adapters register under the `curupira.agents` entry-point group instead. A
-trigger can supply its own clone mechanism through `Trigger.create_version_control`. Azure
-DevOps pull-request listing is supported via `azure-cli-pull-requests`; cloning still uses
-the GitHub CLI version-control adapter unless `path` points at an existing checkout. Trello
+[plugin guide](docs/en/plugins.md). A built-in trigger lives in a provider package under
+`providers/<name>/`, contributes itself through the Pluggy hook `curupira_triggers`, and
+is listed in `manager.py`. One provider may contribute multiple triggers (for example
+GitHub issues and pull requests) and may also contribute coding-agent adapters. A new
+version-control provider implements `VersionControl.clone` and belongs in its own
+issue/PR after `vcs/base.py`. A new coding-agent adapter implements
+`CodingAgentCliAdapter.build_arguments`, declares its `provider`, `profile_model`,
+`display_name`, and `install_url`, and contributes itself through the Pluggy hook
+`curupira_coding_agent_adapters` in its provider module. When its CLI reports the session
+in a shape other than a `sessionID`, `session_id`, or `thread_id` JSON field, the adapter
+overrides `session_id_from_line`; when the CLI instead accepts a caller-chosen session ID,
+it sets `assigns_session_id = True` and passes `request.new_session_id` to the CLI. When
+the final answer is not a shape the shared `render_output` already understands, it
+overrides `render_output`. Adapters never start processes or handle timeouts and output
+limits themselves; `run_task` and `AsyncProcessRunner` own that. A built-in coding-agent
+adapter lives in its own package under `providers/<name>/` (or shares a package with
+related triggers), is listed in `manager.py`, and is discovered through Pluggy so
+`create_cli_adapter` and profile validation find it through the registry; it belongs in
+its own issue/PR after `agents/base.py`. Providers that need extra Python packages should
+declare an optional dependency extra and use lazy imports so the default install stays
+lean; providers that only wrap an external CLI stay in the default install. Third-party
+adapters register under the `curupira.agents` entry-point group instead. A trigger can
+supply its own clone mechanism through `Trigger.create_version_control`. Azure DevOps
+pull-request listing is supported via `azure-cli-pull-requests`; cloning still uses the
+GitHub CLI version-control adapter unless `path` points at an existing checkout. Trello
 card discovery is built in through Scale-Flow's `trello-cli`; other services such as Monday
-fit a plugin. Configuration accepts only the
-trigger types and agent providers registered by built-ins and installed plugins.
+fit a plugin. Configuration accepts only the trigger types and agent providers registered
+by built-ins and installed plugins.
 
-When adding a provider, add its package under `src/curupira/providers/<provider>/`, a
-matching test package under `tests/providers/<provider>/`, a page at
-`docs/en/providers/<provider>.md`, and one line under "Providers and agents" in the
-`mkdocs.yml` nav. Keep that nav line and the provider's entry in the README "Providers and
-native options" list in alphabetical order by display name. The provider table on
-`docs/en/providers.md` and the coding-agent CLIs in the installation requirements are
-generated from the agent registry (`display_name`, `executable`, and `install_url`) during
-the MkDocs build, so they update automatically. Other tools, such as forge CLIs, are listed
-by hand in `docs/data/requirements.toml`.
+When adding a coding-agent provider, add its package under
+`src/curupira/providers/<provider>/`, a matching test package under
+`tests/providers/<provider>/`, a page at `docs/en/providers/<provider>.md`, and one line
+under "Providers and agents" in the `mkdocs.yml` nav. Keep that nav line and the
+provider's entry in the README "Providers and native options" list in alphabetical order
+by display name. The provider table on `docs/en/providers.md` and the coding-agent CLIs in
+the installation requirements are generated from the agent registry (`display_name`,
+`executable`, and `install_url`) during the MkDocs build, so they update automatically.
+Other tools, such as forge CLIs, are listed by hand in `docs/data/requirements.toml`.
+Trigger-only providers need the package, `manager.py` entry, and tests, but not a
+coding-agent docs page.
 
 ## Documentation translations
 

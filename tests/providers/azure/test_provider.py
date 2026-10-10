@@ -14,8 +14,8 @@ from curupira.models import (
     TaskIdentity,
 )
 from curupira.models.items import PullRequestItem
+from curupira.providers.azure import AzurePullRequestSource, AzurePullRequestTrigger
 from curupira.storage import CronScheduleRepository
-from curupira.tasks.azure_pull_requests import AzurePullRequestSource, AzurePullRequestTrigger
 from curupira.tasks.base import FeedDependencies
 from curupira.tasks.feed import PollingTaskFeed
 from curupira.tasks.registry import get

@@ -43,10 +43,11 @@ def registered() -> dict[str, Trigger]:
 
 
 def _ensure_loaded() -> None:
-    # Built-ins register on import and must precede plugins so collisions are rejected.
-    import curupira.tasks  # noqa: F401
+    # Built-ins register through Pluggy and must precede plugins so collisions are rejected.
+    from curupira.manager import load_built_in_providers
     from curupira.plugins import load_plugins
 
+    load_built_in_providers()
     load_plugins()
 
 

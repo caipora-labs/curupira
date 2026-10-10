@@ -10,8 +10,8 @@ from curupira.models import (
     PollingSettings,
     RunningCodingSession,
 )
+from curupira.providers.cron import CronTaskFeed, latest_due_occurrence
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
-from curupira.tasks.cron import CronTaskFeed, latest_due_occurrence
 from tests.helpers import resolved_automation
 
 

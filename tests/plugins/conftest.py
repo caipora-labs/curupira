@@ -3,6 +3,7 @@
 import pytest
 
 import curupira.agents.registry as agent_registry
+import curupira.manager as manager_module
 import curupira.plugins as plugins
 import curupira.tasks.registry as registry
 from tests.plugins.entry_points import FakeEntryPoint, Install
@@ -15,6 +16,7 @@ def install(monkeypatch: pytest.MonkeyPatch) -> Install:
     monkeypatch.setattr(registry, "_TRIGGERS", dict(registry._TRIGGERS))
     monkeypatch.setattr(registry, "_ALIASES", dict(registry._ALIASES))
     monkeypatch.setattr(agent_registry, "_ADAPTERS", dict(agent_registry._ADAPTERS))
+    monkeypatch.setattr(manager_module, "_loaded", True)
     monkeypatch.setattr(plugins, "_loaded", None)
     monkeypatch.setattr(plugins, "_agents_loaded", None)
 

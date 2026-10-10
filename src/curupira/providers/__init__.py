@@ -1,6 +1,7 @@
-"""Built-in coding-agent providers.
+"""Built-in providers registered through Pluggy.
 
 Each subdirectory is an independent provider package so contributors can add or change
-one integration without touching the others. Providers register through Pluggy hooks
-defined in ``curupira.hooks``; the core loads them via ``curupira.manager``.
+one integration without touching the others. A provider may contribute coding-agent
+adapters, triggers, or both through the hooks in ``curupira.hooks``; the core loads them
+via ``curupira.manager``.
 """
