@@ -17,6 +17,7 @@ from curupira.models.configuration import (
     IssueAutomationConfiguration,
     PollingSettings,
     PullRequestAutomationConfiguration,
+    TrelloAutomationConfiguration,
 )
 from curupira.models.github import (
     DEFAULT_ISSUE_JSON_FIELDS,
@@ -26,7 +27,7 @@ from curupira.models.github import (
     GhPullRequest,
     GhPullRequestSearchRequest,
 )
-from curupira.models.items import CronItem, IssueItem, PullRequestItem
+from curupira.models.items import CronItem, IssueItem, PullRequestItem, TrelloCardItem
 from curupira.models.process import (
     CodingTaskRequest,
     CommandRequest,
@@ -49,6 +50,7 @@ from curupira.models.tasks import (
     TaskIdentity,
 )
 from curupira.models.templates import common_prompt_context, flatten_for_template
+from curupira.models.trello import TrelloBoard, TrelloCard, TrelloList, TrelloListRequest
 
 __all__ = [
     "DEFAULT_ISSUE_JSON_FIELDS",
@@ -89,6 +91,12 @@ __all__ = [
     "RunningCodingSession",
     "Task",
     "TaskIdentity",
+    "TrelloAutomationConfiguration",
+    "TrelloBoard",
+    "TrelloCard",
+    "TrelloCardItem",
+    "TrelloList",
+    "TrelloListRequest",
     "common_prompt_context",
     "flatten_for_template",
 ]

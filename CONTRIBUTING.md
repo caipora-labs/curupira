@@ -66,7 +66,8 @@ group instead. A trigger can
 supply its own clone mechanism through `Trigger.create_version_control`. Azure DevOps
 pull-request listing is supported via `azure-cli-pull-requests`; cloning still uses the
 GitHub CLI version-control adapter unless `path` points at an existing checkout. Trello
-and Monday are examples of services that fit a plugin. Configuration accepts only the
+card discovery is built in through Scale-Flow's `trello-cli`; other services such as Monday
+fit a plugin. Configuration accepts only the
 trigger types and agent providers registered by built-ins and installed plugins.
 
 When adding a provider, add its adapter in `src/curupira/agents/`, a page at

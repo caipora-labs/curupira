@@ -20,6 +20,8 @@ def resolved_automation(
     }
     if trigger == "cron":
         config.update(schedule="0 9 * * *", start_date="2026-10-01T00:00:00+00:00")
+    elif trigger == "trello-cli-cards":
+        config["board_id"] = "board123"
     elif trigger != "azure-cli-pull-requests":
         config["query"] = "is:open"
     config.update(overrides)

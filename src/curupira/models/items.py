@@ -43,3 +43,21 @@ class PullRequestItem(ValidatedModel):
 
 class CronItem(ValidatedModel):
     """Cron occurrences expose only the common prompt placeholders."""
+
+
+class TrelloCardItem(ValidatedModel):
+    """Trello card fields available as prompt placeholders.
+
+    Attributes:
+        card_id: Trello card ID preserved as a string.
+        card_title: Card name.
+        card_body: Card description, or empty when absent.
+        card_url: HTML URL of the card.
+        card_list_id: ID of the list that currently holds the card.
+    """
+
+    card_id: NonEmptyString
+    card_title: str
+    card_body: str = ""
+    card_url: NonEmptyString
+    card_list_id: str = ""

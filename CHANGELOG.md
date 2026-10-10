@@ -18,6 +18,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Built-in Trello card discovery through Scale-Flow's JSON-first `trello-cli`, with board/list selection, string-preserved card IDs, and per-feed deduplication.
 - Kilo CLI (`kilo`) as a built-in coding-agent provider, with OpenCode-compatible JSONL
   session detection and text rendering plus native model, agent, reasoning-variant, and
   permission options.
@@ -50,6 +51,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- CLI dispatch is unified under `run`: a finite drain (formerly `batch`, with optional
+  `--size`) is the default, and continuous polling is `run --watch` (formerly `watch`).
+  The standalone `batch` and `watch` commands are removed. `run --dry-run` still previews
+  one task without reserving or executing. `tui` is unchanged.
 - Install instructions in the README and documentation use `uv tool install curupira`
   without a version pin, with a note on pinning `curupira==X.Y.Z` when needed.
 

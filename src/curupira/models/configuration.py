@@ -225,6 +225,19 @@ class AzurePullRequestAutomationConfiguration(AutomationConfigurationBase):
         return value
 
 
+class TrelloAutomationConfiguration(AutomationConfigurationBase):
+    """Discover cards from one Trello board through Scale-Flow's ``trello-cli``.
+
+    Attributes:
+        board_id: Trello board ID to query.
+        list_ids: Optional list IDs restricting discovery to selected board lists.
+    """
+
+    trigger_type: NonEmptyString = "trello-cli-cards"
+    board_id: NonEmptyString
+    list_ids: tuple[NonEmptyString, ...] | None = None
+
+
 class CronAutomationConfiguration(AutomationConfigurationBase):
     """Discover cron occurrences within an optional inclusive date window.
 
