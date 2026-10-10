@@ -1,0 +1,9 @@
+{"type":"init","timestamp":"2026-10-09T12:00:00Z","session_id":"gemini-session","model":"gemini-2.5-flash"}
+{"type":"message","role":"user","content":"Summarize this task."}
+{"type":"message","role":"assistant","content":"Gemini ","delta":true}
+{"type":"message","role":"assistant","content":"responded.","delta":true}
+{"type":"tool_use","tool_name":"read_file","parameters":{"path":"README.md"}}
+{"type":"tool_result","tool_id":"tool-1","status":"success","output":"README content"}
+{"type":"message","role":"assistant","content":"Continued ","delta":true}
+{"type":"message","role":"assistant","content":"after tool.","delta":true}
+{"type":"result","status":"success","stats":{"duration_ms":1200}}
