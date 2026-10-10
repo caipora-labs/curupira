@@ -8,10 +8,10 @@ from typing_extensions import override
 from curupira.clients.gh import GhClient
 from curupira.models import GhPullRequest, GhPullRequestSearchRequest, PollingSettings
 from curupira.models.items import PullRequestItem
+from curupira.providers.github import GitHubPullRequestSource, PullRequestTrigger
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
 from curupira.tasks.feed import PollingTaskFeed
-from curupira.providers.github import GitHubPullRequestSource, PullRequestTrigger
 from curupira.tasks.registry import get
 from tests.helpers import pull_request_task, resolved_automation
 

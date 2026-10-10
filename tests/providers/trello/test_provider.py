@@ -8,11 +8,11 @@ from typing_extensions import override
 from curupira.clients.trello import TrelloClient
 from curupira.models import PollingSettings, Task, TaskIdentity, TrelloCard, TrelloListRequest
 from curupira.models.items import TrelloCardItem
+from curupira.providers.trello import TrelloCardSource, TrelloCardTrigger
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
 from curupira.tasks.feed import PollingTaskFeed
 from curupira.tasks.registry import get
-from curupira.providers.trello import TrelloCardSource, TrelloCardTrigger
 from tests.helpers import resolved_automation
 
 

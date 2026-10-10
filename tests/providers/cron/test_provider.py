@@ -5,9 +5,9 @@ from pathlib import Path
 
 from curupira.models import PollingSettings, Task, TaskIdentity
 from curupira.models.items import CronItem
+from curupira.providers.cron import CronTaskFeed, CronTrigger
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
-from curupira.providers.cron import CronTaskFeed, CronTrigger
 from curupira.tasks.registry import get
 from tests.helpers import resolved_automation
 

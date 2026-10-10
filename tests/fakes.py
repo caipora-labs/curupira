@@ -116,14 +116,16 @@ class FakeGitHub(GhClient):
 
 def use_fake_github(monkeypatch: pytest.MonkeyPatch, fake: FakeGitHub) -> FakeGitHub:
     """Install ``fake`` as the GhClient constructed by built-in GitHub triggers."""
-    monkeypatch.setattr("curupira.tasks.github_issues.GhClient", lambda runner=None: fake)
-    monkeypatch.setattr("curupira.tasks.github_pull_requests.GhClient", lambda runner=None: fake)
+    monkeypatch.setattr("curupira.providers.github.issues.GhClient", lambda runner=None: fake)
+    monkeypatch.setattr(
+        "curupira.providers.github.pull_requests.GhClient", lambda runner=None: fake
+    )
     return fake
 
 
 def use_fake_azure(monkeypatch: pytest.MonkeyPatch, fake: AzClient) -> AzClient:
     """Install ``fake`` as the AzClient constructed by the Azure pull-request trigger."""
-    monkeypatch.setattr("curupira.tasks.azure_pull_requests.AzClient", lambda runner=None: fake)
+    monkeypatch.setattr("curupira.providers.azure.provider.AzClient", lambda runner=None: fake)
     return fake
 
 
