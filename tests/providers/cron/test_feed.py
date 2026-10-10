@@ -11,7 +11,7 @@ from curupira.models import (
     RunningCodingSession,
 )
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
-from curupira.tasks.cron import CronTaskFeed, latest_due_occurrence
+from curupira.providers.cron import CronTaskFeed, latest_due_occurrence
 from tests.helpers import resolved_automation
 
 

@@ -7,13 +7,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- Built-in coding-agent adapters move into `src/curupira/providers/<name>/`, one package
-  per provider, and register through a Pluggy hook (`curupira_coding_agent_adapters`)
-  loaded by `curupira.manager`. The shared `CodingAgentCliAdapter` contract, registry, and
-  `create_cli_adapter` stay under `curupira.agents`; compatibility re-exports keep the old
-  `curupira.agents.<name>` import paths working. Third-party agents still use the
-  `curupira.agents` entry-point group and `curupira.plugins`. Provider tests live under
-  `tests/providers/<name>/`.
+- Built-in providers (coding agents and triggers) live under `src/curupira/providers/<name>/`
+  and register through Pluggy hooks loaded by `curupira.manager`. A provider may contribute
+  coding-agent adapters (`curupira_coding_agent_adapters`), triggers (`curupira_triggers`),
+  or both — for example the GitHub provider contributes issue and pull-request triggers.
+  The shared `CodingAgentCliAdapter` contract stays under `curupira.agents`; task contracts
+  stay under `curupira.tasks`. Compatibility re-exports keep `curupira.agents.<name>` and
+  `curupira.tasks.<name>` import paths working. Third-party plugins still use the
+  `curupira.agents` / `curupira.triggers` entry-point groups and `curupira.plugins`.
+  Provider tests live under `tests/providers/<name>/`.
 - Trigger plugin API v2: discovery is a general async source that returns a typed Pydantic
   `Task.item` (`Trigger.item_model`). Prompt placeholders are the item model's fields,
   flattened by `flatten_for_template` (scalars as strings, `None` as empty, booleans as
@@ -25,7 +27,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- `pluggy` as a core dependency for the built-in coding-agent provider contract.
+- `pluggy` as a core dependency for the built-in provider contract (coding agents and
+  triggers).
 - Built-in Trello card discovery through Scale-Flow's JSON-first `trello-cli`, with board/list selection, string-preserved card IDs, and per-feed deduplication.
 - Kilo CLI (`kilo`) as a built-in coding-agent provider, with OpenCode-compatible JSONL
   session detection and text rendering plus native model, agent, reasoning-variant, and

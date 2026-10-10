@@ -7,7 +7,7 @@ from curupira.models import PollingSettings, Task, TaskIdentity
 from curupira.models.items import CronItem
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
-from curupira.tasks.cron import CronTaskFeed, CronTrigger
+from curupira.providers.cron import CronTaskFeed, CronTrigger
 from curupira.tasks.registry import get
 from tests.helpers import resolved_automation
 

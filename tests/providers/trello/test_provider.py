@@ -12,7 +12,7 @@ from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
 from curupira.tasks.feed import PollingTaskFeed
 from curupira.tasks.registry import get
-from curupira.tasks.trello_cards import TrelloCardSource, TrelloCardTrigger
+from curupira.providers.trello import TrelloCardSource, TrelloCardTrigger
 from tests.helpers import resolved_automation
 
 

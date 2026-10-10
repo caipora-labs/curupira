@@ -11,7 +11,7 @@ from curupira.models.items import IssueItem
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
 from curupira.tasks.feed import PollingTaskFeed
-from curupira.tasks.github_issues import GitHubIssueSource, IssueTrigger
+from curupira.providers.github import GitHubIssueSource, IssueTrigger
 from curupira.tasks.registry import get
 from tests.helpers import issue_task, resolved_automation
 

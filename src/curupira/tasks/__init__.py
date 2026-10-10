@@ -1,7 +1,9 @@
-"""Task sources and trigger implementations."""
+"""Task discovery contracts and compatibility re-exports of built-in triggers.
 
-# Import concrete triggers so registry lookups work regardless of which application
-# entry point is used first.
+Built-in triggers register through Pluggy provider packages under ``curupira.providers``.
+Import paths under ``curupira.tasks.<name>`` remain available for compatibility.
+"""
+
 from curupira.tasks import (  # noqa: F401
     azure_pull_requests,
     cron,
