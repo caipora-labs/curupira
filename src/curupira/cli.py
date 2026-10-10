@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from curupira import __version__
 from curupira.config import ApplicationSettings, load_settings
+from curupira.config_reload import run_continuous_dispatch
 from curupira.dispatcher import create_task_feeds, dispatch_next_task
 from curupira.errors import DispatchError
 from curupira.executor import TaskExecutor
@@ -29,7 +30,6 @@ from curupira.scheduler import TaskScheduler
 from curupira.status import TerminalTaskStatus
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
 from curupira.tasks.base import TaskFeed
-from curupira.tasks.feed import merge_task_streams
 from curupira.telemetry import TaskTelemetry
 from curupira.vcs.base import VersionControl
 
@@ -322,7 +322,7 @@ async def _execute_command(options: CliOptions) -> int:
         if options.command == "tui":
             from curupira.tui.app import run_orchestrator_tui
 
-            return await run_orchestrator_tui(settings, None, telemetry)
+            return await run_orchestrator_tui(settings, options.config, None, telemetry)
         return await _execute_scheduled_command(settings, None, telemetry, options)
     except (DispatchError, OSError, ValidationError) as error:
         print(f"Dispatch error: {error}", file=sys.stderr)
@@ -371,30 +371,42 @@ async def _execute_scheduled_command(
     options: CliOptions,
 ) -> int:
     """Execute a finite drain or continuous watch through the shared scheduler."""
-    sessions = RunningSessionRepository(settings.settings.state_db_path)
-    recovered = await sessions.list_all()
-    cron = CronScheduleRepository(settings.settings.state_db_path)
-    feeds = create_task_feeds(settings, cron)
-    executor = TaskExecutor(settings.settings, version_control, sessions, cron, telemetry=telemetry)
     status = TerminalTaskStatus(show_idle=True)
-    scheduler = TaskScheduler(
-        settings.settings,
-        executor,
-        on_active_tasks_changed=lambda tasks: status.update(
-            tasks, settings.settings.max_active_tasks
-        ),
-    )
-    if options.watch:
-        tasks = merge_task_streams(
-            [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
-        )
-    else:
-        tasks = _batch_stream(feeds, options.size)
+    active_limit = settings.settings.max_active_tasks
+
+    def on_active_tasks_changed(tasks: Sequence[Task]) -> None:
+        status.update(tasks, active_limit)
+
+    def on_settings_reloaded(reloaded: ApplicationSettings) -> None:
+        nonlocal active_limit
+        active_limit = reloaded.settings.max_active_tasks
+
     try:
-        await scheduler.run(tasks, resume_sessions=recovered)
+        if options.watch:
+            return await run_continuous_dispatch(
+                settings,
+                options.config,
+                version_control=version_control,
+                telemetry=telemetry,
+                on_active_tasks_changed=on_active_tasks_changed,
+                on_settings_reloaded=on_settings_reloaded,
+            )
+        sessions = RunningSessionRepository(settings.settings.state_db_path)
+        recovered = await sessions.list_all()
+        cron = CronScheduleRepository(settings.settings.state_db_path)
+        feeds = create_task_feeds(settings, cron)
+        executor = TaskExecutor(
+            settings.settings, version_control, sessions, cron, telemetry=telemetry
+        )
+        scheduler = TaskScheduler(
+            settings.settings,
+            executor,
+            on_active_tasks_changed=on_active_tasks_changed,
+        )
+        await scheduler.run(_batch_stream(feeds, options.size), resume_sessions=recovered)
+        return 1 if scheduler.failed_tasks else 0
     finally:
         status.clear()
-    return 1 if scheduler.failed_tasks else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
