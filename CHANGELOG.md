@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Built-in Trello card discovery through Scale-Flow's JSON-first `trello-cli`, with board/list selection, string-preserved card IDs, and per-feed deduplication.
 - Kilo CLI (`kilo`) as a built-in coding-agent provider, with OpenCode-compatible JSONL
   session detection and text rendering plus native model, agent, reasoning-variant, and
   permission options.
@@ -44,6 +45,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Finite `run --size` drains apply the task limit to the initial poll as well as later batches.
 - GitHub work is revalidated immediately before execution and session resumption. Closed
   work and issues already associated with an open closing pull request are skipped, stale
   recovered sessions restart from current source data, and PR scheduling tracks head SHAs.

@@ -268,6 +268,14 @@ async def _batch_stream(feeds: Sequence[TaskFeed], size: int | None) -> AsyncIte
             yield task
 
 
+def _limit_initial_tasks(tasks: Sequence[Task], size: int | None) -> tuple[list[Task], int | None]:
+    """Apply a finite drain's cap to its initial poll and return the remaining allowance."""
+    if size is None:
+        return list(tasks), None
+    admitted = list(tasks[:size])
+    return admitted, size - len(admitted)
+
+
 async def async_main(options: CliOptions) -> int:
     """Load validated settings and execute the selected CLI command."""
     instance_lock: DispatchInstanceLock | None = None
@@ -385,7 +393,7 @@ async def _execute_scheduled_command(
     recovered = await sessions.list_all()
     cron = CronScheduleRepository(settings.settings.state_db_path)
     feeds = create_task_feeds(settings, gh, cron)
-    initial_tasks = await poll_task_feeds(feeds)
+    initial_tasks, remaining = _limit_initial_tasks(await poll_task_feeds(feeds), options.size)
     revalidate = GitHubTaskRevalidator(gh)
     executor = TaskExecutor(
         settings.settings,
@@ -409,7 +417,6 @@ async def _execute_scheduled_command(
     if options.watch:
         tasks = prioritize_task_stream(feeds, settings.settings.polling.poll_interval_seconds)
     else:
-        remaining = None if options.size is None else max(options.size - len(initial_tasks), 0)
         tasks = _batch_stream(feeds, remaining)
     try:
         await scheduler.run(tasks, resume_sessions=recovered, initial_tasks=initial_tasks)

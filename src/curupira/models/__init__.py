@@ -17,6 +17,7 @@ from curupira.models.configuration import (
     IssueAutomationConfiguration,
     PollingSettings,
     PullRequestAutomationConfiguration,
+    TrelloAutomationConfiguration,
 )
 from curupira.models.github import (
     DEFAULT_ISSUE_JSON_FIELDS,
@@ -53,6 +54,7 @@ from curupira.models.tasks import (
     TaskIdentity,
     WorkflowStage,
 )
+from curupira.models.trello import TrelloBoard, TrelloCard, TrelloList, TrelloListRequest
 
 __all__ = [
     "DEFAULT_ISSUE_JSON_FIELDS",
@@ -95,5 +97,10 @@ __all__ = [
     "RunningCodingSession",
     "Task",
     "TaskIdentity",
+    "TrelloAutomationConfiguration",
+    "TrelloBoard",
+    "TrelloCard",
+    "TrelloList",
+    "TrelloListRequest",
     "WorkflowStage",
 ]
