@@ -16,6 +16,7 @@ while `watch` polls every automation continuously.
 - Only the CLIs used by the configured profiles need to be installed:
   [`claude`](https://code.claude.com/docs/en/cli-reference),
   [`codex`](https://developers.openai.com/codex/cli/), the Cursor CLI (`agent`),
+  [`gemini`](https://github.com/google-gemini/gemini-cli),
   [GitHub Copilot CLI (`copilot`)](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli),
   [`opencode`](https://opencode.ai/), [`pi`](https://pi.dev/docs/latest), or
   [`qwen`](https://github.com/QwenLM/qwen-code)
@@ -108,6 +109,7 @@ Curupira supports these coding-agent CLIs, selected with `provider` in a profile
 - Claude Code (`claude`)
 - Codex (`codex`)
 - Cursor (`cursor`)
+- Gemini CLI (`gemini`)
 - GitHub Copilot CLI (`copilot`)
 - OpenCode (`opencode`)
 - [pi (`pi`)](https://caipora-labs.github.io/curupira/providers/pi/)
