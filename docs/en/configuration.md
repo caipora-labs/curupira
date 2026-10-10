@@ -16,7 +16,7 @@ than maintaining a parallel field table here.
         - workspace_dir
         - state_db_path
         - otlp_endpoint
-        - task_timeout_seconds
+        - task_timeout_minutes
         - max_output_bytes
         - polling
 
@@ -59,6 +59,7 @@ One TOML file contains global limits, coding-agent profiles, and automations. An
 max_active_tasks = 1
 workspace_dir = "~/.curupira/workspaces"
 state_db_path = "~/.curupira/state.sqlite3"
+task_timeout_minutes = 20
 
 [settings.polling]
 poll_interval_seconds = 30
@@ -111,7 +112,7 @@ Each task uses its own worktree by default, created from the fetched remote defa
 
 Polls fetch up to `batch_size` items (default 100, maximum 1000). Empty poll cycles back off from `poll_interval_seconds` (default 30 seconds) up to five minutes; discovery resets the wait. Automations deduplicate independently. Project queries keep the open state and filter board items to `Todo`.
 
-`max_active_tasks` bounds concurrent agents. Checkouts using the same path run sequentially. Cron automations coalesce overdue ticks into one pending occurrence and never run themselves concurrently. `schedule` uses five cron fields; `timezone` is an IANA zone (default UTC), and optional `start_date`/`end_date` define an inclusive window. Without `start_date`, the window starts when the automation is first recorded.
+`max_active_tasks` bounds concurrent agents. Checkouts using the same path run sequentially. Cron automations coalesce overdue ticks into one pending occurrence and never run themselves concurrently. `schedule` uses five cron fields; `timezone` is an IANA zone (default UTC), and optional `start_date`/`end_date` define an inclusive window. Without `start_date`, the window starts when the automation is first recorded. `task_timeout_minutes` (default 20) is the deadline for one coding-agent run and its optional setup script.
 
 State is stored in `state_db_path` (default `~/.curupira/state.sqlite3`), the dispatch lock in `~/.curupira/dispatch.lock`, and logs in `~/.curupira/logs`. An incompatible database causes an error rather than automatic deletion. Only one `run` or `tui` process may dispatch at a time.
 

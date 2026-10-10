@@ -18,7 +18,13 @@ from pydantic import (
 )
 
 from curupira.models.azure import AzurePullRequestStatus
-from curupira.models.base import Identifier, NonEmptyString, PositiveSeconds, ValidatedModel
+from curupira.models.base import (
+    Identifier,
+    NonEmptyString,
+    PositiveMinutes,
+    PositiveSeconds,
+    ValidatedModel,
+)
 from curupira.models.profiles import CliProfile, OpenCodeCliProfile
 
 COMMON_PROMPT_FIELDS = frozenset(
@@ -58,7 +64,7 @@ class ExecutionSettings(ValidatedModel):
         workspace_dir: Default directory for repository checkouts and worktrees.
         state_db_path: SQLite database path for durable task and schedule state.
         otlp_endpoint: Optional OTLP/HTTP endpoint for task trace export.
-        task_timeout_seconds: Optional time limit for one coding-agent task.
+        task_timeout_minutes: Time limit for one coding-agent task, in minutes.
         max_output_bytes: Maximum captured output per subprocess stream.
         polling: Discovery polling intervals and fetch limits.
     """
@@ -68,9 +74,14 @@ class ExecutionSettings(ValidatedModel):
     workspace_dir: Path = Field(default_factory=lambda: Path("~/.curupira/workspaces"))
     state_db_path: Path = Field(default_factory=lambda: Path("~/.curupira/state.sqlite3"))
     otlp_endpoint: AnyHttpUrl | None = None
-    task_timeout_seconds: PositiveSeconds | None = None
+    task_timeout_minutes: PositiveMinutes = 20
     max_output_bytes: Annotated[int, Field(strict=True, ge=1024, le=100_000_000)] = 1_000_000
     polling: PollingSettings = Field(default_factory=PollingSettings)
+
+    @property
+    def task_timeout_seconds(self) -> float:
+        """Convert the configured minute limit to seconds for process runners."""
+        return float(self.task_timeout_minutes) * 60.0
 
     @field_validator("workspace_dir", "state_db_path", mode="before")
     @classmethod
