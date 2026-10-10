@@ -83,6 +83,7 @@ nav:
       - Overview: providers.md
       - Claude Code: providers/claude.md
       - Codex: providers/codex.md
+      - GitHub Copilot CLI: providers/copilot.md
       - Cursor: providers/cursor.md
       - OpenCode: providers/opencode.md
       - pi: providers/pi.md

@@ -6,4 +6,4 @@ Curupira invokes each tool through its non-interactive native CLI and saves sess
 
 Each provider page describes how its profile options map to native CLI arguments.
 
-Permission overrides are also provider-specific (`auto_approve` for OpenCode, `sandbox`/`auto_review` for Codex, `permission_mode`/`permission_prompts` for Claude Code, and `force`/`trust` for Cursor). If omitted, each CLI keeps its native policy.
+Permission overrides are also provider-specific (`auto_approve` for OpenCode, `sandbox`/`auto_review` for Codex, `permission_mode`/`permission_prompts` for Claude Code, `force`/`trust` for Cursor, and `allow_all_tools`/`allow_tools`/`deny_tools` for GitHub Copilot CLI). If omitted, each CLI keeps its native policy.

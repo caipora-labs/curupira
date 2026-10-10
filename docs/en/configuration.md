@@ -48,6 +48,8 @@ than maintaining a parallel field table here.
 
 ::: curupira.models.profiles.CursorCliProfile
 
+The GitHub Copilot CLI profile is documented on its [provider page](providers/copilot.md#configuration-reference).
+
 One TOML file contains global limits, coding-agent profiles, and automations. An automation watches issues, pull requests, or a cron schedule.
 
 ```toml
@@ -77,7 +79,7 @@ prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 
 Save this as `~/.curupira/settings.toml`. The keys under `profiles` and `automations` are user-chosen identifiers; `profile` connects an automation to an existing profile.
 
-Each profile's `provider` selects a registered coding agent: `opencode`, `codex`, `claude`, or `cursor`, plus any provider added by an installed [agent plugin](plugins.md#agent-plugins). `curu plugins list` shows every available provider and its executable.
+Each profile's `provider` selects a registered coding agent: `claude`, `codex`, `copilot`, `cursor`, `opencode`, `pi`, or `qwen`, plus any provider added by an installed [agent plugin](plugins.md#agent-plugins). `curu plugins list` shows every available provider and its executable.
 
 ## Automations
 

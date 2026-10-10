@@ -14,9 +14,11 @@ while `watch` polls every automation continuously.
 - Python 3.11 or newer (3.11–3.14 supported; Linux, macOS, and Windows)
 - [`gh`](https://cli.github.com/) installed and authenticated (`gh auth login`)
 - Only the CLIs used by the configured profiles need to be installed:
-  [`opencode`](https://opencode.ai/), [`codex`](https://developers.openai.com/codex/cli/),
-  [`claude`](https://code.claude.com/docs/en/cli-reference), the Cursor CLI (`agent`),
-  [`pi`](https://pi.dev/docs/latest), or [`qwen`](https://github.com/QwenLM/qwen-code)
+  [`claude`](https://code.claude.com/docs/en/cli-reference),
+  [`codex`](https://developers.openai.com/codex/cli/), the Cursor CLI (`agent`),
+  [GitHub Copilot CLI (`copilot`)](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli),
+  [`opencode`](https://opencode.ai/), [`pi`](https://pi.dev/docs/latest), or
+  [`qwen`](https://github.com/QwenLM/qwen-code)
 
 ## Installation
 
@@ -106,6 +108,7 @@ Curupira supports these coding-agent CLIs, selected with `provider` in a profile
 - Claude Code (`claude`)
 - Codex (`codex`)
 - Cursor (`cursor`)
+- GitHub Copilot CLI (`copilot`)
 - OpenCode (`opencode`)
 - [pi (`pi`)](https://caipora-labs.github.io/curupira/providers/pi/)
 - [Qwen Code (`qwen`)](https://caipora-labs.github.io/curupira/providers/qwen/)
