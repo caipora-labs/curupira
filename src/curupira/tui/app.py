@@ -15,7 +15,6 @@ from textual.screen import ModalScreen
 from textual.widgets import Footer, RichLog, Static
 from typing_extensions import override
 
-from curupira.clients.gh import GhClient
 from curupira.config import ApplicationSettings
 from curupira.dispatcher import create_task_feeds
 from curupira.executor import TaskExecutor
@@ -135,13 +134,11 @@ class OrchestratorApp(App[int]):
     def __init__(
         self,
         settings: ApplicationSettings,
-        gh: GhClient,
         version_control: VersionControl | None,
         telemetry: TaskTelemetry,
     ) -> None:
         super().__init__()
         self._settings = settings
-        self._gh = gh
         self._version_control = version_control
         self._telemetry = telemetry
         self._status = OrchestratorStatus()
@@ -188,7 +185,7 @@ class OrchestratorApp(App[int]):
         sessions = RunningSessionRepository(settings.settings.state_db_path)
         recovered = await sessions.list_all()
         cron = CronScheduleRepository(settings.settings.state_db_path)
-        feeds = create_task_feeds(settings, self._gh, cron)
+        feeds = create_task_feeds(settings, cron)
         executor = TaskExecutor(
             settings.settings,
             self._version_control,
@@ -290,11 +287,10 @@ class OrchestratorApp(App[int]):
 
 async def run_orchestrator_tui(
     settings: ApplicationSettings,
-    gh: GhClient,
     version_control: VersionControl | None,
     telemetry: TaskTelemetry,
 ) -> int:
     """Run the Textual orchestrator app and return its exit code."""
-    app = OrchestratorApp(settings, gh, version_control, telemetry)
+    app = OrchestratorApp(settings, version_control, telemetry)
     result = await app.run_async()
     return 0 if result is None else result

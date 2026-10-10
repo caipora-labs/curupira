@@ -14,9 +14,9 @@ from curupira.errors import PluginLoadError
 from curupira.executor import TaskExecutor, render_task_prompt
 from curupira.models import RunningCodingSession, Task, TaskIdentity
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
-from tests.fakes import FakeGitHub, FakeVersionControl, RecordingAdapter
+from tests.fakes import FakeVersionControl, RecordingAdapter
 from tests.plugins.entry_points import FakeEntryPoint, Install
-from tests.plugins.ticket_plugin import TicketAutomationConfiguration, TicketTrigger
+from tests.plugins.ticket_plugin import TicketAutomationConfiguration, TicketItem, TicketTrigger
 
 MODULE = "tests.plugins.ticket_plugin"
 
@@ -54,7 +54,7 @@ def ticket_task(settings: ApplicationSettings, key: str = "OPS-7") -> Task:
         automation=automation,
         title=f"Ticket {key}",
         url=f"https://tracker.example/OPS/{key}",
-        attributes={"priority": "high"},
+        item=TicketItem(ticket_key=key, ticket_priority="high"),
     )
 
 
@@ -86,7 +86,7 @@ def test_entry_point_may_export_a_trigger_instance(install: Install) -> None:
         ("tests.plugins.missing_module:Trigger", "ModuleNotFoundError"),
         (f"{MODULE}:NOT_A_TRIGGER", "not a Trigger subclass or instance"),
         (f"{MODULE}:BrokenTrigger", "tracker token missing"),
-        (f"{MODULE}:FutureTrigger", "requires plugin API 2, Curupira provides 1"),
+        (f"{MODULE}:FutureTrigger", "requires plugin API 3, Curupira provides 2"),
         (f"{MODULE}:DuplicateIssueTrigger", "trigger type already registered: issue"),
     ],
 )
@@ -159,10 +159,10 @@ async def test_plugin_task_snapshot_round_trips_through_sqlite(
     assert restored is not None
     assert restored.task == task
     assert isinstance(restored.task.automation.configuration, TicketAutomationConfiguration)
-    assert restored.task.attributes == {"priority": "high"}
+    assert restored.task.item == TicketItem(ticket_key="OPS-7", ticket_priority="high")
 
 
-def test_plugin_prompt_uses_task_attributes(ticket: TicketTrigger, tmp_path: Path) -> None:
+def test_plugin_prompt_uses_typed_item(ticket: TicketTrigger, tmp_path: Path) -> None:
     assert render_task_prompt(ticket_task(ticket_settings(tmp_path))) == (
         "Fix OPS-7 (high) in acme/api"
     )
@@ -181,13 +181,11 @@ async def test_plugin_feed_discovers_tasks(ticket: TicketTrigger, tmp_path: Path
     ticket.tickets = [("OPS-1", "low"), ("OPS-2", "high")]
     settings = ticket_settings(tmp_path)
 
-    feeds = create_task_feeds(
-        settings, FakeGitHub(), CronScheduleRepository(settings.settings.state_db_path)
-    )
+    feeds = create_task_feeds(settings, CronScheduleRepository(settings.settings.state_db_path))
     tasks = await feeds[0].poll()
 
     assert [task.identity.id for task in tasks] == ["OPS-1", "OPS-2"]
-    assert tasks[1].attributes == {"priority": "high"}
+    assert tasks[1].item == TicketItem(ticket_key="OPS-2", ticket_priority="high")
 
 
 async def test_executor_uses_plugin_hooks_and_version_control(

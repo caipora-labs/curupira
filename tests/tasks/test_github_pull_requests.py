@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from curupira.clients.az import AzClient
 from curupira.clients.gh import GhClient
 from curupira.models import GhPullRequest, GhPullRequestSearchRequest, PollingSettings
+from curupira.models.items import PullRequestItem
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
 from curupira.tasks.feed import PollingTaskFeed
@@ -64,11 +64,16 @@ async def test_source_searches_pull_requests_and_builds_tasks(tmp_path: Path) ->
     assert tasks[0].identity.id == "42"
     assert tasks[0].identity.task_type == "github-cli-pull-requests"
     assert tasks[0].title == "Review change"
-    assert tasks[0].body == "Details"
     assert tasks[0].url == "https://github.com/acme/api/pull/42"
-    assert tasks[0].is_draft is True
-    assert tasks[0].head_ref_name == "feature"
-    assert tasks[0].base_ref_name == "main"
+    assert tasks[0].item == PullRequestItem(
+        pull_request_number="42",
+        pull_request_title="Review change",
+        pull_request_body="Details",
+        pull_request_url="https://github.com/acme/api/pull/42",
+        pull_request_is_draft=True,
+        pull_request_head_ref="feature",
+        pull_request_base_ref="main",
+    )
 
 
 def test_pull_request_trigger_is_registered_and_provides_prompt_context(tmp_path: Path) -> None:
@@ -101,14 +106,11 @@ def test_pull_request_trigger_is_registered_and_provides_prompt_context(tmp_path
 
 def test_pull_request_trigger_builds_polling_feed(tmp_path: Path) -> None:
     automation = resolved_automation(tmp_path, "reviews", "github-cli-pull-requests")
-    gh = FakeGhClient([])
 
     feed = PullRequestTrigger().build_feed(
         automation,
         FeedDependencies(
             polling=PollingSettings(),
-            gh=gh,
-            az=AzClient(),
             cron=CronScheduleRepository(tmp_path / "state.sqlite3"),
             state_db_path=tmp_path / "state.sqlite3",
         ),

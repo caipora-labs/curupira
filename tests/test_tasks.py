@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from curupira.models import Task, TaskIdentity
+from curupira.models.items import CronItem
 from tests.helpers import resolved_automation
 
 
@@ -55,6 +56,7 @@ def test_cron_identity_must_match_scheduled_timestamp_string(tmp_path: Path) -> 
         automation=automation,
         title="Maintenance",
         url="cron://maintenance",
+        item=CronItem(),
         scheduled_for=scheduled_for,
     )
     assert task.identity.id == str(int(scheduled_for.timestamp()))
@@ -65,5 +67,6 @@ def test_cron_identity_must_match_scheduled_timestamp_string(tmp_path: Path) -> 
             automation=automation,
             title="Maintenance",
             url="cron://maintenance",
+            item=CronItem(),
             scheduled_for=scheduled_for,
         )

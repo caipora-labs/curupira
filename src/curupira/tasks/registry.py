@@ -12,6 +12,7 @@ def register(trigger: Trigger) -> None:
     if trigger_type in _TRIGGERS or trigger_type in _ALIASES:
         raise ValueError(f"trigger type already registered: {trigger_type}")
     _validate_configuration_model(trigger)
+    _validate_item_model(trigger)
     _TRIGGERS[trigger_type] = trigger
 
 
@@ -63,4 +64,15 @@ def _validate_configuration_model(trigger: Trigger) -> None:
         raise ValueError(
             f"configuration_model for {trigger.trigger_type!r} must default "
             f"trigger_type to {trigger.trigger_type!r}, not {default!r}"
+        )
+
+
+def _validate_item_model(trigger: Trigger) -> None:
+    from curupira.models.base import ValidatedModel
+
+    model = getattr(trigger, "item_model", None)
+    if not isinstance(model, type) or not issubclass(model, ValidatedModel):
+        raise ValueError(
+            f"trigger {trigger.trigger_type!r} must declare an item_model "
+            "that extends ValidatedModel"
         )

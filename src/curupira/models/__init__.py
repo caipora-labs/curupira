@@ -26,6 +26,7 @@ from curupira.models.github import (
     GhPullRequest,
     GhPullRequestSearchRequest,
 )
+from curupira.models.items import CronItem, IssueItem, PullRequestItem
 from curupira.models.process import (
     CodingTaskRequest,
     CommandRequest,
@@ -47,6 +48,7 @@ from curupira.models.tasks import (
     Task,
     TaskIdentity,
 )
+from curupira.models.templates import common_prompt_context, flatten_for_template
 
 __all__ = [
     "DEFAULT_ISSUE_JSON_FIELDS",
@@ -66,6 +68,7 @@ __all__ = [
     "CodingTaskRequest",
     "CommandRequest",
     "CronAutomationConfiguration",
+    "CronItem",
     "CronRunState",
     "CursorCliProfile",
     "DispatchOutcome",
@@ -76,12 +79,16 @@ __all__ = [
     "GhPullRequest",
     "GhPullRequestSearchRequest",
     "IssueAutomationConfiguration",
+    "IssueItem",
     "OpenCodeCliProfile",
     "PollingSettings",
     "ProcessResult",
     "PullRequestAutomationConfiguration",
+    "PullRequestItem",
     "ResolvedAutomation",
     "RunningCodingSession",
     "Task",
     "TaskIdentity",
+    "common_prompt_context",
+    "flatten_for_template",
 ]

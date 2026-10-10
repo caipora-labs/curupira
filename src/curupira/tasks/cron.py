@@ -16,6 +16,7 @@ from curupira.models import (
     Task,
     TaskIdentity,
 )
+from curupira.models.items import CronItem
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies, TaskFeed, Trigger, TriggerState
 from curupira.tasks.registry import register
@@ -81,6 +82,7 @@ class CronTaskFeed(TaskFeed):
                 automation=self.automation,
                 title=name,
                 url=f"cron://{name}",
+                item=CronItem(),
                 scheduled_for=occurrence,
             )
         ]
@@ -126,15 +128,7 @@ class CronTrigger(Trigger):
 
     trigger_type = "cron"
     configuration_model = CronAutomationConfiguration
-
-    @classmethod
-    def prompt_fields(cls) -> frozenset[str]:
-        """Cron provides no trigger-specific prompt placeholders."""
-        return frozenset()
-
-    def prompt_context(self, task: Task) -> dict[str, str]:
-        """Cron provides no trigger-specific prompt context."""
-        return {}
+    item_model = CronItem
 
     @override
     def validate_task(self, task: Task) -> None:

@@ -18,8 +18,16 @@ from curupira.plugins import (
     TaskSource,
     Trigger,
     TriggerState,
+    ValidatedModel,
     VersionControl,
 )
+
+
+class TicketItem(ValidatedModel):
+    """Ticket fields available as prompt placeholders."""
+
+    ticket_key: NonEmptyString
+    ticket_priority: NonEmptyString
 
 
 class TicketAutomationConfiguration(AutomationConfigurationBase):
@@ -57,7 +65,7 @@ class TicketSource(TaskSource):
                 automation=automation,
                 title=f"Ticket {key}",
                 url=f"https://tracker.example/{config.project}/{key}",
-                attributes={"priority": priority},
+                item=TicketItem(ticket_key=key, ticket_priority=priority),
             )
             for key, priority in self._tickets[:limit]
         ]
@@ -68,20 +76,12 @@ class TicketTrigger(Trigger):
 
     trigger_type = "ticket"
     configuration_model = TicketAutomationConfiguration
+    item_model = TicketItem
 
     def __init__(self) -> None:
         self.tickets: list[tuple[str, str]] = []
         self.events: list[str] = []
         self.version_control: VersionControl | None = None
-
-    @classmethod
-    @override
-    def prompt_fields(cls) -> frozenset[str]:
-        return frozenset({"ticket_key", "ticket_priority"})
-
-    @override
-    def prompt_context(self, task: Task) -> dict[str, str]:
-        return {"ticket_key": task.identity.id, "ticket_priority": task.attributes["priority"]}
 
     @override
     def build_feed(
@@ -106,7 +106,7 @@ class TicketTrigger(Trigger):
 class FutureTrigger(TicketTrigger):
     """A plugin written against an unsupported plugin API."""
 
-    api_version = 2
+    api_version = 3
 
 
 class DuplicateIssueTrigger(TicketTrigger):

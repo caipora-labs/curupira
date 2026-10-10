@@ -3,9 +3,11 @@
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
+import pytest
 from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter, SessionStartedCallback
+from curupira.clients.az import AzClient
 from curupira.clients.gh import GhClient
 from curupira.clients.process import AsyncProcessRunner
 from curupira.models import (
@@ -110,6 +112,19 @@ class FakeGitHub(GhClient):
     @override
     async def list_pull_requests(self, request: GhPullRequestSearchRequest) -> list[GhPullRequest]:
         return self.pulls
+
+
+def use_fake_github(monkeypatch: pytest.MonkeyPatch, fake: FakeGitHub) -> FakeGitHub:
+    """Install ``fake`` as the GhClient constructed by built-in GitHub triggers."""
+    monkeypatch.setattr("curupira.tasks.github_issues.GhClient", lambda runner=None: fake)
+    monkeypatch.setattr("curupira.tasks.github_pull_requests.GhClient", lambda runner=None: fake)
+    return fake
+
+
+def use_fake_azure(monkeypatch: pytest.MonkeyPatch, fake: AzClient) -> AzClient:
+    """Install ``fake`` as the AzClient constructed by the Azure pull-request trigger."""
+    monkeypatch.setattr("curupira.tasks.azure_pull_requests.AzClient", lambda runner=None: fake)
+    return fake
 
 
 class RecordingAdapter(CodingAgentCliAdapter):

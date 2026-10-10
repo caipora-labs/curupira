@@ -5,6 +5,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Trigger plugin API v2: discovery is a general async source that returns a typed Pydantic
+  `Task.item` (`Trigger.item_model`). Prompt placeholders are the item model's fields,
+  flattened by `flatten_for_template` (scalars as strings, `None` as empty, booleans as
+  `true`/`false`, nested values as compact JSON). `prompt_fields` / `prompt_context`
+  default from the item model. `FeedDependencies` no longer injects `gh`/`az`; built-in
+  triggers construct clients from `runner`. Existing automation TOML placeholders stay
+  valid. In-flight `RunningCodingSession` snapshots from API v1 cannot be resumed after
+  upgrade — restart `watch`. Coding-agent adapters remain CLI-based.
+
 ### Added
 
 - Kilo CLI (`kilo`) as a built-in coding-agent provider, with OpenCode-compatible JSONL

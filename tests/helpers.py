@@ -4,6 +4,7 @@ from pathlib import Path
 
 from curupira.config import ApplicationSettings
 from curupira.models import ResolvedAutomation, Task, TaskIdentity
+from curupira.models.items import IssueItem, PullRequestItem
 
 
 def resolved_automation(
@@ -37,8 +38,13 @@ def issue_task(path: Path, number: int = 42, name: str = "issues") -> Task:
         ),
         automation=automation,
         title=f"Task {number}",
-        body="Details",
         url=f"https://github.com/acme/api/issues/{number}",
+        item=IssueItem(
+            issue_number=str(number),
+            issue_title=f"Task {number}",
+            issue_body="Details",
+            issue_url=f"https://github.com/acme/api/issues/{number}",
+        ),
     )
 
 
@@ -54,7 +60,12 @@ def pull_request_task(path: Path, number: int = 12, name: str = "reviews") -> Ta
         automation=resolved_automation(path, name, "github-cli-pull-requests"),
         title="Review",
         url=f"https://github.com/acme/api/pull/{number}",
-        is_draft=True,
-        head_ref_name="feature",
-        base_ref_name="main",
+        item=PullRequestItem(
+            pull_request_number=str(number),
+            pull_request_title="Review",
+            pull_request_url=f"https://github.com/acme/api/pull/{number}",
+            pull_request_is_draft=True,
+            pull_request_head_ref="feature",
+            pull_request_base_ref="main",
+        ),
     )

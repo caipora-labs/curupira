@@ -18,6 +18,7 @@ from curupira.models import (
     RunningCodingSession,
     Task,
 )
+from curupira.models.templates import common_prompt_context
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
 from curupira.tasks.base import TriggerState
 from curupira.tasks.registry import get as get_trigger
@@ -29,18 +30,17 @@ logger = logging.getLogger(__name__)
 
 
 def render_task_prompt(task: Task) -> str:
-    """Render only the task's own template using common and source-specific fields."""
+    """Render the task prompt from common fields and the typed item payload."""
     identity = task.identity
-    context: dict[str, str] = {
-        "repo": identity.repo,
-        "automation_id": identity.automation_id,
-        "task_type": identity.task_type,
-        "task_number": identity.id,
-        "task_title": task.title,
-        "task_body": task.body or "",
-        "task_url": task.url,
-    }
-    context.update(get_trigger(identity.task_type).prompt_context(task))
+    context = common_prompt_context(
+        repo=identity.repo,
+        automation_id=identity.automation_id,
+        task_type=identity.task_type,
+        task_number=identity.id,
+        task_title=task.title,
+        task_url=task.url,
+        item=task.item,
+    )
     try:
         return Template(task.automation.configuration.prompt).substitute(context)
     except (KeyError, ValueError) as error:

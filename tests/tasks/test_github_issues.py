@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from curupira.clients.az import AzClient
 from curupira.clients.gh import GhClient
 from curupira.models import GhIssue, GhIssueSearchRequest, PollingSettings
+from curupira.models.items import IssueItem
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
 from curupira.tasks.feed import PollingTaskFeed
@@ -51,8 +51,13 @@ async def test_source_searches_issues_and_builds_tasks(tmp_path: Path) -> None:
     assert tasks[0].identity.id == "42"
     assert tasks[0].identity.task_type == "issue"
     assert tasks[0].title == "Improve discovery"
-    assert tasks[0].body == "Details"
     assert tasks[0].url == "https://github.com/acme/api/issues/42"
+    assert tasks[0].item == IssueItem(
+        issue_number="42",
+        issue_title="Improve discovery",
+        issue_body="Details",
+        issue_url="https://github.com/acme/api/issues/42",
+    )
 
 
 def test_issue_trigger_is_registered_and_provides_prompt_context(tmp_path: Path) -> None:
@@ -73,14 +78,11 @@ def test_issue_trigger_is_registered_and_provides_prompt_context(tmp_path: Path)
 
 def test_issue_trigger_builds_polling_feed(tmp_path: Path) -> None:
     automation = resolved_automation(tmp_path)
-    gh = FakeGhClient([])
 
     feed = IssueTrigger().build_feed(
         automation,
         FeedDependencies(
             polling=PollingSettings(),
-            gh=gh,
-            az=AzClient(),
             cron=CronScheduleRepository(tmp_path / "state.sqlite3"),
             state_db_path=tmp_path / "state.sqlite3",
         ),

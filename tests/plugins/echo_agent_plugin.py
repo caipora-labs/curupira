@@ -40,7 +40,7 @@ class EchoCliAdapter(CodingAgentCliAdapter):
 class FutureEchoCliAdapter(EchoCliAdapter):
     """An adapter written against an unsupported plugin API."""
 
-    api_version = 2
+    api_version = 3
 
 
 class DuplicateCursorCliAdapter(EchoCliAdapter):

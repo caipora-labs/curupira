@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 from textual.widgets import Label
 
-from curupira.clients.gh import GhClient
 from curupira.config import ApplicationSettings
 from curupira.models import Task, TaskIdentity
+from curupira.models.items import CronItem
 from curupira.telemetry import TaskTelemetry
 from curupira.tui.app import OrchestratorApp
 from curupira.tui.formatting import (
@@ -57,8 +57,8 @@ def test_task_display_helpers(tmp_path: Path) -> None:
         ),
         automation=resolved_automation(tmp_path, "daily", "cron"),
         title="   ",
-        body=None,
         url="https://example.invalid/cron",
+        item=CronItem(),
         scheduled_for=datetime(2023, 10, 1, 0, 0, tzinfo=UTC),
     )
     assert task_description(cron) == "daily cron"
@@ -100,7 +100,7 @@ async def test_orchestrator_app_mounts_dashboard_panels(tmp_path: Path) -> None:
             },
         }
     )
-    app = OrchestratorApp(settings, GhClient(), GitHubCliVersionControl(), TaskTelemetry())
+    app = OrchestratorApp(settings, GitHubCliVersionControl(), TaskTelemetry())
 
     async def _idle_scheduler() -> None:
         return None

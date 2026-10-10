@@ -92,7 +92,7 @@ def test_agent_plugins_do_not_load_trigger_entry_points(install: Install) -> Non
         ("tests.plugins.missing_module:Adapter", "ModuleNotFoundError"),
         (f"{MODULE}:NOT_AN_ADAPTER", "not a CodingAgentCliAdapter subclass"),
         (f"{MODULE}:echo_adapter", "not a CodingAgentCliAdapter subclass"),
-        (f"{MODULE}:FutureEchoCliAdapter", "requires plugin API 2, Curupira provides 1"),
+        (f"{MODULE}:FutureEchoCliAdapter", "requires plugin API 3, Curupira provides 2"),
         (
             f"{MODULE}:DuplicateCursorCliAdapter",
             "coding agent provider already registered: cursor",
