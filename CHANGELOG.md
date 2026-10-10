@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Built-in monday.com board-item discovery through the official `mcli` CLI, with JSON
+  output, cursor pagination, stable string IDs, and per-automation deduplication.
 - Kilo CLI (`kilo`) as a built-in coding-agent provider, with OpenCode-compatible JSONL
   session detection and text rendering plus native model, agent, reasoning-variant, and
   permission options.

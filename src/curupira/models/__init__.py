@@ -15,6 +15,7 @@ from curupira.models.configuration import (
     CronAutomationConfiguration,
     ExecutionSettings,
     IssueAutomationConfiguration,
+    MondayAutomationConfiguration,
     PollingSettings,
     PullRequestAutomationConfiguration,
 )
@@ -76,6 +77,7 @@ __all__ = [
     "GhPullRequest",
     "GhPullRequestSearchRequest",
     "IssueAutomationConfiguration",
+    "MondayAutomationConfiguration",
     "OpenCodeCliProfile",
     "PollingSettings",
     "ProcessResult",
