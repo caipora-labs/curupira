@@ -52,7 +52,7 @@ def test_load_built_in_adapters_is_idempotent(monkeypatch: pytest.MonkeyPatch) -
     first = dict(agent_registry._ADAPTERS)
     load_built_in_adapters()
 
-    assert agent_registry._ADAPTERS == first
+    assert first == agent_registry._ADAPTERS
     assert "cursor" in first
 
 

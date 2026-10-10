@@ -23,3 +23,4 @@ hookimpl = pluggy.HookimplMarker(PROJECT_NAME)
 @hookspec
 def curupira_coding_agent_adapters() -> Sequence[type[CodingAgentCliAdapter]]:
     """Return coding-agent adapter classes contributed by one provider plugin."""
+    return ()

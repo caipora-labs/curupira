@@ -6,11 +6,6 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from curupira.providers.copilot import CopilotCliProfile
-from curupira.providers.gemini import GeminiCliProfile
-from curupira.providers.kilo import KiloCliProfile
-from curupira.providers.pi import PiCliProfile
-from curupira.providers.qwen import QwenCodeCliProfile
 from curupira.config import ApplicationSettings, load_settings
 from curupira.models import (
     AzurePullRequestAutomationConfiguration,
@@ -21,6 +16,11 @@ from curupira.models import (
     PullRequestAutomationConfiguration,
     TrelloAutomationConfiguration,
 )
+from curupira.providers.copilot import CopilotCliProfile
+from curupira.providers.gemini import GeminiCliProfile
+from curupira.providers.kilo import KiloCliProfile
+from curupira.providers.pi import PiCliProfile
+from curupira.providers.qwen import QwenCodeCliProfile
 
 
 def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettings:

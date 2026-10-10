@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from curupira.providers.kilo import KiloCliAdapter, KiloCliProfile
 from curupira.clients.process import AsyncProcessRunner
 from curupira.errors import UnsupportedCodingAgentError
 from curupira.models import CodingTaskRequest, CommandRequest, OpenCodeCliProfile, ProcessResult
+from curupira.providers.kilo import KiloCliAdapter, KiloCliProfile
 
 
 class FakeRunner(AsyncProcessRunner):

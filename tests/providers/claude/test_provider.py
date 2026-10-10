@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from curupira.providers.claude import ClaudeCodeCliAdapter
 from curupira.models import ClaudeCodeCliProfile, CodingTaskRequest
+from curupira.providers.claude import ClaudeCodeCliAdapter
 
 
 def test_build_arguments_uses_claude_native_options(tmp_path: Path) -> None:
