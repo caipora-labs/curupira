@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Kilo CLI (`kilo`) as a built-in coding-agent provider, with OpenCode-compatible JSONL
+  session detection and text rendering plus native model, agent, reasoning-variant, and
+  permission options.
+- Built-in Qwen Code support through `provider = "qwen"`, including native model,
+  approval-mode, and session-turn limit options. Stream-JSON session IDs are persisted and
+  resumed, and the final `result` text is rendered as task output.
 - GitHub dispatch revalidates current issue and pull-request state before starting or
   resuming an agent, prioritizes work by PR stage, deduplicates PRs across automations, and
   re-admits changed PR heads. Completed snapshots retain an explicit next action so
@@ -19,8 +25,9 @@ All notable changes to this project are documented here. The format follows
   the `curupira.agents` entry-point group, using the public `curupira.plugins` API. Each
   adapter declares its own `profile_model`, `display_name`, and `install_url`, so plugin
   profile options are validated by `curu validate` and select the adapter with
-  `provider = "<name>"`. OpenCode, Codex, Claude Code, Cursor, and GitHub Copilot CLI stay
-  built in and register through the same registry (`curupira.agents.registry`).
+  `provider = "<name>"`. OpenCode, Codex, Claude Code, Cursor, Gemini CLI, GitHub Copilot
+  CLI, Kilo CLI, pi, and Qwen Code stay built in and register through the same registry
+  (`curupira.agents.registry`).
 - `curu plugins list` appends one `agent:<provider>` line per coding-agent provider with
   its distribution and executable; trigger lines are unchanged.
 - Coding-agent adapters can declare how they obtain session IDs and final answers without
@@ -29,6 +36,8 @@ All notable changes to this project are documented here. The format follows
   persisted before the process starts and passed as `CodingTaskRequest.new_session_id`,
   or override `render_output` for a different final-answer shape. Built-in adapters keep
   their arguments and output unchanged.
+- Gemini CLI is available as a coding-agent provider with native model, approval, trust,
+  and resume options, plus assistant text rendered from its `stream-json` output.
 - GitHub Copilot CLI (`copilot`) as a built-in provider, with profile options for model,
   custom agent, reasoning effort, and explicit tool permissions. Curupira assigns its
   session UUID, disables user questions, and preserves the CLI's raw JSONL output.
@@ -45,6 +54,10 @@ All notable changes to this project are documented here. The format follows
   PRs across automations by head and stage, and verify successful open-PR runs against linked
   issue state. Unchanged completed snapshots retain an explicit next action and are not
   repeatedly dispatched.
+- CLI dispatch is unified under `run`: a finite drain (formerly `batch`, with optional
+  `--size`) is the default, and continuous polling is `run --watch` (formerly `watch`).
+  The standalone `batch` and `watch` commands are removed. `run --dry-run` still previews
+  one task without reserving or executing. `tui` is unchanged.
 - Install instructions in the README and documentation use `uv tool install curupira`
   without a version pin, with a note on pinning `curupira==X.Y.Z` when needed.
 
@@ -56,6 +69,7 @@ All notable changes to this project are documented here. The format follows
   table and the coding-agent CLIs in the installation requirements are generated from the
   agent registry, so a new provider only adds its page and one nav line. The README
   provider section now links to the documentation instead of repeating CLI arguments.
+- The provider overview lists Kilo's `auto_approve` permission override.
 - Added the GitHub Copilot CLI provider guide, including its headless permissions and
   authentication environment-variable precedence.
 

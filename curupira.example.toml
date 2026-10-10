@@ -50,6 +50,12 @@ provider = "cursor"
 # force = true
 # Standalone effort is not supported by this adapter.
 
+# [coding_agents.profiles.kilo]
+# provider = "kilo"
+# model = "provider/model"
+# agent = "reviewer" # existing native Kilo agent
+# effort = "high" # maps to Kilo's --variant
+# auto_approve = true # dangerous: auto-approves permissions not explicitly denied
 # [coding_agents.profiles.copilot]
 # provider = "copilot"
 # model = "claude-sonnet-4.5"
@@ -58,6 +64,18 @@ provider = "cursor"
 # allow_tools = ["shell(git:*)", "write"]
 # deny_tools = ["shell(rm:*)"]
 # allow_all_tools = true # permits every supported Copilot tool
+
+# [coding_agents.profiles.gemini]
+# provider = "gemini"
+# model = "gemini-2.5-flash"
+# approval_mode = "default" # default, auto_edit, yolo, or plan
+# skip_trust = false
+
+# [coding_agents.profiles.qwen]
+# provider = "qwen"
+# model = "qwen3-coder-plus"
+# approval_mode = "plan" # plan, default, auto-edit, auto, or yolo
+# max_session_turns = 20
 
 # [coding_agents.profiles.pi]
 # provider = "pi"

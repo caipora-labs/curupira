@@ -79,7 +79,10 @@ prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 
 Save this as `~/.curupira/settings.toml`. The keys under `profiles` and `automations` are user-chosen identifiers; `profile` connects an automation to an existing profile.
 
-Each profile's `provider` selects a registered coding agent: `opencode`, `codex`, `claude`, `copilot`, or `cursor`, plus any provider added by an installed [agent plugin](plugins.md#agent-plugins). `curu plugins list` shows every available provider and its executable.
+Each profile's `provider` selects a registered coding agent: `claude`, `codex`, `copilot`,
+`cursor`, `gemini`, `opencode`, `pi`, or `qwen`, plus any provider added by an installed
+[agent plugin](plugins.md#agent-plugins). `curu plugins list` shows every available
+provider and its executable.
 
 ## Automations
 
@@ -127,7 +130,7 @@ fixes, and merge actions.
 
 `max_active_tasks` bounds concurrent agents. Checkouts using the same path run sequentially. Cron automations coalesce overdue ticks into one pending occurrence and never run themselves concurrently. `schedule` uses five cron fields; `timezone` is an IANA zone (default UTC), and optional `start_date`/`end_date` define an inclusive window. Without `start_date`, the window starts when the automation is first recorded.
 
-State is stored in `state_db_path` (default `~/.curupira/state.sqlite3`), the dispatch lock in `~/.curupira/dispatch.lock`, and logs in `~/.curupira/logs`. An incompatible database causes an error rather than automatic deletion. Only one `run`, `batch`, or `watch` process may dispatch at a time.
+State is stored in `state_db_path` (default `~/.curupira/state.sqlite3`), the dispatch lock in `~/.curupira/dispatch.lock`, and logs in `~/.curupira/logs`. An incompatible database causes an error rather than automatic deletion. Only one `run` or `tui` process may dispatch at a time.
 
 ## Telemetry
 

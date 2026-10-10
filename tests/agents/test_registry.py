@@ -8,8 +8,11 @@ from curupira.agents.claude import ClaudeCodeCliAdapter
 from curupira.agents.codex import CodexCliAdapter
 from curupira.agents.copilot import CopilotCliAdapter
 from curupira.agents.cursor import CursorCliAdapter
+from curupira.agents.gemini import GeminiCliAdapter
+from curupira.agents.kilo import KiloCliAdapter
 from curupira.agents.opencode import OpenCodeCliAdapter
 from curupira.agents.pi import PiCliAdapter
+from curupira.agents.qwen import QwenCodeCliAdapter
 from curupira.models import CodingTaskRequest, CursorCliProfile
 from curupira.models.profiles import parse_cli_profile
 from tests.plugins.echo_agent_plugin import EchoCliAdapter, MismatchedCliAdapter
@@ -29,16 +32,22 @@ def test_built_in_providers_are_registered() -> None:
         "codex": CodexCliAdapter,
         "copilot": CopilotCliAdapter,
         "cursor": CursorCliAdapter,
+        "gemini": GeminiCliAdapter,
+        "kilo": KiloCliAdapter,
         "opencode": OpenCodeCliAdapter,
         "pi": PiCliAdapter,
+        "qwen": QwenCodeCliAdapter,
     }
     assert {provider: adapter.display_name for provider, adapter in adapters.items()} == {
         "claude": "Claude Code",
         "codex": "Codex",
         "copilot": "GitHub Copilot CLI",
         "cursor": "Cursor",
+        "gemini": "Gemini CLI",
+        "kilo": "Kilo CLI",
         "opencode": "OpenCode",
         "pi": "pi",
+        "qwen": "Qwen Code",
     }
     assert all(adapter.install_url.startswith("https://") for adapter in adapters.values())
 

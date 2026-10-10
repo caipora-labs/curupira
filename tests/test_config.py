@@ -7,7 +7,10 @@ import pytest
 from pydantic import ValidationError
 
 from curupira.agents.copilot import CopilotCliProfile
+from curupira.agents.gemini import GeminiCliProfile
+from curupira.agents.kilo import KiloCliProfile
 from curupira.agents.pi import PiCliProfile
+from curupira.agents.qwen import QwenCodeCliProfile
 from curupira.config import ApplicationSettings, load_settings
 from curupira.models import (
     AzurePullRequestAutomationConfiguration,
@@ -153,6 +156,32 @@ def test_codex_agent_selects_a_named_cli_profile() -> None:
     assert profile.agent == "work"
 
 
+def test_kilo_provider_selects_its_registered_profile() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {
+        "provider": "kilo",
+        "model": "anthropic/claude-sonnet-4",
+        "effort": "high",
+    }
+
+    profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
+
+    assert isinstance(profile, KiloCliProfile)
+    assert profile.provider == "kilo"
+    assert profile.model == "anthropic/claude-sonnet-4"
+
+
+def test_kilo_rejects_model_without_provider_prefix() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {
+        "provider": "kilo",
+        "model": "claude-sonnet-4",
+    }
+
+    with pytest.raises(ValidationError, match="provider/model"):
+        ApplicationSettings.model_validate(data)
+
+
 @pytest.mark.parametrize("mode", ["agent", "ask", "plan"])
 def test_cursor_agent_selects_a_native_mode(mode: str) -> None:
     data = configuration().model_dump()
@@ -173,6 +202,16 @@ def test_cursor_rejects_unknown_agent_modes() -> None:
 
     with pytest.raises(ValidationError, match="agent"):
         ApplicationSettings.model_validate(data)
+
+
+def test_gemini_provider_selects_a_gemini_cli_profile() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {"provider": "gemini"}
+
+    profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
+
+    assert isinstance(profile, GeminiCliProfile)
+    assert profile.provider == "gemini"
 
 
 def test_copilot_provider_validates_as_a_registered_profile() -> None:
@@ -206,6 +245,23 @@ def test_cursor_rejects_effort_and_codex_accepts_optional_effort() -> None:
         ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile.provider
         == "codex"
     )
+
+
+def test_qwen_provider_selects_qwen_code_profile() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {
+        "provider": "qwen",
+        "model": "qwen3-coder-plus",
+        "approval_mode": "auto-edit",
+        "max_session_turns": 12,
+    }
+
+    profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
+
+    assert isinstance(profile, QwenCodeCliProfile)
+    assert profile.provider == "qwen"
+    assert profile.approval_mode == "auto-edit"
+    assert profile.max_session_turns == 12
 
 
 def test_pi_provider_selects_pi_profile() -> None:
