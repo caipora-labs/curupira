@@ -55,6 +55,14 @@ provider = "cursor"
 # model = "qwen3-coder-plus"
 # approval_mode = "plan" # plan, default, auto-edit, auto, or yolo
 # max_session_turns = 20
+# [coding_agents.profiles.pi]
+# provider = "pi"
+# model = "anthropic/claude-sonnet-4"
+# model_provider = "anthropic" # requires model
+# effort = "high"
+# tools = ["read", "edit", "write"]
+# exclude_tools = ["bash"]
+# approve = false # explicitly decline project trust for this process
 
 [coding_agents.automations.resolve-ready-issues]
 trigger_type = "issue"

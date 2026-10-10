@@ -10,12 +10,15 @@ All notable changes to this project are documented here. The format follows
 - Built-in Qwen Code support through `provider = "qwen"`, including native model,
   approval-mode, and session-turn limit options. Stream-JSON session IDs are persisted and
   resumed, and the final `result` text is rendered as task output.
+- Built-in pi coding-agent support through `provider = "pi"`, including native model,
+  thinking, tool allowlist/exclusion, and project-trust options. JSON-mode session IDs are
+  persisted and resumed, and task output contains only assistant text blocks.
 - Coding-agent plugins: installed distributions register new coding-agent adapters under
   the `curupira.agents` entry-point group, using the public `curupira.plugins` API. Each
   adapter declares its own `profile_model`, `display_name`, and `install_url`, so plugin
   profile options are validated by `curu validate` and select the adapter with
-  `provider = "<name>"`. OpenCode, Codex, Claude Code, and Cursor stay built in and
-  register through the same registry (`curupira.agents.registry`).
+  `provider = "<name>"`. OpenCode, Codex, Claude Code, Cursor, pi, and Qwen Code stay built
+  in and register through the same registry (`curupira.agents.registry`).
 - `curu plugins list` appends one `agent:<provider>` line per coding-agent provider with
   its distribution and executable; trigger lines are unchanged.
 - Coding-agent adapters can declare how they obtain session IDs and final answers without

@@ -1,0 +1,5 @@
+{"type":"session","version":3,"id":"pi-session","timestamp":"2026-10-09T12:00:00Z","cwd":"/workspace"}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"Please inspect this repository."}]}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"I should inspect the files."},{"type":"text","text":"The result is ready."},{"type":"text","text":"Here are the details."}]}}
+{"type":"tool_execution_start","toolCallId":"call-1","toolName":"read","args":{"path":"README.md"}}
+{"type":"tool_execution_end","toolCallId":"call-1","toolName":"read","result":"Repository contents"}

@@ -8,6 +8,7 @@ from curupira.agents.claude import ClaudeCodeCliAdapter
 from curupira.agents.codex import CodexCliAdapter
 from curupira.agents.cursor import CursorCliAdapter
 from curupira.agents.opencode import OpenCodeCliAdapter
+from curupira.agents.pi import PiCliAdapter
 from curupira.agents.qwen import QwenCodeCliAdapter
 from curupira.models import CodingTaskRequest, CursorCliProfile
 from curupira.models.profiles import parse_cli_profile
@@ -28,6 +29,7 @@ def test_built_in_providers_are_registered() -> None:
         "codex": CodexCliAdapter,
         "cursor": CursorCliAdapter,
         "opencode": OpenCodeCliAdapter,
+        "pi": PiCliAdapter,
         "qwen": QwenCodeCliAdapter,
     }
     assert {provider: adapter.display_name for provider, adapter in adapters.items()} == {
@@ -35,6 +37,7 @@ def test_built_in_providers_are_registered() -> None:
         "codex": "Codex",
         "cursor": "Cursor",
         "opencode": "OpenCode",
+        "pi": "pi",
         "qwen": "Qwen Code",
     }
     assert all(adapter.install_url.startswith("https://") for adapter in adapters.values())
