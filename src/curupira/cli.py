@@ -11,7 +11,6 @@ import typer
 from pydantic import ValidationError
 
 from curupira import __version__
-from curupira.clients.gh import GhClient
 from curupira.config import ApplicationSettings, load_settings
 from curupira.dispatcher import create_task_feeds, dispatch_next_task
 from curupira.errors import DispatchError
@@ -318,14 +317,13 @@ async def _execute_command(options: CliOptions) -> int:
             log_handler = create_execution_log_handler()
             root_logger.setLevel(logging.INFO)
             root_logger.addHandler(log_handler)
-        gh = GhClient()
         if options.command == "run" and options.dry_run:
-            return await _execute_dry_run(settings, gh, telemetry)
+            return await _execute_dry_run(settings, telemetry)
         if options.command == "tui":
             from curupira.tui.app import run_orchestrator_tui
 
-            return await run_orchestrator_tui(settings, gh, None, telemetry)
-        return await _execute_scheduled_command(settings, gh, None, telemetry, options)
+            return await run_orchestrator_tui(settings, None, telemetry)
+        return await _execute_scheduled_command(settings, None, telemetry, options)
     except (DispatchError, OSError, ValidationError) as error:
         print(f"Dispatch error: {error}", file=sys.stderr)
         return 1
@@ -340,7 +338,6 @@ async def _execute_command(options: CliOptions) -> int:
 
 async def _execute_dry_run(
     settings: ApplicationSettings,
-    gh: GhClient,
     telemetry: TaskTelemetry,
 ) -> int:
     """Preview one currently available task without reserving or executing it."""
@@ -348,7 +345,6 @@ async def _execute_dry_run(
     try:
         outcome = await dispatch_next_task(
             settings,
-            gh,
             dry_run=True,
             telemetry=telemetry,
             on_task_selected=lambda task: status.update(
@@ -370,7 +366,6 @@ async def _execute_dry_run(
 
 async def _execute_scheduled_command(
     settings: ApplicationSettings,
-    gh: GhClient,
     version_control: VersionControl | None,
     telemetry: TaskTelemetry,
     options: CliOptions,
@@ -379,7 +374,7 @@ async def _execute_scheduled_command(
     sessions = RunningSessionRepository(settings.settings.state_db_path)
     recovered = await sessions.list_all()
     cron = CronScheduleRepository(settings.settings.state_db_path)
-    feeds = create_task_feeds(settings, gh, cron)
+    feeds = create_task_feeds(settings, cron)
     executor = TaskExecutor(settings.settings, version_control, sessions, cron, telemetry=telemetry)
     status = TerminalTaskStatus(show_idle=True)
     scheduler = TaskScheduler(

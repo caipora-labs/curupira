@@ -10,6 +10,7 @@ from curupira.models import (
     Task,
     TaskIdentity,
 )
+from curupira.models.items import PullRequestItem
 from curupira.tasks.base import FeedDependencies, TaskFeed, TaskSource, Trigger
 from curupira.tasks.feed import PollingTaskFeed
 from curupira.tasks.registry import register
@@ -42,11 +43,16 @@ class GitHubPullRequestSource(TaskSource):
                 ),
                 automation=automation,
                 title=item.title,
-                body=item.body,
                 url=item.url,
-                is_draft=item.is_draft,
-                head_ref_name=item.head_ref_name,
-                base_ref_name=item.base_ref_name,
+                item=PullRequestItem(
+                    pull_request_number=str(item.number),
+                    pull_request_title=item.title,
+                    pull_request_body=item.body or "",
+                    pull_request_url=item.url,
+                    pull_request_is_draft=item.is_draft,
+                    pull_request_head_ref=item.head_ref_name,
+                    pull_request_base_ref=item.base_ref_name,
+                ),
             )
             for item in items
         ]
@@ -57,37 +63,7 @@ class PullRequestTrigger(Trigger):
 
     trigger_type = "github-cli-pull-requests"
     configuration_model = PullRequestAutomationConfiguration
-
-    @classmethod
-    @override
-    def prompt_fields(cls) -> frozenset[str]:
-        """Return the pull-request-specific prompt placeholders."""
-        return frozenset(
-            {
-                "pull_request_number",
-                "pull_request_title",
-                "pull_request_body",
-                "pull_request_url",
-                "pull_request_is_draft",
-                "pull_request_head_ref",
-                "pull_request_base_ref",
-            }
-        )
-
-    @override
-    def prompt_context(self, task: Task) -> dict[str, str]:
-        """Map a pull request into its pull-request-specific placeholders."""
-        return {
-            "pull_request_number": task.identity.id,
-            "pull_request_title": task.title,
-            "pull_request_body": task.body or "",
-            "pull_request_url": task.url,
-            "pull_request_is_draft": (
-                str(task.is_draft).lower() if task.is_draft is not None else ""
-            ),
-            "pull_request_head_ref": task.head_ref_name or "",
-            "pull_request_base_ref": task.base_ref_name or "",
-        }
+    item_model = PullRequestItem
 
     @override
     def build_feed(
@@ -95,7 +71,9 @@ class PullRequestTrigger(Trigger):
     ) -> TaskFeed:
         """Build the shared polling feed backed by pull-request discovery."""
         return PollingTaskFeed(
-            automation, dependencies.polling, GitHubPullRequestSource(dependencies.gh)
+            automation,
+            dependencies.polling,
+            GitHubPullRequestSource(GhClient(dependencies.runner)),
         )
 
 

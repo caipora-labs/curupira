@@ -11,6 +11,7 @@ from curupira.models import (
     Task,
     TaskIdentity,
 )
+from curupira.models.items import PullRequestItem
 from curupira.tasks.base import FeedDependencies, TaskFeed, TaskSource, Trigger
 from curupira.tasks.feed import PollingTaskFeed
 from curupira.tasks.registry import register
@@ -52,11 +53,16 @@ class AzurePullRequestSource(TaskSource):
                 ),
                 automation=automation,
                 title=item.title,
-                body=item.description,
                 url=_pull_request_url(organization, project, repository, item),
-                is_draft=item.is_draft,
-                head_ref_name=branch_name(item.source_ref_name),
-                base_ref_name=branch_name(item.target_ref_name),
+                item=PullRequestItem(
+                    pull_request_number=str(item.pull_request_id),
+                    pull_request_title=item.title,
+                    pull_request_body=item.description or "",
+                    pull_request_url=_pull_request_url(organization, project, repository, item),
+                    pull_request_is_draft=item.is_draft,
+                    pull_request_head_ref=branch_name(item.source_ref_name),
+                    pull_request_base_ref=branch_name(item.target_ref_name),
+                ),
             )
             for item in items
         ]
@@ -67,37 +73,7 @@ class AzurePullRequestTrigger(Trigger):
 
     trigger_type = "azure-cli-pull-requests"
     configuration_model = AzurePullRequestAutomationConfiguration
-
-    @classmethod
-    @override
-    def prompt_fields(cls) -> frozenset[str]:
-        """Return the pull-request-specific prompt placeholders."""
-        return frozenset(
-            {
-                "pull_request_number",
-                "pull_request_title",
-                "pull_request_body",
-                "pull_request_url",
-                "pull_request_is_draft",
-                "pull_request_head_ref",
-                "pull_request_base_ref",
-            }
-        )
-
-    @override
-    def prompt_context(self, task: Task) -> dict[str, str]:
-        """Map a pull request into its pull-request-specific placeholders."""
-        return {
-            "pull_request_number": task.identity.id,
-            "pull_request_title": task.title,
-            "pull_request_body": task.body or "",
-            "pull_request_url": task.url,
-            "pull_request_is_draft": (
-                str(task.is_draft).lower() if task.is_draft is not None else ""
-            ),
-            "pull_request_head_ref": task.head_ref_name or "",
-            "pull_request_base_ref": task.base_ref_name or "",
-        }
+    item_model = PullRequestItem
 
     @override
     def build_feed(
@@ -105,7 +81,9 @@ class AzurePullRequestTrigger(Trigger):
     ) -> TaskFeed:
         """Build the shared polling feed backed by Azure pull-request discovery."""
         return PollingTaskFeed(
-            automation, dependencies.polling, AzurePullRequestSource(dependencies.az)
+            automation,
+            dependencies.polling,
+            AzurePullRequestSource(AzClient(dependencies.runner)),
         )
 
 

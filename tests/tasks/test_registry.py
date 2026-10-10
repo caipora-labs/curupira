@@ -8,7 +8,8 @@ import pytest
 from typing_extensions import override
 
 import curupira.tasks.registry as registry
-from curupira.models import ResolvedAutomation, Task
+from curupira.models import ResolvedAutomation
+from curupira.models.base import ValidatedModel
 from curupira.models.configuration import AutomationConfigurationBase
 from curupira.tasks.base import FeedDependencies, TaskFeed, Trigger
 from curupira.tasks.registry import get, register
@@ -22,20 +23,16 @@ class MismatchedConfiguration(AutomationConfigurationBase):
     trigger_type: str = "other"
 
 
+class FakeItem(ValidatedModel):
+    fake_value: str = ""
+
+
 class FakeTrigger(Trigger):
     """Minimal implementation used to exercise the trigger registry."""
 
     trigger_type = "fake"
     configuration_model = FakeConfiguration
-
-    @classmethod
-    @override
-    def prompt_fields(cls) -> frozenset[str]:
-        return frozenset({"fake_value"})
-
-    @override
-    def prompt_context(self, task: Task) -> dict[str, str]:
-        return {"fake_value": task.title}
+    item_model = FakeItem
 
     @override
     def build_feed(
@@ -51,6 +48,7 @@ def test_register_and_get_trigger(monkeypatch: pytest.MonkeyPatch) -> None:
     register(trigger)
 
     assert get("fake") is trigger
+    assert FakeTrigger.prompt_fields() == frozenset({"fake_value"})
 
 
 def test_register_duplicate_trigger_type_raises(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -101,6 +99,16 @@ def test_register_requires_a_configuration_model(monkeypatch: pytest.MonkeyPatch
         register(Unconfigured())
 
 
+def test_register_requires_an_item_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(registry, "_TRIGGERS", {})
+
+    class Unconfigured(FakeTrigger):
+        item_model = cast("type[ValidatedModel]", dict)
+
+    with pytest.raises(ValueError, match="must declare an item_model"):
+        register(Unconfigured())
+
+
 def test_register_requires_matching_trigger_type_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -114,6 +122,10 @@ def test_register_requires_matching_trigger_type_default(
 
 
 def test_registered_lists_built_in_triggers() -> None:
-    assert {"issue", "github-cli-pull-requests", "azure-cli-pull-requests", "cron"} <= set(
-        registry.registered()
-    )
+    assert {
+        "issue",
+        "github-cli-pull-requests",
+        "azure-cli-pull-requests",
+        "cron",
+        "trello-cli-cards",
+    } <= set(registry.registered())

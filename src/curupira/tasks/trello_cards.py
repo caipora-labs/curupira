@@ -10,6 +10,7 @@ from curupira.models import (
     TrelloAutomationConfiguration,
     TrelloListRequest,
 )
+from curupira.models.items import TrelloCardItem
 from curupira.tasks.base import FeedDependencies, TaskFeed, TaskSource, Trigger
 from curupira.tasks.feed import PollingTaskFeed
 from curupira.tasks.registry import register
@@ -43,9 +44,14 @@ class TrelloCardSource(TaskSource):
                 ),
                 automation=automation,
                 title=card.name,
-                body=card.desc,
                 url=card.url,
-                attributes={"board_id": config.board_id, "list_id": card.id_list},
+                item=TrelloCardItem(
+                    card_id=card.id,
+                    card_title=card.name,
+                    card_body=card.desc or "",
+                    card_url=card.url,
+                    card_list_id=card.id_list,
+                ),
             )
             for card in cards
             if not card.closed
@@ -58,23 +64,7 @@ class TrelloCardTrigger(Trigger):
 
     trigger_type = "trello-cli-cards"
     configuration_model = TrelloAutomationConfiguration
-
-    @classmethod
-    @override
-    def prompt_fields(cls) -> frozenset[str]:
-        """Return the Trello-specific prompt placeholders."""
-        return frozenset({"card_id", "card_title", "card_body", "card_url", "card_list_id"})
-
-    @override
-    def prompt_context(self, task: Task) -> dict[str, str]:
-        """Map a Trello task into its card-specific prompt placeholders."""
-        return {
-            "card_id": task.identity.id,
-            "card_title": task.title,
-            "card_body": task.body or "",
-            "card_url": task.url,
-            "card_list_id": task.attributes.get("list_id", ""),
-        }
+    item_model = TrelloCardItem
 
     @override
     def build_feed(

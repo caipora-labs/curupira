@@ -8,17 +8,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
-from curupira.clients.az import AzClient
-from curupira.clients.gh import GhClient
 from curupira.clients.process import AsyncProcessRunner
 from curupira.models import PollingSettings, ResolvedAutomation, Task
+from curupira.models.base import ValidatedModel
+from curupira.models.templates import flatten_for_template
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
 
 if TYPE_CHECKING:
     from curupira.models.configuration import AutomationConfigurationBase
     from curupira.vcs.base import VersionControl
 
-PLUGIN_API_VERSION = 1
+PLUGIN_API_VERSION = 2
 
 
 class TaskFeed(ABC):
@@ -47,16 +47,12 @@ class FeedDependencies:
 
     Attributes:
         polling: Global discovery intervals and fetch limits.
-        gh: Authenticated GitHub CLI client.
-        az: Authenticated Azure CLI client.
         cron: Persistent cron schedule state.
         state_db_path: SQLite database shared by all durable state.
         runner: The only sanctioned way to start external processes.
     """
 
     polling: PollingSettings
-    gh: GhClient
-    az: AzClient
     cron: CronScheduleRepository
     state_db_path: Path
     runner: AsyncProcessRunner = field(default_factory=AsyncProcessRunner)
@@ -81,21 +77,23 @@ class Trigger(ABC):
     Attributes:
         trigger_type: Value of ``trigger_type`` in the TOML that selects this trigger.
         configuration_model: Pydantic model validating this trigger's automation table.
+        item_model: Pydantic model for discovered task payloads and prompt placeholders.
         api_version: Plugin API version the implementation was written against.
     """
 
     trigger_type: ClassVar[str]
     configuration_model: ClassVar[type[AutomationConfigurationBase]]
+    item_model: ClassVar[type[ValidatedModel]]
     api_version: ClassVar[int] = PLUGIN_API_VERSION
 
     @classmethod
-    @abstractmethod
     def prompt_fields(cls) -> frozenset[str]:
-        """Return placeholders supplied specifically by this trigger."""
+        """Return placeholders supplied by this trigger's ``item_model`` fields."""
+        return frozenset(cls.item_model.model_fields)
 
-    @abstractmethod
     def prompt_context(self, task: Task) -> dict[str, str]:
-        """Build values for this trigger's prompt placeholders."""
+        """Flatten ``task.item`` into string placeholders for prompt templates."""
+        return flatten_for_template(task.item)
 
     @abstractmethod
     def build_feed(

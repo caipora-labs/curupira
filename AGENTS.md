@@ -49,7 +49,7 @@ on each other.
 | --- | --- |
 | `src/curupira/models/` | Pydantic contracts: configuration, CLI profiles, tasks, CLI payloads. |
 | `src/curupira/config.py` | Loads and resolves the TOML configuration (`ApplicationSettings`). |
-| `src/curupira/tasks/` | Task discovery: `Trigger`, `TaskSource`, `TaskFeed`; one module per trigger, registered in `tasks/registry.py`. Each trigger owns its `configuration_model` and lifecycle hooks. |
+| `src/curupira/tasks/` | Task discovery: `Trigger`, `TaskSource`, `TaskFeed`; one module per trigger, registered in `tasks/registry.py`. Each trigger owns its `configuration_model`, typed `item_model` (prompt payload), and lifecycle hooks. |
 | `src/curupira/plugins.py` | Stable plugin API and `curupira.triggers`/`curupira.agents` entry-point discovery; plugins import only this module. |
 | `src/curupira/vcs/` | Repository checkout and worktrees: `VersionControl`. |
 | `src/curupira/agents/` | Coding-agent CLI adapters: `CodingAgentCliAdapter`, built by `create_cli_adapter`; one module per provider, registered in `agents/registry.py`. Each adapter owns its `profile_model`. |

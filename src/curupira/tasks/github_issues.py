@@ -10,6 +10,7 @@ from curupira.models import (
     Task,
     TaskIdentity,
 )
+from curupira.models.items import IssueItem
 from curupira.tasks.base import FeedDependencies, TaskFeed, TaskSource, Trigger
 from curupira.tasks.feed import PollingTaskFeed
 from curupira.tasks.registry import register
@@ -40,8 +41,13 @@ class GitHubIssueSource(TaskSource):
                 ),
                 automation=automation,
                 title=issue.title,
-                body=issue.body,
                 url=issue.url,
+                item=IssueItem(
+                    issue_number=str(issue.number),
+                    issue_title=issue.title,
+                    issue_body=issue.body or "",
+                    issue_url=issue.url,
+                ),
             )
             for issue in issues
         ]
@@ -52,29 +58,18 @@ class IssueTrigger(Trigger):
 
     trigger_type = "issue"
     configuration_model = IssueAutomationConfiguration
-
-    @classmethod
-    @override
-    def prompt_fields(cls) -> frozenset[str]:
-        """Return the issue-specific prompt placeholders."""
-        return frozenset({"issue_number", "issue_title", "issue_body", "issue_url"})
-
-    @override
-    def prompt_context(self, task: Task) -> dict[str, str]:
-        """Map an issue task into its issue-specific prompt placeholders."""
-        return {
-            "issue_number": task.identity.id,
-            "issue_title": task.title,
-            "issue_body": task.body or "",
-            "issue_url": task.url,
-        }
+    item_model = IssueItem
 
     @override
     def build_feed(
         self, automation: ResolvedAutomation, dependencies: FeedDependencies
     ) -> TaskFeed:
         """Build the shared polling feed backed by GitHub issue discovery."""
-        return PollingTaskFeed(automation, dependencies.polling, GitHubIssueSource(dependencies.gh))
+        return PollingTaskFeed(
+            automation,
+            dependencies.polling,
+            GitHubIssueSource(GhClient(dependencies.runner)),
+        )
 
 
 register(IssueTrigger())

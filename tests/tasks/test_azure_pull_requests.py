@@ -6,8 +6,14 @@ import pytest
 from typing_extensions import override
 
 from curupira.clients.az import AzClient
-from curupira.clients.gh import GhClient
-from curupira.models import AzPullRequest, AzPullRequestSearchRequest, PollingSettings
+from curupira.models import (
+    AzPullRequest,
+    AzPullRequestSearchRequest,
+    PollingSettings,
+    Task,
+    TaskIdentity,
+)
+from curupira.models.items import PullRequestItem
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.azure_pull_requests import AzurePullRequestSource, AzurePullRequestTrigger
 from curupira.tasks.base import FeedDependencies
@@ -74,11 +80,16 @@ async def test_source_lists_pull_requests_and_builds_tasks(tmp_path: Path) -> No
     assert tasks[0].identity.task_type == "azure-cli-pull-requests"
     assert tasks[0].identity.repo == "contoso/api-project/api"
     assert tasks[0].title == "Review change"
-    assert tasks[0].body == "Details"
     assert tasks[0].url == ("https://dev.azure.com/contoso/api-project/_git/api/pullrequest/42")
-    assert tasks[0].is_draft is True
-    assert tasks[0].head_ref_name == "feature"
-    assert tasks[0].base_ref_name == "main"
+    assert tasks[0].item == PullRequestItem(
+        pull_request_number="42",
+        pull_request_title="Review change",
+        pull_request_body="Details",
+        pull_request_url="https://dev.azure.com/contoso/api-project/_git/api/pullrequest/42",
+        pull_request_is_draft=True,
+        pull_request_head_ref="feature",
+        pull_request_base_ref="main",
+    )
 
 
 @pytest.mark.asyncio
@@ -105,8 +116,6 @@ def test_azure_pull_request_trigger_is_registered_and_provides_prompt_context(
     trigger = get("azure-cli-pull-requests")
     assert trigger.trigger_type == "azure-cli-pull-requests"
     automation = resolved_automation(tmp_path, "azure-reviews", "azure-cli-pull-requests")
-    from curupira.models import Task, TaskIdentity
-
     task = Task(
         identity=TaskIdentity(
             automation_id="azure-reviews",
@@ -117,9 +126,14 @@ def test_azure_pull_request_trigger_is_registered_and_provides_prompt_context(
         automation=automation,
         title="Review",
         url="https://dev.azure.com/contoso/api-project/_git/api/pullrequest/54",
-        is_draft=True,
-        head_ref_name="feature",
-        base_ref_name="main",
+        item=PullRequestItem(
+            pull_request_number="54",
+            pull_request_title="Review",
+            pull_request_url="https://dev.azure.com/contoso/api-project/_git/api/pullrequest/54",
+            pull_request_is_draft=True,
+            pull_request_head_ref="feature",
+            pull_request_base_ref="main",
+        ),
     )
 
     assert isinstance(trigger, AzurePullRequestTrigger)
@@ -147,14 +161,11 @@ def test_azure_pull_request_trigger_is_registered_and_provides_prompt_context(
 
 def test_azure_pull_request_trigger_builds_polling_feed(tmp_path: Path) -> None:
     automation = resolved_automation(tmp_path, "azure-reviews", "azure-cli-pull-requests")
-    az = FakeAzClient([])
 
     feed = AzurePullRequestTrigger().build_feed(
         automation,
         FeedDependencies(
             polling=PollingSettings(),
-            gh=GhClient(),
-            az=az,
             cron=CronScheduleRepository(tmp_path / "state.sqlite3"),
             state_db_path=tmp_path / "state.sqlite3",
         ),

@@ -17,7 +17,13 @@ from curupira.models import (
 )
 from curupira.runtime import create_execution_log_handler
 from curupira.storage import CronScheduleRepository, RunningSessionRepository
-from tests.fakes import AssigningAdapter, CallbackRunner, FakeGitHub, RecordingAdapter
+from tests.fakes import (
+    AssigningAdapter,
+    CallbackRunner,
+    FakeGitHub,
+    RecordingAdapter,
+    use_fake_github,
+)
 from tests.helpers import issue_task
 
 
@@ -42,16 +48,19 @@ def settings(path: Path, trigger: str = "issue") -> ApplicationSettings:
 
 
 async def test_dispatch_renders_the_task_prompt_and_uses_shared_executor(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     caplog.set_level("INFO")
     configured = settings(tmp_path)
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+        ),
     )
     adapter = RecordingAdapter()
     outcome = await dispatch_next_task(
-        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+        configured, adapter_factory=lambda _: adapter, version_control=gh.vcs
     )
     assert outcome.selected is not None
     assert outcome.selected.identity.automation_id == "work"
@@ -68,17 +77,19 @@ async def test_dispatch_renders_the_task_prompt_and_uses_shared_executor(
 
 
 async def test_dispatch_logs_failed_task_with_identity_and_error(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     caplog.set_level("INFO")
     configured = settings(tmp_path)
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+        ),
     )
 
     outcome = await dispatch_next_task(
         configured,
-        gh,
         adapter_factory=lambda _: RecordingAdapter(returncode=7),
         version_control=gh.vcs,
     )
@@ -100,14 +111,16 @@ async def test_failed_dispatch_is_appended_to_the_central_log_file(
     handler = create_execution_log_handler()
     root_logger.addHandler(handler)
     configured = settings(tmp_path)
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+        ),
     )
 
     try:
         await dispatch_next_task(
             configured,
-            gh,
             adapter_factory=lambda _: RecordingAdapter(returncode=7),
             version_control=gh.vcs,
         )
@@ -127,15 +140,18 @@ async def test_failed_dispatch_is_appended_to_the_central_log_file(
 
 @pytest.mark.parametrize("trigger", ["issue", "cron"])
 async def test_dry_run_has_no_state_checkout_or_process_side_effects(
-    tmp_path: Path, trigger: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, trigger: str
 ) -> None:
     configured = settings(tmp_path, trigger)
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+        ),
     )
     adapter = RecordingAdapter()
     outcome = await dispatch_next_task(
-        configured, gh, dry_run=True, adapter_factory=lambda _: adapter, version_control=gh.vcs
+        configured, dry_run=True, adapter_factory=lambda _: adapter, version_control=gh.vcs
     )
     assert outcome.selected is not None
     assert outcome.process is None
@@ -144,13 +160,16 @@ async def test_dry_run_has_no_state_checkout_or_process_side_effects(
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_empty_dispatch_does_not_create_state(tmp_path: Path) -> None:
-    assert (await dispatch_next_task(settings(tmp_path), FakeGitHub())).selected is None
+async def test_empty_dispatch_does_not_create_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    use_fake_github(monkeypatch, FakeGitHub())
+    assert (await dispatch_next_task(settings(tmp_path))).selected is None
     assert list(tmp_path.iterdir()) == []
 
 
 async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     configured = settings(tmp_path)
     original = issue_task(tmp_path, name="work")
@@ -159,18 +178,25 @@ async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
     )
     await RunningSessionRepository(configured.settings.state_db_path).save(session)
     adapter = RecordingAdapter()
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Changed", url="https://github.com/acme/api/issues/42")]
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[
+                GhIssue(number=42, title="Changed", url="https://github.com/acme/api/issues/42")
+            ]
+        ),
     )
     result = await dispatch_next_task(
-        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+        configured, adapter_factory=lambda _: adapter, version_control=gh.vcs
     )
     assert result.selected == original
     assert adapter.requests[0].session_id == "original"
     assert "Continue the interrupted task" in adapter.requests[0].message
 
 
-async def test_assigned_session_is_persisted_before_the_process_runs(tmp_path: Path) -> None:
+async def test_assigned_session_is_persisted_before_the_process_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     configured = settings(tmp_path)
     repository = RunningSessionRepository(configured.settings.state_db_path)
     persisted_during_run: list[RunningCodingSession] = []
@@ -179,11 +205,14 @@ async def test_assigned_session_is_persisted_before_the_process_runs(tmp_path: P
         persisted_during_run.extend(await repository.list_all())
 
     adapter = AssigningAdapter(CallbackRunner(snapshot))
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+        ),
     )
     outcome = await dispatch_next_task(
-        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+        configured, adapter_factory=lambda _: adapter, version_control=gh.vcs
     )
     assert outcome.selected is not None
     assert [session.session_id for session in persisted_during_run] == [
@@ -193,36 +222,44 @@ async def test_assigned_session_is_persisted_before_the_process_runs(tmp_path: P
     assert await repository.list_all() == []
 
 
-async def test_checkout_main_uses_shared_checkout_without_worktree(tmp_path: Path) -> None:
+async def test_checkout_main_uses_shared_checkout_without_worktree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     configured = settings(tmp_path)
     data = configured.model_dump()
     data["coding_agents"]["automations"]["work"]["checkout"] = "main"
     configured = ApplicationSettings.model_validate(data)
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+        ),
     )
     adapter = RecordingAdapter()
 
-    await dispatch_next_task(
-        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
-    )
+    await dispatch_next_task(configured, adapter_factory=lambda _: adapter, version_control=gh.vcs)
 
     assert adapter.requests[0].cwd == tmp_path
     assert not gh.worktrees
     assert not gh.removed_worktrees
 
 
-async def test_existing_checkout_does_not_rerun_setup(tmp_path: Path) -> None:
+async def test_existing_checkout_does_not_rerun_setup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     configured = settings(tmp_path)
     data = configured.model_dump()
     data["coding_agents"]["automations"]["work"]["setup_script"] = "scripts/setup.sh"
     configured = ApplicationSettings.model_validate(data)
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+        ),
     )
 
     await dispatch_next_task(
-        configured, gh, adapter_factory=lambda _: RecordingAdapter(), version_control=gh.vcs
+        configured, adapter_factory=lambda _: RecordingAdapter(), version_control=gh.vcs
     )
 
     assert not gh.setup_scripts
@@ -245,8 +282,11 @@ async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(
     data = configured.model_dump()
     data["coding_agents"]["automations"]["work"]["setup_script"] = "setup.sh"
     configured = ApplicationSettings.model_validate(data)
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")]
+        ),
     )
     runner = FailedSetupRunner()
     gh.vcs.cloned = True
@@ -254,7 +294,7 @@ async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(
     adapter = RecordingAdapter()
 
     outcome = await dispatch_next_task(
-        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+        configured, adapter_factory=lambda _: adapter, version_control=gh.vcs
     )
 
     assert outcome.process is not None
@@ -270,7 +310,7 @@ def test_common_placeholders_use_the_task_source(tmp_path: Path) -> None:
 
 
 async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     data = settings(tmp_path).model_dump()
     data["coding_agents"]["automations"]["reviews"] = {
@@ -281,25 +321,28 @@ async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
         "path": tmp_path,
     }
     configured = ApplicationSettings.model_validate(data)
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Issue", url="https://github.com/acme/api/issues/42")],
-        pulls=[
-            GhPullRequest(
-                number=12,
-                title="Review",
-                url="https://github.com/acme/api/pull/12",
-                headRefName="feature",
-                baseRefName="main",
-            )
-        ],
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[GhIssue(number=42, title="Issue", url="https://github.com/acme/api/issues/42")],
+            pulls=[
+                GhPullRequest(
+                    number=12,
+                    title="Review",
+                    url="https://github.com/acme/api/pull/12",
+                    headRefName="feature",
+                    baseRefName="main",
+                )
+            ],
+        ),
     )
-    outcome = await dispatch_next_task(configured, gh, dry_run=True)
+    outcome = await dispatch_next_task(configured, dry_run=True)
     assert outcome.selected is not None
     assert outcome.selected.identity.task_type == "issue"
     gh.issues = []
     adapter = RecordingAdapter()
     outcome = await dispatch_next_task(
-        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+        configured, adapter_factory=lambda _: adapter, version_control=gh.vcs
     )
     assert outcome.selected is not None
     assert outcome.selected.identity.task_type == "github-cli-pull-requests"
@@ -307,12 +350,12 @@ async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
 
 
 async def test_cron_execution_completes_claimed_state_through_shared_executor(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     configured = settings(tmp_path, "cron")
-    gh = FakeGitHub()
+    gh = use_fake_github(monkeypatch, FakeGitHub())
     outcome = await dispatch_next_task(
-        configured, gh, adapter_factory=lambda _: RecordingAdapter(), version_control=gh.vcs
+        configured, adapter_factory=lambda _: RecordingAdapter(), version_control=gh.vcs
     )
     assert outcome.selected is not None
     assert outcome.selected.identity.task_type == "cron"

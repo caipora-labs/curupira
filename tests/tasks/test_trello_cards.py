@@ -5,10 +5,9 @@ from pathlib import Path
 import pytest
 from typing_extensions import override
 
-from curupira.clients.az import AzClient
-from curupira.clients.gh import GhClient
 from curupira.clients.trello import TrelloClient
-from curupira.models import PollingSettings, TrelloCard, TrelloListRequest
+from curupira.models import PollingSettings, Task, TaskIdentity, TrelloCard, TrelloListRequest
+from curupira.models.items import TrelloCardItem
 from curupira.storage import CronScheduleRepository
 from curupira.tasks.base import FeedDependencies
 from curupira.tasks.feed import PollingTaskFeed
@@ -61,8 +60,14 @@ async def test_source_maps_cards_preserving_id_and_filters_closed_cards(tmp_path
     assert tasks[0].identity.id == "66f6b55a1a2b3c4d5e6f7788"
     assert tasks[0].identity.task_type == "trello-cli-cards"
     assert tasks[0].title == "Ship feature"
-    assert tasks[0].body == "Details"
-    assert tasks[0].attributes == {"board_id": "board-1", "list_id": "list-1"}
+    assert tasks[0].url == "https://trello.com/c/abc123"
+    assert tasks[0].item == TrelloCardItem(
+        card_id="66f6b55a1a2b3c4d5e6f7788",
+        card_title="Ship feature",
+        card_body="Details",
+        card_url="https://trello.com/c/abc123",
+        card_list_id="list-1",
+    )
 
 
 @pytest.mark.asyncio
@@ -88,8 +93,6 @@ async def test_repeated_poll_deduplicates_cards(tmp_path: Path) -> None:
 def test_trello_trigger_is_registered_and_exposes_card_prompt_fields(tmp_path: Path) -> None:
     trigger = get("trello-cli-cards")
     automation = resolved_automation(tmp_path, "board-tasks", "trello-cli-cards")
-    from curupira.models import Task, TaskIdentity
-
     task = Task(
         identity=TaskIdentity(
             automation_id="board-tasks",
@@ -99,9 +102,14 @@ def test_trello_trigger_is_registered_and_exposes_card_prompt_fields(tmp_path: P
         ),
         automation=automation,
         title="Ship feature",
-        body="Details",
         url="https://trello.com/c/abc123",
-        attributes={"list_id": "list-1"},
+        item=TrelloCardItem(
+            card_id="card-id-123",
+            card_title="Ship feature",
+            card_body="Details",
+            card_url="https://trello.com/c/abc123",
+            card_list_id="list-1",
+        ),
     )
 
     assert isinstance(trigger, TrelloCardTrigger)
@@ -124,8 +132,6 @@ def test_trigger_builds_shared_polling_feed(tmp_path: Path) -> None:
         automation,
         FeedDependencies(
             polling=PollingSettings(),
-            gh=GhClient(),
-            az=AzClient(),
             cron=CronScheduleRepository(tmp_path / "state.sqlite3"),
             state_db_path=tmp_path / "state.sqlite3",
         ),

@@ -1,10 +1,9 @@
 """Task identities, resolved execution snapshots, and persistence contracts."""
 
 import json
-from collections.abc import Mapping
 from pathlib import Path
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, SerializeAsAny, model_validator
 
 from curupira.models.base import Identifier, NonEmptyString, ValidatedModel
 from curupira.models.configuration import AutomationConfiguration
@@ -43,26 +42,38 @@ class Task(ValidatedModel):
     Attributes:
         identity: Canonical identity of the source item or occurrence.
         automation: Resolved automation snapshot that discovered the task.
-        title: Human-readable task title.
-        body: Optional task description.
-        url: Link to the source item.
-        is_draft: Whether a pull request is a draft, when applicable.
-        head_ref_name: Pull-request source branch, when applicable.
-        base_ref_name: Pull-request target branch, when applicable.
+        title: Human-readable title for logs, the TUI, and ``${task_title}``.
+        url: Link shown in status output and available as ``${task_url}``.
+        item: Trigger-specific Pydantic payload used to interpolate the prompt.
         scheduled_for: Cron occurrence, only for cron tasks.
-        attributes: Source-specific string values that triggers expose to prompts.
     """
 
     identity: TaskIdentity
     automation: ResolvedAutomation
     title: str
-    body: str | None = None
     url: str
-    is_draft: bool | None = None
-    head_ref_name: str | None = None
-    base_ref_name: str | None = None
+    item: SerializeAsAny[ValidatedModel]
     scheduled_for: AwareDatetime | None = None
-    attributes: Mapping[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_typed_item(cls, data: object) -> object:
+        """Validate ``item`` with the trigger's ``item_model`` when loading raw payloads."""
+        if not isinstance(data, dict):
+            return data
+        item = data.get("item")
+        if item is None or isinstance(item, BaseModel):
+            return data
+        identity = data.get("identity")
+        if isinstance(identity, dict):
+            task_type = identity.get("task_type")
+        else:
+            task_type = getattr(identity, "task_type", None)
+        if not isinstance(task_type, str):
+            return data
+        from curupira.tasks.registry import get
+
+        return {**data, "item": get(task_type).item_model.model_validate(item)}
 
     @model_validator(mode="after")
     def validate_source(self) -> "Task":
@@ -76,7 +87,11 @@ class Task(ValidatedModel):
             raise ValueError("task identity must match its resolved automation")
         from curupira.tasks.registry import get
 
-        get(config.trigger_type).validate_task(self)
+        trigger = get(config.trigger_type)
+        trigger.validate_task(self)
+        if type(self.item) is not trigger.item_model:
+            item = trigger.item_model.model_validate(self.item.model_dump())
+            return self.model_copy(update={"item": item})
         return self
 
 

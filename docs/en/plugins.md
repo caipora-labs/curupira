@@ -38,15 +38,19 @@ plugin cannot be imported, every command that loads the configuration stops with
 
 ## Writing a plugin
 
-A plugin provides three things, all imported from `curupira.plugins`:
+A plugin provides four things, all imported from `curupira.plugins`:
 
 1. A configuration model that extends `AutomationConfigurationBase` and gives
    `trigger_type` a default equal to the plugin's trigger type. It inherits `repo`,
    `path`, `setup_script`, `checkout`, `prompt`, and `profile`, and adds the plugin's
    own options as Pydantic fields and validators.
-2. A `TaskSource` that turns one poll into `Task` objects. Wrap it in
-   `PollingTaskFeed` to get deduplication and backoff for free.
-3. A `Trigger` that ties the configuration model, prompt placeholders, and feed together.
+2. An `item_model` (a `ValidatedModel`) whose field names are the trigger-specific
+   prompt placeholders. Discovery returns this model on `Task.item`; Curupira flattens
+   it into `${placeholders}` when rendering the automation prompt.
+3. A `TaskSource` that turns one poll into `Task` objects asynchronously. Wrap it in
+   `PollingTaskFeed` to get deduplication and backoff for free. Sources may call HTTP
+   APIs, SDKs, or CLIs; start subprocesses only through `FeedDependencies.runner`.
+4. A `Trigger` that ties the configuration model, item model, and feed together.
 
 ```python
 """Ticket tracker trigger for Curupira."""
@@ -64,7 +68,15 @@ from curupira.plugins import (
     TaskIdentity,
     TaskSource,
     Trigger,
+    ValidatedModel,
 )
+
+
+class TicketItem(ValidatedModel):
+    """Ticket fields available as prompt placeholders."""
+
+    ticket_key: NonEmptyString
+    ticket_priority: NonEmptyString
 
 
 class TicketAutomationConfiguration(AutomationConfigurationBase):
@@ -79,13 +91,13 @@ class TicketAutomationConfiguration(AutomationConfigurationBase):
 
 
 class TicketSource(TaskSource):
-    """List open tickets through the tracker's CLI."""
+    """List open tickets through the tracker's async API or CLI."""
 
     async def discover(self, automation: ResolvedAutomation, limit: int) -> list[Task]:
         config = automation.configuration
         if not isinstance(config, TicketAutomationConfiguration):
             raise ValueError("ticket source requires a ticket configuration")
-        tickets = ...  # call the tracker through FeedDependencies.runner
+        tickets = ...  # HTTP/SDK/CLI — use FeedDependencies.runner only for processes
         return [
             Task(
                 identity=TaskIdentity(
@@ -96,9 +108,8 @@ class TicketSource(TaskSource):
                 ),
                 automation=automation,
                 title=ticket.summary,
-                body=ticket.description,
                 url=ticket.url,
-                attributes={"priority": ticket.priority},
+                item=TicketItem(ticket_key=ticket.key, ticket_priority=ticket.priority),
             )
             for ticket in tickets[:limit]
         ]
@@ -109,13 +120,7 @@ class TicketTrigger(Trigger):
 
     trigger_type = "ticket"
     configuration_model = TicketAutomationConfiguration
-
-    @classmethod
-    def prompt_fields(cls) -> frozenset[str]:
-        return frozenset({"ticket_key", "ticket_priority"})
-
-    def prompt_context(self, task: Task) -> dict[str, str]:
-        return {"ticket_key": task.identity.id, "ticket_priority": task.attributes["priority"]}
+    item_model = TicketItem
 
     def build_feed(
         self, automation: ResolvedAutomation, dependencies: FeedDependencies
@@ -141,8 +146,9 @@ ticket = "curupira_tickets:TicketTrigger"
 | --- | --- | --- |
 | `trigger_type` | Yes | Value users write in `trigger_type`; must be unique across built-ins and plugins. |
 | `configuration_model` | Yes | Pydantic model for the automation table. |
-| `prompt_fields()` | Yes | Placeholders the trigger adds on top of the common ones. |
-| `prompt_context(task)` | Yes | Values for those placeholders. |
+| `item_model` | Yes | Pydantic model for discovered payloads; its fields become prompt placeholders. |
+| `prompt_fields()` | No | Defaults to the field names of `item_model`. |
+| `prompt_context(task)` | No | Defaults to flattening `task.item` with `flatten_for_template`. |
 | `build_feed(automation, dependencies)` | Yes | Feed that discovers tasks. |
 | `validate_task(task)` | No | Rejects task snapshots the trigger could not produce. |
 | `create_version_control(runner)` | No | Clone mechanism for the repositories; `None` keeps `gh repo clone`. |
@@ -150,14 +156,16 @@ ticket = "curupira_tickets:TicketTrigger"
 | `on_task_finished(task, state)` | No | Releases state after the agent exits; the default deletes the resumable session, so call `super()` when you override it. |
 | `api_version` | No | Plugin API version the plugin targets; defaults to the running Curupira's `PLUGIN_API_VERSION`. Set it explicitly to fail fast on an incompatible Curupira release. |
 
-`FeedDependencies` exposes `polling`, `state_db_path`, and `runner`. Start external
-processes only through `runner` (an `AsyncProcessRunner` taking a `CommandRequest`),
-never through a shell. Put source-specific values in `Task.attributes`, a string mapping
-that is persisted with the task, so prompts still render after an interrupted task resumes.
+`FeedDependencies` exposes `polling`, `cron`, `state_db_path`, and `runner`. Start
+external processes only through `runner` (an `AsyncProcessRunner` taking a
+`CommandRequest`), never through a shell. Put source-specific values on `Task.item` as
+your `item_model` so prompts still render after an interrupted task resumes. Coding-agent
+execution stays CLI-based; discovery itself is not limited to CLI clients.
 
 Curupira rejects a plugin whose `api_version` differs from `PLUGIN_API_VERSION`, whose
-`trigger_type` is already registered, or whose `configuration_model` does not default
-`trigger_type` to the registered type.
+`trigger_type` is already registered, whose `configuration_model` does not default
+`trigger_type` to the registered type, or whose `item_model` does not extend
+`ValidatedModel`.
 
 ### Testing a plugin
 

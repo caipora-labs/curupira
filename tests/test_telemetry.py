@@ -26,6 +26,8 @@ from tests.helpers import issue_task, pull_request_task, resolved_automation
 
 def cron_task(path: Path) -> Task:
     """Build a cron occurrence for telemetry identity coverage."""
+    from curupira.models.items import CronItem
+
     scheduled_for = datetime(2026, 10, 4, 9, tzinfo=UTC)
     return Task(
         identity=TaskIdentity(
@@ -37,6 +39,7 @@ def cron_task(path: Path) -> Task:
         automation=resolved_automation(path, "maintenance", "cron"),
         title="Scheduled maintenance",
         url="",
+        item=CronItem(),
         scheduled_for=scheduled_for,
     )
 

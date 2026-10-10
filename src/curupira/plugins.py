@@ -19,6 +19,7 @@ from curupira.models import (
     ResolvedAutomation,
     Task,
     TaskIdentity,
+    flatten_for_template,
 )
 from curupira.models.base import Identifier, NonEmptyString, ValidatedModel
 from curupira.models.configuration import AutomationConfigurationBase
@@ -63,6 +64,7 @@ __all__ = [
     "TriggerState",
     "ValidatedModel",
     "VersionControl",
+    "flatten_for_template",
     "load_agent_plugins",
     "load_plugins",
     "loaded_agent_plugins",

@@ -27,6 +27,7 @@ from curupira.models.github import (
     GhPullRequest,
     GhPullRequestSearchRequest,
 )
+from curupira.models.items import CronItem, IssueItem, PullRequestItem, TrelloCardItem
 from curupira.models.process import (
     CodingTaskRequest,
     CommandRequest,
@@ -48,6 +49,7 @@ from curupira.models.tasks import (
     Task,
     TaskIdentity,
 )
+from curupira.models.templates import common_prompt_context, flatten_for_template
 from curupira.models.trello import TrelloBoard, TrelloCard, TrelloList, TrelloListRequest
 
 __all__ = [
@@ -68,6 +70,7 @@ __all__ = [
     "CodingTaskRequest",
     "CommandRequest",
     "CronAutomationConfiguration",
+    "CronItem",
     "CronRunState",
     "CursorCliProfile",
     "DispatchOutcome",
@@ -78,10 +81,12 @@ __all__ = [
     "GhPullRequest",
     "GhPullRequestSearchRequest",
     "IssueAutomationConfiguration",
+    "IssueItem",
     "OpenCodeCliProfile",
     "PollingSettings",
     "ProcessResult",
     "PullRequestAutomationConfiguration",
+    "PullRequestItem",
     "ResolvedAutomation",
     "RunningCodingSession",
     "Task",
@@ -89,6 +94,9 @@ __all__ = [
     "TrelloAutomationConfiguration",
     "TrelloBoard",
     "TrelloCard",
+    "TrelloCardItem",
     "TrelloList",
     "TrelloListRequest",
+    "common_prompt_context",
+    "flatten_for_template",
 ]
