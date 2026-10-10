@@ -84,6 +84,7 @@ nav:
       - Claude Code: providers/claude.md
       - Codex: providers/codex.md
       - Cursor: providers/cursor.md
+      - Kilo CLI: providers/kilo.md
       - Gemini CLI: providers/gemini.md
       - GitHub Copilot CLI: providers/copilot.md
       - OpenCode: providers/opencode.md

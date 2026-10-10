@@ -9,6 +9,7 @@ from curupira.agents.codex import CodexCliAdapter
 from curupira.agents.copilot import CopilotCliAdapter
 from curupira.agents.cursor import CursorCliAdapter
 from curupira.agents.gemini import GeminiCliAdapter
+from curupira.agents.kilo import KiloCliAdapter
 from curupira.agents.opencode import OpenCodeCliAdapter
 from curupira.agents.pi import PiCliAdapter
 from curupira.agents.qwen import QwenCodeCliAdapter
@@ -32,6 +33,7 @@ def test_built_in_providers_are_registered() -> None:
         "copilot": CopilotCliAdapter,
         "cursor": CursorCliAdapter,
         "gemini": GeminiCliAdapter,
+        "kilo": KiloCliAdapter,
         "opencode": OpenCodeCliAdapter,
         "pi": PiCliAdapter,
         "qwen": QwenCodeCliAdapter,
@@ -42,6 +44,7 @@ def test_built_in_providers_are_registered() -> None:
         "copilot": "GitHub Copilot CLI",
         "cursor": "Cursor",
         "gemini": "Gemini CLI",
+        "kilo": "Kilo CLI",
         "opencode": "OpenCode",
         "pi": "pi",
         "qwen": "Qwen Code",

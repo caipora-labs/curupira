@@ -8,6 +8,7 @@ from curupira.agents import (  # noqa: F401
     copilot,
     cursor,
     gemini,
+    kilo,
     opencode,
     pi,
     qwen,

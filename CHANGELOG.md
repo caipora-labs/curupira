@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Kilo CLI (`kilo`) as a built-in coding-agent provider, with OpenCode-compatible JSONL
+  session detection and text rendering plus native model, agent, reasoning-variant, and
+  permission options.
 - Built-in Qwen Code support through `provider = "qwen"`, including native model,
   approval-mode, and session-turn limit options. Stream-JSON session IDs are persisted and
   resumed, and the final `result` text is rendered as task output.
@@ -18,7 +21,7 @@ All notable changes to this project are documented here. The format follows
   adapter declares its own `profile_model`, `display_name`, and `install_url`, so plugin
   profile options are validated by `curu validate` and select the adapter with
   `provider = "<name>"`. OpenCode, Codex, Claude Code, Cursor, Gemini CLI, GitHub Copilot
-  CLI, pi, and Qwen Code stay built in and register through the same registry
+  CLI, Kilo CLI, pi, and Qwen Code stay built in and register through the same registry
   (`curupira.agents.registry`).
 - `curu plugins list` appends one `agent:<provider>` line per coding-agent provider with
   its distribution and executable; trigger lines are unchanged.
@@ -47,6 +50,7 @@ All notable changes to this project are documented here. The format follows
   table and the coding-agent CLIs in the installation requirements are generated from the
   agent registry, so a new provider only adds its page and one nav line. The README
   provider section now links to the documentation instead of repeating CLI arguments.
+- The provider overview lists Kilo's `auto_approve` permission override.
 - Added the GitHub Copilot CLI provider guide, including its headless permissions and
   authentication environment-variable precedence.
 
