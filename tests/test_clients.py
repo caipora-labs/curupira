@@ -27,10 +27,10 @@ from curupira.models import (
     CursorCliProfile,
     GhIssueSearchRequest,
     GhPullRequestSearchRequest,
+    GhTaskViewRequest,
     ProcessResult,
 )
 from curupira.vcs.github_cli import GitHubCliVersionControl
-from tests.helpers import issue_task, pull_request_task
 
 
 class RecordingRunner(AsyncProcessRunner):
@@ -53,44 +53,6 @@ class RecordingRunner(AsyncProcessRunner):
             for line in result.stdout.splitlines():
                 await on_stdout_line(line)
         return result
-
-
-async def test_revalidate_issue_rejects_open_linked_pull_request(tmp_path: Path) -> None:
-    runner = RecordingRunner(
-        ProcessResult(
-            returncode=0,
-            stdout='[{"number":42,"title":"Fix","url":"https://github.com/acme/api/issues/42","state":"OPEN"}]',
-        ),
-        ProcessResult(
-            returncode=0,
-            stdout='[{"number":12,"title":"Fix","url":"https://github.com/acme/api/pull/12","closingIssuesReferences":[{"number":42}]}]',
-        ),
-    )
-
-    current = await GhClient(runner).revalidate_task(issue_task(tmp_path))
-
-    assert current is None
-    assert runner.requests[0].arguments[0] == "issue"
-    assert runner.requests[1].arguments[0] == "pr"
-
-
-async def test_revalidate_pull_request_updates_head_and_workflow_stage(tmp_path: Path) -> None:
-    runner = RecordingRunner(
-        ProcessResult(
-            returncode=0,
-            stdout=(
-                '[{"number":12,"title":"Review","url":"https://github.com/acme/api/pull/12",'
-                '"isDraft":false,"headRefName":"feature","headRefOid":"current-head",'
-                '"baseRefName":"main","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}]'
-            ),
-        )
-    )
-
-    current = await GhClient(runner).revalidate_task(pull_request_task(tmp_path))
-
-    assert current is not None
-    assert current.head_ref_oid == "current-head"
-    assert current.workflow_priority == 0
 
 
 @pytest.mark.parametrize("provider", ["opencode", "codex", "claude"])
@@ -300,6 +262,88 @@ async def test_pull_request_branch_metadata_is_preserved() -> None:
     )
     assert pulls[0].is_draft
     assert pulls[0].head_ref_name == "feature"
+
+
+async def test_pull_request_search_includes_head_checks_and_closing_issue_metadata() -> None:
+    runner = RecordingRunner(
+        ProcessResult(
+            returncode=0,
+            stdout=json.dumps(
+                [
+                    {
+                        "number": 12,
+                        "title": "Review",
+                        "url": "https://github.com/acme/api/pull/12",
+                        "state": "OPEN",
+                        "isDraft": False,
+                        "headRefOid": "abc123",
+                        "mergeable": "MERGEABLE",
+                        "mergeStateStatus": "CLEAN",
+                        "statusCheckRollup": [{"conclusion": "SUCCESS"}],
+                        "closingIssuesReferences": [
+                            {"number": 42, "repository": {"nameWithOwner": "acme/api"}}
+                        ],
+                    }
+                ]
+            ),
+        )
+    )
+
+    pull = (
+        await GhClient(runner).list_pull_requests(
+            GhPullRequestSearchRequest(repo="acme/api", query="is:open")
+        )
+    )[0]
+
+    assert pull.head_ref_oid == "abc123"
+    assert pull.merge_state_status == "CLEAN"
+    assert pull.status_check_rollup[0].conclusion == "SUCCESS"
+    assert pull.closing_issues_references[0].number == 42
+    requested_fields = runner.requests[0].arguments[
+        runner.requests[0].arguments.index("--json") + 1
+    ]
+    assert "headRefOid" in requested_fields
+    assert "closingIssuesReferences" in requested_fields
+
+
+async def test_github_view_commands_fetch_current_issue_and_pull_request_state() -> None:
+    runner = RecordingRunner(
+        ProcessResult(
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "number": 42,
+                    "title": "Issue",
+                    "url": "https://github.com/acme/api/issues/42",
+                    "state": "OPEN",
+                }
+            ),
+        ),
+        ProcessResult(
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "number": 12,
+                    "title": "Pull",
+                    "url": "https://github.com/acme/api/pull/12",
+                    "state": "CLOSED",
+                    "headRefOid": "abc123",
+                    "mergedAt": None,
+                }
+            ),
+        ),
+    )
+    client = GhClient(runner)
+    request = GhTaskViewRequest(repo="acme/api", number=42)
+
+    issue = await client.view_issue(request)
+    pull = await client.view_pull_request(request.model_copy(update={"number": 12}))
+
+    assert issue.state == "OPEN"
+    assert pull.state == "CLOSED"
+    assert pull.head_ref_oid == "abc123"
+    assert runner.requests[0].arguments[:5] == ("issue", "view", "42", "--repo", "acme/api")
+    assert runner.requests[1].arguments[:5] == ("pr", "view", "12", "--repo", "acme/api")
 
 
 async def test_pull_request_jq_filter_is_passed_to_gh() -> None:

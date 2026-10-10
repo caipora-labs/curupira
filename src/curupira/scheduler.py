@@ -8,6 +8,9 @@ from pathlib import Path
 
 from curupira.executor import TaskExecutor
 from curupira.models import ExecutionSettings, ProcessResult, RunningCodingSession, Task
+from curupira.storage import CompletedTaskRepository
+from curupira.tasks.feed import task_order_key
+from curupira.tasks.revalidation import TaskValidator
 
 logger = logging.getLogger(__name__)
 WorkItem = tuple[Task, RunningCodingSession | None]
@@ -24,10 +27,16 @@ class TaskScheduler:
         executor: TaskExecutor,
         *,
         on_active_tasks_changed: Callable[[Sequence[Task]], None] | None = None,
+        task_validator: TaskValidator | None = None,
+        completion_verifier: Callable[[Task], Awaitable[str | None]] | None = None,
+        completed_tasks: CompletedTaskRepository | None = None,
     ) -> None:
         self._settings = settings
         self._executor = executor
         self._on_active_tasks_changed = on_active_tasks_changed
+        self._task_validator = task_validator
+        self._completion_verifier = completion_verifier
+        self._completed_tasks = completed_tasks
         self._admit = asyncio.Event()
         self._admit.set()
         self.failed_tasks = 0
@@ -50,22 +59,33 @@ class TaskScheduler:
         tasks: AsyncIterator[Task],
         *,
         resume_sessions: Sequence[RunningCodingSession] = (),
-        revalidate: Callable[[Task], Awaitable[Task | None]] | None = None,
-        discard_session: Callable[[Task], Awaitable[None]] | None = None,
+        initial_tasks: Sequence[Task] = (),
     ) -> None:
-        """Consume bounded pending work while observing running tasks and discovery."""
-        pending: deque[WorkItem] = deque()
+        """Consume ordered work while validating recovered and discovered task snapshots."""
+        initial_items: list[WorkItem] = [(session.task, session) for session in resume_sessions]
+        initial_items.extend((task, None) for task in initial_tasks)
+        pending: deque[WorkItem] = deque(
+            sorted(initial_items, key=lambda item: _work_order_key(item))
+        )
         active: ActiveTasks = {}
         seen: set[str] = set()
         reader: ReaderTask | None = None
 
-        source = _validated_incoming(tasks, resume_sessions, revalidate, discard_session)
+        async def incoming() -> AsyncGenerator[WorkItem, None]:
+            try:
+                async for selected in tasks:
+                    yield selected, None
+            finally:
+                if isinstance(tasks, AsyncGenerator):
+                    await tasks.aclose()
+
+        source = incoming()
         exhausted = False
         try:
             self._notify_active_tasks(active)
             while not exhausted or pending or active or self.paused:
                 if self._admit.is_set():
-                    self._launch_available(pending, active)
+                    await self._launch_available(pending, active, seen)
                     reader = self._ensure_reader(reader, exhausted, pending, source)
                 waiting: set[asyncio.Task[object]] = set(active)
                 if reader is not None:
@@ -79,37 +99,89 @@ class TaskScheduler:
                 if reader is not None and reader in finished:
                     exhausted = self._consume_reader(reader, pending, seen)
                     reader = None
-                self._reap_finished(active, finished, seen)
+                await self._reap_finished(active, finished, seen)
                 self._notify_active_tasks(active)
         finally:
-            await _cancel_all(reader, active, source)
+            await self._cancel_all(reader, active, source)
 
-    def _launch_available(self, pending: deque[WorkItem], active: ActiveTasks) -> None:
+    async def _launch_available(
+        self, pending: deque[WorkItem], active: ActiveTasks, seen: set[str]
+    ) -> None:
         """Start pending tasks while concurrency and checkout exclusivity allow it."""
         occupied: set[Path] = {item.automation.workspace_path for item in active.values()}
-        ordered = sorted(
-            pending,
-            key=lambda item: (
-                item[0].workflow_priority if item[0].workflow_priority is not None else 5,
-                _task_key(item[0]),
-            ),
-        )
-        pending.clear()
-        pending.extend(ordered)
-        for _ in range(len(pending)):
-            selected, resumed = pending.popleft()
+        active_logical = {item.logical_key for item in active.values()}
+        validated = await self._validate_pending(pending, seen)
+        for selected, resumed in validated:
             path = selected.automation.workspace_path
             if selected.automation.configuration.checkout == "worktree":
                 path = path.with_name(f"{path.name}.worktrees") / selected.identity.key
-            if len(active) >= self._settings.max_active_tasks or path in occupied:
+            if (
+                len(active) >= self._settings.max_active_tasks
+                or path in occupied
+                or selected.logical_key in active_logical
+            ):
                 pending.append((selected, resumed))
                 continue
+            seen.add(selected.dispatch_key)
+            active_logical.add(selected.logical_key)
             worker = asyncio.create_task(
                 self._executor.execute(selected, resumed), name=selected.identity.key
             )
             active[worker] = selected
             occupied.add(path)
             self._notify_active_tasks(active)
+
+    async def _validate_pending(self, pending: deque[WorkItem], seen: set[str]) -> list[WorkItem]:
+        """Revalidate, retire stale sessions, and deduplicate one pending admission round."""
+        candidates = sorted(pending, key=_work_order_key)
+        pending.clear()
+        queued_keys = set(seen)
+        validated: list[WorkItem] = []
+        for item in candidates:
+            refreshed = await self._validate_candidate(item, seen)
+            if refreshed is None:
+                continue
+            selected, resumed = refreshed
+            key = selected.dispatch_key
+            if key in queued_keys:
+                if resumed is not None:
+                    await self._executor.discard_session(resumed.task)
+                continue
+            queued_keys.add(key)
+            validated.append(refreshed)
+        return sorted(validated, key=_work_order_key)
+
+    async def _validate_candidate(self, item: WorkItem, seen: set[str]) -> WorkItem | None:
+        """Refresh one candidate and retire any session or result for an outdated snapshot."""
+        selected, resumed = item
+        original = selected
+        if self._task_validator is not None:
+            selected = await self._task_validator(selected)
+            if selected is None:
+                if resumed is not None:
+                    await self._executor.discard_session(resumed.task)
+                if self._completed_tasks is not None:
+                    await self._completed_tasks.delete(original)
+                seen.add(original.dispatch_key)
+                return None
+        if resumed is not None and resumed.task != selected:
+            await self._executor.discard_session(resumed.task)
+            resumed = None
+        if self._completed_tasks is not None:
+            completed = await self._completed_tasks.get(selected)
+            if completed is not None:
+                if completed.fingerprint == selected.state_fingerprint:
+                    if resumed is not None:
+                        await self._executor.discard_session(resumed.task)
+                    logger.info(
+                        "Skipping unchanged completed task %s; next action: %s",
+                        selected.url,
+                        completed.next_action,
+                    )
+                    seen.add(selected.dispatch_key)
+                    return None
+                await self._completed_tasks.delete(selected)
+        return selected, resumed
 
     def _notify_active_tasks(self, active: ActiveTasks) -> None:
         """Publish active task snapshots for terminal status rendering."""
@@ -134,13 +206,12 @@ class TaskScheduler:
         item = reader.result()
         if item is None:
             return True
-        key = _task_key(item[0])
+        key = item[0].dispatch_key
         if key not in seen:
-            seen.add(key)
             pending.append(item)
         return False
 
-    def _reap_finished(
+    async def _reap_finished(
         self, active: ActiveTasks, finished: set[asyncio.Task[object]], seen: set[str]
     ) -> None:
         """Account for completed workers and release cron keys for re-scheduling."""
@@ -148,11 +219,43 @@ class TaskScheduler:
             if worker not in finished:
                 continue
             selected = active.pop(worker)
-            self._record_outcome(selected, worker)
+            result = self._record_outcome(selected, worker)
+            if (
+                result is not None
+                and result.returncode == 0
+                and self._completion_verifier is not None
+            ):
+                try:
+                    next_action = await self._completion_verifier(selected)
+                except Exception as error:
+                    self.failed_tasks += 1
+                    next_action = (
+                        "Retry GitHub state validation before dispatching this completed snapshot "
+                        f"(verification error: {type(error).__name__})."
+                    )
+                    if self._completed_tasks is not None:
+                        await self._completed_tasks.save(selected, next_action)
+                    logger.error(
+                        "Could not verify completion for %s; next action: %s",
+                        selected.url,
+                        next_action,
+                    )
+                else:
+                    if next_action is None:
+                        if self._completed_tasks is not None:
+                            await self._completed_tasks.delete(selected)
+                    else:
+                        if self._completed_tasks is not None:
+                            await self._completed_tasks.save(selected, next_action)
+                        logger.info(
+                            "Task %s remains incomplete; next action: %s", selected.url, next_action
+                        )
             if selected.identity.task_type == "cron":
-                seen.discard(selected.identity.key)
+                seen.discard(selected.dispatch_key)
 
-    def _record_outcome(self, selected: Task, worker: asyncio.Task[ProcessResult]) -> None:
+    def _record_outcome(
+        self, selected: Task, worker: asyncio.Task[ProcessResult]
+    ) -> ProcessResult | None:
         """Count and log a completed task that exited unsuccessfully."""
         try:
             result = worker.result()
@@ -161,53 +264,27 @@ class TaskScheduler:
                 logger.error(
                     "Task %s failed with exit %s", selected.identity.key, result.returncode
                 )
+            return result
         except Exception:
             self.failed_tasks += 1
             logger.exception("Task %s failed", selected.identity.key)
+            return None
+
+    @staticmethod
+    async def _cancel_all(
+        reader: ReaderTask | None, active: ActiveTasks, source: AsyncGenerator[WorkItem, None]
+    ) -> None:
+        """Cancel outstanding work and close the input stream."""
+        if reader is not None:
+            reader.cancel()
+            await asyncio.gather(reader, return_exceptions=True)
+        for worker in active:
+            worker.cancel()
+        await asyncio.gather(*active, return_exceptions=True)
+        await source.aclose()
 
 
-async def _validated_incoming(
-    tasks: AsyncIterator[Task],
-    resume_sessions: Sequence[RunningCodingSession],
-    revalidate: Callable[[Task], Awaitable[Task | None]] | None,
-    discard_session: Callable[[Task], Awaitable[None]] | None,
-) -> AsyncGenerator[WorkItem, None]:
-    """Validate every recovered or discovered item immediately before admission."""
-    try:
-        for session in resume_sessions:
-            current = await revalidate(session.task) if revalidate is not None else session.task
-            if current is None or current != session.task:
-                if discard_session is not None:
-                    await discard_session(session.task)
-                if current is not None:
-                    yield current, None
-                continue
-            yield current, session
-        async for selected in tasks:
-            current = await revalidate(selected) if revalidate is not None else selected
-            if current is not None:
-                yield current, None
-    finally:
-        if isinstance(tasks, AsyncGenerator):
-            await tasks.aclose()
-
-
-def _task_key(task: Task) -> str:
-    """Deduplicate logical PR work across automations, versioned by its current head."""
-    identity = task.identity
-    if identity.task_type == "github-cli-pull-requests":
-        return f"pr:{identity.repo}#{identity.id}:{task.head_ref_oid or 'unknown'}"
-    return identity.key
-
-
-async def _cancel_all(
-    reader: ReaderTask | None, active: ActiveTasks, source: AsyncGenerator[WorkItem, None]
-) -> None:
-    """Cancel outstanding work and close the input stream."""
-    if reader is not None:
-        reader.cancel()
-        await asyncio.gather(reader, return_exceptions=True)
-    for worker in active:
-        worker.cancel()
-    await asyncio.gather(*active, return_exceptions=True)
-    await source.aclose()
+def _work_order_key(item: WorkItem) -> tuple[int, str, str, int, str]:
+    """Order a pending task by stage, preferring a matching recoverable session."""
+    task, resumed = item
+    return (*task_order_key(task)[:3], 0 if resumed is not None else 1, task.identity.automation_id)

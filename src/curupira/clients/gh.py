@@ -23,7 +23,7 @@ from curupira.models import (
     GhIssueSearchRequest,
     GhPullRequest,
     GhPullRequestSearchRequest,
-    Task,
+    GhTaskViewRequest,
 )
 
 _PROJECT_ITEM_JSON_FIELDS = ("number", "title", "url", "projectItems")
@@ -37,12 +37,17 @@ _DEFAULT_PULL_REQUEST_JSON_FIELDS = (
     "labels",
     "isDraft",
     "headRefName",
+    "headRefOid",
     "baseRefName",
     "mergeable",
     "mergeStateStatus",
-    "headRefOid",
+    "reviewDecision",
+    "statusCheckRollup",
     "closingIssuesReferences",
+    "mergedAt",
 )
+_ISSUE_VIEW_JSON_FIELDS = DEFAULT_ISSUE_JSON_FIELDS
+_PULL_REQUEST_VIEW_JSON_FIELDS = _DEFAULT_PULL_REQUEST_JSON_FIELDS
 _TRANSIENT_ERROR_MARKERS = (
     "rate limit",
     "connection reset",
@@ -86,52 +91,32 @@ class GhClient:
         except ValidationError as error:
             raise CliOutputError(f"gh returned invalid pull request JSON: {error}") from error
 
-    async def revalidate_task(self, task: Task) -> Task | None:
-        """Return the current open task, suppressing issues with any linked open PR."""
-        identity = task.identity
-        if identity.task_type == "issue":
-            issues = await self.list_issues(
-                GhIssueSearchRequest(
-                    repo=identity.repo, query=f"is:open number:{identity.id}", limit=1
-                )
-            )
-            if not issues:
-                return None
-            open_pulls = await self.list_pull_requests(
-                GhPullRequestSearchRequest(repo=identity.repo, query="is:open", limit=1000)
-            )
-            if any(
-                reference.number == int(identity.id)
-                for pull in open_pulls
-                for reference in pull.closing_issues_references
-            ):
-                return None
-            issue = issues[0]
-            return task.model_copy(
-                update={"title": issue.title, "body": issue.body, "url": issue.url}
-            )
-        if identity.task_type != "github-cli-pull-requests":
-            return task
-        pulls = await self.list_pull_requests(
+    async def view_issue(self, request: GhTaskViewRequest) -> GhIssue:
+        """Fetch one issue's current state rather than trusting a saved task snapshot."""
+        payload = await self._view_item("issue", request, _ISSUE_VIEW_JSON_FIELDS)
+        try:
+            return GhIssue.model_validate(payload)
+        except ValidationError as error:
+            raise CliOutputError(f"gh returned invalid issue JSON: {error}") from error
+
+    async def view_pull_request(self, request: GhTaskViewRequest) -> GhPullRequest:
+        """Fetch current pull-request stage, head, checks, and closing references."""
+        payload = await self._view_item("pr", request, _PULL_REQUEST_VIEW_JSON_FIELDS)
+        try:
+            return GhPullRequest.model_validate(payload)
+        except ValidationError as error:
+            raise CliOutputError(f"gh returned invalid pull request JSON: {error}") from error
+
+    async def list_pull_requests_for_issue(
+        self, repo: str, issue_number: int
+    ) -> list[GhPullRequest]:
+        """Find open PRs whose GitHub closing metadata references an issue."""
+        return await self.list_pull_requests(
             GhPullRequestSearchRequest(
-                repo=identity.repo, query=f"is:open number:{identity.id}", limit=1
+                repo=repo,
+                query=f"{issue_number} in:body",
+                limit=1000,
             )
-        )
-        if not pulls:
-            return None
-        pull = pulls[0]
-        priority = _pull_request_priority(pull.is_draft, pull.mergeable, pull.merge_state_status)
-        return task.model_copy(
-            update={
-                "title": pull.title,
-                "body": pull.body,
-                "url": pull.url,
-                "is_draft": pull.is_draft,
-                "head_ref_name": pull.head_ref_name,
-                "head_ref_oid": pull.head_ref_oid,
-                "base_ref_name": pull.base_ref_name,
-                "workflow_priority": priority,
-            }
         )
 
     @resilient(
@@ -226,21 +211,43 @@ class GhClient:
         except (json.JSONDecodeError, TypeError) as error:
             raise CliOutputError(f"gh returned invalid {command} JSON: {error}") from error
 
+    async def _view_item(
+        self, command: str, request: GhTaskViewRequest, fields: tuple[str, ...]
+    ) -> dict[str, object]:
+        """Run a typed issue/PR view command and decode its single JSON object."""
+        async with self._search_lock:
+            result = await self._runner.run(
+                CommandRequest(
+                    executable="gh",
+                    arguments=(
+                        command,
+                        "view",
+                        str(request.number),
+                        "--repo",
+                        request.repo,
+                        "--json",
+                        ",".join(fields),
+                    ),
+                )
+            )
+        if result.returncode != 0:
+            if _is_transient_cli_error(result.stderr):
+                raise TransientCliError(
+                    f"gh temporarily failed with status {result.returncode}: "
+                    f"{result.stderr.strip()}"
+                )
+            raise CliExecutionError("gh", result.returncode, result.stderr)
+        try:
+            payload = _decode_json_output(result.stdout)
+            if not isinstance(payload, dict):
+                raise TypeError("expected one JSON object")
+            return payload
+        except (json.JSONDecodeError, TypeError) as error:
+            raise CliOutputError(f"gh returned invalid {command} JSON: {error}") from error
+
 
 def _is_project_query(query: str) -> bool:
     return re.search(r"(?:^|\s)project:\S+", query, flags=re.IGNORECASE) is not None
-
-
-def _pull_request_priority(
-    is_draft: bool | None, mergeable: str | None, merge_state: str | None
-) -> int:
-    if is_draft:
-        return 3
-    if merge_state == "DIRTY" or mergeable == "CONFLICTING":
-        return 1
-    if merge_state == "CLEAN" and mergeable == "MERGEABLE":
-        return 0
-    return 2
 
 
 def _decode_json_output(output: str) -> object:

@@ -149,31 +149,7 @@ async def test_empty_dispatch_does_not_create_state(tmp_path: Path) -> None:
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_linked_open_pull_request_suppresses_issue_agent_start(tmp_path: Path) -> None:
-    configured = settings(tmp_path)
-    gh = FakeGitHub(
-        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")],
-        pulls=[
-            GhPullRequest(
-                number=12,
-                title="Fix issue",
-                url="https://github.com/acme/api/pull/12",
-                closingIssuesReferences=[{"number": 42}],
-            )
-        ],
-    )
-    adapter = RecordingAdapter()
-
-    outcome = await dispatch_next_task(
-        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
-    )
-
-    assert outcome.selected is None
-    assert not adapter.requests
-    assert not gh.checkouts
-
-
-async def test_changed_recovered_task_restarts_with_current_snapshot(
+async def test_resume_discards_stale_issue_snapshot_and_uses_current_prompt(
     tmp_path: Path,
 ) -> None:
     configured = settings(tmp_path)
@@ -295,7 +271,7 @@ def test_common_placeholders_use_the_task_source(tmp_path: Path) -> None:
     assert render_task_prompt(issue_task(tmp_path)) == "Handle issue 42: Task 42"
 
 
-async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
+async def test_one_shot_prioritizes_workflow_stage_over_automation_order(
     tmp_path: Path,
 ) -> None:
     data = settings(tmp_path).model_dump()
@@ -321,7 +297,7 @@ async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
     )
     outcome = await dispatch_next_task(configured, gh, dry_run=True)
     assert outcome.selected is not None
-    assert outcome.selected.identity.task_type == "issue"
+    assert outcome.selected.identity.task_type == "github-cli-pull-requests"
     gh.issues = []
     adapter = RecordingAdapter()
     outcome = await dispatch_next_task(

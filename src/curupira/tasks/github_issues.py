@@ -42,7 +42,6 @@ class GitHubIssueSource(TaskSource):
                 title=issue.title,
                 body=issue.body,
                 url=issue.url,
-                workflow_priority=4,
             )
             for issue in issues
         ]

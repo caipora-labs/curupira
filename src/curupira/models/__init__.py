@@ -26,6 +26,9 @@ from curupira.models.github import (
     GhLabel,
     GhPullRequest,
     GhPullRequestSearchRequest,
+    GhRepositoryReference,
+    GhStatusCheck,
+    GhTaskViewRequest,
 )
 from curupira.models.process import (
     CodingTaskRequest,
@@ -42,11 +45,13 @@ from curupira.models.profiles import (
     OpenCodeCliProfile,
 )
 from curupira.models.tasks import (
+    CompletedTaskState,
     CronRunState,
     ResolvedAutomation,
     RunningCodingSession,
     Task,
     TaskIdentity,
+    WorkflowStage,
 )
 
 __all__ = [
@@ -66,6 +71,7 @@ __all__ = [
     "CodingAgentsSettings",
     "CodingTaskRequest",
     "CommandRequest",
+    "CompletedTaskState",
     "CronAutomationConfiguration",
     "CronRunState",
     "CursorCliProfile",
@@ -77,6 +83,9 @@ __all__ = [
     "GhLabel",
     "GhPullRequest",
     "GhPullRequestSearchRequest",
+    "GhRepositoryReference",
+    "GhStatusCheck",
+    "GhTaskViewRequest",
     "IssueAutomationConfiguration",
     "OpenCodeCliProfile",
     "PollingSettings",
@@ -86,4 +95,5 @@ __all__ = [
     "RunningCodingSession",
     "Task",
     "TaskIdentity",
+    "WorkflowStage",
 ]

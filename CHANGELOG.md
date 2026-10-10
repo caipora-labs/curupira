@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- GitHub dispatch revalidates current issue and pull-request state before starting or
+  resuming an agent, prioritizes work by PR stage, deduplicates PRs across automations, and
+  re-admits changed PR heads. Completed snapshots retain an explicit next action so
+  unchanged blocked work is not repeated every dispatch cycle. The example issue query also
+  excludes linked PRs.
 - Built-in pi coding-agent support through `provider = "pi"`, including native model,
   thinking, tool allowlist/exclusion, and project-trust options. JSON-mode session IDs are
   persisted and resumed, and task output contains only assistant text blocks.
@@ -34,8 +39,12 @@ All notable changes to this project are documented here. The format follows
   work and issues already associated with an open closing pull request are skipped, stale
   recovered sessions restart from current source data, and PR scheduling tracks head SHAs.
 - The example issue automation excludes issues already linked to pull requests with
-  `-linked:pr`; this search filter protects new discovery, while recovered sessions still
-  require scheduler-side revalidation.
+  `-linked:pr`; scheduler-side revalidation also protects recovered sessions and checks
+  current GitHub state before any agent starts.
+- Watch, TUI, batch, and one-shot dispatch order eligible work by current PR stage, deduplicate
+  PRs across automations by head and stage, and verify successful open-PR runs against linked
+  issue state. Unchanged completed snapshots retain an explicit next action and are not
+  repeatedly dispatched.
 - Install instructions in the README and documentation use `uv tool install curupira`
   without a version pin, with a note on pinning `curupira==X.Y.Z` when needed.
 
