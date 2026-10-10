@@ -49,6 +49,7 @@ on each other.
 | --- | --- |
 | `src/curupira/models/` | Pydantic contracts: configuration, CLI profiles, tasks, CLI payloads. |
 | `src/curupira/config.py` | Loads and resolves the TOML configuration (`ApplicationSettings`). |
+| `src/curupira/config_reload.py` | Watches the config file during `run --watch` / `tui` and reloads after in-flight tasks drain. |
 | `src/curupira/hooks.py`, `manager.py` | Pluggy hookspecs (`curupira_coding_agent_adapters`, `curupira_triggers`) and the manager that registers built-in providers. |
 | `src/curupira/tasks/` | Task discovery contracts: `Trigger`, `TaskSource`, `TaskFeed`, registry, and shared feed helpers. Built-in triggers live under `providers/` and register through Pluggy; compatibility re-exports keep `curupira.tasks.<name>` import paths working. |
 | `src/curupira/plugins.py` | Stable plugin API and `curupira.triggers`/`curupira.agents` entry-point discovery; plugins import only this module. |

@@ -248,9 +248,10 @@ The short alias `curu` accepts the same subcommands (`curu validate`, `curu run`
 worktree, or setup operations.
 
 `run --watch` runs every CLI non-interactively so concurrent workers never contend for the
-terminal UI. `tui` is the interactive alternative. Transient `gh` failures are retried with
-backoff; authentication, configuration, output-format, and agent-task failures are not
-retried automatically.
+terminal UI. `tui` is the interactive alternative. Editing the configuration file while
+either is running hot-reloads settings after in-flight tasks finish. Transient `gh`
+failures are retried with backoff; authentication, configuration, output-format, and
+agent-task failures are not retried automatically.
 
 ## Public interface
 

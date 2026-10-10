@@ -100,7 +100,9 @@ async def test_orchestrator_app_mounts_dashboard_panels(tmp_path: Path) -> None:
             },
         }
     )
-    app = OrchestratorApp(settings, GitHubCliVersionControl(), TaskTelemetry())
+    app = OrchestratorApp(
+        settings, tmp_path / "settings.toml", GitHubCliVersionControl(), TaskTelemetry()
+    )
 
     async def _idle_scheduler() -> None:
         return None

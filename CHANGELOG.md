@@ -27,6 +27,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Hot-reload for `run --watch` and `tui`: when the configuration file changes, new
+  admissions pause until in-flight tasks finish, then settings and feeds reload from
+  disk so subsequent work uses the latest configuration without interrupting running
+  tasks. Invalid reloads keep admission paused until a valid TOML is saved.
 - `pluggy` as a core dependency for the built-in provider contract (coding agents and
   triggers).
 - Built-in Trello card discovery through Scale-Flow's JSON-first `trello-cli`, with board/list selection, string-preserved card IDs, and per-feed deduplication.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Sequence
+from pathlib import Path
 from typing import ClassVar
 
 import psutil
@@ -16,12 +17,9 @@ from textual.widgets import Footer, RichLog, Static
 from typing_extensions import override
 
 from curupira.config import ApplicationSettings
-from curupira.dispatcher import create_task_feeds
-from curupira.executor import TaskExecutor
+from curupira.config_reload import run_continuous_dispatch
 from curupira.models import Task
 from curupira.scheduler import TaskScheduler
-from curupira.storage import CronScheduleRepository, RunningSessionRepository
-from curupira.tasks.feed import merge_task_streams
 from curupira.telemetry import TaskTelemetry
 from curupira.tui.logging_handler import TuiLogHandler, attach_rich_log
 from curupira.tui.status import OrchestratorStatus
@@ -134,11 +132,13 @@ class OrchestratorApp(App[int]):
     def __init__(
         self,
         settings: ApplicationSettings,
+        config_path: Path,
         version_control: VersionControl | None,
         telemetry: TaskTelemetry,
     ) -> None:
         super().__init__()
         self._settings = settings
+        self._config_path = config_path
         self._version_control = version_control
         self._telemetry = telemetry
         self._status = OrchestratorStatus()
@@ -181,30 +181,16 @@ class OrchestratorApp(App[int]):
 
     async def _run_scheduler(self) -> None:
         """Drive the same continuous pipeline used by ``curu run --watch``."""
-        settings = self._settings
-        sessions = RunningSessionRepository(settings.settings.state_db_path)
-        recovered = await sessions.list_all()
-        cron = CronScheduleRepository(settings.settings.state_db_path)
-        feeds = create_task_feeds(settings, cron)
-        executor = TaskExecutor(
-            settings.settings,
-            self._version_control,
-            sessions,
-            cron,
-            telemetry=self._telemetry,
-        )
-        scheduler = TaskScheduler(
-            settings.settings,
-            executor,
-            on_active_tasks_changed=self._on_active_tasks_changed,
-        )
-        self._scheduler = scheduler
-        tasks = merge_task_streams(
-            [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
-        )
         try:
-            await scheduler.run(tasks, resume_sessions=recovered)
-            self._exit_code = 1 if scheduler.failed_tasks else 0
+            self._exit_code = await run_continuous_dispatch(
+                self._settings,
+                self._config_path,
+                version_control=self._version_control,
+                telemetry=self._telemetry,
+                on_active_tasks_changed=self._on_active_tasks_changed,
+                on_settings_reloaded=self._on_settings_reloaded,
+                on_scheduler_ready=self._on_scheduler_ready,
+            )
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -212,6 +198,19 @@ class OrchestratorApp(App[int]):
             self._exit_code = 1
         finally:
             self.call_later(self.exit, self._exit_code)
+
+    def _on_scheduler_ready(self, scheduler: TaskScheduler) -> None:
+        """Keep the dashboard pause control pointed at the live scheduler."""
+        self._scheduler = scheduler
+        if self._paused:
+            scheduler.pause()
+
+    def _on_settings_reloaded(self, settings: ApplicationSettings) -> None:
+        """Refresh dashboard state after a successful configuration reload."""
+        self._settings = settings
+        self._status.update(self._status.tasks, settings.settings.max_active_tasks)
+        self.call_later(self._refresh_agents)
+        self.call_later(self._refresh_activity)
 
     def _on_active_tasks_changed(self, tasks: Sequence[Task]) -> None:
         """Receive scheduler notifications on the asyncio thread and refresh widgets."""
@@ -266,6 +265,11 @@ class OrchestratorApp(App[int]):
         """Pause or resume admission of new tasks in the scheduler."""
         if self._scheduler is None:
             return
+        if self._scheduler.reload_requested:
+            logging.getLogger(__name__).info(
+                "Recarregamento de configuração em andamento; admissão permanece pausada"
+            )
+            return
         if self._scheduler.paused:
             self._scheduler.resume()
             self._paused = False
@@ -287,10 +291,11 @@ class OrchestratorApp(App[int]):
 
 async def run_orchestrator_tui(
     settings: ApplicationSettings,
+    config_path: Path,
     version_control: VersionControl | None,
     telemetry: TaskTelemetry,
 ) -> int:
     """Run the Textual orchestrator app and return its exit code."""
-    app = OrchestratorApp(settings, version_control, telemetry)
+    app = OrchestratorApp(settings, config_path, version_control, telemetry)
     result = await app.run_async()
     return 0 if result is None else result

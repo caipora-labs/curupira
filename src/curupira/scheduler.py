@@ -30,6 +30,7 @@ class TaskScheduler:
         self._on_active_tasks_changed = on_active_tasks_changed
         self._admit = asyncio.Event()
         self._admit.set()
+        self._reload_requested = False
         self.failed_tasks = 0
 
     def pause(self) -> None:
@@ -38,12 +39,24 @@ class TaskScheduler:
 
     def resume(self) -> None:
         """Allow the scheduler to admit and launch work again."""
+        if self._reload_requested:
+            return
         self._admit.set()
+
+    def request_reload(self) -> None:
+        """Stop new admissions and exit once every in-flight task finishes."""
+        self._reload_requested = True
+        self.pause()
 
     @property
     def paused(self) -> bool:
         """Return whether new work admission is currently suspended."""
         return not self._admit.is_set()
+
+    @property
+    def reload_requested(self) -> bool:
+        """Return whether the scheduler is draining for a configuration reload."""
+        return self._reload_requested
 
     async def run(
         self, tasks: AsyncIterator[Task], *, resume_sessions: Sequence[RunningCodingSession] = ()
@@ -68,22 +81,35 @@ class TaskScheduler:
         exhausted = False
         try:
             self._notify_active_tasks(active)
-            while not exhausted or pending or active or self.paused:
+            while True:
+                if self._reload_requested and not active:
+                    pending.clear()
+                    break
+                if exhausted and not pending and not active and not self.paused:
+                    break
                 if self._admit.is_set():
                     self._launch_available(pending, active)
                     reader = self._ensure_reader(reader, exhausted, pending, source)
+                elif self._reload_requested and reader is not None:
+                    await self._cancel_reader(reader)
+                    reader = None
                 waiting: set[asyncio.Task[object]] = set(active)
                 if reader is not None:
                     waiting.add(reader)
                 if not waiting:
-                    if self.paused and (not exhausted or pending):
+                    if self.paused and not self._reload_requested and (not exhausted or pending):
                         await self._admit.wait()
+                        continue
+                    if self._reload_requested:
                         continue
                     break
                 finished, _ = await asyncio.wait(waiting, return_when=asyncio.FIRST_COMPLETED)
                 if reader is not None and reader in finished:
-                    exhausted = self._consume_reader(reader, pending, seen)
-                    reader = None
+                    if reader.cancelled():
+                        reader = None
+                    else:
+                        exhausted = self._consume_reader(reader, pending, seen)
+                        reader = None
                 self._reap_finished(active, finished, seen)
                 self._notify_active_tasks(active)
         finally:
@@ -162,13 +188,18 @@ class TaskScheduler:
             logger.exception("Task %s failed", selected.identity.key)
 
     @staticmethod
+    async def _cancel_reader(reader: ReaderTask) -> None:
+        """Cancel a background discovery reader and wait for it to settle."""
+        reader.cancel()
+        await asyncio.gather(reader, return_exceptions=True)
+
+    @staticmethod
     async def _cancel_all(
         reader: ReaderTask | None, active: ActiveTasks, source: AsyncGenerator[WorkItem, None]
     ) -> None:
         """Cancel outstanding work and close the input stream."""
         if reader is not None:
-            reader.cancel()
-            await asyncio.gather(reader, return_exceptions=True)
+            await TaskScheduler._cancel_reader(reader)
         for worker in active:
             worker.cancel()
         await asyncio.gather(*active, return_exceptions=True)
