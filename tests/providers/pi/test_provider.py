@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 from typing_extensions import override
 
-from curupira.agents.pi import PiCliAdapter, PiCliProfile
+from curupira.providers.pi import PiCliAdapter, PiCliProfile
 from curupira.clients.process import AsyncProcessRunner
 from curupira.models import CodingTaskRequest, CommandRequest, ProcessResult
 

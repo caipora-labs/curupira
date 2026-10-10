@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from curupira.agents.codex import CodexCliAdapter
+from curupira.providers.codex import CodexCliAdapter
 from curupira.models import CodexCliProfile, CodingTaskRequest
 
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from curupira.agents.claude import ClaudeCodeCliAdapter
+from curupira.providers.claude import ClaudeCodeCliAdapter
 from curupira.models import ClaudeCodeCliProfile, CodingTaskRequest
 
 

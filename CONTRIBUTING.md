@@ -51,26 +51,29 @@ company belong in a separate distribution that registers the trigger under the
 task layer's `base.py` contract. A new version-control provider implements `VersionControl.clone`
 and belongs in its own issue/PR after `vcs/base.py`. A new coding-agent adapter
 implements `CodingAgentCliAdapter.build_arguments`, declares its `provider`,
-`profile_model`, `display_name`, and `install_url`, and calls `register` from
-`agents/registry.py` at the bottom of its module. When its CLI reports the session in a
-shape other than a `sessionID`, `session_id`, or `thread_id` JSON field, the adapter
-overrides `session_id_from_line`; when the CLI instead accepts a caller-chosen session
-ID, it sets `assigns_session_id = True` and passes `request.new_session_id` to the CLI.
-When the final answer is not a shape the shared `render_output` already understands, it
-overrides `render_output`. Adapters never start processes or handle timeouts and output
+`profile_model`, `display_name`, and `install_url`, and contributes itself through the
+Pluggy hook `curupira_coding_agent_adapters` in its provider module. When its CLI reports
+the session in a shape other than a `sessionID`, `session_id`, or `thread_id` JSON field,
+the adapter overrides `session_id_from_line`; when the CLI instead accepts a caller-chosen
+session ID, it sets `assigns_session_id = True` and passes `request.new_session_id` to the
+CLI. When the final answer is not a shape the shared `render_output` already understands,
+it overrides `render_output`. Adapters never start processes or handle timeouts and output
 limits themselves; `run_task` and `AsyncProcessRunner` own that. A built-in adapter lives
-in its own module under `agents/` and is imported by `agents/__init__.py`, so `create_cli_adapter`
-and profile validation find it through the registry; it belongs in its own issue/PR after
-`agents/base.py`. Third-party adapters register under the `curupira.agents` entry-point
-group instead. A trigger can
-supply its own clone mechanism through `Trigger.create_version_control`. Azure DevOps
-pull-request listing is supported via `azure-cli-pull-requests`; cloning still uses the
-GitHub CLI version-control adapter unless `path` points at an existing checkout. Trello
+in its own package under `providers/<name>/`, is listed in `manager.py`, and is discovered
+through Pluggy so `create_cli_adapter` and profile validation find it through the registry;
+it belongs in its own issue/PR after `agents/base.py`. Providers that need extra Python
+packages should declare an optional dependency extra and use lazy imports so the default
+install stays lean; providers that only wrap an external CLI stay in the default install.
+Third-party adapters register under the `curupira.agents` entry-point group instead. A
+trigger can supply its own clone mechanism through `Trigger.create_version_control`. Azure
+DevOps pull-request listing is supported via `azure-cli-pull-requests`; cloning still uses
+the GitHub CLI version-control adapter unless `path` points at an existing checkout. Trello
 card discovery is built in through Scale-Flow's `trello-cli`; other services such as Monday
 fit a plugin. Configuration accepts only the
 trigger types and agent providers registered by built-ins and installed plugins.
 
-When adding a provider, add its adapter in `src/curupira/agents/`, a page at
+When adding a provider, add its package under `src/curupira/providers/<provider>/`, a
+matching test package under `tests/providers/<provider>/`, a page at
 `docs/en/providers/<provider>.md`, and one line under "Providers and agents" in the
 `mkdocs.yml` nav. Keep that nav line and the provider's entry in the README "Providers and
 native options" list in alphabetical order by display name. The provider table on

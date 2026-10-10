@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from curupira.agents.opencode import OpenCodeCliAdapter
+from curupira.providers.opencode import OpenCodeCliAdapter
 from curupira.models import CodingTaskRequest, OpenCodeCliProfile
 
 

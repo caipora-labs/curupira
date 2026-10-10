@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from typing_extensions import override
 
 from curupira.agents import create_cli_adapter
-from curupira.agents.qwen import QwenCodeCliAdapter, QwenCodeCliProfile
+from curupira.providers.qwen import QwenCodeCliAdapter, QwenCodeCliProfile
 from curupira.clients.process import AsyncProcessRunner
 from curupira.models import CodingTaskRequest, CommandRequest, ProcessResult
 

@@ -4,15 +4,15 @@ import pytest
 from pydantic import ValidationError
 
 import curupira.agents.registry as agent_registry
-from curupira.agents.claude import ClaudeCodeCliAdapter
-from curupira.agents.codex import CodexCliAdapter
-from curupira.agents.copilot import CopilotCliAdapter
-from curupira.agents.cursor import CursorCliAdapter
-from curupira.agents.gemini import GeminiCliAdapter
-from curupira.agents.kilo import KiloCliAdapter
-from curupira.agents.opencode import OpenCodeCliAdapter
-from curupira.agents.pi import PiCliAdapter
-from curupira.agents.qwen import QwenCodeCliAdapter
+from curupira.providers.claude import ClaudeCodeCliAdapter
+from curupira.providers.codex import CodexCliAdapter
+from curupira.providers.copilot import CopilotCliAdapter
+from curupira.providers.cursor import CursorCliAdapter
+from curupira.providers.gemini import GeminiCliAdapter
+from curupira.providers.kilo import KiloCliAdapter
+from curupira.providers.opencode import OpenCodeCliAdapter
+from curupira.providers.pi import PiCliAdapter
+from curupira.providers.qwen import QwenCodeCliAdapter
 from curupira.models import CodingTaskRequest, CursorCliProfile
 from curupira.models.profiles import parse_cli_profile
 from tests.plugins.echo_agent_plugin import EchoCliAdapter, MismatchedCliAdapter

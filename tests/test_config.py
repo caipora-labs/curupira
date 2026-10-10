@@ -6,11 +6,11 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from curupira.agents.copilot import CopilotCliProfile
-from curupira.agents.gemini import GeminiCliProfile
-from curupira.agents.kilo import KiloCliProfile
-from curupira.agents.pi import PiCliProfile
-from curupira.agents.qwen import QwenCodeCliProfile
+from curupira.providers.copilot import CopilotCliProfile
+from curupira.providers.gemini import GeminiCliProfile
+from curupira.providers.kilo import KiloCliProfile
+from curupira.providers.pi import PiCliProfile
+from curupira.providers.qwen import QwenCodeCliProfile
 from curupira.config import ApplicationSettings, load_settings
 from curupira.models import (
     AzurePullRequestAutomationConfiguration,
