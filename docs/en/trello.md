@@ -50,6 +50,7 @@ list_ids = ["66f6b55a1a2b3c4d5e6f7790"]
 prompt = "Handle Trello card ${card_id}: ${card_title}\n\n${card_body}\n\n${card_url}"
 ```
 
-The `${card_id}`, `${card_title}`, `${card_body}`, `${card_url}`, and `${card_list_id}` prompt fields come from the card. Card IDs remain strings. Repeated polls are deduplicated by Curupira's normal task feed. `curu validate` validates the automation without contacting Trello; `curu run` and `curu watch` require the CLI to be installed and authenticated.
+The `${card_id}`, `${card_title}`, `${card_body}`, `${card_url}`, and `${card_list_id}` prompt fields come from the card. Card IDs remain strings. Repeated polls are deduplicated by Curupira's normal task feed. `curu validate` validates the automation without contacting Trello; `curu run` and
+`curu run --watch` require the CLI to be installed and authenticated.
 
 If the executable is missing, install Scale-Flow's `trello-cli`. For authentication failures, run `trello auth login`. Invalid JSON and CLI failures are reported as discovery errors.
