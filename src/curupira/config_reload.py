@@ -38,6 +38,11 @@ def config_mtime_ns(path: Path) -> int | None:
         return None
 
 
+def resolve_config_path(path: Path) -> Path:
+    """Expand ``~`` and resolve the configuration path on a worker thread."""
+    return path.expanduser().resolve()
+
+
 async def wait_for_config_change(
     path: Path,
     *,
@@ -77,7 +82,7 @@ async def run_continuous_dispatch(
     active task completes, settings and feeds are rebuilt from disk and
     discovery resumes with the latest configuration.
     """
-    config_path = config_path.expanduser().resolve()
+    config_path = await asyncio.to_thread(resolve_config_path, config_path)
     current = settings
     mtime = await asyncio.to_thread(config_mtime_ns, config_path)
     failed_tasks = 0
@@ -161,9 +166,7 @@ async def _request_reload_on_change(
         poll_interval_seconds=poll_interval_seconds,
         sleep=sleep,
     )
-    logger.info(
-        "Configuration file changed; pausing new admissions until in-flight tasks finish"
-    )
+    logger.info("Configuration file changed; pausing new admissions until in-flight tasks finish")
     scheduler.request_reload()
 
 

@@ -57,15 +57,14 @@ class EmptyFeed(TaskFeed):
         return []
 
     async def stream(self) -> AsyncIterator[Task]:
-        if False:
-            yield issue_task(Path("."))  # pragma: no cover
         return
+        yield  # pragma: no cover
 
 
-async def _wait_until(predicate: Callable[[], bool], *, timeout: float = 5.0) -> None:
+async def _wait_until(predicate: Callable[[], bool], *, deadline_seconds: float = 5.0) -> None:
     """Poll a zero-argument callable until it becomes true."""
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
+    deadline = loop.time() + deadline_seconds
     while loop.time() < deadline:
         if predicate():
             return
@@ -83,10 +82,11 @@ async def test_wait_for_config_change_returns_new_mtime(tmp_path: Path) -> None:
         await asyncio.sleep(0.01)
         _write_config(config, max_active_tasks=2)
 
-    asyncio.create_task(touch())
+    touch_task = asyncio.create_task(touch())
     updated = await wait_for_config_change(
         config, since_mtime_ns=initial, poll_interval_seconds=0.01
     )
+    await touch_task
     assert updated != initial
 
 
@@ -220,9 +220,7 @@ async def test_invalid_reload_waits_for_valid_config(
             version_control=FakeVersionControl(),
             telemetry=TaskTelemetry(),
             adapter_factory=lambda _profile: adapter,
-            on_settings_reloaded=lambda loaded: reloaded.append(
-                loaded.settings.max_active_tasks
-            ),
+            on_settings_reloaded=lambda loaded: reloaded.append(loaded.settings.max_active_tasks),
             on_scheduler_ready=lambda scheduler: holders.__setitem__("scheduler", scheduler),
             poll_interval_seconds=0.02,
         ),
