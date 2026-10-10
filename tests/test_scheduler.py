@@ -117,3 +117,31 @@ async def test_nonzero_exits_are_observed_without_stopping_other_tasks(tmp_path:
     scheduler = TaskScheduler(ExecutionSettings(), executor(tmp_path, adapter))
     await scheduler.run(stream([issue_task(tmp_path, 1), issue_task(tmp_path, 2)]))
     assert scheduler.failed_tasks == 2
+
+
+async def test_same_pull_request_head_is_deduplicated_across_automations(tmp_path: Path) -> None:
+    adapter = RecordingAdapter()
+    first = pull_request_task(tmp_path, name="first").model_copy(
+        update={"head_ref_oid": "same-head"}
+    )
+    second = pull_request_task(tmp_path, name="second").model_copy(
+        update={"head_ref_oid": "same-head"}
+    )
+
+    await TaskScheduler(ExecutionSettings(), executor(tmp_path, adapter)).run(
+        stream([first, second])
+    )
+
+    assert len(adapter.requests) == 1
+
+
+async def test_changed_pull_request_head_is_admitted_again(tmp_path: Path) -> None:
+    adapter = RecordingAdapter()
+    old_head = pull_request_task(tmp_path).model_copy(update={"head_ref_oid": "old-head"})
+    new_head = old_head.model_copy(update={"head_ref_oid": "new-head"})
+
+    await TaskScheduler(ExecutionSettings(), executor(tmp_path, adapter)).run(
+        stream([old_head, new_head])
+    )
+
+    assert len(adapter.requests) == 2

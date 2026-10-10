@@ -30,6 +30,7 @@ from curupira.models import (
     ProcessResult,
 )
 from curupira.vcs.github_cli import GitHubCliVersionControl
+from tests.helpers import issue_task, pull_request_task
 
 
 class RecordingRunner(AsyncProcessRunner):
@@ -52,6 +53,44 @@ class RecordingRunner(AsyncProcessRunner):
             for line in result.stdout.splitlines():
                 await on_stdout_line(line)
         return result
+
+
+async def test_revalidate_issue_rejects_open_linked_pull_request(tmp_path: Path) -> None:
+    runner = RecordingRunner(
+        ProcessResult(
+            returncode=0,
+            stdout='[{"number":42,"title":"Fix","url":"https://github.com/acme/api/issues/42","state":"OPEN"}]',
+        ),
+        ProcessResult(
+            returncode=0,
+            stdout='[{"number":12,"title":"Fix","url":"https://github.com/acme/api/pull/12","closingIssuesReferences":[{"number":42}]}]',
+        ),
+    )
+
+    current = await GhClient(runner).revalidate_task(issue_task(tmp_path))
+
+    assert current is None
+    assert runner.requests[0].arguments[0] == "issue"
+    assert runner.requests[1].arguments[0] == "pr"
+
+
+async def test_revalidate_pull_request_updates_head_and_workflow_stage(tmp_path: Path) -> None:
+    runner = RecordingRunner(
+        ProcessResult(
+            returncode=0,
+            stdout=(
+                '[{"number":12,"title":"Review","url":"https://github.com/acme/api/pull/12",'
+                '"isDraft":false,"headRefName":"feature","headRefOid":"current-head",'
+                '"baseRefName":"main","mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}]'
+            ),
+        )
+    )
+
+    current = await GhClient(runner).revalidate_task(pull_request_task(tmp_path))
+
+    assert current is not None
+    assert current.head_ref_oid == "current-head"
+    assert current.workflow_priority == 0
 
 
 @pytest.mark.parametrize("provider", ["opencode", "codex", "claude"])

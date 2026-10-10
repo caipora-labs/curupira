@@ -40,10 +40,23 @@ class GhIssue(BaseModel):
     labels: list[GhLabel] = Field(default_factory=list)
 
 
+class GhIssueReference(BaseModel):
+    """An issue linked as a closing reference from a pull request."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+    number: int = Field(gt=0)
+
+
 class GhPullRequest(GhIssue):
-    """A pull request with branch metadata."""
+    """A pull request with workflow and branch metadata."""
 
     model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
     is_draft: bool | None = Field(default=None, validation_alias="isDraft")
     head_ref_name: str | None = Field(default=None, validation_alias="headRefName")
     base_ref_name: str | None = Field(default=None, validation_alias="baseRefName")
+    head_ref_oid: str | None = Field(default=None, validation_alias="headRefOid")
+    mergeable: str | None = None
+    merge_state_status: str | None = Field(default=None, validation_alias="mergeStateStatus")
+    closing_issues_references: list[GhIssueReference] = Field(
+        default_factory=list, validation_alias="closingIssuesReferences"
+    )

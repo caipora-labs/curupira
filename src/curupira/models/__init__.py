@@ -21,6 +21,7 @@ from curupira.models.configuration import (
 from curupira.models.github import (
     DEFAULT_ISSUE_JSON_FIELDS,
     GhIssue,
+    GhIssueReference,
     GhIssueSearchRequest,
     GhLabel,
     GhPullRequest,
@@ -71,6 +72,7 @@ __all__ = [
     "DispatchOutcome",
     "ExecutionSettings",
     "GhIssue",
+    "GhIssueReference",
     "GhIssueSearchRequest",
     "GhLabel",
     "GhPullRequest",

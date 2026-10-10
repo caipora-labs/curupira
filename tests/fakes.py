@@ -16,6 +16,7 @@ from curupira.models import (
     GhPullRequest,
     GhPullRequestSearchRequest,
     ProcessResult,
+    Task,
 )
 from curupira.vcs.base import Checkout, CheckoutRequest, VersionControl
 
@@ -85,6 +86,7 @@ class FakeGitHub(GhClient):
         super().__init__()
         self.issues = issues or []
         self.pulls = pulls or []
+        self.revalidated: list[str] = []
         self.vcs = FakeVersionControl()
 
     @property
@@ -110,6 +112,49 @@ class FakeGitHub(GhClient):
     @override
     async def list_pull_requests(self, request: GhPullRequestSearchRequest) -> list[GhPullRequest]:
         return self.pulls
+
+    @override
+    async def revalidate_task(self, task: Task) -> Task | None:
+        self.revalidated.append(task.identity.key)
+        identity = task.identity
+        if identity.task_type == "issue":
+            issue = next((item for item in self.issues if item.number == int(identity.id)), None)
+            if issue is None or issue.state == "CLOSED":
+                return None
+            if any(
+                reference.number == issue.number
+                for pull in self.pulls
+                for reference in pull.closing_issues_references
+            ):
+                return None
+            return task.model_copy(
+                update={"title": issue.title, "body": issue.body, "url": issue.url}
+            )
+        if identity.task_type == "github-cli-pull-requests":
+            pull = next((item for item in self.pulls if item.number == int(identity.id)), None)
+            if pull is None or pull.state == "CLOSED":
+                return None
+            return task.model_copy(
+                update={
+                    "title": pull.title,
+                    "body": pull.body,
+                    "url": pull.url,
+                    "is_draft": pull.is_draft,
+                    "head_ref_name": pull.head_ref_name,
+                    "head_ref_oid": pull.head_ref_oid,
+                    "base_ref_name": pull.base_ref_name,
+                    "workflow_priority": (
+                        3
+                        if pull.is_draft
+                        else 1
+                        if pull.merge_state_status == "DIRTY" or pull.mergeable == "CONFLICTING"
+                        else 0
+                        if pull.merge_state_status == "CLEAN" and pull.mergeable == "MERGEABLE"
+                        else 2
+                    ),
+                }
+            )
+        return task
 
 
 class RecordingAdapter(CodingAgentCliAdapter):

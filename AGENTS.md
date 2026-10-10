@@ -54,7 +54,7 @@ on each other.
 | `src/curupira/agents/` | Coding-agent CLI adapters: `CodingAgentCliAdapter`, built by `create_cli_adapter`; one module per provider, registered in `agents/registry.py`. Each adapter owns its `profile_model`. |
 | `src/curupira/clients/` | `gh`/`az` wrappers and `AsyncProcessRunner`, the only place that starts processes. |
 | `src/curupira/storage/` | SQLite persistence for sessions and cron state. |
-| `src/curupira/cli.py`, `tui/` | Typer commands and the Textual dashboard. |
+| `src/curupira/cli.py`, `tui/` | Typer commands and the Textual dashboard; both inject live task revalidation into the shared scheduler. |
 | `tests/` | Mirrors `src/`; shared fakes in `tests/fakes.py`, builders in `tests/helpers.py`. |
 | `docs/en/` | Canonical documentation; `docs/pt/` and `docs/es/` are translations. One page per provider in `docs/en/providers/`. |
 | `main.py` | MkDocs macros; the provider table and install list come from the agent registry. |

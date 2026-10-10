@@ -30,6 +30,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- GitHub work is revalidated immediately before execution and session resumption. Closed
+  work and issues already associated with an open closing pull request are skipped, stale
+  recovered sessions restart from current source data, and PR scheduling tracks head SHAs.
 - The example issue automation excludes issues already linked to pull requests with
   `-linked:pr`; this search filter protects new discovery, while recovered sessions still
   require scheduler-side revalidation.

@@ -388,7 +388,12 @@ async def _execute_scheduled_command(
             [feed.stream() for feed in feeds], max_pending=settings.settings.max_pending_tasks
         )
     try:
-        await scheduler.run(tasks, resume_sessions=recovered)
+        await scheduler.run(
+            tasks,
+            resume_sessions=recovered,
+            revalidate=gh.revalidate_task,
+            discard_session=sessions.delete,
+        )
     finally:
         status.clear()
     return 1 if scheduler.failed_tasks else 0

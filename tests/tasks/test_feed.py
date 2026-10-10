@@ -11,7 +11,7 @@ from curupira.errors import DispatchError
 from curupira.models import PollingSettings, ResolvedAutomation, Task
 from curupira.tasks.base import TaskSource
 from curupira.tasks.feed import PollingTaskFeed, merge_task_streams
-from tests.helpers import issue_task, resolved_automation
+from tests.helpers import issue_task, pull_request_task, resolved_automation
 
 
 class FakeTaskSource(TaskSource):
@@ -41,6 +41,19 @@ async def test_polling_deduplicates_and_preview_does_not_mark_seen(tmp_path: Pat
     assert await feed.poll() == [task]
     assert await feed.poll() == []
     assert source.calls[0] == (automation, 8)
+
+
+async def test_polling_readmits_pull_request_after_head_changes(tmp_path: Path) -> None:
+    original = pull_request_task(tmp_path).model_copy(update={"head_ref_oid": "old-head"})
+    updated = original.model_copy(update={"head_ref_oid": "new-head"})
+    feed = PollingTaskFeed(
+        resolved_automation(tmp_path, "reviews", "github-cli-pull-requests"),
+        PollingSettings(),
+        FakeTaskSource([[original], [updated]]),
+    )
+
+    assert await feed.poll() == [original]
+    assert await feed.poll() == [updated]
 
 
 async def test_backoff_resets_after_discovery(tmp_path: Path) -> None:

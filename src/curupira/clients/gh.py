@@ -23,6 +23,7 @@ from curupira.models import (
     GhIssueSearchRequest,
     GhPullRequest,
     GhPullRequestSearchRequest,
+    Task,
 )
 
 _PROJECT_ITEM_JSON_FIELDS = ("number", "title", "url", "projectItems")
@@ -39,6 +40,8 @@ _DEFAULT_PULL_REQUEST_JSON_FIELDS = (
     "baseRefName",
     "mergeable",
     "mergeStateStatus",
+    "headRefOid",
+    "closingIssuesReferences",
 )
 _TRANSIENT_ERROR_MARKERS = (
     "rate limit",
@@ -82,6 +85,54 @@ class GhClient:
             return TypeAdapter(list[GhPullRequest]).validate_python(payload)
         except ValidationError as error:
             raise CliOutputError(f"gh returned invalid pull request JSON: {error}") from error
+
+    async def revalidate_task(self, task: Task) -> Task | None:
+        """Return the current open task, suppressing issues with any linked open PR."""
+        identity = task.identity
+        if identity.task_type == "issue":
+            issues = await self.list_issues(
+                GhIssueSearchRequest(
+                    repo=identity.repo, query=f"is:open number:{identity.id}", limit=1
+                )
+            )
+            if not issues:
+                return None
+            open_pulls = await self.list_pull_requests(
+                GhPullRequestSearchRequest(repo=identity.repo, query="is:open", limit=1000)
+            )
+            if any(
+                reference.number == int(identity.id)
+                for pull in open_pulls
+                for reference in pull.closing_issues_references
+            ):
+                return None
+            issue = issues[0]
+            return task.model_copy(
+                update={"title": issue.title, "body": issue.body, "url": issue.url}
+            )
+        if identity.task_type != "github-cli-pull-requests":
+            return task
+        pulls = await self.list_pull_requests(
+            GhPullRequestSearchRequest(
+                repo=identity.repo, query=f"is:open number:{identity.id}", limit=1
+            )
+        )
+        if not pulls:
+            return None
+        pull = pulls[0]
+        priority = _pull_request_priority(pull.is_draft, pull.mergeable, pull.merge_state_status)
+        return task.model_copy(
+            update={
+                "title": pull.title,
+                "body": pull.body,
+                "url": pull.url,
+                "is_draft": pull.is_draft,
+                "head_ref_name": pull.head_ref_name,
+                "head_ref_oid": pull.head_ref_oid,
+                "base_ref_name": pull.base_ref_name,
+                "workflow_priority": priority,
+            }
+        )
 
     @resilient(
         retry=RetryConfig(
@@ -178,6 +229,18 @@ class GhClient:
 
 def _is_project_query(query: str) -> bool:
     return re.search(r"(?:^|\s)project:\S+", query, flags=re.IGNORECASE) is not None
+
+
+def _pull_request_priority(
+    is_draft: bool | None, mergeable: str | None, merge_state: str | None
+) -> int:
+    if is_draft:
+        return 3
+    if merge_state == "DIRTY" or mergeable == "CONFLICTING":
+        return 1
+    if merge_state == "CLEAN" and mergeable == "MERGEABLE":
+        return 0
+    return 2
 
 
 def _decode_json_output(output: str) -> object:

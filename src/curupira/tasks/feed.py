@@ -27,7 +27,7 @@ class PollingTaskFeed(TaskFeed):
         self._polling = polling
         self._source = source
         self._sleep = sleep
-        self._seen: set[str] = set()
+        self._seen: dict[str, tuple[str | None, int | None]] = {}
 
     async def poll(self, *, preview: bool = False) -> list[Task]:
         """Return unseen source tasks; preview leaves the deduplication set unchanged."""
@@ -35,10 +35,11 @@ class PollingTaskFeed(TaskFeed):
         tasks: list[Task] = []
         for task in discovered:
             identity = task.identity
-            if identity.key in self._seen:
+            version = (task.head_ref_oid, task.workflow_priority)
+            if self._seen.get(identity.key) == version:
                 continue
             if not preview:
-                self._seen.add(identity.key)
+                self._seen[identity.key] = version
             tasks.append(task)
         return tasks
 

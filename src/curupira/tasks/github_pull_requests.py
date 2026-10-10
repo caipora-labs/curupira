@@ -4,6 +4,7 @@ from typing_extensions import override
 
 from curupira.clients.gh import GhClient
 from curupira.models import (
+    GhPullRequest,
     GhPullRequestSearchRequest,
     PullRequestAutomationConfiguration,
     ResolvedAutomation,
@@ -46,10 +47,23 @@ class GitHubPullRequestSource(TaskSource):
                 url=item.url,
                 is_draft=item.is_draft,
                 head_ref_name=item.head_ref_name,
+                head_ref_oid=item.head_ref_oid,
                 base_ref_name=item.base_ref_name,
+                workflow_priority=_workflow_priority(item),
             )
             for item in items
         ]
+
+
+def _workflow_priority(item: GhPullRequest) -> int:
+    """Rank PR work from final review to draft continuation, rechecking live fields."""
+    if item.is_draft:
+        return 3
+    if item.merge_state_status == "DIRTY" or item.mergeable == "CONFLICTING":
+        return 1
+    if item.merge_state_status == "CLEAN" and item.mergeable == "MERGEABLE":
+        return 0
+    return 2
 
 
 class PullRequestTrigger(Trigger):

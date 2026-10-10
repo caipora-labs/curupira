@@ -59,11 +59,16 @@ async def dispatch_next_task(
         available = await feed.poll(preview=dry_run)
         if not available:
             continue
-        selected = available[0]
+        selected = await gh.revalidate_task(available[0])
+        if selected is None:
+            continue
         if dry_run:
             return DispatchOutcome(selected=selected)
         sessions = RunningSessionRepository(settings.settings.state_db_path)
         resumed = await sessions.get(selected)
+        if resumed is not None and resumed.task != selected:
+            await sessions.delete(resumed.task)
+            resumed = None
         executor = TaskExecutor(
             settings.settings,
             version_control,

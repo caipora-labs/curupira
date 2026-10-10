@@ -48,7 +48,9 @@ class Task(ValidatedModel):
         url: Link to the source item.
         is_draft: Whether a pull request is a draft, when applicable.
         head_ref_name: Pull-request source branch, when applicable.
+        head_ref_oid: Pull-request head commit, when available.
         base_ref_name: Pull-request target branch, when applicable.
+        workflow_priority: Stable stage rank assigned by the source, when applicable.
         scheduled_for: Cron occurrence, only for cron tasks.
         attributes: Source-specific string values that triggers expose to prompts.
     """
@@ -60,7 +62,9 @@ class Task(ValidatedModel):
     url: str
     is_draft: bool | None = None
     head_ref_name: str | None = None
+    head_ref_oid: str | None = None
     base_ref_name: str | None = None
+    workflow_priority: int | None = None
     scheduled_for: AwareDatetime | None = None
     attributes: Mapping[str, str] = Field(default_factory=dict)
 

@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from collections import deque
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Sequence
 from pathlib import Path
 
 from curupira.executor import TaskExecutor
@@ -46,7 +46,12 @@ class TaskScheduler:
         return not self._admit.is_set()
 
     async def run(
-        self, tasks: AsyncIterator[Task], *, resume_sessions: Sequence[RunningCodingSession] = ()
+        self,
+        tasks: AsyncIterator[Task],
+        *,
+        resume_sessions: Sequence[RunningCodingSession] = (),
+        revalidate: Callable[[Task], Awaitable[Task | None]] | None = None,
+        discard_session: Callable[[Task], Awaitable[None]] | None = None,
     ) -> None:
         """Consume bounded pending work while observing running tasks and discovery."""
         pending: deque[WorkItem] = deque()
@@ -54,17 +59,7 @@ class TaskScheduler:
         seen: set[str] = set()
         reader: ReaderTask | None = None
 
-        async def incoming() -> AsyncGenerator[WorkItem, None]:
-            try:
-                for session in resume_sessions:
-                    yield session.task, session
-                async for selected in tasks:
-                    yield selected, None
-            finally:
-                if isinstance(tasks, AsyncGenerator):
-                    await tasks.aclose()
-
-        source = incoming()
+        source = _validated_incoming(tasks, resume_sessions, revalidate, discard_session)
         exhausted = False
         try:
             self._notify_active_tasks(active)
@@ -87,11 +82,20 @@ class TaskScheduler:
                 self._reap_finished(active, finished, seen)
                 self._notify_active_tasks(active)
         finally:
-            await self._cancel_all(reader, active, source)
+            await _cancel_all(reader, active, source)
 
     def _launch_available(self, pending: deque[WorkItem], active: ActiveTasks) -> None:
         """Start pending tasks while concurrency and checkout exclusivity allow it."""
         occupied: set[Path] = {item.automation.workspace_path for item in active.values()}
+        ordered = sorted(
+            pending,
+            key=lambda item: (
+                item[0].workflow_priority if item[0].workflow_priority is not None else 5,
+                _task_key(item[0]),
+            ),
+        )
+        pending.clear()
+        pending.extend(ordered)
         for _ in range(len(pending)):
             selected, resumed = pending.popleft()
             path = selected.automation.workspace_path
@@ -130,7 +134,7 @@ class TaskScheduler:
         item = reader.result()
         if item is None:
             return True
-        key = item[0].identity.key
+        key = _task_key(item[0])
         if key not in seen:
             seen.add(key)
             pending.append(item)
@@ -161,15 +165,49 @@ class TaskScheduler:
             self.failed_tasks += 1
             logger.exception("Task %s failed", selected.identity.key)
 
-    @staticmethod
-    async def _cancel_all(
-        reader: ReaderTask | None, active: ActiveTasks, source: AsyncGenerator[WorkItem, None]
-    ) -> None:
-        """Cancel outstanding work and close the input stream."""
-        if reader is not None:
-            reader.cancel()
-            await asyncio.gather(reader, return_exceptions=True)
-        for worker in active:
-            worker.cancel()
-        await asyncio.gather(*active, return_exceptions=True)
-        await source.aclose()
+
+async def _validated_incoming(
+    tasks: AsyncIterator[Task],
+    resume_sessions: Sequence[RunningCodingSession],
+    revalidate: Callable[[Task], Awaitable[Task | None]] | None,
+    discard_session: Callable[[Task], Awaitable[None]] | None,
+) -> AsyncGenerator[WorkItem, None]:
+    """Validate every recovered or discovered item immediately before admission."""
+    try:
+        for session in resume_sessions:
+            current = await revalidate(session.task) if revalidate is not None else session.task
+            if current is None or current != session.task:
+                if discard_session is not None:
+                    await discard_session(session.task)
+                if current is not None:
+                    yield current, None
+                continue
+            yield current, session
+        async for selected in tasks:
+            current = await revalidate(selected) if revalidate is not None else selected
+            if current is not None:
+                yield current, None
+    finally:
+        if isinstance(tasks, AsyncGenerator):
+            await tasks.aclose()
+
+
+def _task_key(task: Task) -> str:
+    """Deduplicate logical PR work across automations, versioned by its current head."""
+    identity = task.identity
+    if identity.task_type == "github-cli-pull-requests":
+        return f"pr:{identity.repo}#{identity.id}:{task.head_ref_oid or 'unknown'}"
+    return identity.key
+
+
+async def _cancel_all(
+    reader: ReaderTask | None, active: ActiveTasks, source: AsyncGenerator[WorkItem, None]
+) -> None:
+    """Cancel outstanding work and close the input stream."""
+    if reader is not None:
+        reader.cancel()
+        await asyncio.gather(reader, return_exceptions=True)
+    for worker in active:
+        worker.cancel()
+    await asyncio.gather(*active, return_exceptions=True)
+    await source.aclose()

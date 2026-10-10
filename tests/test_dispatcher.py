@@ -149,7 +149,31 @@ async def test_empty_dispatch_does_not_create_state(tmp_path: Path) -> None:
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
+async def test_linked_open_pull_request_suppresses_issue_agent_start(tmp_path: Path) -> None:
+    configured = settings(tmp_path)
+    gh = FakeGitHub(
+        issues=[GhIssue(number=42, title="Fix", url="https://github.com/acme/api/issues/42")],
+        pulls=[
+            GhPullRequest(
+                number=12,
+                title="Fix issue",
+                url="https://github.com/acme/api/pull/12",
+                closingIssuesReferences=[{"number": 42}],
+            )
+        ],
+    )
+    adapter = RecordingAdapter()
+
+    outcome = await dispatch_next_task(
+        configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
+
+    assert outcome.selected is None
+    assert not adapter.requests
+    assert not gh.checkouts
+
+
+async def test_changed_recovered_task_restarts_with_current_snapshot(
     tmp_path: Path,
 ) -> None:
     configured = settings(tmp_path)
@@ -165,9 +189,11 @@ async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
     result = await dispatch_next_task(
         configured, gh, adapter_factory=lambda _: adapter, version_control=gh.vcs
     )
-    assert result.selected == original
-    assert adapter.requests[0].session_id == "original"
-    assert "Continue the interrupted task" in adapter.requests[0].message
+    assert result.selected is not None
+    assert result.selected.title == "Changed"
+    assert adapter.requests[0].session_id is None
+    assert adapter.requests[0].message == "Handle 42: Changed"
+    assert await RunningSessionRepository(configured.settings.state_db_path).list_all() == []
 
 
 async def test_assigned_session_is_persisted_before_the_process_runs(tmp_path: Path) -> None:
