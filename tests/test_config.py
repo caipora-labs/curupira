@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from curupira.agents.copilot import CopilotCliProfile
 from curupira.agents.kilo import KiloCliProfile
 from curupira.agents.pi import PiCliProfile
 from curupira.config import ApplicationSettings, load_settings
@@ -199,6 +200,19 @@ def test_cursor_rejects_unknown_agent_modes() -> None:
 
     with pytest.raises(ValidationError, match="agent"):
         ApplicationSettings.model_validate(data)
+
+
+def test_copilot_provider_validates_as_a_registered_profile() -> None:
+    data = configuration().model_dump()
+    data["coding_agents"]["profiles"]["opencode"] = {
+        "provider": "copilot",
+        "allow_tools": ["shell(git:*)"],
+    }
+
+    profile = ApplicationSettings.model_validate(data).resolve_automations()["daily"].profile
+
+    assert isinstance(profile, CopilotCliProfile)
+    assert profile.provider == "copilot"
 
 
 def test_trello_provider_is_rejected() -> None:
