@@ -8,9 +8,9 @@ from pydantic import ValidationError
 from typing_extensions import override
 
 from curupira.agents import create_cli_adapter
-from curupira.agents.gemini import GeminiCliAdapter, GeminiCliProfile
 from curupira.clients.process import AsyncProcessRunner
 from curupira.models import CodingTaskRequest, CommandRequest, ProcessResult
+from curupira.providers.gemini import GeminiCliAdapter, GeminiCliProfile
 
 
 class RecordingRunner(AsyncProcessRunner):

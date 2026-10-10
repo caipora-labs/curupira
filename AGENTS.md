@@ -49,14 +49,16 @@ on each other.
 | --- | --- |
 | `src/curupira/models/` | Pydantic contracts: configuration, CLI profiles, tasks, CLI payloads. |
 | `src/curupira/config.py` | Loads and resolves the TOML configuration (`ApplicationSettings`). |
+| `src/curupira/hooks.py`, `manager.py` | Pluggy hookspecs and the manager that registers built-in coding-agent providers. |
 | `src/curupira/tasks/` | Task discovery: `Trigger`, `TaskSource`, `TaskFeed`; one module per trigger, registered in `tasks/registry.py`. Each trigger owns its `configuration_model`, typed `item_model` (prompt payload), and lifecycle hooks. |
 | `src/curupira/plugins.py` | Stable plugin API and `curupira.triggers`/`curupira.agents` entry-point discovery; plugins import only this module. |
 | `src/curupira/vcs/` | Repository checkout and worktrees: `VersionControl`. |
-| `src/curupira/agents/` | Coding-agent CLI adapters: `CodingAgentCliAdapter`, built by `create_cli_adapter`; one module per provider, registered in `agents/registry.py`. Each adapter owns its `profile_model`. |
+| `src/curupira/providers/` | Built-in coding-agent providers: one package per integration (`providers/<name>/provider.py`), registered through Pluggy. Each adapter owns its `profile_model`. |
+| `src/curupira/agents/` | Shared coding-agent contract (`CodingAgentCliAdapter`), registry, and `create_cli_adapter`; compatibility re-exports of built-in providers. |
 | `src/curupira/clients/` | `gh`/`az` wrappers and `AsyncProcessRunner`, the only place that starts processes. |
 | `src/curupira/storage/` | SQLite persistence for sessions and cron state. |
 | `src/curupira/cli.py`, `tui/` | Typer commands and the Textual dashboard. |
-| `tests/` | Mirrors `src/`; shared fakes in `tests/fakes.py`, builders in `tests/helpers.py`. |
+| `tests/` | Mirrors `src/` (`tests/providers/<name>/` for each provider); shared fakes in `tests/fakes.py`, builders in `tests/helpers.py`. |
 | `docs/en/` | Canonical documentation; `docs/pt/` and `docs/es/` are translations. One page per provider in `docs/en/providers/`. |
 | `main.py` | MkDocs macros; the provider table and install list come from the agent registry. |
 

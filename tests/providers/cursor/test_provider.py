@@ -6,7 +6,6 @@ from pathlib import Path
 from typing_extensions import override
 
 from curupira.agents import create_cli_adapter
-from curupira.agents.cursor import CursorCliAdapter
 from curupira.clients.process import AsyncProcessRunner
 from curupira.models import (
     CodingTaskRequest,
@@ -14,6 +13,7 @@ from curupira.models import (
     CursorCliProfile,
     ProcessResult,
 )
+from curupira.providers.cursor import CursorCliAdapter
 
 
 class RecordingRunner(AsyncProcessRunner):

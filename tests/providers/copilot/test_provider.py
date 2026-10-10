@@ -9,7 +9,6 @@ from pydantic import ValidationError
 from typing_extensions import override
 
 from curupira.agents import create_cli_adapter
-from curupira.agents.copilot import CopilotCliAdapter, CopilotCliProfile
 from curupira.clients.process import AsyncProcessRunner
 from curupira.models import (
     ClaudeCodeCliProfile,
@@ -17,6 +16,7 @@ from curupira.models import (
     CommandRequest,
     ProcessResult,
 )
+from curupira.providers.copilot import CopilotCliAdapter, CopilotCliProfile
 
 
 class RecordingRunner(AsyncProcessRunner):

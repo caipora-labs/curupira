@@ -1,18 +1,10 @@
-"""Coding-agent adapters and provider factory."""
+"""Coding-agent adapter factory and stable base types.
 
-# Import concrete adapters so registry lookups work regardless of which application
-# entry point is used first.
-from curupira.agents import (  # noqa: F401
-    claude,
-    codex,
-    copilot,
-    cursor,
-    gemini,
-    kilo,
-    opencode,
-    pi,
-    qwen,
-)
+Concrete built-in adapters live under ``curupira.providers`` and register through
+Pluggy. This package keeps the shared ``CodingAgentCliAdapter`` contract, the
+registry, and ``create_cli_adapter`` for application code and plugins.
+"""
+
 from curupira.agents.base import (
     CliAdapterFactory as CliAdapterFactory,
 )

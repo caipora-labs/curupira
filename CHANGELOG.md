@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Built-in coding-agent adapters move into `src/curupira/providers/<name>/`, one package
+  per provider, and register through a Pluggy hook (`curupira_coding_agent_adapters`)
+  loaded by `curupira.manager`. The shared `CodingAgentCliAdapter` contract, registry, and
+  `create_cli_adapter` stay under `curupira.agents`; compatibility re-exports keep the old
+  `curupira.agents.<name>` import paths working. Third-party agents still use the
+  `curupira.agents` entry-point group and `curupira.plugins`. Provider tests live under
+  `tests/providers/<name>/`.
 - Trigger plugin API v2: discovery is a general async source that returns a typed Pydantic
   `Task.item` (`Trigger.item_model`). Prompt placeholders are the item model's fields,
   flattened by `flatten_for_template` (scalars as strings, `None` as empty, booleans as
@@ -18,6 +25,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `pluggy` as a core dependency for the built-in coding-agent provider contract.
 - Built-in Trello card discovery through Scale-Flow's JSON-first `trello-cli`, with board/list selection, string-preserved card IDs, and per-feed deduplication.
 - Kilo CLI (`kilo`) as a built-in coding-agent provider, with OpenCode-compatible JSONL
   session detection and text rendering plus native model, agent, reasoning-variant, and
