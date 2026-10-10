@@ -2,7 +2,16 @@
 
 # Import concrete adapters so registry lookups work regardless of which application
 # entry point is used first.
-from curupira.agents import claude, codex, copilot, cursor, gemini, opencode, pi  # noqa: F401
+from curupira.agents import (  # noqa: F401
+    claude,
+    codex,
+    copilot,
+    cursor,
+    gemini,
+    opencode,
+    pi,
+    qwen,
+)
 from curupira.agents.base import (
     CliAdapterFactory as CliAdapterFactory,
 )

@@ -65,6 +65,12 @@ provider = "cursor"
 # approval_mode = "default" # default, auto_edit, yolo, or plan
 # skip_trust = false
 
+# [coding_agents.profiles.qwen]
+# provider = "qwen"
+# model = "qwen3-coder-plus"
+# approval_mode = "plan" # plan, default, auto-edit, auto, or yolo
+# max_session_turns = 20
+
 # [coding_agents.profiles.pi]
 # provider = "pi"
 # model = "anthropic/claude-sonnet-4"
