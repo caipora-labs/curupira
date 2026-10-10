@@ -9,6 +9,7 @@ from curupira.agents.codex import CodexCliAdapter
 from curupira.agents.copilot import CopilotCliAdapter
 from curupira.agents.cursor import CursorCliAdapter
 from curupira.agents.opencode import OpenCodeCliAdapter
+from curupira.agents.pi import PiCliAdapter
 from curupira.models import CodingTaskRequest, CursorCliProfile
 from curupira.models.profiles import parse_cli_profile
 from tests.plugins.echo_agent_plugin import EchoCliAdapter, MismatchedCliAdapter
@@ -29,6 +30,7 @@ def test_built_in_providers_are_registered() -> None:
         "copilot": CopilotCliAdapter,
         "cursor": CursorCliAdapter,
         "opencode": OpenCodeCliAdapter,
+        "pi": PiCliAdapter,
     }
     assert {provider: adapter.display_name for provider, adapter in adapters.items()} == {
         "claude": "Claude Code",
@@ -36,6 +38,7 @@ def test_built_in_providers_are_registered() -> None:
         "copilot": "GitHub Copilot CLI",
         "cursor": "Cursor",
         "opencode": "OpenCode",
+        "pi": "pi",
     }
     assert all(adapter.install_url.startswith("https://") for adapter in adapters.values())
 
