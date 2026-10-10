@@ -19,6 +19,7 @@ from curupira.models import (
     CursorCliProfile,
     IssueAutomationConfiguration,
     PullRequestAutomationConfiguration,
+    TrelloAutomationConfiguration,
 )
 
 
@@ -31,6 +32,8 @@ def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettin
     }
     if trigger == "cron":
         automation["schedule"] = "0 9 * * 1"
+    elif trigger == "trello-cli-cards":
+        automation["board_id"] = "board123"
     elif trigger != "azure-cli-pull-requests":
         automation["query"] = "is:open"
     automation.update(overrides)
@@ -45,6 +48,7 @@ def configuration(trigger: str = "issue", **overrides: Any) -> ApplicationSettin
         ("issue", IssueAutomationConfiguration),
         ("github-cli-pull-requests", PullRequestAutomationConfiguration),
         ("azure-cli-pull-requests", AzurePullRequestAutomationConfiguration),
+        ("trello-cli-cards", TrelloAutomationConfiguration),
         ("cron", CronAutomationConfiguration),
     ],
 )
