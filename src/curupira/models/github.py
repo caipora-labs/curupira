@@ -1,24 +1,31 @@
-"""Validated GitHub CLI boundary payloads."""
+"""Validated GitHub GraphQL boundary payloads."""
+
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from curupira.models.base import NonEmptyString, ValidatedModel
 
-DEFAULT_ISSUE_JSON_FIELDS = ("number", "title", "body", "url", "state", "labels")
+GitHubMergeableState = Literal["MERGEABLE", "CONFLICTING", "UNKNOWN"]
+GitHubMergeStateStatus = Literal[
+    "BEHIND",
+    "BLOCKED",
+    "CLEAN",
+    "DIRTY",
+    "DRAFT",
+    "HAS_HOOKS",
+    "UNKNOWN",
+    "UNSTABLE",
+]
 
 
-class GhIssueSearchRequest(ValidatedModel):
-    """A GitHub issue query."""
+class GitHubSearchRequest(ValidatedModel):
+    """A compiled GitHub Search request for GraphQL discovery."""
 
     repo: NonEmptyString
     query: NonEmptyString
     limit: int = Field(default=1, ge=1, le=1000)
-
-
-class GhPullRequestSearchRequest(GhIssueSearchRequest):
-    """A GitHub pull request query."""
-
-    jq: NonEmptyString | None = None
+    item_kind: Literal["issue", "pull_request"] = "issue"
 
 
 class GhLabel(BaseModel):
@@ -29,7 +36,7 @@ class GhLabel(BaseModel):
 
 
 class GhIssue(BaseModel):
-    """An issue received from GitHub."""
+    """An issue received from GitHub GraphQL."""
 
     model_config = ConfigDict(extra="ignore", frozen=True)
     number: int = Field(gt=0)
@@ -41,9 +48,19 @@ class GhIssue(BaseModel):
 
 
 class GhPullRequest(GhIssue):
-    """A pull request with branch metadata."""
+    """A pull request with branch and merge metadata."""
 
     model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
     is_draft: bool | None = Field(default=None, validation_alias="isDraft")
     head_ref_name: str | None = Field(default=None, validation_alias="headRefName")
     base_ref_name: str | None = Field(default=None, validation_alias="baseRefName")
+    mergeable: GitHubMergeableState | None = None
+    merge_state_status: GitHubMergeStateStatus | None = Field(
+        default=None, validation_alias="mergeStateStatus"
+    )
+
+
+# Compatibility aliases for older imports during the GraphQL migration.
+GhIssueSearchRequest = GitHubSearchRequest
+GhPullRequestSearchRequest = GitHubSearchRequest
+DEFAULT_ISSUE_JSON_FIELDS = ("number", "title", "body", "url", "state", "labels")

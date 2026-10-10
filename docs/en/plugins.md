@@ -25,11 +25,14 @@ with its distribution and executable. Configure the automation with that `trigge
 the options documented by the plugin:
 
 ```toml
-[coding_agents.automations.ops-tickets]
+[repositories.api]
+remote = "https://github.com/acme/api.git"
+
+[automations.ops-tickets]
 trigger_type = "ticket"
-repo = "acme/api"
+repository = "api"
 project = "OPS"
-prompt = "Fix ${ticket_key} (${ticket_priority}) in ${repo}"
+prompt = "Fix ${ticket_key} (${ticket_priority}) in ${repository}"
 ```
 
 `curu validate` checks plugin options and placeholders exactly like built-in ones. If a
@@ -41,9 +44,10 @@ plugin cannot be imported, every command that loads the configuration stops with
 A plugin provides four things, all imported from `curupira.plugins`:
 
 1. A configuration model that extends `AutomationConfigurationBase` and gives
-   `trigger_type` a default equal to the plugin's trigger type. It inherits `repo`,
-   `path`, `setup_script`, `checkout`, `prompt`, and `profile`, and adds the plugin's
-   own options as Pydantic fields and validators.
+   `trigger_type` a default equal to the plugin's trigger type. It inherits
+   `repository` (checkout alias), `checkout`, `prompt`, and `profile`, and adds the
+   plugin's own options as Pydantic fields and validators. Git clone URL and
+   `setup_script` live on `[repositories.<alias>]`, not on the automation.
 2. An `item_model` (a `ValidatedModel`) whose field names are the trigger-specific
    prompt placeholders. Discovery returns this model on `Task.item`; Curupira flattens
    it into `${placeholders}` when rendering the automation prompt.
@@ -151,7 +155,7 @@ ticket = "curupira_tickets:TicketTrigger"
 | `prompt_context(task)` | No | Defaults to flattening `task.item` with `flatten_for_template`. |
 | `build_feed(automation, dependencies)` | Yes | Feed that discovers tasks. |
 | `validate_task(task)` | No | Rejects task snapshots the trigger could not produce. |
-| `create_version_control(runner)` | No | Clone mechanism for the repositories; `None` keeps `gh repo clone`. |
+| `create_version_control(runner)` | No | Clone mechanism for the repositories; `None` keeps native `git clone`. |
 | `on_task_started(task, state)` | No | Runs right before the coding agent starts. |
 | `on_task_finished(task, state)` | No | Releases state after the agent exits; the default deletes the resumable session, so call `super()` when you override it. |
 | `api_version` | No | Plugin API version the plugin targets; defaults to the running Curupira's `PLUGIN_API_VERSION`. Set it explicitly to fail fast on an incompatible Curupira release. |

@@ -24,7 +24,7 @@ from curupira.tasks.base import TriggerState
 from curupira.tasks.registry import get as get_trigger
 from curupira.telemetry import TaskTelemetry
 from curupira.vcs.base import CheckoutRequest, VersionControl
-from curupira.vcs.github_cli import GitHubCliVersionControl
+from curupira.vcs.git_cli import NativeGitVersionControl
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ def render_task_prompt(task: Task) -> str:
     identity = task.identity
     context = common_prompt_context(
         repo=identity.repo,
+        repository=task.automation.repository_id,
         automation_id=identity.automation_id,
         task_type=identity.task_type,
         task_number=identity.id,
@@ -65,7 +66,7 @@ class TaskExecutor:
     ) -> None:
         self._settings = settings
         self._runner = runner or AsyncProcessRunner()
-        self._default_version_control = version_control or GitHubCliVersionControl(self._runner)
+        self._default_version_control = version_control or NativeGitVersionControl(self._runner)
         self._version_controls: dict[str, VersionControl] = {}
         self._sessions = sessions
         self._state = TriggerState(sessions=sessions, cron=cron)
@@ -122,9 +123,12 @@ class TaskExecutor:
         trigger = get_trigger(task.identity.task_type)
         version_control = self._version_control_for(task)
         checkout = await version_control.ensure_checkout(
-            CheckoutRequest(repo=task.identity.repo, destination=task.automation.workspace_path)
+            CheckoutRequest(
+                remote=task.automation.remote,
+                destination=task.automation.workspace_path,
+            )
         )
-        setup_script = task.automation.configuration.setup_script
+        setup_script = task.automation.setup_script
         if checkout.cloned and setup_script is not None:
             result = await version_control.run_setup_script(
                 checkout,

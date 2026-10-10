@@ -52,6 +52,14 @@ class CliOutputError(DispatchError):
     """An external CLI returned data that did not match its contract."""
 
 
+class HttpApiError(DispatchError):
+    """An HTTP API returned an error response or invalid payload."""
+
+
+class TransientHttpApiError(TransientCliError):
+    """A temporary HTTP API failure that is safe to retry."""
+
+
 class WorkspacePathError(DispatchError):
     """A workspace destination exists but is not a usable Git checkout."""
 

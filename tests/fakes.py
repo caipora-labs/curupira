@@ -8,16 +8,19 @@ from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter, SessionStartedCallback
 from curupira.clients.az import AzClient
-from curupira.clients.gh import GhClient
+from curupira.clients.github_graphql import GitHubGraphQLClient
 from curupira.clients.process import AsyncProcessRunner
 from curupira.models import (
     CodingTaskRequest,
     CommandRequest,
     GhIssue,
-    GhIssueSearchRequest,
     GhPullRequest,
-    GhPullRequestSearchRequest,
+    GitHubSearchRequest,
     ProcessResult,
+)
+from curupira.models.configuration import (
+    IssueAutomationConfiguration,
+    PullRequestAutomationConfiguration,
 )
 from curupira.vcs.base import Checkout, CheckoutRequest, VersionControl
 
@@ -31,16 +34,18 @@ class FakeVersionControl(VersionControl):
         self.worktrees: list[Path] = []
         self.removed_worktrees: list[Path] = []
         self.setup_scripts: list[str] = []
+        self.remotes: list[str] = []
         self.cloned = False
 
     @override
-    async def clone(self, repo: str, destination: Path) -> None:
+    async def clone(self, remote: str, destination: Path) -> None:
         raise AssertionError("fake checkout overrides ensure_checkout")
 
     @override
     async def ensure_checkout(self, request: CheckoutRequest) -> Checkout:
         self.checkouts.append(request.destination)
-        return Checkout(repo=request.repo, path=request.destination, cloned=self.cloned)
+        self.remotes.append(request.remote)
+        return Checkout(remote=request.remote, path=request.destination, cloned=self.cloned)
 
     @override
     async def run_setup_script(
@@ -78,8 +83,8 @@ class FakeVersionControl(VersionControl):
         self.removed_worktrees.extend(self.worktrees[-1:])
 
 
-class FakeGitHub(GhClient):
-    """Return configured GitHub items and record checkout requests."""
+class FakeGitHub(GitHubGraphQLClient):
+    """Return configured GitHub items without calling the GraphQL API."""
 
     def __init__(
         self, *, issues: list[GhIssue] | None = None, pulls: list[GhPullRequest] | None = None
@@ -87,6 +92,7 @@ class FakeGitHub(GhClient):
         super().__init__()
         self.issues = issues or []
         self.pulls = pulls or []
+        self.requests: list[GitHubSearchRequest] = []
         self.vcs = FakeVersionControl()
 
     @property
@@ -106,19 +112,37 @@ class FakeGitHub(GhClient):
         return self.vcs.setup_scripts
 
     @override
-    async def list_issues(self, request: GhIssueSearchRequest) -> list[GhIssue]:
+    async def list_issues(
+        self,
+        request: GitHubSearchRequest,
+        *,
+        configuration: IssueAutomationConfiguration | None = None,
+    ) -> list[GhIssue]:
+        del configuration
+        self.requests.append(request)
         return self.issues
 
     @override
-    async def list_pull_requests(self, request: GhPullRequestSearchRequest) -> list[GhPullRequest]:
+    async def list_pull_requests(
+        self,
+        request: GitHubSearchRequest,
+        *,
+        configuration: PullRequestAutomationConfiguration | None = None,
+    ) -> list[GhPullRequest]:
+        del configuration
+        self.requests.append(request)
         return self.pulls
 
 
 def use_fake_github(monkeypatch: pytest.MonkeyPatch, fake: FakeGitHub) -> FakeGitHub:
-    """Install ``fake`` as the GhClient constructed by built-in GitHub triggers."""
-    monkeypatch.setattr("curupira.providers.github.issues.GhClient", lambda runner=None: fake)
+    """Install ``fake`` as the GraphQL client constructed by built-in GitHub triggers."""
     monkeypatch.setattr(
-        "curupira.providers.github.pull_requests.GhClient", lambda runner=None: fake
+        "curupira.providers.github.issues.GitHubGraphQLClient",
+        lambda runner=None: fake,
+    )
+    monkeypatch.setattr(
+        "curupira.providers.github.pull_requests.GitHubGraphQLClient",
+        lambda runner=None: fake,
     )
     return fake
 

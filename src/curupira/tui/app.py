@@ -247,7 +247,7 @@ class OrchestratorApp(App[int]):
     def action_show_config(self) -> None:
         """Open a modal with the loaded configuration summary."""
         settings = self._settings.settings
-        automations = len(self._settings.coding_agents.automations)
+        automations = len(self._settings.automations)
         paused = "sim" if self._paused else "não"
         summary = (
             "[b]Configuração[/b]\n\n"

@@ -123,8 +123,8 @@ def test_register_requires_matching_trigger_type_default(
 
 def test_registered_lists_built_in_triggers() -> None:
     assert {
-        "issue",
-        "github-cli-pull-requests",
+        "github-issues",
+        "github-pull-requests",
         "azure-cli-pull-requests",
         "cron",
         "trello-cli-cards",

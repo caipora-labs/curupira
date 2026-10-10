@@ -96,7 +96,7 @@ def test_trello_trigger_is_registered_and_exposes_card_prompt_fields(tmp_path: P
     task = Task(
         identity=TaskIdentity(
             automation_id="board-tasks",
-            repo="acme/api",
+            repo="api",
             task_type="trello-cli-cards",
             id="card-id-123",
         ),

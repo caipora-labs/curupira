@@ -33,6 +33,10 @@ class ResolvedAutomation(ValidatedModel):
     configuration: AutomationConfiguration
     profile: CliProfile
     workspace_path: Path
+    repository_id: Identifier
+    remote: NonEmptyString
+    setup_script: str | None = None
+    identity_repo: NonEmptyString
     timezone: NonEmptyString | None = None
 
 
@@ -81,7 +85,7 @@ class Task(ValidatedModel):
         config = self.automation.configuration
         if (
             self.identity.automation_id != self.automation.automation_id
-            or self.identity.repo != config.repo
+            or self.identity.repo != self.automation.identity_repo
             or self.identity.task_type != config.trigger_type
         ):
             raise ValueError("task identity must match its resolved automation")

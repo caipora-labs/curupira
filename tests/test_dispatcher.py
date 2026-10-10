@@ -24,26 +24,34 @@ from tests.fakes import (
     RecordingAdapter,
     use_fake_github,
 )
-from tests.helpers import issue_task
+from tests.helpers import issue_task, settings_dict
 
 
-def settings(path: Path, trigger: str = "issue") -> ApplicationSettings:
+def settings(path: Path, trigger: str = "github-issues") -> ApplicationSettings:
     """Build a one-shot configuration with all state inside the test directory."""
     config: dict[str, object] = {
         "trigger_type": trigger,
-        "repo": "acme/api",
-        "path": path,
+        "repository": "api",
         "prompt": "Handle ${task_number}: ${task_title}",
     }
     if trigger == "cron":
         config.update(schedule="0 9 * * *", start_date="2020-01-01T00:00:00+00:00")
+    elif trigger == "github-pull-requests":
+        config["repo"] = "acme/api"
     else:
-        config["query"] = "is:open"
+        config["repo"] = "acme/api"
+        config["labels"] = ["agent-ready"]
     return ApplicationSettings.model_validate(
-        {
-            "settings": {"state_db_path": path / "state.sqlite3"},
-            "coding_agents": {"automations": {"work": config}},
-        }
+        settings_dict(
+            {"work": config},
+            repositories={
+                "api": {
+                    "remote": "https://github.com/acme/api.git",
+                    "path": str(path),
+                }
+            },
+            settings={"state_db_path": str(path / "state.sqlite3")},
+        )
     )
 
 
@@ -72,8 +80,8 @@ async def test_dispatch_renders_the_task_prompt_and_uses_shared_executor(
     assert gh.removed_worktrees == gh.worktrees
     assert adapter.requests[0].cwd == gh.worktrees[0]
     assert await RunningSessionRepository(configured.settings.state_db_path).list_all() == []
-    assert "Starting task repo=acme/api type=issue id=42" in caplog.text
-    assert "Completed task repo=acme/api type=issue id=42 result=success" in caplog.text
+    assert "Starting task repo=acme/api type=github-issues id=42" in caplog.text
+    assert "Completed task repo=acme/api type=github-issues id=42 result=success" in caplog.text
 
 
 async def test_dispatch_logs_failed_task_with_identity_and_error(
@@ -96,7 +104,7 @@ async def test_dispatch_logs_failed_task_with_identity_and_error(
 
     assert outcome.process is not None
     assert outcome.process.returncode == 7
-    assert "Failed task repo=acme/api type=issue id=42 result=failure" in caplog.text
+    assert "Failed task repo=acme/api type=github-issues id=42 result=failure" in caplog.text
     assert "process exited with status 7" in caplog.text
 
 
@@ -132,13 +140,13 @@ async def test_failed_dispatch_is_appended_to_the_central_log_file(
     log_path = tmp_path / ".curupira" / "logs" / "curupira.log"
     lines = log_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 2
-    assert "Starting task repo=acme/api type=issue id=42" in lines[0]
-    assert "Failed task repo=acme/api type=issue id=42 result=failure" in lines[1]
+    assert "Starting task repo=acme/api type=github-issues id=42" in lines[0]
+    assert "Failed task repo=acme/api type=github-issues id=42 result=failure" in lines[1]
     assert "process exited with status 7" in lines[1]
     assert lines[0][:4].isdigit()
 
 
-@pytest.mark.parametrize("trigger", ["issue", "cron"])
+@pytest.mark.parametrize("trigger", ["github-issues", "cron"])
 async def test_dry_run_has_no_state_checkout_or_process_side_effects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, trigger: str
 ) -> None:
@@ -227,7 +235,7 @@ async def test_checkout_main_uses_shared_checkout_without_worktree(
 ) -> None:
     configured = settings(tmp_path)
     data = configured.model_dump()
-    data["coding_agents"]["automations"]["work"]["checkout"] = "main"
+    data["automations"]["work"]["checkout"] = "main"
     configured = ApplicationSettings.model_validate(data)
     gh = use_fake_github(
         monkeypatch,
@@ -249,7 +257,7 @@ async def test_existing_checkout_does_not_rerun_setup(
 ) -> None:
     configured = settings(tmp_path)
     data = configured.model_dump()
-    data["coding_agents"]["automations"]["work"]["setup_script"] = "scripts/setup.sh"
+    data["repositories"]["api"]["setup_script"] = "scripts/setup.sh"
     configured = ApplicationSettings.model_validate(data)
     gh = use_fake_github(
         monkeypatch,
@@ -280,7 +288,7 @@ async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(
     checkout.mkdir()
     configured = settings(checkout)
     data = configured.model_dump()
-    data["coding_agents"]["automations"]["work"]["setup_script"] = "setup.sh"
+    data["repositories"]["api"]["setup_script"] = "setup.sh"
     configured = ApplicationSettings.model_validate(data)
     gh = use_fake_github(
         monkeypatch,
@@ -306,19 +314,18 @@ async def test_fresh_clone_setup_failure_removes_clone_and_skips_agent(
 
 
 def test_common_placeholders_use_the_task_source(tmp_path: Path) -> None:
-    assert render_task_prompt(issue_task(tmp_path)) == "Handle issue 42: Task 42"
+    assert render_task_prompt(issue_task(tmp_path)) == "Handle github-issues 42: Task 42"
 
 
 async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     data = settings(tmp_path).model_dump()
-    data["coding_agents"]["automations"]["reviews"] = {
-        "trigger_type": "github-cli-pull-requests",
+    data["automations"]["reviews"] = {
+        "trigger_type": "github-pull-requests",
+        "repository": "api",
         "repo": "acme/api",
-        "query": "is:open",
         "prompt": "Review ${pull_request_head_ref} -> ${pull_request_base_ref}",
-        "path": tmp_path,
     }
     configured = ApplicationSettings.model_validate(data)
     gh = use_fake_github(
@@ -338,14 +345,14 @@ async def test_one_shot_respects_automation_order_and_can_select_pull_requests(
     )
     outcome = await dispatch_next_task(configured, dry_run=True)
     assert outcome.selected is not None
-    assert outcome.selected.identity.task_type == "issue"
+    assert outcome.selected.identity.task_type == "github-issues"
     gh.issues = []
     adapter = RecordingAdapter()
     outcome = await dispatch_next_task(
         configured, adapter_factory=lambda _: adapter, version_control=gh.vcs
     )
     assert outcome.selected is not None
-    assert outcome.selected.identity.task_type == "github-cli-pull-requests"
+    assert outcome.selected.identity.task_type == "github-pull-requests"
     assert adapter.requests[0].message == "Review feature -> main"
 
 

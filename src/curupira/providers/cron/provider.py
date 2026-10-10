@@ -68,7 +68,7 @@ class CronTaskFeed(TaskFeed):
             occurrence = claimed.pending_scheduled_for
         identity = TaskIdentity(
             automation_id=name,
-            repo=config.repo,
+            repo=self.automation.identity_repo,
             task_type="cron",
             id=str(int(occurrence.timestamp())),
         )

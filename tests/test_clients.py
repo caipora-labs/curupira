@@ -3,18 +3,23 @@
 import json
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import cast
 
+import httpx
 import pytest
 from typing_extensions import override
 
 from curupira.agents import create_cli_adapter
 from curupira.agents.base import CodingAgentCliAdapter
 from curupira.clients.az import AzClient, organization_url
-from curupira.clients.gh import GhClient
+from curupira.clients.github_auth import GitHubCliTokenProvider
+from curupira.clients.github_graphql import GitHubGraphQLClient
+from curupira.clients.github_search import build_github_search_query
 from curupira.clients.process import AsyncProcessRunner
 from curupira.errors import (
     CliExecutionError,
     CliOutputError,
+    HttpApiError,
     UnsupportedCodingAgentError,
 )
 from curupira.models import (
@@ -25,11 +30,12 @@ from curupira.models import (
     CodingTaskRequest,
     CommandRequest,
     CursorCliProfile,
-    GhIssueSearchRequest,
-    GhPullRequestSearchRequest,
+    GitHubSearchRequest,
+    IssueAutomationConfiguration,
     ProcessResult,
+    PullRequestAutomationConfiguration,
 )
-from curupira.vcs.github_cli import GitHubCliVersionControl
+from curupira.vcs.git_cli import NativeGitVersionControl
 
 
 class RecordingRunner(AsyncProcessRunner):
@@ -210,116 +216,184 @@ def test_explicit_permission_options_are_provider_native(tmp_path: Path) -> None
         assert flag in arguments
 
 
-async def test_github_query_is_not_shell_interpreted_and_json_is_validated() -> None:
-    runner = RecordingRunner(
-        ProcessResult(
-            returncode=0,
-            stdout='[{"number":42,"title":"Work","url":"https://github.com/acme/api/issues/42"}]',
-        )
+def test_github_search_builder_compiles_typed_issue_filters() -> None:
+    query = build_github_search_query(
+        IssueAutomationConfiguration(
+            repository="api",
+            repo="acme/api",
+            prompt="x",
+            labels=("agent-ready",),
+            exclude_labels=("blocked",),
+            linked_pull_request=False,
+            assignee="@me",
+        ),
+        item_kind="issue",
     )
-    issues = await GhClient(runner).list_issues(
-        GhIssueSearchRequest(repo="acme/api", query='label:"ready"; literal data')
+    assert query == (
+        "repo:acme/api is:issue is:open label:agent-ready -label:blocked "
+        "assignee:@me -linked:pr sort:created-asc"
+    )
+
+
+def test_github_search_builder_compiles_pull_request_filters() -> None:
+    query = build_github_search_query(
+        PullRequestAutomationConfiguration(
+            repository="api",
+            repo="acme/api",
+            prompt="x",
+            draft=False,
+            review="none",
+            ci_status="success",
+            base="main",
+        ),
+        item_kind="pull_request",
+    )
+    assert "is:pr" in query
+    assert "draft:false" in query
+    assert "review:none" in query
+    assert "status:success" in query
+    assert "base:main" in query
+
+
+async def test_github_graphql_lists_issues_through_httpx_mock() -> None:
+    payload = {
+        "data": {
+            "search": {
+                "nodes": [
+                    {
+                        "__typename": "Issue",
+                        "number": 42,
+                        "title": "Work",
+                        "body": "Details",
+                        "url": "https://github.com/acme/api/issues/42",
+                        "state": "OPEN",
+                        "labels": {"nodes": [{"name": "agent-ready"}]},
+                    }
+                ]
+            }
+        }
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer ghp_test"
+        body = json.loads(request.content.decode())
+        assert "label:agent-ready" in body["variables"]["searchQuery"]
+        return httpx.Response(200, json=payload)
+
+    runner = RecordingRunner(ProcessResult(returncode=0, stdout="ghp_test\n"))
+    client = GitHubGraphQLClient(
+        token_provider=GitHubCliTokenProvider(runner),
+        transport=httpx.MockTransport(handler),
+    )
+    issues = await client.list_issues(
+        GitHubSearchRequest(
+            repo="acme/api",
+            query="repo:acme/api is:issue is:open label:agent-ready sort:created-asc",
+            limit=10,
+            item_kind="issue",
+        )
     )
     assert issues[0].number == 42
-    assert 'label:"ready"; literal data' in runner.requests[0].arguments
+    assert runner.requests[0].arguments == ("auth", "token")
 
 
-async def test_project_query_accepts_newline_json_and_requests_board_filter() -> None:
-    output = "\n".join(
-        json.dumps(
-            {"number": number, "title": "Work", "url": "https://github.com/acme/api/issues/1"}
+async def test_github_graphql_post_filters_mergeable_pull_requests() -> None:
+    payload = {
+        "data": {
+            "search": {
+                "nodes": [
+                    {
+                        "__typename": "PullRequest",
+                        "number": 1,
+                        "title": "Clean",
+                        "body": "",
+                        "url": "https://github.com/acme/api/pull/1",
+                        "state": "OPEN",
+                        "isDraft": False,
+                        "headRefName": "a",
+                        "baseRefName": "main",
+                        "mergeable": "MERGEABLE",
+                        "mergeStateStatus": "CLEAN",
+                        "labels": {"nodes": cast(list[dict[str, str]], [])},
+                    },
+                    {
+                        "__typename": "PullRequest",
+                        "number": 2,
+                        "title": "Conflict",
+                        "body": "",
+                        "url": "https://github.com/acme/api/pull/2",
+                        "state": "OPEN",
+                        "isDraft": False,
+                        "headRefName": "b",
+                        "baseRefName": "main",
+                        "mergeable": "CONFLICTING",
+                        "mergeStateStatus": "DIRTY",
+                        "labels": {"nodes": cast(list[dict[str, str]], [])},
+                    },
+                ]
+            }
+        }
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json=payload)
+
+    client = GitHubGraphQLClient(
+        token_provider=GitHubCliTokenProvider(
+            RecordingRunner(ProcessResult(returncode=0, stdout="token"))
+        ),
+        transport=httpx.MockTransport(handler),
+    )
+    pulls = await client.list_pull_requests(
+        GitHubSearchRequest(
+            repo="acme/api",
+            query="repo:acme/api is:pr is:open",
+            limit=10,
+            item_kind="pull_request",
+        ),
+        configuration=PullRequestAutomationConfiguration(
+            repository="api",
+            repo="acme/api",
+            prompt="x",
+            mergeable=True,
+        ),
+    )
+    assert [item.number for item in pulls] == [1]
+
+
+async def test_invalid_github_graphql_payloads_fail() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json={"data": {"search": {"nodes": [{"__typename": "Issue"}]}}})
+
+    client = GitHubGraphQLClient(
+        token_provider=GitHubCliTokenProvider(
+            RecordingRunner(ProcessResult(returncode=0, stdout="token"))
+        ),
+        transport=httpx.MockTransport(handler),
+    )
+    with pytest.raises(HttpApiError):
+        await client.list_issues(
+            GitHubSearchRequest(repo="acme/api", query="repo:acme/api is:issue", item_kind="issue")
         )
-        for number in (1, 2)
-    )
-    runner = RecordingRunner(ProcessResult(returncode=0, stdout=output))
-    assert (
-        len(
-            await GhClient(runner).list_issues(
-                GhIssueSearchRequest(repo="acme/api", query="is:open project:acme/9")
-            )
-        )
-        == 2
-    )
-    arguments = runner.requests[0].arguments
-    assert arguments[arguments.index("--state") + 1] == "open"
-    assert "is:open project:acme/9" in arguments
-    assert "--jq" in arguments
-    assert arguments[arguments.index("--jq") + 1] == (
-        '.[] | select(any(.projectItems[]?; .status.name == "Todo"))'
-    )
 
 
-async def test_pull_request_branch_metadata_is_preserved() -> None:
-    runner = RecordingRunner(
-        ProcessResult(
-            returncode=0,
-            stdout='[{"number":12,"title":"Review","url":"https://github.com/acme/api/pull/12","isDraft":true,"headRefName":"feature","baseRefName":"main"}]',
-        )
-    )
-    pulls = await GhClient(runner).list_pull_requests(
-        GhPullRequestSearchRequest(repo="acme/api", query="is:open")
-    )
-    assert pulls[0].is_draft
-    assert pulls[0].head_ref_name == "feature"
-
-
-async def test_pull_request_jq_filter_is_passed_to_gh() -> None:
-    runner = RecordingRunner(
-        ProcessResult(
-            returncode=0,
-            stdout='[{"number":12,"title":"Review","url":"https://github.com/acme/api/pull/12"}]',
-        )
-    )
-    await GhClient(runner).list_pull_requests(
-        GhPullRequestSearchRequest(
-            repo="acme/api", query="is:open", jq='.[] | select(.mergeable == "MERGEABLE")'
-        )
-    )
-
-    arguments = runner.requests[0].arguments
-    assert arguments[arguments.index("--jq") + 1] == '.[] | select(.mergeable == "MERGEABLE")'
-
-
-@pytest.mark.parametrize("output", ["not JSON", "42", '[{"number":0}]'])
-async def test_invalid_github_payloads_fail(output: str) -> None:
-    with pytest.raises(CliOutputError):
-        await GhClient(RecordingRunner(ProcessResult(returncode=0, stdout=output))).list_issues(
-            GhIssueSearchRequest(repo="acme/api", query="is:open")
-        )
-
-
-async def test_nontransient_github_errors_are_not_retried() -> None:
-    runner = RecordingRunner(ProcessResult(returncode=1, stderr="not authenticated"))
-    with pytest.raises(CliExecutionError):
-        await GhClient(runner).list_issues(GhIssueSearchRequest(repo="acme/api", query="is:open"))
-    assert len(runner.requests) == 1
-
-
-async def test_transient_github_errors_are_retried() -> None:
-    runner = RecordingRunner(
-        ProcessResult(returncode=1, stderr="HTTP 503"), ProcessResult(returncode=0, stdout="[]")
-    )
-    assert (
-        await GhClient(runner).list_issues(GhIssueSearchRequest(repo="acme/api", query="is:open"))
-        == []
-    )
-    assert len(runner.requests) == 2
-
-
-async def test_github_cli_version_control_clones_with_literal_repo_and_destination(
+async def test_native_git_version_control_clones_with_literal_remote_and_destination(
     tmp_path: Path,
 ) -> None:
     runner = RecordingRunner(ProcessResult(returncode=0))
-    await GitHubCliVersionControl(runner).clone("acme/api", tmp_path / "checkout")
+    remote = "https://github.com/acme/api.git"
+    await NativeGitVersionControl(runner).clone(remote, tmp_path / "checkout")
 
-    assert runner.requests[0].executable == "gh"
-    assert runner.requests[0].arguments == ("repo", "clone", "acme/api", str(tmp_path / "checkout"))
+    assert runner.requests[0].executable == "git"
+    assert runner.requests[0].arguments == ("clone", remote, str(tmp_path / "checkout"))
 
 
-async def test_github_cli_version_control_reports_clone_failure() -> None:
-    runner = RecordingRunner(ProcessResult(returncode=1, stderr="not authenticated"))
+async def test_native_git_version_control_reports_clone_failure() -> None:
+    runner = RecordingRunner(ProcessResult(returncode=1, stderr="permission denied"))
     with pytest.raises(CliExecutionError):
-        await GitHubCliVersionControl(runner).clone("acme/api", Path("checkout"))
+        await NativeGitVersionControl(runner).clone("https://github.com/acme/api.git", Path("x"))
 
 
 def test_organization_url_normalizes_names_and_preserves_urls() -> None:

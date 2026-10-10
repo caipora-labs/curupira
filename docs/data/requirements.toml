@@ -3,9 +3,14 @@ range = ">=3.11"
 platforms = "Linux, macOS, and Windows"
 
 [[required_tools]]
+name = "Git"
+url = "https://git-scm.com/"
+detail = "Used for `git clone` and worktrees. Authenticate remotes with your normal Git credentials (HTTPS helper or SSH agent)."
+
+[[optional_tools]]
 name = "GitHub CLI (`gh`)"
 url = "https://cli.github.com/"
-detail = "Install and authenticate with `gh auth login`."
+detail = "Needed for `github-issues` and `github-pull-requests`. Curupira reads the API token with `gh auth token` after `gh auth login`."
 
 [[optional_tools]]
 name = "Azure CLI (`az`) with the Azure DevOps extension"

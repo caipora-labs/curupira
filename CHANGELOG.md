@@ -7,6 +7,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Breaking:** configuration splits into `[repositories.<alias>]`, `[agents.*]`, and
+  `[automations.*]` (replacing nested `coding_agents.automations`). Each repository alias
+  requires a full Git `remote` URL and may set `path` / `setup_script`. Automations
+  reference the alias with `repository = "<alias>"`. Forge identity (`repo`) stays on
+  GitHub/Azure triggers only and is independent of the clone URL, so an Azure remote can
+  pair with public GitHub issues.
+- **Breaking:** GitHub discovery uses GraphQL Search over `httpx` with a token from
+  `gh auth token`. Trigger types are `github-issues` and `github-pull-requests` (replacing
+  `issue` / `github-cli-pull-requests`). Typed TOML filters (`labels`, `exclude_labels`,
+  `assignee`, `linked_pull_request`, `draft`, `mergeable`, `ci_status`, …) replace free-form
+  `query` / `jq`. Clone/worktree management uses native `git clone <remote>` instead of
+  `gh repo clone`.
 - Built-in providers (coding agents and triggers) live under `src/curupira/providers/<name>/`
   and register through Pluggy hooks loaded by `curupira.manager`. A provider may contribute
   coding-agent adapters (`curupira_coding_agent_adapters`), triggers (`curupira_triggers`),

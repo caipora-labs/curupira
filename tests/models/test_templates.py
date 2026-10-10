@@ -52,7 +52,7 @@ def test_common_prompt_context_derives_task_body_from_item() -> None:
     context = common_prompt_context(
         repo="acme/api",
         automation_id="issues",
-        task_type="issue",
+        task_type="github-issues",
         task_number="7",
         task_title="Fix",
         task_url="https://example.test/7",

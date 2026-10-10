@@ -8,6 +8,8 @@ from curupira.models.azure import (
     AzurePullRequestStatus,
 )
 from curupira.models.configuration import (
+    AgentDefaults,
+    AgentsSettings,
     AutomationConfiguration,
     AzurePullRequestAutomationConfiguration,
     CodingAgentDefaults,
@@ -17,15 +19,15 @@ from curupira.models.configuration import (
     IssueAutomationConfiguration,
     PollingSettings,
     PullRequestAutomationConfiguration,
+    RepositoryConfiguration,
     TrelloAutomationConfiguration,
 )
 from curupira.models.github import (
     DEFAULT_ISSUE_JSON_FIELDS,
     GhIssue,
-    GhIssueSearchRequest,
     GhLabel,
     GhPullRequest,
-    GhPullRequestSearchRequest,
+    GitHubSearchRequest,
 )
 from curupira.models.items import CronItem, IssueItem, PullRequestItem, TrelloCardItem
 from curupira.models.process import (
@@ -54,6 +56,8 @@ from curupira.models.trello import TrelloBoard, TrelloCard, TrelloList, TrelloLi
 
 __all__ = [
     "DEFAULT_ISSUE_JSON_FIELDS",
+    "AgentDefaults",
+    "AgentsSettings",
     "AutomationConfiguration",
     "AzHref",
     "AzPullRequest",
@@ -76,10 +80,9 @@ __all__ = [
     "DispatchOutcome",
     "ExecutionSettings",
     "GhIssue",
-    "GhIssueSearchRequest",
     "GhLabel",
     "GhPullRequest",
-    "GhPullRequestSearchRequest",
+    "GitHubSearchRequest",
     "IssueAutomationConfiguration",
     "IssueItem",
     "OpenCodeCliProfile",
@@ -87,6 +90,7 @@ __all__ = [
     "ProcessResult",
     "PullRequestAutomationConfiguration",
     "PullRequestItem",
+    "RepositoryConfiguration",
     "ResolvedAutomation",
     "RunningCodingSession",
     "Task",

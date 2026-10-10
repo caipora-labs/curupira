@@ -19,7 +19,7 @@ def test_cron_trigger_is_registered_without_extra_prompt_fields(tmp_path: Path) 
     task = Task(
         identity=TaskIdentity(
             automation_id="maintenance",
-            repo="acme/api",
+            repo="api",
             task_type="cron",
             id=str(int(scheduled_for.timestamp())),
         ),

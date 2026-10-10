@@ -146,7 +146,7 @@ async def run_continuous_dispatch(
             on_settings_reloaded(current)
         logger.info(
             "Configuration reloaded (%s automations; max active tasks: %s)",
-            len(current.coding_agents.automations),
+            len(current.automations),
             current.settings.max_active_tasks,
         )
 

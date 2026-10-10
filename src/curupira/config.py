@@ -2,6 +2,7 @@
 
 import asyncio
 from pathlib import Path
+from string import Template
 from zoneinfo import ZoneInfo
 
 from pydantic import Field, model_validator
@@ -14,12 +15,19 @@ from pydantic_settings import (
 from typing_extensions import override
 
 from curupira.models import (
-    CodingAgentsSettings,
+    AgentsSettings,
     CronAutomationConfiguration,
     ExecutionSettings,
     ResolvedAutomation,
 )
-from curupira.models.configuration import normalize_date
+from curupira.models.base import Identifier
+from curupira.models.configuration import (
+    COMMON_PROMPT_FIELDS,
+    AutomationConfiguration,
+    RepositoryConfiguration,
+    forge_identity,
+    normalize_date,
+)
 
 
 class ApplicationSettings(BaseSettings):
@@ -27,25 +35,51 @@ class ApplicationSettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="forbid", validate_default=True)
     settings: ExecutionSettings = Field(default_factory=ExecutionSettings)
-    coding_agents: CodingAgentsSettings
+    repositories: dict[Identifier, RepositoryConfiguration] = Field(min_length=1)
+    agents: AgentsSettings
+    automations: dict[Identifier, AutomationConfiguration] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_workspace_ownership(self) -> "ApplicationSettings":
-        """Reject workspace paths shared by different repositories."""
+    def validate_cross_references(self) -> "ApplicationSettings":
+        """Validate automation references, prompts, cron windows, and workspace ownership."""
+        from curupira.tasks.registry import get
+
+        defaults = self.agents.defaults
         paths: dict[Path, str] = {}
-        for resolved in self.resolve_automations().values():
-            previous = paths.setdefault(
-                resolved.workspace_path.resolve(), resolved.configuration.repo
-            )
-            if previous != resolved.configuration.repo:
+        for name, automation in self.automations.items():
+            repository = self.repositories.get(automation.repository)
+            if repository is None:
+                raise ValueError(
+                    f"repository {automation.repository!r} for automation {name!r} does not exist"
+                )
+            profile = automation.profile or defaults.profile
+            if profile not in self.agents.profiles:
+                raise ValueError(f"profile {profile!r} for automation {name!r} does not exist")
+            allowed = COMMON_PROMPT_FIELDS | get(automation.trigger_type).prompt_fields()
+            unknown = set(Template(automation.prompt).get_identifiers()) - allowed
+            if unknown:
+                raise ValueError(f"unsupported prompt placeholders for {name!r}: {sorted(unknown)}")
+            if isinstance(automation, CronAutomationConfiguration):
+                timezone = ZoneInfo(automation.timezone or defaults.timezone)
+                start = normalize_date(automation.start_date, timezone)
+                end = normalize_date(automation.end_date, timezone)
+                if start is not None and end is not None and end < start:
+                    raise ValueError(
+                        f"end_date must be greater than or equal to start_date: {name}"
+                    )
+            workspace = (
+                repository.path or self.settings.workspace_dir / automation.repository
+            ).resolve()
+            previous = paths.setdefault(workspace, automation.repository)
+            if previous != automation.repository:
                 raise ValueError("different repositories cannot share a workspace path")
         return self
 
     def resolve_automations(self) -> dict[str, ResolvedAutomation]:
         """Create validated execution snapshots, preserving configuration order."""
         resolved: dict[str, ResolvedAutomation] = {}
-        defaults = self.coding_agents.defaults
-        for name, configured in self.coding_agents.automations.items():
+        defaults = self.agents.defaults
+        for name, configured in self.automations.items():
             configuration = configured
             timezone: str | None = None
             if isinstance(configured, CronAutomationConfiguration):
@@ -57,14 +91,17 @@ class ApplicationSettings(BaseSettings):
                     end_date=normalize_date(configured.end_date, ZoneInfo(timezone)),
                 )
                 configuration = CronAutomationConfiguration.model_validate(data)
-            path = configuration.path or self.settings.workspace_dir.joinpath(
-                *configuration.repo.split("/")
-            )
+            repository = self.repositories[configuration.repository]
+            path = repository.path or self.settings.workspace_dir / configuration.repository
             resolved[name] = ResolvedAutomation(
                 automation_id=name,
                 configuration=configuration,
-                profile=self.coding_agents.profiles[configuration.profile or defaults.profile],
+                profile=self.agents.profiles[configuration.profile or defaults.profile],
                 workspace_path=path.resolve(),
+                repository_id=configuration.repository,
+                remote=repository.remote,
+                setup_script=repository.setup_script,
+                identity_repo=forge_identity(configuration, configuration.repository),
                 timezone=timezone,
             )
         return resolved
@@ -101,11 +138,9 @@ def _load_settings_sync(config_path: Path) -> ApplicationSettings:
     for field in ("workspace_dir", "state_db_path"):
         value = getattr(declared.settings, field)
         execution[field] = (config_path.parent / value).resolve()
-    for name, automation in declared.coding_agents.automations.items():
-        if automation.path is not None:
-            data["coding_agents"]["automations"][name]["path"] = (
-                config_path.parent / automation.path
-            ).resolve()
+    for name, repository in declared.repositories.items():
+        if repository.path is not None:
+            data["repositories"][name]["path"] = (config_path.parent / repository.path).resolve()
     return ApplicationSettings.model_validate(data)
 
 

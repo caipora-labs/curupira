@@ -107,7 +107,7 @@ class Trigger(ABC):
             raise ValueError("non-cron tasks must not contain a scheduled occurrence")
 
     def create_version_control(self, runner: AsyncProcessRunner) -> VersionControl | None:
-        """Return a provider-specific clone mechanism, or None for the default ``gh``."""
+        """Return a provider-specific clone mechanism, or None for native ``git clone``."""
         del runner
         return None
 

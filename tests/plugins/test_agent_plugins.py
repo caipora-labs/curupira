@@ -34,14 +34,23 @@ def echo(install: Install) -> type[EchoCliAdapter]:
 
 
 def echo_settings(**profile: object) -> ApplicationSettings:
+    from tests.helpers import settings_dict
+
     return ApplicationSettings.model_validate(
-        {
-            "coding_agents": {
+        settings_dict(
+            {
+                "work": {
+                    "trigger_type": "github-issues",
+                    "repository": "api",
+                    "repo": "acme/api",
+                    "prompt": "Fix",
+                }
+            },
+            agents={
                 "defaults": {"profile": "echo"},
                 "profiles": {"echo": {"provider": "echo", **profile}},
-                "automations": {"work": {"repo": "acme/api", "query": "is:open", "prompt": "Fix"}},
-            }
-        }
+            },
+        )
     )
 
 
@@ -49,17 +58,21 @@ def write_echo_config(path: Path) -> Path:
     config = path / "settings.toml"
     config.write_text(
         """
-[coding_agents.defaults]
+[repositories.api]
+remote = "https://github.com/acme/api.git"
+
+[agents.defaults]
 profile = "echo"
 
-[coding_agents.profiles.echo]
+[agents.profiles.echo]
 provider = "echo"
 volume = "loud"
 
-[coding_agents.automations.work]
-trigger_type = "issue"
+[automations.work]
+trigger_type = "github-issues"
+repository = "api"
 repo = "acme/api"
-query = "is:open"
+labels = ["agent-ready"]
 prompt = "Fix"
 """,
         encoding="utf-8",

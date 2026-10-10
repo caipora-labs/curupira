@@ -16,7 +16,7 @@ def test_task_identity_accepts_string_card_ids_and_serializes_the_string() -> No
     identity = TaskIdentity(
         automation_id="board",
         repo="acme/api",
-        task_type="issue",
+        task_type="github-issues",
         id="66f6b55a1a2b3c4d5e6f7788",
     )
 
@@ -24,22 +24,22 @@ def test_task_identity_accepts_string_card_ids_and_serializes_the_string() -> No
     assert json.loads(identity.key) == [
         "board",
         "acme/api",
-        "issue",
+        "github-issues",
         "66f6b55a1a2b3c4d5e6f7788",
     ]
 
 
 def test_task_identity_accepts_registered_extension_type_and_keeps_key_format() -> None:
     identity = TaskIdentity(
-        automation_id="board", repo="acme/api", task_type="github-cli-pull-requests", id="42"
+        automation_id="board", repo="acme/api", task_type="github-pull-requests", id="42"
     )
 
-    assert identity.key == '["board","acme/api","github-cli-pull-requests","42"]'
+    assert identity.key == '["board","acme/api","github-pull-requests","42"]'
 
 
 def test_task_identity_rejects_an_empty_id() -> None:
     with pytest.raises(ValidationError):
-        TaskIdentity(automation_id="board", repo="acme/api", task_type="issue", id=" ")
+        TaskIdentity(automation_id="board", repo="acme/api", task_type="github-issues", id=" ")
 
 
 def test_cron_identity_must_match_scheduled_timestamp_string(tmp_path: Path) -> None:
@@ -49,7 +49,7 @@ def test_cron_identity_must_match_scheduled_timestamp_string(tmp_path: Path) -> 
     task = Task(
         identity=TaskIdentity(
             automation_id="maintenance",
-            repo="acme/api",
+            repo="api",
             task_type="cron",
             id=str(int(scheduled_for.timestamp())),
         ),
