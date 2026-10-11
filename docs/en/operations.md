@@ -24,13 +24,15 @@ curupira tui
   macOS; Windows shows an unsupported placeholder. Emulation uses `pyte` (LGPL-3.0) as
   a dynamic dependency. The reader feeds pyte in 256-byte slices under a 5 ms budget;
   rendering coalesces styles, refreshes dirty rows at ~30 fps, and avoids
-  `HistoryScreen`'s per-event wrapper. Reproduced on Linux 6.12.94+ (x86_64, 4× Xeon
-  CPUs, 15 GiB RAM, Python 3.11.17) with Textual `run_test` `(120, 40)`, 20 s sample,
-  1 ms ticker via `scripts/measure_pty_throughput.py`: `yes | head -c 50M` 0.386 MB/s
-  (loop p50/p99/max 10.9/16.1/26.5 ms), `seq 2000000` 0.579 MB/s (10.6/19.5/30.7 ms),
-  `cat` of 40 MiB 0.904 MB/s (10.4/47.1/80.3 ms). See CONTRIBUTING.md for lifecycle
-  caveats (host `SIGKILL`, `setsid` grandchildren, blocking shutdown grace, write
-  backpressure).
+  `HistoryScreen`'s per-event wrapper. Exit status overlays the last content row.
+  Measured ranges vary by host; on Linux 6.12.94+ (x86_64, 4× Xeon CPUs, 15 GiB RAM,
+  Python 3.11.17), Textual `run_test` `(120, 40)`, 20 s, 1 ms ticker,
+  `scripts/measure_pty_throughput.py --runs 3`, min-max across 3 consecutive runs:
+  `yes | head -c 50M` 0.345-0.371 MB/s (p50/p99/max 10.7-10.9 / 16.2-17.2 /
+  30.4-173.1 ms), `seq 2000000` 0.522-0.561 MB/s (10.6-10.7 / 19.6-21.7 /
+  33.3-40.7 ms), `cat` of 40 MiB 0.814-0.850 MB/s (10.4-10.5 / 54.4-62.3 /
+  108.1-125.5 ms). See CONTRIBUTING.md for lifecycle caveats (host `SIGKILL`,
+  `setsid` grandchildren, blocking shutdown grace, write backpressure).
 
 While `run --watch` or `tui` is running, editing the configuration file hot-reloads settings without restarting the process. New work stops being admitted as soon as the file changes; tasks that are already running keep their resolved snapshots and finish. After every in-flight task completes, Curupira reloads the TOML, rebuilds discovery feeds, and resumes polling with the latest configuration. If the updated file is invalid, admission stays paused until a valid configuration is saved.
 

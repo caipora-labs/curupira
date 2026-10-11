@@ -1,14 +1,14 @@
 """Measure PtyTerminal throughput and event-loop latency under flood workloads.
 
 Runs three workloads inside Textual ``run_test(size=(120, 40))`` for a fixed
-sample window with a 1 ms ticker. Prints machine info and a table of
-throughput plus loop latency p50 / p99 / max. Figures are only meaningful on
-the machine that executes this script.
+sample window with a 1 ms ticker. With ``--runs N`` (default 3), prints per-run
+rows and a min-max summary. Figures are only meaningful on the machine that
+executes this script.
 
 Usage (from the repository root):
 
     uv run --no-sync python scripts/measure_pty_throughput.py
-    uv run --no-sync python scripts/measure_pty_throughput.py --seconds 20
+    uv run --no-sync python scripts/measure_pty_throughput.py --seconds 20 --runs 3
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ import os
 import platform
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from textual.app import App, ComposeResult
@@ -38,6 +39,16 @@ class _MeasureApp(App[None]):
     @override
     def compose(self) -> ComposeResult:
         yield PtyTerminal(self._argv)
+
+
+@dataclass(frozen=True)
+class _RunStats:
+    """One sample window for a single workload."""
+
+    bytes_per_second: float
+    p50_ms: float
+    p99_ms: float
+    max_ms: float
 
 
 def _percentile(ordered: list[float], fraction: float) -> float:
@@ -67,13 +78,24 @@ def _machine_banner() -> str:
     )
 
 
+def _stats_from_gaps(bytes_per_second: float, gaps: list[float]) -> _RunStats:
+    """Build latency stats from ticker gaps."""
+    ordered = sorted(gaps)
+    return _RunStats(
+        bytes_per_second=bytes_per_second,
+        p50_ms=_percentile(ordered, 0.50) * 1000.0,
+        p99_ms=_percentile(ordered, 0.99) * 1000.0,
+        max_ms=(ordered[-1] if ordered else float("nan")) * 1000.0,
+    )
+
+
 async def _measure_workload(
     argv: list[str],
     *,
     seconds: float,
     size: tuple[int, int],
-) -> tuple[float, list[float]]:
-    """Run one workload and return ``(bytes_per_second, ticker_gaps)``."""
+) -> _RunStats:
+    """Run one workload and return throughput plus loop-latency stats."""
     fed_bytes = 0
     original_feed = PtyTerminal._feed_bytes_under_budget
 
@@ -115,26 +137,49 @@ async def _measure_workload(
     finally:
         PtyTerminal._feed_bytes_under_budget = original_feed  # type: ignore[method-assign]
 
-    elapsed = seconds
-    return fed_bytes / elapsed, gaps
+    return _stats_from_gaps(fed_bytes / seconds, gaps)
 
 
-def _format_row(name: str, bytes_per_second: float, gaps: list[float]) -> str:
-    """Format one results row."""
-    ordered = sorted(gaps)
-    p50 = _percentile(ordered, 0.50) * 1000.0
-    p99 = _percentile(ordered, 0.99) * 1000.0
-    maximum = (ordered[-1] if ordered else float("nan")) * 1000.0
+def _format_throughput(bytes_per_second: float) -> str:
+    """Format a throughput as MB/s and MiB/s."""
     mb_s = bytes_per_second / 1_000_000.0
     mib_s = bytes_per_second / (1024.0 * 1024.0)
+    return f"{mb_s:.3f} MB/s ({mib_s:.3f} MiB/s)"
+
+
+def _format_range(values: list[float], *, unit: str, digits: int = 1) -> str:
+    """Format a closed min-max interval."""
+    low = min(values)
+    high = max(values)
+    if low == high:
+        return f"{low:.{digits}f} {unit}"
+    return f"{low:.{digits}f}-{high:.{digits}f} {unit}"
+
+
+def _format_run_row(name: str, run_index: int, stats: _RunStats) -> str:
+    """Format one per-run results row."""
     return (
-        f"| `{name}` | {mb_s:.3f} MB/s ({mib_s:.3f} MiB/s) | "
-        f"{p50:.1f} ms / {p99:.1f} ms / {maximum:.1f} ms |"
+        f"| `{name}` (run {run_index}) | {_format_throughput(stats.bytes_per_second)} | "
+        f"{stats.p50_ms:.1f} ms / {stats.p99_ms:.1f} ms / {stats.max_ms:.1f} ms |"
     )
 
 
-async def _run(seconds: float, size: tuple[int, int]) -> int:
-    """Execute the three workloads and print a markdown table."""
+def _format_summary_row(name: str, samples: list[_RunStats]) -> str:
+    """Format a min-max summary row across consecutive runs."""
+    rates = [sample.bytes_per_second / 1_000_000.0 for sample in samples]
+    p50s = [sample.p50_ms for sample in samples]
+    p99s = [sample.p99_ms for sample in samples]
+    maxima = [sample.max_ms for sample in samples]
+    return (
+        f"| `{name}` | {_format_range(rates, unit='MB/s', digits=3)} | "
+        f"{_format_range(p50s, unit='ms')} / "
+        f"{_format_range(p99s, unit='ms')} / "
+        f"{_format_range(maxima, unit='ms')} |"
+    )
+
+
+async def _run(seconds: float, size: tuple[int, int], runs: int) -> int:
+    """Execute the three workloads for ``runs`` consecutive samples."""
     with tempfile.TemporaryDirectory(prefix="curupira-pty-bench-") as tmp:
         blob = Path(tmp) / "forty.bin"
         blob.write_bytes(b"x" * (40 * 1024 * 1024))
@@ -144,15 +189,26 @@ async def _run(seconds: float, size: tuple[int, int]) -> int:
             (f"cat {blob.name} (40 MiB)", ["bash", "-c", f"cat '{blob}'"]),
         ]
         print(f"Machine: {_machine_banner()}")
-        print(f"Sample: Textual run_test size={size}, {seconds:g} s, 1 ms ticker")
+        print(
+            f"Sample: Textual run_test size={size}, {seconds:g} s, 1 ms ticker, "
+            f"{runs} consecutive run(s)"
+        )
         print()
         print("| Workload | Throughput | Loop latency p50 / p99 / max |")
         print("| --- | --- | --- |")
-        for name, argv in workloads:
-            rate, gaps = await _measure_workload(argv, seconds=seconds, size=size)
-            print(_format_row(name, rate, gaps))
-            # Give the previous child a moment to exit before the next fork.
-            await asyncio.sleep(0.2)
+        summaries: dict[str, list[_RunStats]] = {name: [] for name, _ in workloads}
+        for run_index in range(1, runs + 1):
+            for name, argv in workloads:
+                stats = await _measure_workload(argv, seconds=seconds, size=size)
+                summaries[name].append(stats)
+                print(_format_run_row(name, run_index, stats))
+                await asyncio.sleep(0.2)
+        if runs > 1:
+            print()
+            print("| Workload | Throughput (min-max) | Loop p50 / p99 / max (min-max) |")
+            print("| --- | --- | --- |")
+            for name, _ in workloads:
+                print(_format_summary_row(name, summaries[name]))
     return 0
 
 
@@ -164,6 +220,12 @@ def main(argv: list[str] | None = None) -> int:
         type=float,
         default=20.0,
         help="Sample window per workload (default: 20)",
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=3,
+        help="Consecutive full passes over all workloads (default: 3)",
     )
     parser.add_argument(
         "--width",
@@ -180,7 +242,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
-    return asyncio.run(_run(args.seconds, (args.width, args.height)))
+    if args.runs <= 0:
+        parser.error("--runs must be positive")
+    return asyncio.run(_run(args.seconds, (args.width, args.height), args.runs))
 
 
 if __name__ == "__main__":

@@ -167,25 +167,35 @@ styles, coalesces identical adjacent cells into one segment, rebuilds only dirty
 rows into Textual strips, and refreshes those rows at about 30 fps (region refresh
 so the compositor stays on the partial-update path). Scrollback uses a bounded
 deque on `Screen.index` rather than `pyte.HistoryScreen` (whose per-event
-`__getattribute__` wrapper dominated feed time).
+`__getattribute__` wrapper dominated feed time); the deque clears on `reset` and
+`resize`. When the child exits, `Process exited (N)` overlays the last content row
+so it stays inside the visible height.
 
-Re-measure with:
+Re-measure with (prints per-run rows plus a min-max summary):
 
 ```bash
-uv run --no-sync python scripts/measure_pty_throughput.py --seconds 20
+uv run --no-sync python scripts/measure_pty_throughput.py --seconds 20 --runs 3
 ```
 
-Figures below were reproduced on Linux 6.12.94+ (x86_64), Intel Xeon Processor,
-4 CPUs, 15 GiB RAM, Python 3.11.17, Textual `run_test` size `(120, 40)`, 20 s
-sample, 1 ms ticker (workloads did not finish in that window):
+Throughput and loop latency vary by host and load. The table below is the
+**min-max range across 3 consecutive runs** on Linux 6.12.94+ (x86_64), Intel
+Xeon Processor, 4 CPUs, 15 GiB RAM, Python 3.11.17, Textual `run_test` size
+`(120, 40)`, 20 s sample, 1 ms ticker (workloads did not finish in that window).
+Do not treat a single-run point as authoritative.
 
-| Workload | Throughput | Loop latency p50 / p99 / max |
+| Workload | Throughput (min-max) | Loop p50 / p99 / max (min-max) |
 | --- | --- | --- |
-| `yes \| head -c 50000000` | 0.386 MB/s (0.368 MiB/s) | 10.9 ms / 16.1 ms / 26.5 ms |
-| `seq 2000000` | 0.579 MB/s (0.552 MiB/s) | 10.6 ms / 19.5 ms / 30.7 ms |
-| `cat` of a 40 MiB file | 0.904 MB/s (0.862 MiB/s) | 10.4 ms / 47.1 ms / 80.3 ms |
+| `yes \| head -c 50000000` | 0.345-0.371 MB/s | 10.7-10.9 ms / 16.2-17.2 ms / 30.4-173.1 ms |
+| `seq 2000000` | 0.522-0.561 MB/s | 10.6-10.7 ms / 19.6-21.7 ms / 33.3-40.7 ms |
+| `cat` of a 40 MiB file | 0.814-0.850 MB/s | 10.4-10.5 ms / 54.4-62.3 ms / 108.1-125.5 ms |
 
-Update these figures when changing the reader or render path.
+Hard latency targets used when changing this path: p99 < 50 ms for `yes` and
+`seq`; p99 < 100 ms and max < 200 ms for dense `cat`. Automated tests cover the
+`yes` flood (p99 < 50 ms); a denser `cat`-style flood was flaky under CPU load, so
+it stays as a measurement-script workload only.
+
+Update these ranges when changing the reader or render path (re-run with
+`--runs 3` on the same class of machine and replace the table).
 
 ### PtyTerminal lifecycle caveats (documented, not changed)
 

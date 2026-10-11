@@ -142,6 +142,29 @@ def test_emulator_scrollback_retains_scrolled_off_rows() -> None:
     assert writes == []
 
 
+def test_emulator_scrollback_clears_on_reset_and_resize() -> None:
+    import pyte
+
+    from curupira.tui import pty_terminal as pty_terminal_module
+
+    emulator = pty_terminal_module._EmulatorScreen(
+        8,
+        2,
+        history=8,
+        on_write=lambda _payload: None,
+    )
+    stream = pyte.ByteStream(emulator)
+    stream.feed(b"AAAA\nBBBB\nCCCC\n")
+    assert emulator.scrollback
+    emulator.reset()
+    assert len(emulator.scrollback) == 0
+
+    stream.feed(b"DDDD\nEEEE\nFFFF\n")
+    assert emulator.scrollback
+    emulator.resize(lines=3, columns=8)
+    assert len(emulator.scrollback) == 0
+
+
 @pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
 @pytest.mark.asyncio
 async def test_typed_input_echoes_through_cat() -> None:
@@ -264,6 +287,26 @@ async def test_child_exit_keeps_screen_and_shows_footer() -> None:
         assert "VISIBLE" in text
         assert "Process exited (42)" in text
         assert terminal._emulator is not None
+        app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+async def test_exit_status_appears_within_content_height() -> None:
+    """Exit banner must paint inside content rows, not past the last line."""
+    # Fill the viewport so a trailing footer row would be clipped.
+    app = _PtyHarness(["bash", "-c", "python3 -c \"print('LINE'); print('x'*2000)\"; exit 7"])
+    async with app.run_test(size=(40, 8)) as pilot:
+        await _wait_until(lambda: app.finished_codes == [7], pilot, attempts=200)
+        terminal = app.query_one(PtyTerminal)
+        await pilot.pause(0.05)
+        content_height = terminal.content_size.height
+        assert content_height >= 1
+        on_screen = [terminal.render_line(row).text for row in range(content_height)]
+        assert any("Process exited (7)" in row for row in on_screen)
+        assert "Process exited (7)" in _visible_text(terminal)
+        # A row past the content height must not be required for the banner.
+        assert "Process exited (7)" not in terminal.render_line(content_height).text
         app.exit()
 
 
@@ -512,7 +555,7 @@ async def test_flood_keeps_event_loop_ticking() -> None:
         assert gaps
         ordered = sorted(gaps)
         p99_index = max(0, math.ceil(len(ordered) * 0.99) - 1)
-        assert ordered[p99_index] < 0.100
+        assert ordered[p99_index] < 0.050
         assert ordered[-1] < 0.150
         app.exit()
 

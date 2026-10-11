@@ -91,18 +91,21 @@ All notable changes to this project are documented here. The format follows
   assistant. It spawns a child with `pty.fork`, emulates the stream with `pyte`
   (LGPL-3.0, dynamic dependency), forwards keys/paste (DECCKM, xterm modified keys,
   bracketed paste when the child enables mode 2004), resizes via `content_size` +
-  `TIOCSWINSZ`/`SIGWINCH`, keeps the last screen with an exit footer, and cleans up in
+  `TIOCSWINSZ`/`SIGWINCH`, keeps the last screen with an exit status overlay on the
+  last content row, clears scrollback on emulator `reset`/`resize`, and cleans up in
   `on_unmount` (plus an `atexit` safety net). Public API: `PtyTerminal(argv, env, cwd,
   escape_key="ctrl+g")` with `write()`, `restart()`, and a `Finished` message. Linux
   and macOS only in v1; Windows mounts an unsupported placeholder. Not wired into the
   orchestrator layout or configuration yet. Reader feeds pyte in 256-byte slices under
   a 5 ms budget; render path caches styles, coalesces runs, refreshes dirty strip rows
   at ~30 fps, and keeps scrollback without `HistoryScreen`. Throughput script:
-  `scripts/measure_pty_throughput.py`. Reproduced on Linux 6.12.94+ (x86_64, 4× Xeon,
-  15 GiB, Python 3.11.17), Textual `run_test` `(120, 40)`, 20 s, 1 ms ticker:
-  0.386 MB/s (`yes | head -c 50M`, p50/p99/max 10.9/16.1/26.5 ms), 0.579 MB/s
-  (`seq 2000000`, 10.6/19.5/30.7 ms), 0.904 MB/s (`cat` 40 MiB, 10.4/47.1/80.3 ms).
-  Outbound writes retry after `EAGAIN` via `add_writer`.
+  `scripts/measure_pty_throughput.py --runs 3`. On Linux 6.12.94+ (x86_64, 4× Xeon,
+  15 GiB, Python 3.11.17), Textual `run_test` `(120, 40)`, 20 s, 1 ms ticker, min-max
+  across 3 consecutive runs: `yes | head -c 50M` 0.345-0.371 MB/s (p50/p99/max
+  10.7-10.9 / 16.2-17.2 / 30.4-173.1 ms), `seq 2000000` 0.522-0.561 MB/s
+  (10.6-10.7 / 19.6-21.7 / 33.3-40.7 ms), `cat` 40 MiB 0.814-0.850 MB/s
+  (10.4-10.5 / 54.4-62.3 / 108.1-125.5 ms). Outbound writes retry after `EAGAIN`
+  via `add_writer`.
 - Optional `[assistant]` configuration (`AssistantSettings`) for the interactive
   configuration assistant: `agent` (registered coding-agent provider) and `model`.
   Adapters may declare `auto_model` when their CLI documents native automatic model

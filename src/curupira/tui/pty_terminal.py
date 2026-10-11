@@ -146,9 +146,10 @@ class _EmulatorScreen(pyte.Screen):
         history: int,
         on_write: Callable[[bytes], None],
     ) -> None:
-        super().__init__(columns, lines)
+        # ``Screen.__init__`` calls ``reset()``; allocate scrollback first.
         self.scrollback: deque[MutableMapping[int, Char]] = deque(maxlen=max(history, 0))
         self._on_write = on_write
+        super().__init__(columns, lines)
 
     @override
     def write_process_input(self, data: str) -> None:
@@ -162,6 +163,18 @@ class _EmulatorScreen(pyte.Screen):
         if self.cursor.y == bottom and self.scrollback.maxlen:
             self.scrollback.append(self.buffer[top])
         super().index()
+
+    @override
+    def reset(self) -> None:
+        """Reset the screen and drop retained scrollback rows."""
+        super().reset()
+        self.scrollback.clear()
+
+    @override
+    def resize(self, lines: int | None = None, columns: int | None = None) -> None:
+        """Resize the screen and drop scrollback that no longer matches geometry."""
+        super().resize(lines=lines, columns=columns)
+        self.scrollback.clear()
 
 
 class PtyTerminal(Widget, can_focus=True):
@@ -305,8 +318,6 @@ class PtyTerminal(Widget, can_focus=True):
             if row_index:
                 output.append("\n")
             output.append_text(line)
-        if self.finished_code is not None:
-            output.append(f"\nProcess exited ({self.finished_code})", style="bold")
         return output
 
     @override
@@ -316,13 +327,34 @@ class PtyTerminal(Widget, can_focus=True):
             return super().render_line(y)
         if y < len(self._strip_cache):
             return self._strip_cache[y]
-        if self.finished_code is not None and y == len(self._strip_cache):
-            footer = f"Process exited ({self.finished_code})"
-            width = max(self.content_size.width, 1)
-            padded = footer[:width].ljust(width)
-            return Strip([Segment(padded, Style(bold=True))], width)
         width = max(self.content_size.width, 1)
         return Strip.blank(width, self.rich_style)
+
+    def _exit_status_message(self) -> str | None:
+        """Return the on-screen exit banner, or ``None`` while the child runs."""
+        if self.finished_code is None:
+            return None
+        return f"Process exited ({self.finished_code})"
+
+    def _overlay_exit_status(self, *, rebuild_text: bool) -> int | None:
+        """Paint the exit banner onto the last content row; return that row index.
+
+        The banner must live inside the content height: appending an extra line
+        after the emulator buffer places it outside the visible region.
+        """
+        message = self._exit_status_message()
+        if message is None or not self._strip_cache:
+            return None
+        width = max(self.content_size.width, self._emulator.columns if self._emulator else 1)
+        width = max(width, 1)
+        padded = message[:width].ljust(width)
+        last_row = len(self._strip_cache) - 1
+        self._strip_cache[last_row] = Strip([Segment(padded, Style(bold=True))], width)
+        if rebuild_text and self._line_cache:
+            while len(self._line_cache) <= last_row:
+                self._line_cache.append(Text(" " * width))
+            self._line_cache[last_row] = Text(padded, style="bold")
+        return last_row
 
     def write(self, data: bytes | str) -> None:
         """Write bytes (or UTF-8 text) to the PTY master.
@@ -697,6 +729,9 @@ class PtyTerminal(Widget, can_focus=True):
                         emulator, row_index, show_cursor=show_cursor
                     )
                 rebuilt.add(row_index)
+        overlay_row = self._overlay_exit_status(rebuild_text=rebuild_text)
+        if overlay_row is not None:
+            rebuilt.add(overlay_row)
         if not rebuild_text and rebuilt:
             self._line_cache.clear()
         emulator.dirty.clear()
@@ -727,6 +762,7 @@ class PtyTerminal(Widget, can_focus=True):
             return
         columns, lines = self._content_dimensions()
         if columns != self._emulator.columns or lines != self._emulator.lines:
+            # Emulator.resize clears scrollback; drop local render caches too.
             self._emulator.resize(lines=lines, columns=columns)
             self._line_cache.clear()
             self._strip_cache.clear()
