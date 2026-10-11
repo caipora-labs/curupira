@@ -15,6 +15,9 @@ All notable changes to this project are documented here. The format follows
   profile) document each field with `Field(description=...)` derived from the adapter
   argument mapping, so schema-driven CLI docs can read descriptions without duplicating
   class-docstring `Attributes:` blocks.
+- Automation (trigger) configuration models expose English `Field(description=...)`
+  text on every field, including shared base fields, so `model_json_schema()` can drive
+  CLI documentation without duplicating `Attributes:` blocks in class docstrings.
 - `ExecutionSettings`, `PollingSettings`, and `RepositoryConfiguration` expose
   `Field(description=...)` on every field (and keep a short class docstring naming the
   TOML table) so generated CLI/config help can read descriptions from the Pydantic
@@ -37,14 +40,11 @@ All notable changes to this project are documented here. The format follows
 - Added the GitHub Copilot CLI provider guide, including its headless permissions and
   authentication environment-variable precedence.
 
-### Changed (behavior)
+### Changed
 
 - Since GraphQL Search (#163), Curupira no longer filters board items by Status (Todo);
   `project:` is only a Search qualifier, and `state` is an explicit filter that defaults
   to `open`.
-
-### Changed
-
 - **Breaking:** configuration splits into `[repositories.<alias>]`, `[agents.*]`, and
   `[automations.*]` (replacing nested `coding_agents.automations`). Each repository alias
   requires a full Git `remote` URL and may set `path` / `setup_script`. Automations
