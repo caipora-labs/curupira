@@ -8,6 +8,8 @@ from pydantic import ValidationError
 
 from curupira.config import ApplicationSettings, load_settings
 from curupira.models import (
+    AgentDefaults,
+    AgentsSettings,
     AzurePullRequestAutomationConfiguration,
     CodexCliProfile,
     CronAutomationConfiguration,
@@ -500,6 +502,20 @@ def test_json_schema_describes_the_shared_automation_contract() -> None:
     base = schema["$defs"]["AutomationConfigurationBase"]
     assert {"trigger_type", "repository", "prompt"} <= set(base["required"])
     assert "RepositoryConfiguration" in schema["$defs"]
+
+
+@pytest.mark.parametrize("model", [ApplicationSettings, AgentsSettings, AgentDefaults])
+def test_root_config_models_expose_non_empty_field_descriptions(
+    model: type[ApplicationSettings] | type[AgentsSettings] | type[AgentDefaults],
+) -> None:
+    """Every field on the root TOML models carries a schema description."""
+    schema = model.model_json_schema()
+    assert schema.get("description", "").strip()
+    assert "Attributes:" not in (model.__doc__ or "")
+    properties = schema.get("properties")
+    assert properties
+    for name, prop in properties.items():
+        assert prop.get("description", "").strip(), name
 
 
 def test_azure_pull_request_automation_accepts_status_and_branch_filters() -> None:

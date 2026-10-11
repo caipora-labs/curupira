@@ -111,6 +111,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Documentation
 
+- `ApplicationSettings`, `AgentsSettings`, and `AgentDefaults` expose non-empty
+  `Field(description=...)` text on every field (and model docstrings without
+  duplicated `Attributes:` blocks) so CLI help can read configuration docs from the
+  Pydantic schema.
 - Added a GitHub task source guide (`docs/en/github.md`) covering issue and pull-request
   triggers, prerequisites and token scopes, configuration field defaults, selection and
   deduplication, prompt placeholders, worktrees, and common errors. The README GitHub
