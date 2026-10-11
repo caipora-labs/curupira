@@ -162,7 +162,7 @@ class ExecutionSettings(ValidatedModel):
                 "Maximum number of coding-agent tasks Curupira runs concurrently. Defaults "
                 "to 1. Must be an integer from 1 through 1000 inclusive. The scheduler "
                 "also keeps checkouts that share a workspace path from overlapping, so "
-                "shared ``checkout = \"main\"`` work still runs one at a time per path."
+                'shared ``checkout = "main"`` work still runs one at a time per path.'
             ),
         ),
     ] = 1
