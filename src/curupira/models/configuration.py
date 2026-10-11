@@ -193,10 +193,11 @@ class ExecutionSettings(ValidatedModel):
     state_db_path: Path = Field(
         default_factory=lambda: Path("~/.curupira/state.sqlite3"),
         description=(
-            "SQLite database path for durable running-session and cron schedule state. "
-            "Defaults to ``~/.curupira/state.sqlite3``. ``~`` is expanded; when loaded "
-            "from TOML, relative paths resolve against the configuration file directory. "
-            "An incompatible existing database raises an error instead of being deleted."
+            "SQLite database path for durable state: running coding sessions, cron "
+            "schedule state, and state used by triggers. Defaults to "
+            "``~/.curupira/state.sqlite3``. ``~`` is expanded; when loaded from TOML, "
+            "relative paths resolve against the configuration file directory. An "
+            "incompatible existing database raises an error instead of being deleted."
         ),
     )
     otlp_endpoint: AnyHttpUrl | None = Field(
@@ -227,7 +228,7 @@ class ExecutionSettings(ValidatedModel):
             le=100_000_000,
             description=(
                 "Maximum captured bytes retained per subprocess stdout or stderr stream. "
-                "Defaults to 1000000 (1 MiB). Must be an integer from 1024 through "
+                "Defaults to 1000000 bytes. Must be an integer from 1024 through "
                 "100000000 inclusive. Applies to coding-agent runs and setup scripts; "
                 "output beyond the limit keeps only the trailing bytes and marks the "
                 "result as truncated."
