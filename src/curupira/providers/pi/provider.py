@@ -155,14 +155,17 @@ class PiCliAdapter(CodingAgentCliAdapter):
         Official docs: ``pi`` opens the terminal UI when stdin/stdout are TTYs;
         positional messages seed the first prompt, and ``--model``, ``--provider``,
         ``--thinking``, tool, and approve flags apply (https://pi.dev/docs/latest/cli).
-        Omits ``--mode json`` (and other headless output modes).
+        ``--provider`` requires ``--model``; it is emitted only when ``model`` is set
+        and equals the profile's own ``model`` so the provider is never paired with a
+        different assistant model. Omits ``--mode json``. Prompts follow ``--``.
         """
+        self.ensure_interactive_model_resolved(model)
         if not isinstance(profile, PiCliProfile):
             raise ValueError("pi requires a pi profile")
         arguments: list[str] = [self.executable]
-        if profile.model_provider is not None:
-            arguments.extend(("--provider", profile.model_provider))
         if model is not None:
+            if profile.model_provider is not None and model == profile.model:
+                arguments.extend(("--provider", profile.model_provider))
             arguments.extend(("--model", model))
         if profile.effort is not None:
             arguments.extend(("--thinking", profile.effort))

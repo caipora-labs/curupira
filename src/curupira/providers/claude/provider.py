@@ -54,8 +54,10 @@ class ClaudeCodeCliAdapter(CodingAgentCliAdapter):
         ``--agent``, ``--effort``, and ``--permission-mode``
         (https://code.claude.com/docs/en/cli-reference). Omits print-mode flags
         (``-p``, ``--output-format``, ``--verbose``) and ``--permission-prompts``
-        (documented for print mode only).
+        (documented for print mode only). Initial prompts are passed after ``--`` so a
+        leading ``-`` (for example skill front matter ``---``) is not parsed as a flag.
         """
+        self.ensure_interactive_model_resolved(model)
         if not isinstance(profile, ClaudeCodeCliProfile):
             raise ValueError("Claude Code requires a Claude profile")
         arguments: list[str] = [self.executable]
@@ -68,7 +70,7 @@ class ClaudeCodeCliAdapter(CodingAgentCliAdapter):
             if value is not None:
                 arguments.extend((flag, value))
         if prompt is not None:
-            arguments.append(prompt)
+            arguments.extend(("--", prompt))
         return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 
 

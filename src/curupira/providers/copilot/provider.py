@@ -83,6 +83,9 @@ class CopilotCliAdapter(CodingAgentCliAdapter):
         "set-up-copilot-cli/install-copilot-cli"
     )
     assigns_session_id = True
+    # Copilot documents ``--model=auto`` for automatic model selection
+    # (https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference).
+    auto_model = "auto"
 
     @override
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
@@ -133,6 +136,7 @@ class CopilotCliAdapter(CodingAgentCliAdapter):
         Omits ``--output-format=json``, ``--no-ask-user``, ``--session-id``, and
         ``--prompt`` (programmatic / exit-after-completion).
         """
+        self.ensure_interactive_model_resolved(model)
         if not isinstance(profile, CopilotCliProfile):
             raise ValueError("GitHub Copilot CLI requires a Copilot profile")
         arguments: list[str] = [self.executable]
@@ -150,6 +154,7 @@ class CopilotCliAdapter(CodingAgentCliAdapter):
         if profile.deny_tools:
             arguments.append(f"--deny-tool={','.join(profile.deny_tools)}")
         if prompt is not None:
+            # Equals form keeps leading-dash prompts from being parsed as flags.
             arguments.append(f"--interactive={prompt}")
         return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 

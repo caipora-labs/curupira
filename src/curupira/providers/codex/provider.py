@@ -62,17 +62,26 @@ class CodexCliAdapter(CodingAgentCliAdapter):
         Official docs: ``codex`` launches the TUI with global flags and an optional
         prompt (https://developers.openai.com/codex/cli/reference/). Omits the
         ``exec`` subcommand and ``--json`` headless flags while reusing ``--model``,
-        ``--profile``, ``--sandbox``, and ``--config`` effort/approval overrides.
+        ``--profile``, ``--sandbox``, and ``--config``. Effort/approval ``--config``
+        keys are copied from the headless mapping; the reference documents
+        ``--config key=value`` but not those key names specifically. Prompts follow
+        ``--`` so a leading ``-`` is not parsed as a flag.
         """
+        self.ensure_interactive_model_resolved(model)
         if not isinstance(profile, CodexCliProfile):
             raise ValueError("Codex requires a Codex profile")
         arguments: list[str] = [self.executable]
+        notes: list[str] = []
         if model is not None:
             arguments.extend(("--model", model))
         if profile.agent is not None:
             arguments.extend(("--profile", profile.agent))
         if profile.effort is not None:
             arguments.extend(("--config", f"model_reasoning_effort={json.dumps(profile.effort)}"))
+            notes.append(
+                "model_reasoning_effort is passed via --config; the Codex reference "
+                "documents --config but not this key name"
+            )
         if profile.sandbox is not None:
             arguments.extend(("--sandbox", profile.sandbox))
         if profile.auto_review:
@@ -84,9 +93,14 @@ class CodexCliAdapter(CodingAgentCliAdapter):
                     'approvals_reviewer="auto_review"',
                 )
             )
+            notes.append(
+                "auto_review approval_policy/approvals_reviewer --config keys are "
+                "copied from the headless mapping and are not named in the Codex "
+                "interactive reference"
+            )
         if prompt is not None:
-            arguments.append(prompt)
-        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
+            arguments.extend(("--", prompt))
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd, notes=tuple(notes))
 
 
 @hookimpl

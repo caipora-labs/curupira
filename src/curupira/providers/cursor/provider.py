@@ -55,10 +55,14 @@ class CursorCliAdapter(CodingAgentCliAdapter):
         """Build an interactive Cursor ``agent`` TUI launch.
 
         Official docs: ``agent`` / ``agent "prompt"`` start interactive mode; ``--model``
-        and ``--mode`` apply (https://cursor.com/docs/cli/overview). Omits ``--print``
-        and ``--output-format``. When ``model`` is the resolved ``auto`` value from
-        :attr:`auto_model`, it is passed as ``--model auto``.
+        and ``--mode`` apply (https://cursor.com/docs/cli/overview). Omits ``--print``,
+        ``--output-format``, and ``--trust`` (documented as headless-only at
+        https://cursor.com/docs/cli/reference/parameters). ``--force`` is kept. When
+        ``model`` is the resolved ``auto`` value from :attr:`auto_model`, it is passed
+        as ``--model auto``. Prompts follow ``--`` so a leading ``-`` is not parsed as
+        a flag.
         """
+        self.ensure_interactive_model_resolved(model)
         if not isinstance(profile, CursorCliProfile):
             raise ValueError("Cursor requires a Cursor profile")
         arguments: list[str] = [self.executable]
@@ -68,10 +72,8 @@ class CursorCliAdapter(CodingAgentCliAdapter):
             arguments.extend(("--model", model))
         if profile.force:
             arguments.append("--force")
-        if profile.trust:
-            arguments.append("--trust")
         if prompt is not None:
-            arguments.append(prompt)
+            arguments.extend(("--", prompt))
         return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 
 

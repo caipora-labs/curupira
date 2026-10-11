@@ -52,23 +52,30 @@ class OpenCodeCliAdapter(CodingAgentCliAdapter):
 
         Official docs: ``opencode`` starts the TUI; ``--model``, ``--agent``,
         ``--prompt``, and ``--auto`` apply to that entry point
-        (https://opencode.ai/docs/cli/). Omits the ``run`` subcommand and
-        ``--format json`` headless flags; maps profile ``effort`` to ``--variant``.
+        (https://opencode.ai/docs/cli/). Omits the ``run`` subcommand, ``--format
+        json``, and ``--variant`` (``--variant`` is documented only under ``run``).
+        Profile ``effort`` is therefore not applied interactively. Prompts use
+        ``--prompt=<text>`` so a leading ``-`` is not parsed as a flag.
         """
+        self.ensure_interactive_model_resolved(model)
         if not isinstance(profile, OpenCodeCliProfile):
             raise ValueError("OpenCode requires an OpenCode profile")
         arguments: list[str] = [self.executable]
-        for flag, value in (
-            ("--model", model),
-            ("--agent", profile.agent),
-            ("--variant", profile.effort),
-            ("--prompt", prompt),
-        ):
-            if value is not None:
-                arguments.extend((flag, value))
+        notes: list[str] = []
+        if model is not None:
+            arguments.extend(("--model", model))
+        if profile.agent is not None:
+            arguments.extend(("--agent", profile.agent))
+        if profile.effort is not None:
+            notes.append(
+                "profile effort is not applied interactively; --variant is "
+                "documented only for opencode run"
+            )
+        if prompt is not None:
+            arguments.append(f"--prompt={prompt}")
         if profile.auto_approve:
             arguments.append("--auto")
-        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd, notes=tuple(notes))
 
 
 @hookimpl

@@ -39,9 +39,12 @@ def default_pty_env(*, extra: Mapping[str, str] | None = None) -> dict[str, str]
 
     Copies ``PATH``, ``HOME``, ``LANG``, ``USER``, and ``SHELL`` from ``os.environ``
     when present, then always sets ``TERM=xterm-256color`` and
-    ``COLORTERM=truecolor``. Unknown host variables (including secrets such as
-    ``AWS_SECRET_ACCESS_KEY``) are never forwarded. ``extra`` overlays additional
-    values from an :class:`InteractiveLaunchSpec`.
+    ``COLORTERM=truecolor``. Unknown host variables are never forwarded: secrets
+    such as ``AWS_SECRET_ACCESS_KEY`` and provider API keys (for example
+    ``ANTHROPIC_API_KEY``, ``OPENAI_API_KEY``) stay out of the child environment.
+    Key-based CLI auth therefore requires logging in through the agent CLI itself
+    or passing the key explicitly via ``extra`` / ``InteractiveLaunchSpec.env``.
+    ``extra`` overlays additional values from an :class:`InteractiveLaunchSpec`.
     """
     env = {key: os.environ[key] for key in _PTY_ENV_ALLOWLIST if key in os.environ}
     env["TERM"] = "xterm-256color"

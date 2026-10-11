@@ -76,24 +76,32 @@ class QwenCodeCliAdapter(CodingAgentCliAdapter):
     ) -> InteractiveLaunchSpec:
         """Build an interactive ``qwen`` TUI launch.
 
-        Official docs: ``qwen`` starts interactive mode; ``--prompt-interactive`` runs an
-        initial prompt then continues interactively; ``--model``, ``--approval-mode``,
-        and ``--max-session-turns`` apply
-        (https://qwenlm-qwen-code.mintlify.app/cli/overview). Omits ``--output-format``
-        and ``--prompt`` (headless).
+        Official docs: ``--prompt-interactive`` / ``-i``, ``--model``, and
+        ``--approval-mode``
+        (https://github.com/QwenLM/qwen-code/blob/main/docs/users/configuration/settings.md);
+        ``--max-session-turns`` is documented as a run budget in
+        https://github.com/QwenLM/qwen-code/blob/main/docs/users/features/headless.md.
+        Omits ``--output-format`` and ``--prompt`` (headless). Prompts use
+        ``--prompt-interactive=<text>`` so a leading ``-`` is not parsed as a flag.
         """
+        self.ensure_interactive_model_resolved(model)
         if not isinstance(profile, QwenCodeCliProfile):
             raise ValueError("Qwen Code requires a Qwen Code profile")
         arguments: list[str] = [self.executable]
+        notes: list[str] = []
         if model is not None:
             arguments.extend(("--model", model))
         if profile.approval_mode is not None:
             arguments.extend(("--approval-mode", profile.approval_mode))
         if profile.max_session_turns is not None:
             arguments.extend(("--max-session-turns", str(profile.max_session_turns)))
+            notes.append(
+                "--max-session-turns is documented as a headless run budget; its "
+                "effect in an interactive session is unconfirmed"
+            )
         if prompt is not None:
-            arguments.extend(("--prompt-interactive", prompt))
-        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
+            arguments.append(f"--prompt-interactive={prompt}")
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd, notes=tuple(notes))
 
 
 @hookimpl

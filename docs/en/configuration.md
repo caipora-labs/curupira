@@ -110,18 +110,22 @@ the interactive configuration assistant and which model that CLI should use:
 - `agent`: a provider name from the agent registry (the same identifiers used in profile
   `provider` values). Leave unset until you choose one.
 - `model`: a concrete model id, or omit it to prefer the provider's native automatic
-  selection when the adapter declares `auto_model`. Cursor's changelog says new installs
-  default to Auto and you can switch anytime with `/model` or `--model`; the Cursor
-  adapter therefore sets `auto_model = "auto"`. The literal `auto` is rejected for
-  providers without that capability. Capability checks run only once `agent` is set: a
-  model value with no agent is accepted and checked later when an agent is chosen.
+  selection when the adapter declares `auto_model`. Cursor, Gemini CLI, and GitHub
+  Copilot CLI document a native `auto` model id and set `auto_model = "auto"`. The
+  literal `auto` is rejected for providers without that capability. Capability checks
+  run only once `agent` is set: a model value with no agent is accepted and checked
+  later when an agent is chosen.
 
 Existing TOML files without `[assistant]` keep the unset defaults.
 
 Interactive assistant sessions (embedded terminal panel) will consume each adapter's
 optional `interactive_launch` recipe: a pure-data `InteractiveLaunchSpec` with `argv`,
 extra `env`, `cwd`, and `notes`. Adapters that have no verified interactive CLI mode
-return `None`; Curupira must report that to the user and must not invent flags. See the
+return `None`; Curupira must report that to the user and must not invent flags. The
+caller must resolve `model` with `resolve_assistant_model` before building a spec;
+`default_pty_env` only allowlists `PATH`/`HOME`/`LANG`/`USER`/`SHELL` (plus `TERM` and
+`COLORTERM`) and does not forward provider API keys—use CLI login or pass keys via
+`InteractiveLaunchSpec.env` / `extra`. See the
 [agent plugin contract](plugins.md#agent-contract) for when adapter authors should
 override `interactive_launch` (and return `None` when interactive mode is unverified).
 

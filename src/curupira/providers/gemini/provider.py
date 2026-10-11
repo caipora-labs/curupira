@@ -56,6 +56,9 @@ class GeminiCliAdapter(CodingAgentCliAdapter):
     profile_model = GeminiCliProfile
     display_name = "Gemini CLI"
     install_url = "https://github.com/google-gemini/gemini-cli"
+    # Gemini CLI documents ``--model`` default ``auto``
+    # (https://geminicli.com/docs/cli/cli-reference/).
+    auto_model = "auto"
 
     @override
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
@@ -87,11 +90,14 @@ class GeminiCliAdapter(CodingAgentCliAdapter):
     ) -> InteractiveLaunchSpec:
         """Build an interactive ``gemini`` REPL launch.
 
-        Official docs: ``gemini`` / ``gemini "query"`` start interactive mode;
-        ``--model``, ``--approval-mode``, and ``--skip-trust`` apply
+        Official docs: ``gemini`` starts interactive mode; ``--model``,
+        ``--approval-mode``, and ``--skip-trust`` apply, and
+        ``--prompt-interactive`` / ``-i`` seeds a prompt then continues
         (https://geminicli.com/docs/cli/cli-reference/). Omits ``--output-format`` and
-        ``--prompt`` (``--prompt`` forces non-interactive mode).
+        ``--prompt`` (``--prompt`` forces non-interactive mode). Prompts use
+        ``--prompt-interactive=<text>`` so a leading ``-`` is not parsed as a flag.
         """
+        self.ensure_interactive_model_resolved(model)
         if not isinstance(profile, GeminiCliProfile):
             raise ValueError("Gemini CLI requires a Gemini profile")
         arguments: list[str] = [self.executable]
@@ -102,7 +108,7 @@ class GeminiCliAdapter(CodingAgentCliAdapter):
         if profile.skip_trust:
             arguments.append("--skip-trust")
         if prompt is not None:
-            arguments.append(prompt)
+            arguments.append(f"--prompt-interactive={prompt}")
         return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 
     @override

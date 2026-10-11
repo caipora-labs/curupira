@@ -95,24 +95,32 @@ class KiloCliAdapter(CodingAgentCliAdapter):
         """Build an interactive ``kilo`` TUI launch.
 
         Official docs: ``kilo`` starts the TUI; ``--model``, ``--agent``, ``--prompt``,
-        ``--variant``, and ``--auto`` apply
+        and ``--auto`` apply
         (https://kilo.ai/docs/code-with-ai/platforms/cli-reference). Omits the ``run``
-        subcommand and ``--format json`` headless flags.
+        subcommand, ``--format json``, and ``--variant`` (``--variant`` is documented
+        only under ``kilo run``). Profile ``effort`` is therefore not applied
+        interactively. Prompts use ``--prompt=<text>`` so a leading ``-`` is not
+        parsed as a flag.
         """
+        self.ensure_interactive_model_resolved(model)
         if not isinstance(profile, KiloCliProfile):
             raise ValueError("Kilo CLI requires a Kilo profile")
         arguments: list[str] = [self.executable]
-        for flag, value in (
-            ("--model", model),
-            ("--agent", profile.agent),
-            ("--variant", profile.effort),
-            ("--prompt", prompt),
-        ):
-            if value is not None:
-                arguments.extend((flag, value))
+        notes: list[str] = []
+        if model is not None:
+            arguments.extend(("--model", model))
+        if profile.agent is not None:
+            arguments.extend(("--agent", profile.agent))
+        if profile.effort is not None:
+            notes.append(
+                "profile effort is not applied interactively; --variant is "
+                "documented only for kilo run"
+            )
+        if prompt is not None:
+            arguments.append(f"--prompt={prompt}")
         if profile.auto_approve:
             arguments.append("--auto")
-        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd, notes=tuple(notes))
 
 
 @hookimpl

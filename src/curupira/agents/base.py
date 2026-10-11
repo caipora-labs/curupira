@@ -85,6 +85,21 @@ class CodingAgentCliAdapter(ABC):
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
         """Translate a validated profile into native CLI arguments."""
 
+    def ensure_interactive_model_resolved(self, model: str | None) -> None:
+        """Reject the unresolved literal ``auto`` when this adapter has no ``auto_model``.
+
+        Callers must run :func:`curupira.agents.assistant.resolve_assistant_model`
+        first. Passing ``model="auto"`` without a documented native auto value would
+        invent a flag; adapters that document ``auto`` as a model id set
+        :attr:`auto_model` to ``\"auto\"``.
+        """
+        if model == "auto" and self.auto_model is None:
+            raise ValueError(
+                f"coding agent provider {self.provider!r} has no native automatic "
+                "model selection; resolve the model with resolve_assistant_model "
+                "before calling interactive_launch (do not pass the literal 'auto')"
+            )
+
     def interactive_launch(
         self,
         profile: CliProfileBase,
@@ -101,7 +116,9 @@ class CodingAgentCliAdapter(ABC):
         confirms the interactive invocation. ``model`` follows
         :func:`curupira.agents.assistant.resolve_assistant_model` semantics already
         applied by the caller: pass the resolved value, or ``None`` to omit the model
-        flag. Do not copy headless-only flags (JSON output, ``--print``, ``exec``, …).
+        flag. Overrides must call :meth:`ensure_interactive_model_resolved` so an
+        unresolved ``auto`` cannot reach the CLI. Do not copy headless-only flags
+        (JSON output, ``--print``, ``exec``, …).
 
         Args:
             profile: Validated CLI profile for this provider.
