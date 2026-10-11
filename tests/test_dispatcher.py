@@ -7,6 +7,7 @@ import pytest
 
 from curupira.config import ApplicationSettings
 from curupira.dispatcher import dispatch_next_task
+from curupira.errors import HttpApiError
 from curupira.executor import render_task_prompt
 from curupira.models import (
     CommandRequest,
@@ -14,9 +15,15 @@ from curupira.models import (
     GhPullRequest,
     ProcessResult,
     RunningCodingSession,
+    Task,
 )
 from curupira.runtime import create_execution_log_handler
-from curupira.storage import CronScheduleRepository, RunningSessionRepository
+from curupira.storage import (
+    CompletedTaskRepository,
+    CronScheduleRepository,
+    RunningSessionRepository,
+)
+from curupira.tasks.revalidation import GitHubTaskRevalidator
 from tests.fakes import (
     AssigningAdapter,
     CallbackRunner,
@@ -176,7 +183,7 @@ async def test_empty_dispatch_does_not_create_state(
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
+async def test_resume_uses_original_snapshot_when_github_state_is_unchanged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     configured = settings(tmp_path)
@@ -190,7 +197,13 @@ async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
         monkeypatch,
         FakeGitHub(
             issues=[
-                GhIssue(number=42, title="Changed", url="https://github.com/acme/api/issues/42")
+                GhIssue(
+                    number=42,
+                    title=original.title,
+                    body="Details",
+                    url=original.url,
+                    state="OPEN",
+                )
             ]
         ),
     )
@@ -200,6 +213,39 @@ async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
     assert result.selected == original
     assert adapter.requests[0].session_id == "original"
     assert "Continue the interrupted task" in adapter.requests[0].message
+
+
+async def test_resume_is_dropped_when_github_title_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    configured = settings(tmp_path)
+    original = issue_task(tmp_path, name="work")
+    session = RunningCodingSession(
+        task=original, session_id="original", message="Original task prompt"
+    )
+    await RunningSessionRepository(configured.settings.state_db_path).save(session)
+    adapter = RecordingAdapter()
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[
+                GhIssue(
+                    number=42,
+                    title="Changed",
+                    body="Details",
+                    url=original.url,
+                    state="OPEN",
+                )
+            ]
+        ),
+    )
+    result = await dispatch_next_task(
+        configured, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
+    assert result.selected is not None
+    assert result.selected.title == "Changed"
+    assert adapter.requests[0].session_id is None
+    assert "Continue the interrupted task" not in adapter.requests[0].message
 
 
 async def test_assigned_session_is_persisted_before_the_process_runs(
@@ -370,3 +416,45 @@ async def test_cron_execution_completes_claimed_state_through_shared_executor(
     assert state is not None
     assert state.last_execution_at is not None
     assert state.pending_scheduled_for is None
+
+
+async def test_completion_verification_error_does_not_skip_forever(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    configured = settings(tmp_path)
+    completed = CompletedTaskRepository(configured.settings.state_db_path)
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[
+                GhIssue(
+                    number=42,
+                    title="Fix",
+                    body="Details",
+                    url="https://github.com/acme/api/issues/42",
+                    state="OPEN",
+                )
+            ]
+        ),
+    )
+    adapter = RecordingAdapter()
+
+    async def failing_verifier(self: GitHubTaskRevalidator, task: Task) -> str | None:
+        del self, task
+        raise HttpApiError("503")
+
+    monkeypatch.setattr(GitHubTaskRevalidator, "completion_next_action", failing_verifier)
+
+    first = await dispatch_next_task(
+        configured, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
+    assert first.selected is not None
+    assert len(adapter.requests) == 1
+    assert await completed.get(first.selected) is None
+
+    second = await dispatch_next_task(
+        configured, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
+    assert second.selected is not None
+    assert len(adapter.requests) == 2
+    assert await completed.get(second.selected) is None

@@ -1,20 +1,32 @@
 """Feed construction and source-independent one-shot dispatch."""
 
+import logging
 from collections.abc import Callable
 
 from curupira.agents import CliAdapterFactory, create_cli_adapter
+from curupira.clients.github_graphql import GitHubGraphQLClient
 from curupira.clients.process import AsyncProcessRunner
 from curupira.config import ApplicationSettings
+from curupira.errors import DispatchError
 from curupira.executor import TaskExecutor
 from curupira.models import (
     DispatchOutcome,
+    RunningCodingSession,
     Task,
 )
-from curupira.storage import CronScheduleRepository, RunningSessionRepository
+from curupira.storage import (
+    CompletedTaskRepository,
+    CronScheduleRepository,
+    RunningSessionRepository,
+)
 from curupira.tasks.base import FeedDependencies, TaskFeed
+from curupira.tasks.feed import poll_task_feeds
 from curupira.tasks.registry import get as get_trigger
+from curupira.tasks.revalidation import GitHubTaskRevalidator
 from curupira.telemetry import TaskTelemetry
 from curupira.vcs.base import VersionControl
+
+logger = logging.getLogger(__name__)
 
 
 def create_task_feeds(
@@ -47,29 +59,128 @@ async def dispatch_next_task(
     runner: AsyncProcessRunner | None = None,
 ) -> DispatchOutcome:
     """Run the first currently available task, or preview it without any writes."""
+    process_runner = runner or AsyncProcessRunner()
     cron = CronScheduleRepository(settings.settings.state_db_path)
-    feeds = create_task_feeds(settings, cron, runner=runner)
-    for feed in feeds:
-        available = await feed.poll(preview=dry_run)
-        if not available:
-            continue
-        selected = available[0]
-        if dry_run:
-            return DispatchOutcome(selected=selected)
-        sessions = RunningSessionRepository(settings.settings.state_db_path)
-        resumed = await sessions.get(selected)
-        executor = TaskExecutor(
-            settings.settings,
-            version_control,
-            sessions,
-            cron,
-            adapter_factory=adapter_factory,
-            telemetry=telemetry,
-            runner=runner,
+    feeds = create_task_feeds(settings, cron, runner=process_runner)
+    available = await poll_task_feeds(feeds, preview=dry_run)
+    if dry_run:
+        return DispatchOutcome(selected=available[0] if available else None)
+    sessions = RunningSessionRepository(settings.settings.state_db_path)
+    completed_tasks = CompletedTaskRepository(settings.settings.state_db_path)
+    # One revalidation per candidate before execute (no executor pre-start duplicate).
+    revalidate = GitHubTaskRevalidator(GitHubGraphQLClient(process_runner))
+    executor = TaskExecutor(
+        settings.settings,
+        version_control,
+        sessions,
+        cron,
+        adapter_factory=adapter_factory,
+        telemetry=telemetry,
+        runner=process_runner,
+    )
+    for selected in available:
+        outcome = await _try_dispatch_candidate(
+            selected,
+            executor=executor,
+            sessions=sessions,
+            completed_tasks=completed_tasks,
+            revalidate=revalidate,
+            on_task_selected=on_task_selected,
         )
-        task = resumed.task if resumed is not None else selected
-        if on_task_selected is not None:
-            on_task_selected(task)
-        result = await executor.execute(task, resumed)
-        return DispatchOutcome(selected=task, process=result)
+        if outcome is not None:
+            return outcome
     return DispatchOutcome(selected=None)
+
+
+async def _try_dispatch_candidate(
+    selected: Task,
+    *,
+    executor: TaskExecutor,
+    sessions: RunningSessionRepository,
+    completed_tasks: CompletedTaskRepository,
+    revalidate: GitHubTaskRevalidator,
+    on_task_selected: Callable[[Task], None] | None,
+) -> DispatchOutcome | None:
+    """Revalidate and execute one candidate, or return ``None`` to try the next."""
+    try:
+        current = await revalidate(selected)
+    except DispatchError as error:
+        logger.error(
+            "Revalidation failed for %s: %s; keeping saved session",
+            selected.url,
+            type(error).__name__,
+        )
+        return None
+    if current is None:
+        await executor.discard_session(selected)
+        await completed_tasks.delete(selected)
+        return None
+    if await _skip_unchanged_completed(current, executor, completed_tasks):
+        return None
+    task, resumed = await _resolve_resume(current, sessions, executor)
+    if on_task_selected is not None:
+        on_task_selected(task)
+    result = await executor.execute(task, resumed)
+    if result.returncode == 0 and not result.obsolete:
+        await _persist_completion(task, revalidate, completed_tasks)
+    return DispatchOutcome(selected=task, process=result)
+
+
+async def _skip_unchanged_completed(
+    current: Task,
+    executor: TaskExecutor,
+    completed_tasks: CompletedTaskRepository,
+) -> bool:
+    """Return whether ``current`` matches a stored completed fingerprint."""
+    completed = await completed_tasks.get(current)
+    if completed is None:
+        return False
+    if completed.fingerprint == current.state_fingerprint:
+        await executor.discard_session(current)
+        logger.info(
+            "Skipping unchanged completed task %s; next action: %s",
+            current.url,
+            completed.next_action,
+        )
+        return True
+    await completed_tasks.delete(current)
+    return False
+
+
+async def _resolve_resume(
+    current: Task,
+    sessions: RunningSessionRepository,
+    executor: TaskExecutor,
+) -> tuple[Task, RunningCodingSession | None]:
+    """Keep a matching recovered session or start from the refreshed snapshot."""
+    resumed = await sessions.get(current)
+    if resumed is None:
+        return current, None
+    if resumed.task.state_fingerprint != current.state_fingerprint:
+        await executor.discard_session(resumed.task)
+        return current, None
+    return resumed.task, resumed
+
+
+async def _persist_completion(
+    task: Task,
+    revalidate: GitHubTaskRevalidator,
+    completed_tasks: CompletedTaskRepository,
+) -> None:
+    """Record the next action after a successful agent run."""
+    try:
+        next_action = await revalidate.completion_next_action(task)
+    except Exception as error:
+        await completed_tasks.delete(task)
+        logger.error(
+            "Could not verify completion for %s (%s); completed state cleared "
+            "so verification retries on the next cycle",
+            task.url,
+            type(error).__name__,
+        )
+        return
+    if next_action is None:
+        await completed_tasks.delete(task)
+        return
+    await completed_tasks.save(task, next_action)
+    logger.info("Task %s remains incomplete; next action: %s", task.url, next_action)

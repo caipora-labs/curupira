@@ -12,11 +12,11 @@ from curupira.config_reload import (
     run_continuous_dispatch,
     wait_for_config_change,
 )
-from curupira.models import ExecutionSettings, Task
+from curupira.models import ExecutionSettings, GhIssue, Task
 from curupira.scheduler import TaskScheduler
 from curupira.tasks.base import TaskFeed
 from curupira.telemetry import TaskTelemetry
-from tests.fakes import FakeVersionControl
+from tests.fakes import FakeGitHub, FakeVersionControl, use_fake_github
 from tests.helpers import issue_task
 from tests.test_scheduler import ControlledAdapter, executor, stream
 
@@ -136,6 +136,20 @@ async def test_continuous_dispatch_reloads_after_in_flight_task(
     settings = await load_settings(config)
     adapter = ControlledAdapter()
     first = issue_task(tmp_path / "workspaces", 1)
+    use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[
+                GhIssue(
+                    number=1,
+                    title=first.title,
+                    body="Details",
+                    url=first.url,
+                    state="OPEN",
+                )
+            ]
+        ),
+    )
     cycles = {"n": 0}
     reloaded: list[ApplicationSettings] = []
     holders: dict[str, TaskScheduler | None] = {"scheduler": None}
@@ -190,6 +204,21 @@ async def test_invalid_reload_waits_for_valid_config(
     _write_config(config)
     settings = await load_settings(config)
     adapter = ControlledAdapter()
+    first = issue_task(tmp_path / "workspaces", 1)
+    use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[
+                GhIssue(
+                    number=1,
+                    title=first.title,
+                    body="Details",
+                    url=first.url,
+                    state="OPEN",
+                )
+            ]
+        ),
+    )
     cycles = {"n": 0}
     reloaded: list[int] = []
     holders: dict[str, TaskScheduler | None] = {"scheduler": None}
@@ -197,7 +226,7 @@ async def test_invalid_reload_waits_for_valid_config(
     def fake_feeds(*_args: object, **_kwargs: object) -> list[TaskFeed]:
         cycles["n"] += 1
         if cycles["n"] == 1:
-            return [BlockingFeed([issue_task(tmp_path / "workspaces", 1)])]
+            return [BlockingFeed([first])]
         return [EmptyFeed()]
 
     monkeypatch.setattr("curupira.config_reload.create_task_feeds", fake_feeds)

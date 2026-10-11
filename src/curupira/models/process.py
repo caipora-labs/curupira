@@ -44,12 +44,23 @@ class CommandRequest(ValidatedModel):
 
 
 class ProcessResult(ValidatedModel):
-    """A process exit status and bounded text output."""
+    """A process exit status and bounded text output.
+
+    Attributes:
+        returncode: Native process exit status, or ``0`` when no process ran.
+        stdout: Captured standard output, truncated when needed.
+        stderr: Captured standard error, truncated when needed.
+        output_truncated: Whether stdout/stderr were truncated to the capture limit.
+        obsolete: When true, the coding agent never ran because an optional executor
+            pre-start validator reported a changed or departed source snapshot; callers
+            must not persist completion. Production dispatch leaves that hook unset.
+    """
 
     returncode: int
     stdout: str = ""
     stderr: str = ""
     output_truncated: bool = False
+    obsolete: bool = False
 
 
 class DispatchOutcome(ValidatedModel):

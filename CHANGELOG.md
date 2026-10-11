@@ -5,6 +5,35 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- GitHub dispatch revalidates current issue and pull-request state before admitting a
+  candidate (once per admission; not again immediately before agent start). Closed or
+  merged items leave the queue, issues with an open closing or Development-linked pull
+  request do not invoke the coding-agent CLI (stale issue sessions are retired), and
+  recovered PR sessions restart when the head SHA, draft flag, title, or body changes.
+  Completed snapshots retain an explicit next action so unchanged work is not repeated
+  every dispatch cycle; a failed completion-verification call clears completed state so
+  the next cycle retries instead of skipping forever. Transient revalidation errors defer
+  a candidate without dropping its saved session or stopping the scheduler. Closing-PR
+  lookup uses GraphQL ``closedByPullRequestsReferences`` and fails closed when the result
+  set spans more than one page.
+
+### Changed
+
+- Finite `run --size` drains count only tasks that are actually admitted after
+  revalidation, including recovered sessions; discarded candidates do not consume the
+  limit.
+- Recovered GitHub tasks are revalidated at admission; discovery filters such as
+  `-linked:pr` alone do not protect saved sessions. Pull-request sessions recovered from
+  a pre-upgrade database without a head SHA restart once when the refreshed snapshot
+  supplies one.
+- One-shot and initial polls gather every automation feed together: a ``DispatchError``
+  from one feed is logged and skipped while other feeds still contribute;
+  ``dispatch_next_task`` tries the next candidate when revalidation discards one.
+- Docs distinguish configuration-time discovery filters from scheduler-side revalidation
+  and completed-state retention.
+
 ### Documentation
 
 - TUI assistant docs: clearer description of the in-panel agent, session start and

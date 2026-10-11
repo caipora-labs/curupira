@@ -2,6 +2,7 @@
 
 import logging
 from asyncio import CancelledError
+from collections.abc import Awaitable, Callable
 from string import Template
 
 from curupira.agents import CliAdapterFactory, create_cli_adapter
@@ -10,7 +11,7 @@ from curupira.agents.base import (
     CodingAgentCliAdapter,
 )
 from curupira.clients.process import AsyncProcessRunner
-from curupira.errors import PromptRenderError
+from curupira.errors import DispatchError, PromptRenderError
 from curupira.models import (
     CodingTaskRequest,
     ExecutionSettings,
@@ -63,7 +64,16 @@ class TaskExecutor:
         adapter_factory: CliAdapterFactory = create_cli_adapter,
         telemetry: TaskTelemetry | None = None,
         runner: AsyncProcessRunner | None = None,
+        pre_start_validator: Callable[[Task], Awaitable[Task | None]] | None = None,
     ) -> None:
+        """Build an executor.
+
+        ``pre_start_validator`` is an optional extension point for a last-look
+        source check immediately before the coding-agent CLI starts. Production
+        ``run`` / ``dispatch_next_task`` paths leave it unset and revalidate once
+        at admission time instead; tests may pass a validator to exercise
+        ``ProcessResult.obsolete`` skip semantics.
+        """
         self._settings = settings
         self._runner = runner or AsyncProcessRunner()
         self._default_version_control = version_control or NativeGitVersionControl(self._runner)
@@ -73,6 +83,7 @@ class TaskExecutor:
         self._adapter_factory = adapter_factory
         self._telemetry = telemetry or TaskTelemetry()
         self._adapters: dict[str, CodingAgentCliAdapter] = {}
+        self._pre_start_validator = pre_start_validator
 
     async def execute(
         self, task: Task, resumed: RunningCodingSession | None = None
@@ -144,6 +155,34 @@ class TaskExecutor:
                     result.stderr,
                 )
                 return result
+        if self._pre_start_validator is not None:
+            try:
+                current = await self._pre_start_validator(task)
+            except DispatchError as error:
+                logger.error(
+                    "Pre-start revalidation failed for %s: %s; keeping saved session",
+                    task.identity.key,
+                    type(error).__name__,
+                )
+                return ProcessResult(
+                    returncode=0,
+                    stdout="Revalidation failed before agent start; session kept for retry.",
+                    obsolete=True,
+                )
+            if current is None or current.state_fingerprint != task.state_fingerprint:
+                await self._sessions.delete(task)
+                logger.info(
+                    "Task %s changed before agent start; it will be reconsidered from current "
+                    "source state",
+                    task.identity.key,
+                )
+                return ProcessResult(
+                    returncode=0,
+                    stdout=(
+                        "Task changed before agent start; current source state will be rechecked."
+                    ),
+                    obsolete=True,
+                )
         original_message = resumed.message if resumed is not None else render_task_prompt(task)
 
         async def persist(session_id: str) -> None:
@@ -186,6 +225,10 @@ class TaskExecutor:
                     )
                 except Exception:
                     logger.exception("Could not clean up worktree for %s", task.identity.key)
+
+    async def discard_session(self, task: Task) -> None:
+        """Retire a recovered session that no longer matches current source state."""
+        await self._sessions.delete(task)
 
     def _version_control_for(self, task: Task) -> VersionControl:
         """Return the trigger's clone mechanism, created once per trigger type."""

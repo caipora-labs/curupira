@@ -146,7 +146,11 @@ set the automation's GitHub `repo` to `owner/name`.
 `trigger_type` selects the source:
 
 - `github-issues` discovers GitHub issues through GraphQL Search using typed filters
-  (`labels`, `exclude_labels`, `assignee`, `linked_pull_request`, `sort`, …).
+  (`labels`, `exclude_labels`, `assignee`, `linked_pull_request`, `sort`, …). Set
+  `linked_pull_request = false` so discovery compiles `-linked:pr` and skips issues that
+  already have a linked pull request. That filter is configuration-time discovery only;
+  see [Scheduling and state](#scheduling-and-state) for scheduler revalidation of recovered
+  sessions.
 - `github-pull-requests` discovers GitHub pull requests the same way, with PR filters such
   as `draft`, `review`, `ci_status`, plus post-filters `mergeable` / `merge_state`.
 - `azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
@@ -176,8 +180,10 @@ identity when the trigger has one; `${repository}` is the checkout alias. Each t
 exposes the fields of its typed item model: issues provide `${issue_number}`,
 `${issue_title}`, `${issue_body}`, and `${issue_url}`; pull requests provide
 `${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
-`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`, and
-`${pull_request_base_ref}`. For cron tasks, `${task_number}` is the occurrence timestamp.
+`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`,
+`${pull_request_base_ref}`, and optional refreshed metadata such as
+`${pull_request_head_sha}` and `${pull_request_mergeable}`. For cron tasks,
+`${task_number}` is the occurrence timestamp.
 
 ## Checkout and setup
 
@@ -197,6 +203,38 @@ create worktrees, or run setup.
 Polls fetch up to `batch_size` items (default 100, maximum 1000). Empty poll cycles back off
 from `poll_interval_seconds` (default 30 seconds) up to five minutes; discovery resets the
 wait. Automations deduplicate independently.
+
+Discovery filters such as `linked_pull_request = false` (`-linked:pr`) only affect what
+GitHub Search returns for new work. They do not protect recovered sessions that were saved
+before an issue gained a linked PR. Scheduler enforcement is separate: before a new task or
+saved session is admitted, Curupira fetches the current issue or pull-request state once,
+drops closed or merged items, rejects an issue that already has an open closing or
+Development-linked PR (via GraphQL `closedByPullRequestsReferences`, including body forms
+such as `Fixes: #N`), retires its stale issue session, and restarts a PR session when the
+head SHA, draft flag, title, or body no longer matches the saved snapshot. Pull-request
+sessions recovered from a state database written before head SHA was persisted restart once
+when the refreshed snapshot supplies a head. If GitHub reports more closing-PR references
+than one GraphQL page, admission fails closed for that candidate (no agent). A transient
+revalidation error defers that candidate, keeps any saved session, and does not stop the
+scheduler.
+
+One-shot and initial polls call every automation feed together. A `DispatchError` from one
+feed is logged and that feed contributes no tasks; other feeds still return candidates.
+`run` (one-shot) then tries candidates in order and moves to the next when revalidation
+discards one. Continuous `run --watch` / `tui` streams already logged per-feed discovery
+errors the same way.
+
+After a successful agent run (the coding-agent CLI actually executed), Curupira stores the
+completed source fingerprint plus an explicit next action in `state_db_path`. An unchanged
+completed snapshot is skipped across dispatch cycles. Fingerprints use head SHA, draft flag,
+title, and body — not mergeability, merge-state status, or check conclusions — so check or
+conflict transitions alone do not re-admit work. A changed head, draft flag, title, or body
+can be admitted again. If completion verification itself fails, Curupira clears any completed
+record for that item so the next cycle retries verification instead of skipping forever.
+Snapshots skipped as obsolete before the agent starts are not recorded as completed.
+
+Finite `run --size N` drains admit at most `N` tasks after revalidation. Recovered sessions
+count toward `N`; candidates discarded during revalidation do not.
 
 `max_active_tasks` bounds concurrent agents. Checkouts using the same path run sequentially.
 Cron automations coalesce overdue ticks into one pending occurrence and never run themselves

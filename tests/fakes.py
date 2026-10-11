@@ -1,5 +1,6 @@
 """Controlled native-process and checkout boundaries for behavioral tests."""
 
+import re
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from curupira.models import (
     CommandRequest,
     GhIssue,
     GhPullRequest,
+    GhTaskViewRequest,
     GitHubSearchRequest,
     ProcessResult,
 )
@@ -23,6 +25,29 @@ from curupira.models.configuration import (
     PullRequestAutomationConfiguration,
 )
 from curupira.vcs.base import Checkout, CheckoutRequest, VersionControl
+
+_CLOSING_REFERENCE = re.compile(
+    r"\b(?:clos(?:e|es|ed)|fix(?:es|ed)?|resolv(?:e|es|ed))\s*:?\s*"
+    r"(?:(?P<repo>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+))?#(?P<number>\d+)\b",
+    flags=re.IGNORECASE,
+)
+
+
+def closes_issue(pull: GhPullRequest, repo: str, issue_number: int) -> bool:
+    """Return whether ``pull`` closes ``issue_number`` (fake GraphQL + body keywords)."""
+    for reference in pull.closing_issues_references:
+        linked_repo = reference.repository.name_with_owner if reference.repository else None
+        if reference.number == issue_number and (
+            linked_repo is None or linked_repo.casefold() == repo.casefold()
+        ):
+            return True
+    for match in _CLOSING_REFERENCE.finditer(pull.body or ""):
+        linked_repo = match.group("repo")
+        if int(match.group("number")) == issue_number and (
+            linked_repo is None or linked_repo.casefold() == repo.casefold()
+        ):
+            return True
+    return False
 
 
 class FakeVersionControl(VersionControl):
@@ -87,11 +112,16 @@ class FakeGitHub(GitHubGraphQLClient):
     """Return configured GitHub items without calling the GraphQL API."""
 
     def __init__(
-        self, *, issues: list[GhIssue] | None = None, pulls: list[GhPullRequest] | None = None
+        self,
+        *,
+        issues: list[GhIssue] | None = None,
+        pulls: list[GhPullRequest] | None = None,
+        development_links: dict[int, tuple[int, ...]] | None = None,
     ) -> None:
         super().__init__()
         self.issues = issues or []
         self.pulls = pulls or []
+        self.development_links = development_links or {}
         self.requests: list[GitHubSearchRequest] = []
         self.vcs = FakeVersionControl()
 
@@ -133,17 +163,46 @@ class FakeGitHub(GitHubGraphQLClient):
         self.requests.append(request)
         return self.pulls
 
+    @override
+    async def view_issue(self, request: GhTaskViewRequest) -> GhIssue:
+        issue = next((item for item in self.issues if item.number == request.number), None)
+        if issue is None:
+            raise AssertionError(f"unexpected issue lookup: {request.repo}#{request.number}")
+        return issue.model_copy(update={"state": issue.state or "OPEN"})
+
+    @override
+    async def view_pull_request(self, request: GhTaskViewRequest) -> GhPullRequest:
+        pull = next((item for item in self.pulls if item.number == request.number), None)
+        if pull is None:
+            raise AssertionError(f"unexpected pull-request lookup: {request.repo}#{request.number}")
+        return pull.model_copy(update={"state": pull.state or "OPEN"})
+
+    @override
+    async def list_pull_requests_for_issue(
+        self, repo: str, issue_number: int
+    ) -> list[GhPullRequest]:
+        linked = set(self.development_links.get(issue_number, ()))
+        return [
+            pull
+            for pull in self.pulls
+            if (pull.state or "OPEN").upper() == "OPEN"
+            and pull.merged_at is None
+            and (pull.number in linked or closes_issue(pull, repo, issue_number))
+        ]
+
 
 def use_fake_github(monkeypatch: pytest.MonkeyPatch, fake: FakeGitHub) -> FakeGitHub:
-    """Install ``fake`` as the GraphQL client constructed by built-in GitHub triggers."""
-    monkeypatch.setattr(
-        "curupira.providers.github.issues.GitHubGraphQLClient",
-        lambda runner=None: fake,
-    )
-    monkeypatch.setattr(
-        "curupira.providers.github.pull_requests.GitHubGraphQLClient",
-        lambda runner=None: fake,
-    )
+    """Install ``fake`` as the GraphQL client constructed by built-in GitHub paths."""
+
+    def factory(runner: AsyncProcessRunner | None = None) -> FakeGitHub:
+        del runner
+        return fake
+
+    monkeypatch.setattr("curupira.providers.github.issues.GitHubGraphQLClient", factory)
+    monkeypatch.setattr("curupira.providers.github.pull_requests.GitHubGraphQLClient", factory)
+    monkeypatch.setattr("curupira.dispatcher.GitHubGraphQLClient", factory)
+    monkeypatch.setattr("curupira.cli.GitHubGraphQLClient", factory)
+    monkeypatch.setattr("curupira.config_reload.GitHubGraphQLClient", factory)
     return fake
 
 

@@ -1,5 +1,6 @@
 """Task identities, resolved execution snapshots, and persistence contracts."""
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from pydantic import AwareDatetime, BaseModel, SerializeAsAny, model_validator
 
 from curupira.models.base import Identifier, NonEmptyString, ValidatedModel
 from curupira.models.configuration import AutomationConfiguration
+from curupira.models.items import IssueItem, PullRequestItem
 from curupira.models.profiles import CliProfile
 
 
@@ -59,6 +61,59 @@ class Task(ValidatedModel):
     item: SerializeAsAny[ValidatedModel]
     scheduled_for: AwareDatetime | None = None
 
+    @property
+    def dispatch_key(self) -> str:
+        """Return the in-memory admission key, including PR head revision."""
+        if self.identity.task_type == "github-pull-requests" and isinstance(
+            self.item, PullRequestItem
+        ):
+            return json.dumps(
+                [
+                    self.identity.key,
+                    self.item.pull_request_head_sha,
+                    self.state_fingerprint,
+                ],
+                separators=(",", ":"),
+            )
+        return self.identity.key
+
+    @property
+    def state_key(self) -> str:
+        """Return the durable completion key for one automation-scoped source item."""
+        return self.identity.key
+
+    @property
+    def state_fingerprint(self) -> str:
+        """Return a stable fingerprint of source state relevant to repeating work.
+
+        Pull-request fingerprints use head SHA, draft flag, title, and body.
+        Mergeability, merge-state status, and check conclusions are omitted so check
+        or conflict transitions alone do not re-admit an unchanged completed snapshot.
+        """
+        if isinstance(self.item, PullRequestItem):
+            payload = {
+                "title": self.title,
+                "url": self.url,
+                "body": self.item.pull_request_body,
+                "is_draft": self.item.pull_request_is_draft,
+                "head_sha": self.item.pull_request_head_sha,
+            }
+        elif isinstance(self.item, IssueItem):
+            payload = {
+                "title": self.title,
+                "url": self.url,
+                "body": self.item.issue_body,
+            }
+        else:
+            payload = {
+                "title": self.title,
+                "url": self.url,
+                "item": self.item.model_dump(mode="json"),
+            }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
     @model_validator(mode="before")
     @classmethod
     def parse_typed_item(cls, data: object) -> object:
@@ -105,6 +160,13 @@ class RunningCodingSession(ValidatedModel):
     task: Task
     session_id: NonEmptyString
     message: NonEmptyString
+
+
+class CompletedTaskState(ValidatedModel):
+    """A completed source snapshot and the next external action, if any."""
+
+    fingerprint: NonEmptyString
+    next_action: NonEmptyString
 
 
 class CronRunState(ValidatedModel):

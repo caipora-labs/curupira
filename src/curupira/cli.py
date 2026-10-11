@@ -11,6 +11,8 @@ import typer
 from pydantic import ValidationError
 
 from curupira import __version__
+from curupira.clients.github_graphql import GitHubGraphQLClient
+from curupira.clients.process import AsyncProcessRunner
 from curupira.config import ApplicationSettings, load_settings
 from curupira.config_reload import run_continuous_dispatch
 from curupira.dispatcher import create_task_feeds, dispatch_next_task
@@ -28,8 +30,14 @@ from curupira.runtime import (
 )
 from curupira.scheduler import TaskScheduler
 from curupira.status import TerminalTaskStatus
-from curupira.storage import CronScheduleRepository, RunningSessionRepository
+from curupira.storage import (
+    CompletedTaskRepository,
+    CronScheduleRepository,
+    RunningSessionRepository,
+)
 from curupira.tasks.base import TaskFeed
+from curupira.tasks.feed import poll_task_feeds
+from curupira.tasks.revalidation import GitHubTaskRevalidator
 from curupira.telemetry import TaskTelemetry
 from curupira.vcs.base import VersionControl
 
@@ -249,18 +257,17 @@ def describe_agents() -> list[str]:
 
 
 async def _batch_stream(feeds: Sequence[TaskFeed], size: int | None) -> AsyncIterator[Task]:
-    """Poll each feed until it has no newly available work, optionally capping admissions."""
+    """Poll feeds in common rounds until empty, capping admissions when requested."""
     admitted = 0
-    for feed in feeds:
-        while size is None or admitted < size:
-            tasks = await feed.poll()
-            if not tasks:
-                break
-            for task in tasks:
-                if size is not None and admitted >= size:
-                    return
-                admitted += 1
-                yield task
+    while size is None or admitted < size:
+        tasks = await poll_task_feeds(feeds)
+        if not tasks:
+            return
+        for task in tasks:
+            if size is not None and admitted >= size:
+                return
+            admitted += 1
+            yield task
 
 
 async def async_main(options: CliOptions) -> int:
@@ -394,16 +401,38 @@ async def _execute_scheduled_command(
         sessions = RunningSessionRepository(settings.settings.state_db_path)
         recovered = await sessions.list_all()
         cron = CronScheduleRepository(settings.settings.state_db_path)
-        feeds = create_task_feeds(settings, cron)
+        completed_tasks = CompletedTaskRepository(settings.settings.state_db_path)
+        runner = AsyncProcessRunner()
+        feeds = create_task_feeds(settings, cron, runner=runner)
+        # Pass the full initial poll; the scheduler applies ``admission_limit`` after
+        # revalidation so discarded work does not consume ``--size``, and recovered
+        # sessions count toward the same limit.
+        initial_tasks = await poll_task_feeds(feeds)
+        # Revalidate once at admission time. The executor pre-start hook is left unset
+        # so each candidate does not hit GitHub twice before the agent starts.
+        revalidate = GitHubTaskRevalidator(GitHubGraphQLClient(runner))
         executor = TaskExecutor(
-            settings.settings, version_control, sessions, cron, telemetry=telemetry
+            settings.settings,
+            version_control,
+            sessions,
+            cron,
+            telemetry=telemetry,
+            runner=runner,
         )
         scheduler = TaskScheduler(
             settings.settings,
             executor,
             on_active_tasks_changed=on_active_tasks_changed,
+            task_validator=revalidate,
+            completion_verifier=revalidate.completion_next_action,
+            completed_tasks=completed_tasks,
         )
-        await scheduler.run(_batch_stream(feeds, options.size), resume_sessions=recovered)
+        await scheduler.run(
+            _batch_stream(feeds, None),
+            resume_sessions=recovered,
+            initial_tasks=initial_tasks,
+            admission_limit=options.size,
+        )
         return 1 if scheduler.failed_tasks else 0
     finally:
         status.clear()

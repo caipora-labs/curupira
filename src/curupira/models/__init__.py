@@ -27,8 +27,12 @@ from curupira.models.configuration import (
 from curupira.models.github import (
     DEFAULT_ISSUE_JSON_FIELDS,
     GhIssue,
+    GhIssueReference,
     GhLabel,
     GhPullRequest,
+    GhRepositoryReference,
+    GhStatusCheck,
+    GhTaskViewRequest,
     GitHubSearchRequest,
 )
 from curupira.models.items import (
@@ -60,6 +64,7 @@ from curupira.models.profiles import (
     OpenCodeCliProfile,
 )
 from curupira.models.tasks import (
+    CompletedTaskState,
     CronRunState,
     ResolvedAutomation,
     RunningCodingSession,
@@ -89,6 +94,7 @@ __all__ = [
     "CodingAgentsSettings",
     "CodingTaskRequest",
     "CommandRequest",
+    "CompletedTaskState",
     "CronAutomationConfiguration",
     "CronItem",
     "CronRunState",
@@ -96,8 +102,12 @@ __all__ = [
     "DispatchOutcome",
     "ExecutionSettings",
     "GhIssue",
+    "GhIssueReference",
     "GhLabel",
     "GhPullRequest",
+    "GhRepositoryReference",
+    "GhStatusCheck",
+    "GhTaskViewRequest",
     "GitHubSearchRequest",
     "IssueAutomationConfiguration",
     "IssueItem",
