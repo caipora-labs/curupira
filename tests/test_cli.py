@@ -7,9 +7,17 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from curupira.cli import CliOptions, _batch_stream, _program_name, app, async_main, main
+from curupira.cli import (
+    CliOptions,
+    _batch_stream,
+    _limit_initial_tasks,
+    _program_name,
+    app,
+    async_main,
+    main,
+)
 from curupira.config import load_settings
-from curupira.models import Task
+from curupira.models import IssueAutomationConfiguration, Task
 from curupira.runtime import DispatchInstanceLock, dispatch_home
 from curupira.tasks.base import TaskFeed
 from tests.helpers import issue_task
@@ -108,6 +116,15 @@ async def test_batch_stream_stops_at_size_even_when_more_tasks_exist(tmp_path: P
     assert [task async for task in _batch_stream([feed], 2)] == tasks[:2]
 
 
+async def test_initial_batch_counts_against_finite_size_limit(tmp_path: Path) -> None:
+    tasks = [issue_task(tmp_path, number) for number in range(1, 4)]
+
+    admitted, remaining = _limit_initial_tasks(tasks, 1)
+
+    assert admitted == tasks[:1]
+    assert remaining == 0
+
+
 async def test_batch_stream_exits_cleanly_for_empty_queue() -> None:
     assert [task async for task in _batch_stream([SequenceFeed([])], None)] == []
 
@@ -190,6 +207,9 @@ async def test_example_configuration_is_valid(tmp_path: Path) -> None:
         "review-pull-requests",
         "weekly-maintenance",
     ]
+    issue_automation = settings.automations["resolve-ready-issues"]
+    assert isinstance(issue_automation, IssueAutomationConfiguration)
+    assert issue_automation.linked_pull_request is False
     assert list(tmp_path.iterdir()) == []
 
 

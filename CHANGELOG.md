@@ -5,6 +5,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- GitHub dispatch revalidates current issue and pull-request state before starting or
+  resuming an agent. Closed or merged items leave the queue, issues with an open closing
+  pull request do not invoke the coding-agent CLI (stale issue sessions are retired), and
+  recovered PR sessions restart when the head SHA or workflow stage changes. Completed
+  snapshots retain an explicit next action so unchanged work is not repeated every
+  dispatch cycle. The example issue automation sets `linked_pull_request = false`
+  (`-linked:pr`) for discovery.
+
+### Changed
+
+- Finite `run --size` drains apply the task limit to the initial poll as well as later
+  batches.
+- Recovered GitHub tasks are revalidated immediately before execution and session
+  resumption; discovery filters such as `-linked:pr` alone do not protect saved sessions.
+- Docs distinguish configuration-time discovery filters from scheduler-side revalidation
+  and completed-state retention.
+
 ### Documentation
 
 - TUI assistant docs: clearer description of the in-panel agent, session start and

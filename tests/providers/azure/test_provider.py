@@ -146,6 +146,12 @@ def test_azure_pull_request_trigger_is_registered_and_provides_prompt_context(
             "pull_request_is_draft",
             "pull_request_head_ref",
             "pull_request_base_ref",
+            "pull_request_head_sha",
+            "pull_request_mergeable",
+            "pull_request_merge_state_status",
+            "pull_request_check_conclusions",
+            "pull_request_linked_issue_numbers",
+            "pull_request_linked_issue_states",
         }
     )
     assert trigger.prompt_context(task) == {
@@ -156,6 +162,12 @@ def test_azure_pull_request_trigger_is_registered_and_provides_prompt_context(
         "pull_request_is_draft": "true",
         "pull_request_head_ref": "feature",
         "pull_request_base_ref": "main",
+        "pull_request_head_sha": "",
+        "pull_request_mergeable": "",
+        "pull_request_merge_state_status": "",
+        "pull_request_check_conclusions": "[]",
+        "pull_request_linked_issue_numbers": "[]",
+        "pull_request_linked_issue_states": "[]",
     }
 
 

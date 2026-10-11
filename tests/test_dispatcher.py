@@ -176,7 +176,7 @@ async def test_empty_dispatch_does_not_create_state(
     assert list(tmp_path.iterdir()) == []
 
 
-async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
+async def test_resume_uses_original_snapshot_when_github_state_is_unchanged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     configured = settings(tmp_path)
@@ -190,7 +190,13 @@ async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
         monkeypatch,
         FakeGitHub(
             issues=[
-                GhIssue(number=42, title="Changed", url="https://github.com/acme/api/issues/42")
+                GhIssue(
+                    number=42,
+                    title=original.title,
+                    body="Details",
+                    url=original.url,
+                    state="OPEN",
+                )
             ]
         ),
     )
@@ -200,6 +206,39 @@ async def test_resume_uses_original_snapshot_instead_of_changed_configuration(
     assert result.selected == original
     assert adapter.requests[0].session_id == "original"
     assert "Continue the interrupted task" in adapter.requests[0].message
+
+
+async def test_resume_is_dropped_when_github_title_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    configured = settings(tmp_path)
+    original = issue_task(tmp_path, name="work")
+    session = RunningCodingSession(
+        task=original, session_id="original", message="Original task prompt"
+    )
+    await RunningSessionRepository(configured.settings.state_db_path).save(session)
+    adapter = RecordingAdapter()
+    gh = use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[
+                GhIssue(
+                    number=42,
+                    title="Changed",
+                    body="Details",
+                    url=original.url,
+                    state="OPEN",
+                )
+            ]
+        ),
+    )
+    result = await dispatch_next_task(
+        configured, adapter_factory=lambda _: adapter, version_control=gh.vcs
+    )
+    assert result.selected is not None
+    assert result.selected.title == "Changed"
+    assert adapter.requests[0].session_id is None
+    assert "Continue the interrupted task" not in adapter.requests[0].message
 
 
 async def test_assigned_session_is_persisted_before_the_process_runs(

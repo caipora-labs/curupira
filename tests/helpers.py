@@ -139,5 +139,13 @@ def pull_request_task(path: Path, number: int = 12, name: str = "reviews") -> Ta
             pull_request_is_draft=True,
             pull_request_head_ref="feature",
             pull_request_base_ref="main",
+            pull_request_head_sha="head-default",
         ),
     )
+
+
+def with_pull_request_item(task: Task, **updates: object) -> Task:
+    """Return a copy of ``task`` with selected pull-request item fields replaced."""
+    if not isinstance(task.item, PullRequestItem):
+        raise TypeError("with_pull_request_item requires a pull-request task")
+    return task.model_copy(update={"item": task.item.model_copy(update=updates)})

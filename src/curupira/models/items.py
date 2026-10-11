@@ -30,6 +30,12 @@ class PullRequestItem(ValidatedModel):
         pull_request_is_draft: Whether the pull request is a draft.
         pull_request_head_ref: Source branch name.
         pull_request_base_ref: Target branch name.
+        pull_request_head_sha: Current head commit OID, when known.
+        pull_request_mergeable: GitHub mergeability result, when known.
+        pull_request_merge_state_status: GitHub merge state, when known.
+        pull_request_check_conclusions: Remote check conclusions for the head.
+        pull_request_linked_issue_numbers: Closing-reference issue numbers.
+        pull_request_linked_issue_states: Current states of those linked issues.
     """
 
     pull_request_number: NonEmptyString
@@ -39,6 +45,12 @@ class PullRequestItem(ValidatedModel):
     pull_request_is_draft: bool | None = None
     pull_request_head_ref: str | None = None
     pull_request_base_ref: str | None = None
+    pull_request_head_sha: str | None = None
+    pull_request_mergeable: str | None = None
+    pull_request_merge_state_status: str | None = None
+    pull_request_check_conclusions: tuple[str, ...] = ()
+    pull_request_linked_issue_numbers: tuple[str, ...] = ()
+    pull_request_linked_issue_states: tuple[str, ...] = ()
 
 
 class CronItem(ValidatedModel):
