@@ -1,12 +1,14 @@
 """Gemini CLI profile and native argument translation."""
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.interactive import InteractiveLaunchSpec
 from curupira.hooks import hookimpl
 from curupira.models import CliProfileBase, CodingTaskRequest
 
@@ -54,6 +56,9 @@ class GeminiCliAdapter(CodingAgentCliAdapter):
     profile_model = GeminiCliProfile
     display_name = "Gemini CLI"
     install_url = "https://github.com/google-gemini/gemini-cli"
+    # Gemini CLI documents ``--model`` default ``auto``
+    # (https://geminicli.com/docs/cli/cli-reference/).
+    auto_model = "auto"
 
     @override
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
@@ -73,6 +78,38 @@ class GeminiCliAdapter(CodingAgentCliAdapter):
             arguments.append("--skip-trust")
         arguments.append(f"--prompt={request.message}")
         return tuple(arguments)
+
+    @override
+    def interactive_launch(
+        self,
+        profile: CliProfileBase,
+        *,
+        model: str | None,
+        prompt: str | None,
+        cwd: Path,
+    ) -> InteractiveLaunchSpec:
+        """Build an interactive ``gemini`` REPL launch.
+
+        Official docs: ``gemini`` starts interactive mode; ``--model``,
+        ``--approval-mode``, and ``--skip-trust`` apply, and
+        ``--prompt-interactive`` / ``-i`` seeds a prompt then continues
+        (https://geminicli.com/docs/cli/cli-reference/). Omits ``--output-format`` and
+        ``--prompt`` (``--prompt`` forces non-interactive mode). Prompts use
+        ``--prompt-interactive=<text>`` so a leading ``-`` is not parsed as a flag.
+        """
+        self.ensure_interactive_model_resolved(model)
+        if not isinstance(profile, GeminiCliProfile):
+            raise ValueError("Gemini CLI requires a Gemini profile")
+        arguments: list[str] = [self.executable]
+        if model is not None:
+            arguments.extend(("--model", model))
+        if profile.approval_mode is not None:
+            arguments.extend(("--approval-mode", profile.approval_mode))
+        if profile.skip_trust:
+            arguments.append("--skip-trust")
+        if prompt is not None:
+            arguments.append(f"--prompt-interactive={prompt}")
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 
     @override
     def render_output(self, output: str) -> str:

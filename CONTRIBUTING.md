@@ -81,26 +81,33 @@ issue/PR after `vcs/base.py`. A new coding-agent adapter implements
 `display_name`, and `install_url`, and contributes itself through the Pluggy hook
 `curupira_coding_agent_adapters` in its provider module. Set `auto_model` only when the
 CLI's official docs confirm a native automatic model value (otherwise leave the default
-`None`). When its CLI reports the session
-in a shape other than a `sessionID`, `session_id`, or `thread_id` JSON field, the adapter
-overrides `session_id_from_line`; when the CLI instead accepts a caller-chosen session ID,
-it sets `assigns_session_id = True` and passes `request.new_session_id` to the CLI. When
-the final answer is not a shape the shared `render_output` already understands, it
-overrides `render_output`. Adapters never start processes or handle timeouts and output
-limits themselves; `run_task` and `AsyncProcessRunner` own that. A built-in coding-agent
-adapter lives in its own package under `providers/<name>/` (or shares a package with
-related triggers), is listed in `manager.py`, and is discovered through Pluggy so
-`create_cli_adapter` and profile validation find it through the registry; it belongs in
-its own issue/PR after `agents/base.py`. Providers that need extra Python packages should
-declare an optional dependency extra and use lazy imports so the default install stays
-lean; providers that only wrap an external CLI stay in the default install. Third-party
-adapters register under the `curupira.agents` entry-point group instead. A trigger can
-supply its own clone mechanism through `Trigger.create_version_control`. Azure DevOps
-pull-request listing is supported via `azure-cli-pull-requests`; cloning still uses the
-GitHub CLI version-control adapter unless `path` points at an existing checkout. Trello
-card discovery is built in through Scale-Flow's `trello-cli`; other services such as Monday
-fit a plugin. Configuration accepts only the trigger types and agent providers registered
-by built-ins and installed plugins.
+`None`). Override `interactive_launch` only when official CLI docs confirm an interactive
+TUI invocation (cite the URL in a code comment); return a pure-data
+`InteractiveLaunchSpec` (`argv`, extra `env`, `cwd`, `notes`) and omit headless-only
+flags. Leave the default (`None`) when interactive mode is unverified—callers must say so
+explicitly and must never invent flags. The new method has a default, so
+`PLUGIN_API_VERSION` does not bump and existing plugins keep working. When its CLI reports
+the session in a shape other than a `sessionID`, `session_id`, or `thread_id` JSON field,
+the adapter overrides `session_id_from_line`; when the CLI instead accepts a
+caller-chosen session ID, it sets `assigns_session_id = True` and passes
+`request.new_session_id` to the CLI. When the final answer is not a shape the shared
+`render_output` already understands, it overrides `render_output`. Adapters never start
+processes or handle timeouts and output limits themselves; `run_task` and
+`AsyncProcessRunner` own headless runs, and interactive specs are consumed later by the
+embedded terminal panel. A built-in coding-agent adapter lives in its own package under
+`providers/<name>/` (or shares a package with related triggers), is listed in
+`manager.py`, and is discovered through Pluggy so `create_cli_adapter` and profile
+validation find it through the registry; it belongs in its own issue/PR after
+`agents/base.py`. Providers that need extra Python packages should declare an optional
+dependency extra and use lazy imports so the default install stays lean; providers that
+only wrap an external CLI stay in the default install. Third-party adapters register under
+the `curupira.agents` entry-point group instead. A trigger can supply its own clone
+mechanism through `Trigger.create_version_control`. Azure DevOps pull-request listing is
+supported via `azure-cli-pull-requests`; cloning still uses the GitHub CLI version-control
+adapter unless `path` points at an existing checkout. Trello card discovery is built in
+through Scale-Flow's `trello-cli`; other services such as Monday fit a plugin.
+Configuration accepts only the trigger types and agent providers registered by built-ins
+and installed plugins.
 
 When adding a coding-agent provider, add its package under
 `src/curupira/providers/<provider>/`, a matching test package under
@@ -169,7 +176,8 @@ so the compositor stays on the partial-update path). Scrollback uses a bounded
 deque on `Screen.index` rather than `pyte.HistoryScreen` (whose per-event
 `__getattribute__` wrapper dominated feed time); the deque clears on `reset` and
 `resize`. When the child exits, `Process exited (N)` overlays the last content row
-so it stays inside the visible height.
+so it stays inside the visible height; if the child finished without a trailing
+newline on that row, the overlay covers that line's text.
 
 Re-measure with (prints per-run rows plus a min-max summary):
 
@@ -177,25 +185,30 @@ Re-measure with (prints per-run rows plus a min-max summary):
 uv run --no-sync python scripts/measure_pty_throughput.py --seconds 20 --runs 3
 ```
 
-Throughput and loop latency vary by host and load. The table below is the
-**min-max range across 3 consecutive runs** on Linux 6.12.94+ (x86_64), Intel
-Xeon Processor, 4 CPUs, 15 GiB RAM, Python 3.11.17, Textual `run_test` size
-`(120, 40)`, 20 s sample, 1 ms ticker (workloads did not finish in that window).
-Do not treat a single-run point as authoritative.
+Throughput and loop latency vary by host and load. Figures below are **min-max
+across consecutive runs** of Textual `run_test` size `(120, 40)`, 20 s sample,
+1 ms ticker, on Linux 6.12.94+ with Python 3.11.17 (workloads did not finish in
+that window). Do not treat a single-run point as authoritative. Loop **max** is a
+noisy scheduling/GC tail and is **not** a latency goal; the only hard target when
+changing this path is **p99** (`yes` / `seq` < 50 ms, dense `cat` < 100 ms).
 
-| Workload | Throughput (min-max) | Loop p50 / p99 / max (min-max) |
-| --- | --- | --- |
-| `yes \| head -c 50000000` | 0.345-0.371 MB/s | 10.7-10.9 ms / 16.2-17.2 ms / 30.4-173.1 ms |
-| `seq 2000000` | 0.522-0.561 MB/s | 10.6-10.7 ms / 19.6-21.7 ms / 33.3-40.7 ms |
-| `cat` of a 40 MiB file | 0.814-0.850 MB/s | 10.4-10.5 ms / 54.4-62.3 ms / 108.1-125.5 ms |
+| Machine | Workload | Throughput | p99 (min-max) | max (noisy; not a goal) |
+| --- | --- | --- | --- | --- |
+| 4 CPUs (Intel Xeon, 15 GiB) | `yes \| head -c 50000000` | 0.345-0.371 MB/s | 16.2-17.2 ms | 30.4-173.1 ms |
+| 4 CPUs | `seq 2000000` | 0.522-0.561 MB/s | 19.6-21.7 ms | 33.3-40.7 ms |
+| 4 CPUs | `cat` of a 40 MiB file | 0.814-0.850 MB/s | 54.4-62.3 ms | 108.1-125.5 ms |
+| 8 CPUs (Linux 6.12.94, Python 3.11.17) | `yes \| head -c 50000000` | 0.258-0.277 MB/s | 18.6-20.0 ms | 33.7-328.6 ms |
+| 8 CPUs | `seq 2000000` | 0.346-0.374 MB/s | 26.3-28.3 ms | 47.1-67.3 ms |
+| 8 CPUs | `cat` of a 40 MiB file | 0.505-0.619 MB/s | 76.1-82.6 ms | 164.0-221.5 ms |
 
-Hard latency targets used when changing this path: p99 < 50 ms for `yes` and
-`seq`; p99 < 100 ms and max < 200 ms for dense `cat`. Automated tests cover the
-`yes` flood (p99 < 50 ms); a denser `cat`-style flood was flaky under CPU load, so
-it stays as a measurement-script workload only.
+Envelope across both machines (do not document a narrower band than this without
+re-measuring both): `yes` 0.258-0.371 MB/s (p99 16.2-20.0 ms), `seq`
+0.346-0.561 MB/s (p99 19.6-28.3 ms), `cat` 0.505-0.850 MB/s (p99 54.4-82.6 ms).
+Automated tests cover the `yes` flood (p99 < 50 ms); a denser `cat`-style flood
+was flaky under CPU load, so it stays as a measurement-script workload only.
 
 Update these ranges when changing the reader or render path (re-run with
-`--runs 3` on the same class of machine and replace the table).
+`--runs 3` on each class of machine you care about and widen the table).
 
 ### PtyTerminal lifecycle caveats (documented, not changed)
 

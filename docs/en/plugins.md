@@ -305,6 +305,8 @@ echo = "curupira_echo:EchoCliAdapter"
 | `display_name` | Yes | Name shown in the dashboard. |
 | `install_url` | Yes | Where users install or learn about the CLI. |
 | `build_arguments(request)` | Yes | Native argument vector for one task; resume with `request.session_id` when it is set. |
+| `interactive_launch(profile, *, model, prompt, cwd)` | No | Pure-data `InteractiveLaunchSpec` for starting the CLI in an interactive PTY (no process is launched here). Return `None` (the default) when interactive mode is unverified; callers must say so explicitly and must not invent flags. Override only with a docs-backed interactive invocation, omitting headless-only flags. Callers must pass a model already resolved with `resolve_assistant_model`; overrides call `ensure_interactive_model_resolved` so an unresolved `auto` cannot invent a `--model auto` flag on adapters without `auto_model`. |
+| `auto_model` | No | Native CLI model id for automatic selection (for example `"auto"`), or `None` when the CLI has no documented native auto. |
 | `session_id_from_line(line)` | No | Returns the native session ID announced by one stdout line, or `None`; the default reads `sessionID`, `session_id`, or `thread_id` from a JSON event. Each distinct ID is reported once per run. |
 | `assigns_session_id` | No | Set to `True` for CLIs that accept a caller-chosen session ID. On new runs Curupira generates a UUID, persists it before the process starts, and passes it as `request.new_session_id`; resumed runs keep `request.session_id`. Defaults to `False`. |
 | `render_output(output)` | No | Extracts the final answer from captured stdout; the default understands the built-in JSONL formats. Override it when the CLI emits a different final-answer shape. |
