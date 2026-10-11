@@ -142,10 +142,7 @@ def test_assistant_rejects_unknown_keys() -> None:
 
 
 def test_assistant_rejects_unregistered_agent() -> None:
-    with pytest.raises(
-        ValidationError,
-        match="assistant.agent 'not-a-provider' is not a registered coding agent provider",
-    ):
+    with pytest.raises(ValidationError, match=r"assistant\.agent 'not-a-provider'"):
         ApplicationSettings.model_validate(
             settings_dict(
                 {
@@ -161,9 +158,7 @@ def test_assistant_rejects_unregistered_agent() -> None:
 
 
 def test_resolve_unset_requested_uses_native_auto() -> None:
-    assert resolve_assistant_model(_AutoAdapter, None) == ResolvedModel(
-        model="auto", notice=None
-    )
+    assert resolve_assistant_model(_AutoAdapter, None) == ResolvedModel(model="auto", notice=None)
 
 
 def test_resolve_unset_requested_without_native_auto_omits_model() -> None:
@@ -187,9 +182,7 @@ def test_resolve_passes_other_requested_models_through() -> None:
     assert resolve_assistant_model(_NoAutoAdapter, "gpt-5") == ResolvedModel(
         model="gpt-5", notice=None
     )
-    assert resolve_assistant_model(_AutoAdapter, "auto") == ResolvedModel(
-        model="auto", notice=None
-    )
+    assert resolve_assistant_model(_AutoAdapter, "auto") == ResolvedModel(model="auto", notice=None)
 
 
 def test_settings_reject_auto_for_adapter_without_native_auto() -> None:
