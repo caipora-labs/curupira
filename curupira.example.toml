@@ -27,6 +27,11 @@ remote = "https://dev.azure.com/contoso/api-project/_git/api"
 profile = "opencode-default"
 timezone = "UTC"
 
+# Interactive configuration assistant (optional). Omit until you choose a provider.
+# [assistant]
+# agent = "cursor" # registered coding-agent provider name
+# model = "auto" # omit for native auto when supported; otherwise the CLI default
+
 [agents.profiles.opencode-default]
 provider = "opencode"
 # agent = "issue-resolver" # existing native OpenCode custom agent

@@ -62,6 +62,9 @@ class CodingAgentCliAdapter(ABC):
             reports it before the process starts, and passes it to ``build_arguments``
             as ``request.new_session_id``. Use it for CLIs that accept a caller-chosen
             session identifier instead of printing their own.
+        auto_model: Value to pass as the model when the user wants the CLI's own
+            automatic model selection, or ``None`` if the CLI has no documented native
+            auto.
     """
 
     executable: ClassVar[str]
@@ -71,6 +74,7 @@ class CodingAgentCliAdapter(ABC):
     install_url: ClassVar[str]
     api_version: ClassVar[int] = PLUGIN_API_VERSION
     assigns_session_id: ClassVar[bool] = False
+    auto_model: ClassVar[str | None] = None
 
     def __init__(self, runner: AsyncProcessRunner | None = None) -> None:
         self._runner = runner or AsyncProcessRunner()

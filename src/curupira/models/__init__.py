@@ -10,6 +10,7 @@ from curupira.models.azure import (
 from curupira.models.configuration import (
     AgentDefaults,
     AgentsSettings,
+    AssistantSettings,
     AutomationConfiguration,
     AzurePullRequestAutomationConfiguration,
     CodingAgentDefaults,
@@ -58,6 +59,7 @@ __all__ = [
     "DEFAULT_ISSUE_JSON_FIELDS",
     "AgentDefaults",
     "AgentsSettings",
+    "AssistantSettings",
     "AutomationConfiguration",
     "AzHref",
     "AzPullRequest",

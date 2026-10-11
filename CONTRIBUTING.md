@@ -79,7 +79,9 @@ version-control provider implements `VersionControl.clone` and belongs in its ow
 issue/PR after `vcs/base.py`. A new coding-agent adapter implements
 `CodingAgentCliAdapter.build_arguments`, declares its `provider`, `profile_model`,
 `display_name`, and `install_url`, and contributes itself through the Pluggy hook
-`curupira_coding_agent_adapters` in its provider module. When its CLI reports the session
+`curupira_coding_agent_adapters` in its provider module. Set `auto_model` only when the
+CLI's official docs confirm a native automatic model value (otherwise leave the default
+`None`). When its CLI reports the session
 in a shape other than a `sessionID`, `session_id`, or `thread_id` JSON field, the adapter
 overrides `session_id_from_line`; when the CLI instead accepts a caller-chosen session ID,
 it sets `assigns_session_id = True` and passes `request.new_session_id` to the CLI. When

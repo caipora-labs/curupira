@@ -14,6 +14,7 @@ def settings_dict(
     repositories: dict[str, dict[str, Any]] | None = None,
     agents: dict[str, Any] | None = None,
     settings: dict[str, Any] | None = None,
+    assistant: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a complete ApplicationSettings payload for the split TOML shape."""
     normalized: dict[str, dict[str, Any]] = {}
@@ -48,6 +49,8 @@ def settings_dict(
     }
     if settings is not None:
         payload["settings"] = settings
+    if assistant is not None:
+        payload["assistant"] = assistant
     # Point azure automations at the azure-api repository alias by default.
     for item in normalized.values():
         if (
