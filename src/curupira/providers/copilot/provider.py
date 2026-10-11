@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
@@ -13,23 +13,52 @@ from curupira.models.base import NonEmptyString
 
 
 class CopilotCliProfile(CliProfileBase):
-    """GitHub Copilot CLI options for headless task execution.
+    """GitHub Copilot CLI profile. Set ``provider`` to ``\"copilot\"`` in TOML."""
 
-    Attributes:
-        provider: Discriminator identifying the GitHub Copilot CLI.
-        agent: Optional configured Copilot custom-agent name.
-        effort: Optional Copilot reasoning effort level.
-        allow_all_tools: Whether to allow every tool supported by the CLI.
-        allow_tools: Explicit native tool permission patterns to allow.
-        deny_tools: Explicit native tool permission patterns to deny.
-    """
-
-    provider: Literal["copilot"] = "copilot"
-    agent: NonEmptyString | None = None
-    effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None
-    allow_all_tools: bool = False
-    allow_tools: tuple[NonEmptyString, ...] = ()
-    deny_tools: tuple[NonEmptyString, ...] = ()
+    provider: Literal["copilot"] = Field(
+        default="copilot",
+        description='Discriminator identifying the GitHub Copilot CLI. Must be "copilot".',
+    )
+    agent: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional configured Copilot custom-agent name. When set, the adapter passes "
+            "``--agent=<name>``; when unset, that flag is omitted."
+        ),
+    )
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None = Field(
+        default=None,
+        description=(
+            "Optional Copilot reasoning effort. Allowed values: low, medium, high, "
+            "xhigh, max. When set, the adapter passes ``--reasoning-effort=<value>``; "
+            "when unset, that flag is omitted."
+        ),
+    )
+    allow_all_tools: bool = Field(
+        default=False,
+        description=(
+            "When true, the adapter adds ``--allow-all-tools``. When false (the "
+            "default), that flag is omitted."
+        ),
+    )
+    allow_tools: tuple[NonEmptyString, ...] = Field(
+        default=(),
+        description=(
+            "Explicit native tool permission patterns to allow. When non-empty, the "
+            "adapter passes ``--allow-tool=<patterns>`` as a comma-separated list. "
+            "Entries must not contain commas. When empty (the default), that flag is "
+            "omitted."
+        ),
+    )
+    deny_tools: tuple[NonEmptyString, ...] = Field(
+        default=(),
+        description=(
+            "Explicit native tool permission patterns to deny. When non-empty, the "
+            "adapter passes ``--deny-tool=<patterns>`` as a comma-separated list. "
+            "Entries must not contain commas. When empty (the default), that flag is "
+            "omitted."
+        ),
+    )
 
     @field_validator("allow_tools", "deny_tools")
     @classmethod

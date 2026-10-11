@@ -74,8 +74,9 @@ Follow the Zen of Python (`python -m this`): explicit, flat, and simple beats cl
   external CLI payloads are frozen models that ignore unknown fields.
 - Express a validation rule once, as a reusable `Annotated` type in `models/base.py`,
   and choose between models with a `Literal` discriminator instead of `if` chains.
-- Public modules, classes, and functions have Google-style docstrings; models list their
-  fields under `Attributes:`.
+- Public modules, classes, and functions have Google-style docstrings. Coding-agent
+  profile models document each field with `Field(description=...)` (no `Attributes:`
+  block); other models list their fields under `Attributes:`.
 - Mark overrides with `@override`. Raise subclasses of `curupira.errors.DispatchError`
   for expected failures.
 - Never add a blanket `# noqa` or `# type: ignore`; scope a suppression to one rule and
@@ -83,15 +84,19 @@ Follow the Zen of Python (`python -m this`): explicit, flat, and simple beats cl
 
 ```python
 class CursorCliProfile(CliProfileBase):
-    """Cursor options, including native agent/ask/plan mode selection.
+    """Cursor CLI profile. Set ``provider`` to ``\"cursor\"`` in TOML."""
 
-    Attributes:
-        provider: Discriminator identifying the Cursor CLI.
-        agent: Optional Cursor execution mode.
-    """
-
-    provider: Literal["cursor"] = "cursor"
-    agent: Literal["agent", "ask", "plan"] | None = None
+    provider: Literal["cursor"] = Field(
+        default="cursor",
+        description='Discriminator identifying the Cursor CLI. Must be "cursor".',
+    )
+    agent: Literal["agent", "ask", "plan"] | None = Field(
+        default=None,
+        description=(
+            "Optional Cursor execution mode. Allowed values: agent, ask, plan. When "
+            "set, the adapter passes ``--mode``; when unset, that flag is omitted."
+        ),
+    )
 
 
 CliProfile = Annotated[

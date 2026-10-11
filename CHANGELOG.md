@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Documentation
+
+- Coding-agent CLI profile models (`CliProfileBase` and every registered provider
+  profile) document each field with `Field(description=...)` derived from the adapter
+  argument mapping, so schema-driven CLI docs can read descriptions without duplicating
+  class-docstring `Attributes:` blocks.
+
 ### Changed
 
 - **Breaking:** configuration splits into `[repositories.<alias>]`, `[agents.*]`, and
