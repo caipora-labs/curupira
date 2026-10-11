@@ -25,8 +25,8 @@ place and format as the [configuration assistant settings](configuration.md#assi
 The saved agent applies the next time you open the panel; you do not need to restart the
 TUI. Opening the panel again starts a new interactive session with that agent.
 
-When an agent switch clears the model, Curupira removes the existing `model` key from
-`[assistant]`.
+When an agent switch is saved with `model=None`, Curupira removes the existing `model`
+key from `[assistant]`, and the new agent uses its own default.
 
 !!! warning
     Saving the agent choice updates your settings TOML on disk. That file change triggers
