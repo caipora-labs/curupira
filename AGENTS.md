@@ -55,7 +55,7 @@ on each other.
 | `src/curupira/plugins.py` | Stable plugin API and `curupira.triggers`/`curupira.agents` entry-point discovery; plugins import only this module. |
 | `src/curupira/vcs/` | Repository checkout and worktrees: `VersionControl`. |
 | `src/curupira/providers/` | Built-in providers: one package per integration (`providers/<name>/provider.py`), registered through Pluggy. A provider may contribute coding-agent adapters, triggers, or both. |
-| `src/curupira/agents/` | Shared coding-agent contract (`CodingAgentCliAdapter`, including optional `auto_model`), registry, `resolve_assistant_model`, and `create_cli_adapter`; compatibility re-exports of built-in coding-agent providers. |
+| `src/curupira/agents/` | Shared coding-agent contract (`CodingAgentCliAdapter`, including optional `auto_model` and `interactive_launch`), interactive launch specs, registry, `resolve_assistant_model`, and `create_cli_adapter`; compatibility re-exports of built-in coding-agent providers. |
 | `src/curupira/clients/` | GitHub GraphQL/`gh auth token`, `az`/Trello wrappers, and `AsyncProcessRunner` (the only place that starts processes). |
 | `src/curupira/storage/` | SQLite persistence for sessions and cron state. |
 | `src/curupira/cli.py`, `tui/` | Typer commands and the Textual dashboard. |

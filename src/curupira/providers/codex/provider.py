@@ -2,10 +2,14 @@
 
 import json
 from collections.abc import Sequence
+from pathlib import Path
+
+from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.interactive import InteractiveLaunchSpec
 from curupira.hooks import hookimpl
-from curupira.models import CodexCliProfile, CodingTaskRequest
+from curupira.models import CliProfileBase, CodexCliProfile, CodingTaskRequest
 
 
 class CodexCliAdapter(CodingAgentCliAdapter):
@@ -43,6 +47,46 @@ class CodexCliAdapter(CodingAgentCliAdapter):
                 )
             )
         return (*arguments, "--json", "--", request.message)
+
+    @override
+    def interactive_launch(
+        self,
+        profile: CliProfileBase,
+        *,
+        model: str | None,
+        prompt: str | None,
+        cwd: Path,
+    ) -> InteractiveLaunchSpec:
+        """Build an interactive ``codex`` TUI launch.
+
+        Official docs: ``codex`` launches the TUI with global flags and an optional
+        prompt (https://developers.openai.com/codex/cli/reference/). Omits the
+        ``exec`` subcommand and ``--json`` headless flags while reusing ``--model``,
+        ``--profile``, ``--sandbox``, and ``--config`` effort/approval overrides.
+        """
+        if not isinstance(profile, CodexCliProfile):
+            raise ValueError("Codex requires a Codex profile")
+        arguments: list[str] = [self.executable]
+        if model is not None:
+            arguments.extend(("--model", model))
+        if profile.agent is not None:
+            arguments.extend(("--profile", profile.agent))
+        if profile.effort is not None:
+            arguments.extend(("--config", f"model_reasoning_effort={json.dumps(profile.effort)}"))
+        if profile.sandbox is not None:
+            arguments.extend(("--sandbox", profile.sandbox))
+        if profile.auto_review:
+            arguments.extend(
+                (
+                    "--config",
+                    'approval_policy="on-request"',
+                    "--config",
+                    'approvals_reviewer="auto_review"',
+                )
+            )
+        if prompt is not None:
+            arguments.append(prompt)
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 
 
 @hookimpl

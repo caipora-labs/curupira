@@ -101,6 +101,16 @@ def test_plugin_adapters_default_auto_model_to_none(install: Install) -> None:
     assert "auto_model" not in EchoCliAdapter.__dict__
 
 
+def test_plugin_adapters_default_interactive_launch_to_none(
+    echo: type[EchoCliAdapter], tmp_path: Path
+) -> None:
+    """Existing plugins keep working: interactive_launch defaults without an API bump."""
+    assert "interactive_launch" not in EchoCliAdapter.__dict__
+    assert (
+        echo().interactive_launch(EchoCliProfile(), model=None, prompt=None, cwd=tmp_path) is None
+    )
+
+
 def test_agent_plugins_do_not_load_trigger_entry_points(install: Install) -> None:
     install(FakeEntryPoint("echo", f"{MODULE}:EchoCliAdapter"))
 

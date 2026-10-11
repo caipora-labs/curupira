@@ -1,12 +1,14 @@
 """Native Qwen Code CLI argument translation."""
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import Field
 from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.interactive import InteractiveLaunchSpec
 from curupira.hooks import hookimpl
 from curupira.models import CliProfileBase, CodingTaskRequest
 
@@ -62,6 +64,36 @@ class QwenCodeCliAdapter(CodingAgentCliAdapter):
         if profile.max_session_turns is not None:
             arguments.extend(("--max-session-turns", str(profile.max_session_turns)))
         return (*arguments, f"--prompt={request.message}")
+
+    @override
+    def interactive_launch(
+        self,
+        profile: CliProfileBase,
+        *,
+        model: str | None,
+        prompt: str | None,
+        cwd: Path,
+    ) -> InteractiveLaunchSpec:
+        """Build an interactive ``qwen`` TUI launch.
+
+        Official docs: ``qwen`` starts interactive mode; ``--prompt-interactive`` runs an
+        initial prompt then continues interactively; ``--model``, ``--approval-mode``,
+        and ``--max-session-turns`` apply
+        (https://qwenlm-qwen-code.mintlify.app/cli/overview). Omits ``--output-format``
+        and ``--prompt`` (headless).
+        """
+        if not isinstance(profile, QwenCodeCliProfile):
+            raise ValueError("Qwen Code requires a Qwen Code profile")
+        arguments: list[str] = [self.executable]
+        if model is not None:
+            arguments.extend(("--model", model))
+        if profile.approval_mode is not None:
+            arguments.extend(("--approval-mode", profile.approval_mode))
+        if profile.max_session_turns is not None:
+            arguments.extend(("--max-session-turns", str(profile.max_session_turns)))
+        if prompt is not None:
+            arguments.extend(("--prompt-interactive", prompt))
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 
 
 @hookimpl

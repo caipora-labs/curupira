@@ -2,11 +2,13 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import ClassVar
 from uuid import uuid4
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationError
 
+from curupira.agents.interactive import InteractiveLaunchSpec
 from curupira.clients.process import AsyncProcessRunner
 from curupira.errors import UnsupportedCodingAgentError
 from curupira.models import CliProfileBase, CodingTaskRequest, CommandRequest, ProcessResult
@@ -82,6 +84,36 @@ class CodingAgentCliAdapter(ABC):
     @abstractmethod
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
         """Translate a validated profile into native CLI arguments."""
+
+    def interactive_launch(
+        self,
+        profile: CliProfileBase,
+        *,
+        model: str | None,
+        prompt: str | None,
+        cwd: Path,
+    ) -> InteractiveLaunchSpec | None:
+        """Return a verified interactive PTY launch recipe, or ``None``.
+
+        The default returns ``None``, meaning this provider has no verified
+        interactive mode. Callers must surface that explicitly and must never invent
+        flags. Override only when official CLI documentation (cited in the override)
+        confirms the interactive invocation. ``model`` follows
+        :func:`curupira.agents.assistant.resolve_assistant_model` semantics already
+        applied by the caller: pass the resolved value, or ``None`` to omit the model
+        flag. Do not copy headless-only flags (JSON output, ``--print``, ``exec``, …).
+
+        Args:
+            profile: Validated CLI profile for this provider.
+            model: Resolved model id to pass to the CLI, or ``None`` to omit it.
+            prompt: Optional initial prompt (for example assistant skill text).
+            cwd: Working directory for the interactive session.
+
+        Returns:
+            An :class:`InteractiveLaunchSpec`, or ``None`` when interactive mode is
+            unverified for this adapter.
+        """
+        return None
 
     def session_id_from_line(self, line: str) -> str | None:
         """Return the native session identifier announced by one stdout line, if any.

@@ -1,11 +1,14 @@
 """Native Kilo CLI argument translation."""
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, model_validator
+from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.interactive import InteractiveLaunchSpec
 from curupira.hooks import hookimpl
 from curupira.models import CodingTaskRequest
 from curupira.models.base import NonEmptyString
@@ -79,6 +82,37 @@ class KiloCliAdapter(CodingAgentCliAdapter):
         if profile.auto_approve:
             arguments.append("--auto")
         return (*arguments, "--", request.message)
+
+    @override
+    def interactive_launch(
+        self,
+        profile: CliProfileBase,
+        *,
+        model: str | None,
+        prompt: str | None,
+        cwd: Path,
+    ) -> InteractiveLaunchSpec:
+        """Build an interactive ``kilo`` TUI launch.
+
+        Official docs: ``kilo`` starts the TUI; ``--model``, ``--agent``, ``--prompt``,
+        ``--variant``, and ``--auto`` apply
+        (https://kilo.ai/docs/code-with-ai/platforms/cli-reference). Omits the ``run``
+        subcommand and ``--format json`` headless flags.
+        """
+        if not isinstance(profile, KiloCliProfile):
+            raise ValueError("Kilo CLI requires a Kilo profile")
+        arguments: list[str] = [self.executable]
+        for flag, value in (
+            ("--model", model),
+            ("--agent", profile.agent),
+            ("--variant", profile.effort),
+            ("--prompt", prompt),
+        ):
+            if value is not None:
+                arguments.extend((flag, value))
+        if profile.auto_approve:
+            arguments.append("--auto")
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 
 
 @hookimpl

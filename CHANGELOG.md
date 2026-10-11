@@ -86,6 +86,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Pure-data `InteractiveLaunchSpec` and optional
+  `CodingAgentCliAdapter.interactive_launch` for verified interactive coding-agent CLI
+  invocations (Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI,
+  Kilo CLI, pi, and Qwen Code). Helpers `default_pty_env` (allowlisted PTY environment)
+  and `spec_available` support a later embedded terminal panel; no process or PTY is
+  started here. The default returns `None` (unverified), so `PLUGIN_API_VERSION` is
+  unchanged and existing plugins keep working.
 - Optional `[assistant]` configuration (`AssistantSettings`) for the interactive
   configuration assistant: `agent` (registered coding-agent provider) and `model`.
   Adapters may declare `auto_model` when their CLI documents native automatic model

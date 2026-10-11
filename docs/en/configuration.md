@@ -118,6 +118,13 @@ the interactive configuration assistant and which model that CLI should use:
 
 Existing TOML files without `[assistant]` keep the unset defaults.
 
+Interactive assistant sessions (embedded terminal panel) will consume each adapter's
+optional `interactive_launch` recipe: a pure-data `InteractiveLaunchSpec` with `argv`,
+extra `env`, `cwd`, and `notes`. Adapters that have no verified interactive CLI mode
+return `None`; Curupira must report that to the user and must not invent flags. See the
+[agent plugin contract](plugins.md#agent-contract) for when adapter authors should
+override `interactive_launch` (and return `None` when interactive mode is unverified).
+
 ## Repositories
 
 `[repositories.<alias>]` owns Git checkout settings shared by one or more automations:

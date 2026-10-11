@@ -1,12 +1,14 @@
 """Native GitHub Copilot CLI argument translation."""
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, field_validator
 from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.interactive import InteractiveLaunchSpec
 from curupira.hooks import hookimpl
 from curupira.models import CliProfileBase, CodingTaskRequest
 from curupira.models.base import NonEmptyString
@@ -113,6 +115,43 @@ class CopilotCliAdapter(CodingAgentCliAdapter):
             arguments.append(f"--deny-tool={','.join(profile.deny_tools)}")
         arguments.append(f"--prompt={request.message}")
         return tuple(arguments)
+
+    @override
+    def interactive_launch(
+        self,
+        profile: CliProfileBase,
+        *,
+        model: str | None,
+        prompt: str | None,
+        cwd: Path,
+    ) -> InteractiveLaunchSpec:
+        """Build an interactive ``copilot`` TUI launch.
+
+        Official docs: ``copilot`` launches the interactive UI; ``--interactive=PROMPT``
+        seeds the first turn, and ``--model``, ``--agent``, and tool-permission flags
+        apply (https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference).
+        Omits ``--output-format=json``, ``--no-ask-user``, ``--session-id``, and
+        ``--prompt`` (programmatic / exit-after-completion).
+        """
+        if not isinstance(profile, CopilotCliProfile):
+            raise ValueError("GitHub Copilot CLI requires a Copilot profile")
+        arguments: list[str] = [self.executable]
+        for flag, value in (
+            ("--model", model),
+            ("--agent", profile.agent),
+            ("--reasoning-effort", profile.effort),
+        ):
+            if value is not None:
+                arguments.append(f"{flag}={value}")
+        if profile.allow_all_tools:
+            arguments.append("--allow-all-tools")
+        if profile.allow_tools:
+            arguments.append(f"--allow-tool={','.join(profile.allow_tools)}")
+        if profile.deny_tools:
+            arguments.append(f"--deny-tool={','.join(profile.deny_tools)}")
+        if prompt is not None:
+            arguments.append(f"--interactive={prompt}")
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 
     @override
     def render_output(self, output: str) -> str:

@@ -1,10 +1,14 @@
 """Native Cursor CLI argument translation."""
 
 from collections.abc import Sequence
+from pathlib import Path
+
+from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.interactive import InteractiveLaunchSpec
 from curupira.hooks import hookimpl
-from curupira.models import CodingTaskRequest, CursorCliProfile
+from curupira.models import CliProfileBase, CodingTaskRequest, CursorCliProfile
 
 
 class CursorCliAdapter(CodingAgentCliAdapter):
@@ -38,6 +42,37 @@ class CursorCliAdapter(CodingAgentCliAdapter):
         if profile.trust:
             arguments.append("--trust")
         return (*arguments, "--", request.message)
+
+    @override
+    def interactive_launch(
+        self,
+        profile: CliProfileBase,
+        *,
+        model: str | None,
+        prompt: str | None,
+        cwd: Path,
+    ) -> InteractiveLaunchSpec:
+        """Build an interactive Cursor ``agent`` TUI launch.
+
+        Official docs: ``agent`` / ``agent "prompt"`` start interactive mode; ``--model``
+        and ``--mode`` apply (https://cursor.com/docs/cli/overview). Omits ``--print``
+        and ``--output-format``. When ``model`` is the resolved ``auto`` value from
+        :attr:`auto_model`, it is passed as ``--model auto``.
+        """
+        if not isinstance(profile, CursorCliProfile):
+            raise ValueError("Cursor requires a Cursor profile")
+        arguments: list[str] = [self.executable]
+        if profile.agent is not None:
+            arguments.extend(("--mode", profile.agent))
+        if model is not None:
+            arguments.extend(("--model", model))
+        if profile.force:
+            arguments.append("--force")
+        if profile.trust:
+            arguments.append("--trust")
+        if prompt is not None:
+            arguments.append(prompt)
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 
 
 @hookimpl

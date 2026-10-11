@@ -1,10 +1,14 @@
 """Native Claude Code CLI argument translation."""
 
 from collections.abc import Sequence
+from pathlib import Path
+
+from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.interactive import InteractiveLaunchSpec
 from curupira.hooks import hookimpl
-from curupira.models import ClaudeCodeCliProfile, CodingTaskRequest
+from curupira.models import ClaudeCodeCliProfile, CliProfileBase, CodingTaskRequest
 
 
 class ClaudeCodeCliAdapter(CodingAgentCliAdapter):
@@ -34,6 +38,38 @@ class ClaudeCodeCliAdapter(CodingAgentCliAdapter):
             if value is not None:
                 arguments.extend((flag, value))
         return (*arguments, "--", request.message)
+
+    @override
+    def interactive_launch(
+        self,
+        profile: CliProfileBase,
+        *,
+        model: str | None,
+        prompt: str | None,
+        cwd: Path,
+    ) -> InteractiveLaunchSpec:
+        """Build an interactive ``claude`` TUI launch.
+
+        Official docs: interactive ``claude`` / ``claude "query"``, plus ``--model``,
+        ``--agent``, ``--effort``, and ``--permission-mode``
+        (https://code.claude.com/docs/en/cli-reference). Omits print-mode flags
+        (``-p``, ``--output-format``, ``--verbose``) and ``--permission-prompts``
+        (documented for print mode only).
+        """
+        if not isinstance(profile, ClaudeCodeCliProfile):
+            raise ValueError("Claude Code requires a Claude profile")
+        arguments: list[str] = [self.executable]
+        for flag, value in (
+            ("--model", model),
+            ("--agent", profile.agent),
+            ("--effort", profile.effort),
+            ("--permission-mode", profile.permission_mode),
+        ):
+            if value is not None:
+                arguments.extend((flag, value))
+        if prompt is not None:
+            arguments.append(prompt)
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
 
 
 @hookimpl
