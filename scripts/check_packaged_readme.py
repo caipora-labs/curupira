@@ -149,10 +149,10 @@ def main(argv: list[str] | None = None) -> None:
     if not args.no_build:
         _build_distributions(dist)
     assert_no_opscli_in_distributions(dist)
-    print(f"no {FORBIDDEN!r} in packaged README or metadata under {dist}")
+    print(f"no {FORBIDDEN!r} in packaged README or metadata under {dist}", flush=True)
     if not args.no_twine:
         _twine_check(dist)
-        print(f"twine check passed for {dist}")
+        print(f"twine check passed for {dist}", flush=True)
 
 
 if __name__ == "__main__":
