@@ -585,7 +585,7 @@ class CronAutomationConfiguration(AutomationConfigurationBase):
             "Optional inclusive latest occurrence. Naive values are interpreted in the "
             "effective timezone; aware values are converted to that zone. When both "
             "`start_date` and `end_date` are set, `end_date` must be greater than or "
-            "equal to `start_date`. When omitted, there is no end bound beyond \"now\"."
+            'equal to `start_date`. When omitted, there is no end bound beyond "now".'
         ),
     )
 
