@@ -88,6 +88,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Built-in monday.com board item discovery (`trigger_type = "monday-items"`) through the
+  GraphQL API over `httpx`, with optional `group_ids` filtering, string-preserved item
+  IDs, cursor pagination that continues across polls, per-feed deduplication, and
+  actionable auth/GraphQL errors that never echo the API token. Docs: `docs/en/monday.md`.
 - Embedded coding-agent assistant in `curu tui`: `Ctrl+G` opens a half-width side panel,
   `F6` toggles focus with the main dashboard, and the chosen agent is saved in
   `[assistant]` in your settings TOML. Missing executables and config write failures show

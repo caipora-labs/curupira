@@ -15,6 +15,7 @@ from curupira.models import (
     CronAutomationConfiguration,
     CursorCliProfile,
     IssueAutomationConfiguration,
+    MondayAutomationConfiguration,
     PullRequestAutomationConfiguration,
     TrelloAutomationConfiguration,
 )
@@ -36,6 +37,8 @@ def configuration(trigger: str = "github-issues", **overrides: Any) -> Applicati
         automation["schedule"] = "0 9 * * 1"
     elif trigger == "trello-cli-cards":
         automation["board_id"] = "board123"
+    elif trigger == "monday-items":
+        automation["board_id"] = "1234567890"
     elif trigger == "azure-cli-pull-requests":
         automation["repo"] = "contoso/api-project/api"
         automation["repository"] = "azure-api"
@@ -53,6 +56,7 @@ def configuration(trigger: str = "github-issues", **overrides: Any) -> Applicati
         ("github-pull-requests", PullRequestAutomationConfiguration),
         ("azure-cli-pull-requests", AzurePullRequestAutomationConfiguration),
         ("trello-cli-cards", TrelloAutomationConfiguration),
+        ("monday-items", MondayAutomationConfiguration),
         ("cron", CronAutomationConfiguration),
     ],
 )
