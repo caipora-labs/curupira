@@ -555,8 +555,8 @@ async def test_flood_keeps_event_loop_ticking() -> None:
         assert gaps
         ordered = sorted(gaps)
         p99_index = max(0, math.ceil(len(ordered) * 0.99) - 1)
-        # Max gap is a noisy CI tail (scheduling jitter); the latency goal is p99 only.
         assert ordered[p99_index] < 0.050
+        assert ordered[-1] < 0.150
         app.exit()
 
 
