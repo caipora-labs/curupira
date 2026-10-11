@@ -221,19 +221,6 @@ class AgentDefaults(ValidatedModel):
 CodingAgentDefaults = AgentDefaults
 
 
-# Shared annotation so subclasses can default ``trigger_type`` without re-describing it.
-AutomationTriggerType = Annotated[
-    NonEmptyString,
-    Field(
-        description=(
-            "Registered trigger type that selects which configuration model validates "
-            "this `[automations.<name>]` table. When `trigger_type` is omitted from TOML, "
-            "Curupira chooses `cron` if `schedule` is present, otherwise `github-issues`."
-        )
-    ),
-]
-
-
 class AutomationConfigurationBase(ValidatedModel):
     """Shared options for one automation, keyed by its enclosing TOML table name.
 
@@ -241,7 +228,14 @@ class AutomationConfigurationBase(ValidatedModel):
     their registered type.
     """
 
-    trigger_type: AutomationTriggerType
+    trigger_type: NonEmptyString = Field(
+        description=(
+            "Registered trigger type that selects which configuration model validates "
+            "this `[automations.<name>]` table. When `trigger_type` is omitted from TOML, "
+            "`parse_automation_configuration` chooses `cron` if the `schedule` key is "
+            "present, otherwise `github-issues`."
+        )
+    )
     repository: Identifier = Field(
         description=(
             "Alias of a `[repositories.<alias>]` entry whose `remote`, optional `path`, "
@@ -253,21 +247,22 @@ class AutomationConfigurationBase(ValidatedModel):
     checkout: Literal["worktree", "main"] = Field(
         default="worktree",
         description=(
-            "How each task uses the repository checkout. `worktree` (default) creates an "
-            "isolated Git worktree per task from the fetched remote default branch and "
-            "removes it afterward. `main` runs the coding agent in the shared checkout "
-            "as-is without fetch, pull, or branch switching."
+            "`worktree` (default): after `git fetch origin`, each task gets its own "
+            "worktree and `curupira/<automation>/<task>` branch from `origin`'s default "
+            "branch, removed when the task ends. `main`: runs the agent directly in the "
+            "shared checkout with no fetch, pull, or branch switch (the repository is "
+            "only cloned if missing)."
         ),
     )
     prompt: str = Field(
         description=(
             "Message template sent to the selected coding-agent CLI. Uses "
             "`string.Template` `${name}` placeholders; must be non-empty and syntactically "
-            "valid. At load time Curupira rejects unknown placeholders against the common "
-            "set (`repo`, `repository`, `automation_id`, `task_type`, `task_number`, "
-            "`task_title`, `task_body`, `task_url`) plus the trigger's item-model fields. "
-            "`${repo}` is the forge identity when the trigger has one; `${repository}` is "
-            "the checkout alias."
+            "valid. When the whole configuration is loaded, Curupira rejects unknown "
+            "placeholders against the common set (`repo`, `repository`, `automation_id`, "
+            "`task_type`, `task_number`, `task_title`, `task_body`, `task_url`) plus the "
+            "trigger's item-model fields. `${repo}` is the forge identity when the "
+            "trigger has one; `${repository}` is the checkout alias."
         )
     )
     profile: Identifier | None = Field(
@@ -313,15 +308,16 @@ class GitHubAutomationConfiguration(AutomationConfigurationBase):
         default=(),
         description=(
             "Labels that must all be present (AND). Each value becomes a `label:` search "
-            "qualifier. Defaults to an empty tuple (no label filter). Values with "
-            "whitespace or special characters are quoted in the compiled query."
+            "qualifier. Defaults to an empty tuple (no label filter). Values containing "
+            "whitespace, quotes, colons, or commas are quoted in the query."
         ),
     )
     exclude_labels: tuple[NonEmptyString, ...] = Field(
         default=(),
         description=(
             "Labels that must be absent. Each value becomes a `-label:` search qualifier. "
-            "Defaults to an empty tuple (no exclusion filter)."
+            "Defaults to an empty tuple (no exclusion filter). Values containing "
+            "whitespace, quotes, colons, or commas are quoted in the query."
         ),
     )
     assignee: NonEmptyString | None = Field(
@@ -329,21 +325,24 @@ class GitHubAutomationConfiguration(AutomationConfigurationBase):
         description=(
             "Assignee search filter. A login or `@me` becomes `assignee:<value>`; the "
             "special values `none` and `any` become `no:assignee` and `assignee:*`. "
-            "When omitted, no assignee qualifier is added."
+            "When omitted, no assignee qualifier is added. Login values containing "
+            "whitespace, quotes, colons, or commas are quoted in the query."
         ),
     )
     author: NonEmptyString | None = Field(
         default=None,
         description=(
             "Issue or pull-request author login compiled as `author:<value>`. When "
-            "omitted, no author qualifier is added."
+            "omitted, no author qualifier is added. Values containing whitespace, quotes, "
+            "colons, or commas are quoted in the query."
         ),
     )
     milestone: NonEmptyString | None = Field(
         default=None,
         description=(
             "Milestone title compiled as `milestone:<value>`. When omitted, no milestone "
-            "qualifier is added."
+            "qualifier is added. Values containing whitespace, quotes, colons, or commas "
+            "are quoted in the query."
         ),
     )
     project: NonEmptyString | None = Field(
@@ -351,7 +350,8 @@ class GitHubAutomationConfiguration(AutomationConfigurationBase):
         description=(
             "GitHub project search qualifier compiled as `project:<value>`. Use the "
             "project's `owner/number` form expected by GitHub Search. When omitted, no "
-            "project qualifier is added."
+            "project qualifier is added. Values containing whitespace, quotes, colons, "
+            "or commas are quoted in the query."
         ),
     )
     sort: GitHubSort = Field(
@@ -380,7 +380,10 @@ class IssueAutomationConfiguration(GitHubAutomationConfiguration):
     Selected by ``trigger_type = "github-issues"``.
     """
 
-    trigger_type: AutomationTriggerType = "github-issues"
+    trigger_type: NonEmptyString = Field(
+        default="github-issues",
+        description="Must be `github-issues` for this model.",
+    )
     linked_pull_request: bool | None = Field(
         default=None,
         description=(
@@ -397,7 +400,10 @@ class PullRequestAutomationConfiguration(GitHubAutomationConfiguration):
     Selected by ``trigger_type = "github-pull-requests"``.
     """
 
-    trigger_type: AutomationTriggerType = "github-pull-requests"
+    trigger_type: NonEmptyString = Field(
+        default="github-pull-requests",
+        description="Must be `github-pull-requests` for this model.",
+    )
     draft: bool | None = Field(
         default=None,
         description=(
@@ -410,14 +416,16 @@ class PullRequestAutomationConfiguration(GitHubAutomationConfiguration):
         default=None,
         description=(
             "Base branch name compiled as `base:<value>`. When omitted, no base-branch "
-            "qualifier is added."
+            "qualifier is added. Values containing whitespace, quotes, colons, or commas "
+            "are quoted in the query."
         ),
     )
     head: NonEmptyString | None = Field(
         default=None,
         description=(
             "Head branch name compiled as `head:<value>`. When omitted, no head-branch "
-            "qualifier is added."
+            "qualifier is added. Values containing whitespace, quotes, colons, or commas "
+            "are quoted in the query."
         ),
     )
     review: GitHubReviewFilter | None = Field(
@@ -471,14 +479,20 @@ class AzurePullRequestAutomationConfiguration(AutomationConfigurationBase):
     Selected by ``trigger_type = "azure-cli-pull-requests"``.
     """
 
-    trigger_type: AutomationTriggerType = "azure-cli-pull-requests"
+    trigger_type: NonEmptyString = Field(
+        default="azure-cli-pull-requests",
+        description="Must be `azure-cli-pull-requests` for this model.",
+    )
     repo: NonEmptyString = Field(
         description=(
             "Azure DevOps repository identity in `organization/project/repository` form, "
             "split into `--organization`, `--project`, and `--repository` for "
-            "`az repos pr list`. Must match three `[A-Za-z0-9_.-]+` segments and must "
-            "not contain `.` or `..` path segments. Independent of the checkout `remote` "
-            "on the repository alias."
+            "`az repos pr list`. A bare organization name becomes "
+            "`https://dev.azure.com/<organization>` via `organization_url`; an `http://` "
+            "or `https://` value is passed through. `--top` comes from the discovery "
+            "poll limit. Must match three `[A-Za-z0-9_.-]+` segments and must not "
+            "contain `.` or `..` path segments. Independent of the checkout `remote` on "
+            "the repository alias."
         )
     )
     status: AzurePullRequestStatus = Field(
@@ -528,7 +542,10 @@ class TrelloAutomationConfiguration(AutomationConfigurationBase):
     Selected by ``trigger_type = "trello-cli-cards"``.
     """
 
-    trigger_type: AutomationTriggerType = "trello-cli-cards"
+    trigger_type: NonEmptyString = Field(
+        default="trello-cli-cards",
+        description="Must be `trello-cli-cards` for this model.",
+    )
     board_id: NonEmptyString = Field(
         description=(
             "Trello board ID passed to `trello cards list --board`. Curupira lists cards "
@@ -553,13 +570,16 @@ class CronAutomationConfiguration(AutomationConfigurationBase):
     Selected by ``trigger_type = "cron"``.
     """
 
-    trigger_type: AutomationTriggerType = "cron"
+    trigger_type: NonEmptyString = Field(
+        default="cron",
+        description="Must be `cron` for this model.",
+    )
     schedule: NonEmptyString = Field(
         description=(
-            "Five-field cron expression (minute hour day-of-month month day-of-week) "
-            "defining when occurrences are due. Must be valid according to `croniter`; "
-            "six-field expressions are rejected. Overdue ticks coalesce into one pending "
-            "occurrence, and a cron automation never runs itself concurrently."
+            "Five-field cron expression (minute hour day-of-month month day-of-week). "
+            "Must be valid for `croniter`; six-field expressions are rejected. Ticks "
+            "missed while Curupira was not running coalesce into the latest due "
+            "occurrence, and only one occurrence is pending at a time."
         )
     )
     timezone: NonEmptyString | None = Field(
