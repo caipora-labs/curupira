@@ -98,8 +98,9 @@ into every task identity. `repository` selects a `[repositories.<alias>]` checko
 full Git `remote` URL (and optional `path` / `setup_script`). `trigger_type` selects the
 source:
 
-- `"github-issues"` — discovers matching GitHub issues with typed GraphQL Search filters
-- `"github-pull-requests"` — discovers matching GitHub pull requests with typed filters
+- `"github-issues"` / `"github-pull-requests"` — discover matching GitHub issues and pull
+  requests; see the
+  [GitHub task source guide](https://caipora-labs.github.io/curupira/github/)
 - `"azure-cli-pull-requests"` — lists Azure DevOps pull requests with `az repos pr list`
 - `"trello-cli-cards"` — discovers cards from a configured board with Scale-Flow's `trello-cli`
 - `"cron"` — produces occurrences from `schedule` instead of querying a forge
@@ -138,20 +139,21 @@ arguments is documented on the
 Placeholders use `${name}` syntax and are validated when the configuration loads.
 Common fields: `${repo}`, `${repository}`, `${automation_id}`, `${task_type}`,
 `${task_number}`, `${task_title}`, `${task_body}`, `${task_url}`. Trello cards add `${card_id}`,
-`${card_title}`, `${card_body}`, `${card_url}`, `${card_list_id}`. Issues add `${issue_number}`,
-`${issue_title}`, `${issue_body}`, `${issue_url}`. Pull requests add
-`${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
-`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`, and
-`${pull_request_base_ref}`. For cron tasks, `${task_number}` is the occurrence timestamp.
+`${card_title}`, `${card_body}`, `${card_url}`, `${card_list_id}`. GitHub issue and
+pull-request placeholders are listed in the
+[GitHub task source guide](https://caipora-labs.github.io/curupira/github/).
+For cron tasks, `${task_number}` is the occurrence timestamp.
 
 ### Discovery, concurrency, and cron semantics
 
-GitHub filters are typed TOML fields compiled into GitHub Search and executed through
-GraphQL (`httpx` + `gh auth token`). Polls fetch up to `batch_size` items (default 100,
+GitHub discovery compiles typed filters into Search queries and runs them through GraphQL
+with a token from `gh auth token`; see the
+[GitHub task source guide](https://caipora-labs.github.io/curupira/github/) for filters,
+deduplication, scopes, and prompt fields. Polls fetch up to `batch_size` items (default 100,
 up to 1000). When a full cycle finds nothing, the shared poller waits
 `poll_interval_seconds` (default 30s); consecutive empty cycles double the wait up to
 5 minutes, and any discovery resets it. Each automation deduplicates its own items, so
-two automations may process the same issue with different prompts.
+two automations may process the same forge item with different prompts.
 
 Other task sources can be added as trigger plugins registered under the
 `curupira.triggers` entry-point group; see the
@@ -165,8 +167,7 @@ shared checkout instead (this means the shared checkout, not a branch named `mai
 restores the previous exclusive behavior). `path` continues to select the base checkout.
 With `checkout = "main"`, the agent runs on the shared checkout exactly as it is: Curupira does not fetch, pull, or switch branches there.
 Checkouts are created on demand with `git clone <remote>` under
-`workspace_dir/<repository-alias>` (or the alias `path`). Nothing modifies issues or pull
-requests.
+`workspace_dir/<repository-alias>` (or the alias `path`).
 
 An optional `setup_script` on the repository alias is a repository-relative executable
 path (no absolute paths or `..`). It runs directly, with the checkout root as its working
