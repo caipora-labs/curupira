@@ -41,20 +41,15 @@ operations use native `git` and your normal Git credentials for the repository `
 
 ### Token scopes
 
-`gh auth login` and tokens passed with `gh auth login --with-token` require at least
-`repo`, `read:org`, and `gist` ([GitHub CLI auth login](https://cli.github.com/manual/gh_auth_login)).
-That `repo` scope is enough for Curupira to search issues and pull requests in public and
-private repositories the account can access.
+The [GitHub CLI `gh auth login` manual](https://cli.github.com/manual/gh_auth_login) states
+that tokens passed with `--with-token` need at least `repo`, `read:org`, and `gist`. A
+normal browser `gh auth login` already requests that minimum set (including `repo`), which
+covers GraphQL Search of issues and pull requests for repositories the account can access.
 
-| Use case | Classic PAT / `gh` scopes | Fine-grained PAT permissions |
-| --- | --- | --- |
-| Issues (`github-issues`) | `repo` (or `public_repo` for public-only) | Issues: Read |
-| Pull requests (`github-pull-requests`) | `repo` (or `public_repo` for public-only) | Pull requests: Read |
-| Filter with `project` | add `read:project` (`gh auth refresh --scopes read:project`) | Projects: Read |
-
-GitHub's GraphQL guide notes that the data you request dictates the scopes or permissions
-needed (for example Issues read for issue data). Curupira only reads Search results; it
-never mutates forge objects.
+[GitHub's GraphQL authentication guide](https://docs.github.com/en/graphql/guides/forming-calls-with-graphql#authenticating-with-graphql)
+notes that the data you request dictates the scopes or permissions needed, and that a
+classic PAT needs `public_repo` to access public repositories when broader `repo` is not
+granted. Curupira only reads Search results; it never mutates forge objects.
 
 ## Minimal issue automation
 
@@ -115,6 +110,28 @@ Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
 """
 ```
 
+## First run
+
+1. Install and authenticate the coding-agent CLI named by your profile (`opencode` in the
+   snippets above). Provider-native options and setup notes are on the
+   [Providers and agents](providers.md) pages.
+2. Preview one matching task without cloning or starting an agent:
+
+   ```sh
+   curupira --config path/to/settings.toml run --dry-run
+   ```
+
+3. Drain currently available tasks once, or poll continuously:
+
+   ```sh
+   curupira --config path/to/settings.toml run
+   curupira --config path/to/settings.toml run --watch
+   ```
+
+`--dry-run` cannot be combined with `--watch` or `--size`. `validate` checks TOML shape
+and prompt placeholders without calling GitHub; `run` and `run --watch` need `gh` and the
+chosen agent CLI installed and authenticated.
+
 ## Configuration fields
 
 Defaults come from `IssueAutomationConfiguration` /
@@ -125,11 +142,11 @@ shared bases they extend. Models are frozen and reject unknown keys (`extra="for
 
 | Field | Default | Notes |
 | --- | --- | --- |
-| `trigger_type` | `"github-issues"` or `"github-pull-requests"` | Discriminator; each model sets its own default |
+| `trigger_type` | see notes | Set explicitly to `"github-issues"` or `"github-pull-requests"`. If omitted when parsing TOML, Curupira chooses `"github-issues"` only when the table has no `schedule`; a `schedule` key defaults to `"cron"` instead |
 | `repository` | *(required)* | Alias of a `[repositories.<alias>]` entry |
 | `checkout` | `"worktree"` | `"worktree"` or `"main"` (shared checkout, not a branch name) |
 | `prompt` | *(required)* | Non-empty `string.Template` with `${placeholders}` |
-| `profile` | `None` | Named CLI profile; otherwise `agents.defaults.profile` |
+| `profile` | `None` | Named CLI profile; otherwise `agents.defaults.profile`, which defaults to `"opencode"`. See [Providers and agents](providers.md) for profile options |
 
 ### Shared GitHub filters
 
@@ -138,13 +155,13 @@ Compiled into the Search query by `src/curupira/clients/github_search.py`.
 | Field | Default | Search qualifier / behavior |
 | --- | --- | --- |
 | `repo` | *(required)* | `repo:owner/name` (`owner/repository` format) |
-| `state` | `"open"` | `"open"` → `is:open`; `"closed"` → `is:closed`; `"all"` → neither |
+| `state` | `"open"` | `"open"` → `is:open`; `"closed"` → `is:closed`; `"all"` → neither. For pull requests, `is:closed` includes merged PRs |
 | `labels` | `()` | Each value → `label:…` (AND: every label must be present) |
 | `exclude_labels` | `()` | Each value → `-label:…` |
 | `assignee` | `None` | Login, `@me`, `none` → `no:assignee`, or `any` → `assignee:*` |
 | `author` | `None` | `author:…` |
 | `milestone` | `None` | `milestone:…` |
-| `project` | `None` | `project:…` — GitHub project qualifier (`owner/number`, for example `github/57`) |
+| `project` | `None` | Passed through verbatim as `project:<value>`; see [Searching issues and pull requests](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests) for GitHub's `project:` qualifier |
 | `sort` | `"created-asc"` | Appended as `sort:…`. Allowed: `created-asc`, `created-desc`, `updated-asc`, `updated-desc`, `comments-asc`, `comments-desc` |
 
 Values with whitespace or `"`, `:`, `,` are quoted in the compiled query.
@@ -196,11 +213,12 @@ over `httpx`. There is no free-form `query` field: filters are typed TOML only.
 
 ### Deduplication
 
-`PollingTaskFeed` keeps an in-memory set of task identity keys
-(`[automation_id, repo, task_type, id]`). After a task is admitted, later polls skip it for
-that automation. Deduplication is per automation, so two automations may process the same
-issue or pull request with different prompts. `run --dry-run` previews without adding to
-the seen set.
+`PollingTaskFeed` keeps an in-memory (per process) set of task identity keys
+(`[automation_id, repo, task_type, id]`). After a task is admitted, later polls in that
+process skip it for that automation. The set is not persisted: after a restart, an item that
+still matches the filters is discovered again. Deduplication is per automation, so two
+automations may process the same issue or pull request with different prompts.
+`run --dry-run` previews without adding to the seen set.
 
 When a full cycle finds nothing (or discovery fails), the feed waits
 `poll_interval_seconds`, then doubles the wait on consecutive empty cycles up to five
@@ -249,10 +267,10 @@ checkout, not inside the worktree.
 | --- | --- | --- |
 | `Required executable not found: gh` | GitHub CLI missing from `PATH` | Install `gh` and retry |
 | `gh exited with status …` / empty token | Not logged in, or token unavailable | Run `gh auth login`, then `gh auth token` |
-| GraphQL / HTTP 401 or scope errors | Token lacks access | Re-auth with `repo` (and `read:project` if you use `project`); for fine-grained tokens, grant Issues/Pull requests Read |
+| GraphQL / HTTP 401 or scope errors | Token lacks access to the repository or Search | Re-run `gh auth login` so the token includes `repo`, or use a classic PAT with the scopes required by [GitHub's GraphQL guide](https://docs.github.com/en/graphql/guides/forming-calls-with-graphql#authenticating-with-graphql) |
 | No tasks scheduled | Filters match nothing | Widen labels/state, drop `linked_*` / `draft` filters, or confirm `repo` is correct; empty cycles are not an error |
 | `GitHub GraphQL temporarily failed with status 429` (or similar) | Rate limit or transient API failure | Curupira retries transient errors a few times; back off or reduce poll frequency / `batch_size` |
 | Discovery warnings in `run --watch` | GraphQL or CLI failure treated as an empty cycle | Check logs for `Discovery failed for …`; fix auth or network, then wait for the next poll |
 
-`curu validate` checks TOML shape and prompt placeholders without calling GitHub. `curu run`
-and `curu run --watch` need `gh` installed and authenticated.
+`curupira validate` checks TOML shape and prompt placeholders without calling GitHub.
+`curupira run` and `curupira run --watch` need `gh` installed and authenticated.
