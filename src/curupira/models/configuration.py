@@ -348,20 +348,53 @@ class AutomationConfigurationBase(ValidatedModel):
 
     Trigger plugins extend this model and give ``trigger_type`` a default equal to
     their registered type.
-
-    Attributes:
-        trigger_type: Registered trigger type selecting the configuration model.
-        repository: Alias of a ``[repositories.<alias>]`` entry used for Git checkout.
-        checkout: Whether tasks use isolated worktrees or the shared checkout.
-        prompt: Template sent to the selected coding-agent CLI.
-        profile: Optional named CLI profile overriding the configured default.
     """
 
-    trigger_type: NonEmptyString
-    repository: Identifier
-    checkout: Literal["worktree", "main"] = "worktree"
-    prompt: str
-    profile: Identifier | None = None
+    trigger_type: NonEmptyString = Field(
+        description=(
+            "Registered trigger type that selects which configuration model validates "
+            "this `[automations.<name>]` table. When `trigger_type` is omitted from TOML, "
+            "`parse_automation_configuration` chooses `cron` if the `schedule` key is "
+            "present, otherwise `github-issues`."
+        )
+    )
+    repository: Identifier = Field(
+        description=(
+            "Alias of a `[repositories.<alias>]` entry whose `remote`, optional `path`, "
+            "and optional `setup_script` Curupira uses for the Git checkout for this "
+            "automation. Must match an existing repository key "
+            "(`[A-Za-z0-9_-]+`)."
+        )
+    )
+    checkout: Literal["worktree", "main"] = Field(
+        default="worktree",
+        description=(
+            "`worktree` (default): after `git fetch origin`, each task gets its own "
+            "worktree and `curupira/<automation>/<task>` branch from `origin`'s default "
+            "branch, removed when the task ends. `main`: runs the agent directly in the "
+            "shared checkout with no fetch, pull, or branch switch (the repository is "
+            "only cloned if missing)."
+        ),
+    )
+    prompt: str = Field(
+        description=(
+            "Message template sent to the selected coding-agent CLI. Uses "
+            "`string.Template` `${name}` placeholders; must be non-empty and syntactically "
+            "valid. When the whole configuration is loaded, Curupira rejects unknown "
+            "placeholders against the common set (`repo`, `repository`, `automation_id`, "
+            "`task_type`, `task_number`, `task_title`, `task_body`, `task_url`) plus the "
+            "trigger's item-model fields. `${repo}` is the forge identity when the "
+            "trigger has one; `${repository}` is the checkout alias."
+        )
+    )
+    profile: Identifier | None = Field(
+        default=None,
+        description=(
+            "Optional name of a CLI profile under `[agents.profiles.<name>]`. When "
+            "omitted, the automation inherits `[agents.defaults].profile` (default "
+            "`opencode`). The chosen name must exist among configured profiles."
+        ),
+    )
 
     @field_validator("prompt")
     @classmethod
@@ -375,29 +408,82 @@ class AutomationConfigurationBase(ValidatedModel):
 
 
 class GitHubAutomationConfiguration(AutomationConfigurationBase):
-    """Shared GitHub GraphQL discovery filters for issues and pull requests.
+    """Shared GitHub GraphQL Search filters for issue and pull-request automations."""
 
-    Attributes:
-        repo: GitHub ``owner/repository`` identity used for GraphQL search.
-        state: Open/closed/all filter compiled into the search query.
-        labels: Labels that must all be present (AND).
-        exclude_labels: Labels that must be absent.
-        assignee: Login, ``@me``, ``none``, or ``any``.
-        author: Issue or pull-request author login.
-        milestone: Milestone title filter.
-        project: GitHub project qualifier (``owner/number``).
-        sort: Search sort qualifier.
-    """
-
-    repo: NonEmptyString
-    state: GitHubItemState = "open"
-    labels: tuple[NonEmptyString, ...] = ()
-    exclude_labels: tuple[NonEmptyString, ...] = ()
-    assignee: NonEmptyString | None = None
-    author: NonEmptyString | None = None
-    milestone: NonEmptyString | None = None
-    project: NonEmptyString | None = None
-    sort: GitHubSort = "created-asc"
+    repo: NonEmptyString = Field(
+        description=(
+            "GitHub repository identity in `owner/repository` form, compiled into the "
+            "GraphQL Search `repo:` qualifier. Must match "
+            "`[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+` and must not contain `.` or `..` path "
+            "segments. Independent of the checkout `remote` on the repository alias."
+        )
+    )
+    state: GitHubItemState = Field(
+        default="open",
+        description=(
+            "Issue or pull-request state filter compiled into the search query. `open` "
+            "(default) adds `is:open`, `closed` adds `is:closed`, and `all` adds no "
+            "state qualifier."
+        ),
+    )
+    labels: tuple[NonEmptyString, ...] = Field(
+        default=(),
+        description=(
+            "Labels that must all be present (AND). Each value becomes a `label:` search "
+            "qualifier. Defaults to an empty tuple (no label filter). Values containing "
+            "whitespace, quotes, colons, or commas are quoted in the query."
+        ),
+    )
+    exclude_labels: tuple[NonEmptyString, ...] = Field(
+        default=(),
+        description=(
+            "Labels that must be absent. Each value becomes a `-label:` search qualifier. "
+            "Defaults to an empty tuple (no exclusion filter). Values containing "
+            "whitespace, quotes, colons, or commas are quoted in the query."
+        ),
+    )
+    assignee: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Assignee search filter. A login or `@me` becomes `assignee:<value>`; the "
+            "special values `none` and `any` become `no:assignee` and `assignee:*`. "
+            "When omitted, no assignee qualifier is added. Login values containing "
+            "whitespace, quotes, colons, or commas are quoted in the query."
+        ),
+    )
+    author: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Issue or pull-request author login compiled as `author:<value>`. When "
+            "omitted, no author qualifier is added. Values containing whitespace, quotes, "
+            "colons, or commas are quoted in the query."
+        ),
+    )
+    milestone: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Milestone title compiled as `milestone:<value>`. When omitted, no milestone "
+            "qualifier is added. Values containing whitespace, quotes, colons, or commas "
+            "are quoted in the query."
+        ),
+    )
+    project: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "GitHub project search qualifier compiled as `project:<value>`. Use the "
+            "project's `owner/number` form expected by GitHub Search. When omitted, no "
+            "project qualifier is added. Values containing whitespace, quotes, colons, "
+            "or commas are quoted in the query."
+        ),
+    )
+    sort: GitHubSort = Field(
+        default="created-asc",
+        description=(
+            "Search sort qualifier appended as `sort:<value>`. Accepted values are "
+            "`created-asc`, `created-desc`, `updated-asc`, `updated-desc`, "
+            "`comments-asc`, and `comments-desc`. Defaults to `created-asc`."
+        ),
+    )
 
     @field_validator("repo")
     @classmethod
@@ -411,56 +497,149 @@ class GitHubAutomationConfiguration(AutomationConfigurationBase):
 
 
 class IssueAutomationConfiguration(GitHubAutomationConfiguration):
-    """Discover GitHub issues through typed filters compiled to GraphQL search.
+    """Discover GitHub issues through typed filters compiled to GraphQL Search.
 
-    Attributes:
-        linked_pull_request: When set, require or exclude a linked closing PR.
+    Selected by ``trigger_type = "github-issues"``.
     """
 
-    trigger_type: NonEmptyString = "github-issues"
-    linked_pull_request: bool | None = None
+    trigger_type: NonEmptyString = Field(
+        default="github-issues",
+        description="Must be `github-issues` for this model.",
+    )
+    linked_pull_request: bool | None = Field(
+        default=None,
+        description=(
+            "When `true`, require a linked closing pull request (`linked:pr`). When "
+            "`false`, exclude issues that have one (`-linked:pr`). When omitted, no "
+            "linked-PR qualifier is added."
+        ),
+    )
 
 
 class PullRequestAutomationConfiguration(GitHubAutomationConfiguration):
-    """Discover GitHub pull requests through typed filters and merge post-filters.
+    """Discover GitHub pull requests through typed Search filters and merge post-filters.
 
-    Attributes:
-        draft: When set, require draft or ready-for-review pull requests.
-        base: Base branch name filter.
-        head: Head branch name filter.
-        review: Review-state search qualifier.
-        ci_status: Commit-status search qualifier.
-        linked_issue: When set, require or exclude a linked closing issue.
-        mergeable: Post-filter on GraphQL ``mergeable`` (true=MERGEABLE, false=CONFLICTING).
-        merge_state: Optional post-filter on GraphQL ``mergeStateStatus`` values.
+    Selected by ``trigger_type = "github-pull-requests"``.
     """
 
-    trigger_type: NonEmptyString = "github-pull-requests"
-    draft: bool | None = None
-    base: NonEmptyString | None = None
-    head: NonEmptyString | None = None
-    review: GitHubReviewFilter | None = None
-    ci_status: GitHubCiStatus | None = None
-    linked_issue: bool | None = None
-    mergeable: bool | None = None
-    merge_state: tuple[GitHubMergeStateStatus, ...] = ()
+    trigger_type: NonEmptyString = Field(
+        default="github-pull-requests",
+        description="Must be `github-pull-requests` for this model.",
+    )
+    draft: bool | None = Field(
+        default=None,
+        description=(
+            "When `true`, require draft pull requests (`draft:true`). When `false`, "
+            "require ready-for-review pull requests (`draft:false`). When omitted, no "
+            "draft qualifier is added."
+        ),
+    )
+    base: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Base branch name compiled as `base:<value>`. When omitted, no base-branch "
+            "qualifier is added. Values containing whitespace, quotes, colons, or commas "
+            "are quoted in the query."
+        ),
+    )
+    head: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Head branch name compiled as `head:<value>`. When omitted, no head-branch "
+            "qualifier is added. Values containing whitespace, quotes, colons, or commas "
+            "are quoted in the query."
+        ),
+    )
+    review: GitHubReviewFilter | None = Field(
+        default=None,
+        description=(
+            "Review-state search qualifier compiled as `review:<value>`. Accepted values "
+            "are `none`, `required`, `approved`, and `changes_requested`. When omitted, "
+            "no review qualifier is added."
+        ),
+    )
+    ci_status: GitHubCiStatus | None = Field(
+        default=None,
+        description=(
+            "Commit status search qualifier compiled as `status:<value>` (not "
+            "`ci_status:`). Accepted values are `success`, `failure`, and `pending`. "
+            "When omitted, no status qualifier is added."
+        ),
+    )
+    linked_issue: bool | None = Field(
+        default=None,
+        description=(
+            "When `true`, require a linked closing issue (`linked:issue`). When `false`, "
+            "exclude pull requests that have one (`-linked:issue`). When omitted, no "
+            "linked-issue qualifier is added."
+        ),
+    )
+    mergeable: bool | None = Field(
+        default=None,
+        description=(
+            "Post-filter applied after GraphQL fetch because Search cannot express it. "
+            "`true` keeps only pull requests whose GraphQL `mergeable` is `MERGEABLE`; "
+            "`false` keeps only `CONFLICTING`. When omitted, mergeability is not "
+            "filtered."
+        ),
+    )
+    merge_state: tuple[GitHubMergeStateStatus, ...] = Field(
+        default=(),
+        description=(
+            "Optional post-filter on GraphQL `mergeStateStatus`. When empty (default), "
+            "no merge-state filter is applied. When one or more values are set, the "
+            "pull request is kept only if its status is in the tuple. Accepted values "
+            "are `BEHIND`, `BLOCKED`, `CLEAN`, `DIRTY`, `DRAFT`, `HAS_HOOKS`, "
+            "`UNKNOWN`, and `UNSTABLE`."
+        ),
+    )
 
 
 class AzurePullRequestAutomationConfiguration(AutomationConfigurationBase):
     """Discover Azure DevOps pull requests through the Azure CLI.
 
-    Attributes:
-        repo: Azure DevOps repository in ``organization/project/repository`` form.
-        status: Azure DevOps pull-request status filter passed to ``az repos pr list``.
-        source_branch: Optional source branch filter.
-        target_branch: Optional target branch filter.
+    Selected by ``trigger_type = "azure-cli-pull-requests"``.
     """
 
-    trigger_type: NonEmptyString = "azure-cli-pull-requests"
-    repo: NonEmptyString
-    status: AzurePullRequestStatus = "active"
-    source_branch: NonEmptyString | None = None
-    target_branch: NonEmptyString | None = None
+    trigger_type: NonEmptyString = Field(
+        default="azure-cli-pull-requests",
+        description="Must be `azure-cli-pull-requests` for this model.",
+    )
+    repo: NonEmptyString = Field(
+        description=(
+            "Azure DevOps repository identity in `organization/project/repository` form, "
+            "split into `--organization`, `--project`, and `--repository` for "
+            "`az repos pr list`. A bare organization name becomes "
+            "`https://dev.azure.com/<organization>` via `organization_url`; an `http://` "
+            "or `https://` value is passed through. `--top` comes from the discovery "
+            "poll limit. Must match three `[A-Za-z0-9_.-]+` segments and must not "
+            "contain `.` or `..` path segments. Independent of the checkout `remote` on "
+            "the repository alias."
+        )
+    )
+    status: AzurePullRequestStatus = Field(
+        default="active",
+        description=(
+            "Pull-request status filter passed to `az repos pr list --status`. Accepted "
+            "values are `active` (default), `completed`, `abandoned`, and `all`."
+        ),
+    )
+    source_branch: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional source branch name passed as `--source-branch` to "
+            "`az repos pr list`. When omitted, Azure CLI lists pull requests from any "
+            "source branch."
+        ),
+    )
+    target_branch: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional target branch name passed as `--target-branch` to "
+            "`az repos pr list`. When omitted, Azure CLI lists pull requests into any "
+            "target branch."
+        ),
+    )
 
     @field_validator("repo")
     @classmethod
@@ -482,31 +661,75 @@ class AzurePullRequestAutomationConfiguration(AutomationConfigurationBase):
 class TrelloAutomationConfiguration(AutomationConfigurationBase):
     """Discover cards from one Trello board through Scale-Flow's ``trello-cli``.
 
-    Attributes:
-        board_id: Trello board ID to query.
-        list_ids: Optional list IDs restricting discovery to selected board lists.
+    Selected by ``trigger_type = "trello-cli-cards"``.
     """
 
-    trigger_type: NonEmptyString = "trello-cli-cards"
-    board_id: NonEmptyString
-    list_ids: tuple[NonEmptyString, ...] | None = None
+    trigger_type: NonEmptyString = Field(
+        default="trello-cli-cards",
+        description="Must be `trello-cli-cards` for this model.",
+    )
+    board_id: NonEmptyString = Field(
+        description=(
+            "Trello board ID passed to `trello cards list --board`. Curupira lists cards "
+            "on this board and keeps each card's string ID for task identity and prompt "
+            "placeholders."
+        )
+    )
+    list_ids: tuple[NonEmptyString, ...] | None = Field(
+        default=None,
+        description=(
+            "Optional board list IDs that restrict discovery. When set, only open cards "
+            "whose `idList` is in the tuple are scheduled. When omitted (`null`), all "
+            "open cards on the board are eligible. Closed cards are always excluded "
+            "after listing."
+        ),
+    )
 
 
 class CronAutomationConfiguration(AutomationConfigurationBase):
-    """Discover cron occurrences within an optional inclusive date window.
+    """Produce local cron occurrences within an optional inclusive date window.
 
-    Attributes:
-        schedule: Five-field cron expression defining the occurrence schedule.
-        timezone: Optional IANA timezone overriding the inherited default.
-        start_date: Optional inclusive earliest occurrence; naive values use the effective timezone.
-        end_date: Optional inclusive latest occurrence; naive values use the effective timezone.
+    Selected by ``trigger_type = "cron"``.
     """
 
-    trigger_type: NonEmptyString = "cron"
-    schedule: NonEmptyString
-    timezone: NonEmptyString | None = None
-    start_date: datetime | None = None
-    end_date: datetime | None = None
+    trigger_type: NonEmptyString = Field(
+        default="cron",
+        description="Must be `cron` for this model.",
+    )
+    schedule: NonEmptyString = Field(
+        description=(
+            "Five-field cron expression (minute hour day-of-month month day-of-week). "
+            "Must be valid for `croniter`; six-field expressions are rejected. Ticks "
+            "missed while Curupira was not running coalesce into the latest due "
+            "occurrence, and only one occurrence is pending at a time."
+        )
+    )
+    timezone: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional IANA timezone for evaluating the schedule and naive date-window "
+            "bounds. When omitted, resolution fills `[agents.defaults].timezone` "
+            "(default `UTC`). Unknown zone names are rejected."
+        ),
+    )
+    start_date: datetime | None = Field(
+        default=None,
+        description=(
+            "Optional inclusive earliest occurrence. Naive values are interpreted in the "
+            "effective timezone; aware values are converted to that zone. When omitted, "
+            "the window starts at the automation's first recorded schedule state "
+            "(`created_at`)."
+        ),
+    )
+    end_date: datetime | None = Field(
+        default=None,
+        description=(
+            "Optional inclusive latest occurrence. Naive values are interpreted in the "
+            "effective timezone; aware values are converted to that zone. When both "
+            "`start_date` and `end_date` are set, `end_date` must be greater than or "
+            'equal to `start_date`. When omitted, there is no end bound beyond "now".'
+        ),
+    )
 
     @field_validator("schedule")
     @classmethod
