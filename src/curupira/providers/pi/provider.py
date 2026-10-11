@@ -157,12 +157,15 @@ class PiCliAdapter(CodingAgentCliAdapter):
         ``--thinking``, tool, and approve flags apply (https://pi.dev/docs/latest/cli).
         ``--provider`` requires ``--model``; it is emitted only when ``model`` is set
         and equals the profile's own ``model`` so the provider is never paired with a
-        different assistant model. Omits ``--mode json``. Prompts follow ``--``.
+        different assistant model. Omits ``--mode json``. Prompts follow ``--`` so a
+        leading ``-`` is not parsed as a flag; that terminator requires pi 1.x (pi
+        0.73.1 rejects ``--`` as an unknown option).
         """
         self.ensure_interactive_model_resolved(model)
         if not isinstance(profile, PiCliProfile):
             raise ValueError("pi requires a pi profile")
         arguments: list[str] = [self.executable]
+        notes: list[str] = []
         if model is not None:
             if profile.model_provider is not None and model == profile.model:
                 arguments.extend(("--provider", profile.model_provider))
@@ -179,7 +182,11 @@ class PiCliAdapter(CodingAgentCliAdapter):
             arguments.append("--no-approve")
         if prompt is not None:
             arguments.extend(("--", prompt))
-        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
+            notes.append(
+                "initial prompt uses the -- terminator, which requires pi >= 1.x "
+                "(pi 0.73.1 rejects -- as an unknown option)"
+            )
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd, notes=tuple(notes))
 
     @override
     def session_id_from_line(self, line: str) -> str | None:

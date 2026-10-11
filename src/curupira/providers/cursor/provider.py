@@ -55,9 +55,10 @@ class CursorCliAdapter(CodingAgentCliAdapter):
         """Build an interactive Cursor ``agent`` TUI launch.
 
         Official docs: ``agent`` / ``agent "prompt"`` start interactive mode; ``--model``
-        and ``--mode`` apply (https://cursor.com/docs/cli/overview). Omits ``--print``,
-        ``--output-format``, and ``--trust`` (documented as headless-only at
-        https://cursor.com/docs/cli/reference/parameters). ``--force`` is kept. When
+        and ``--mode plan|ask`` apply (https://cursor.com/docs/cli/reference/parameters).
+        Agent mode is the CLI default when no ``--mode`` is set, so ``agent="agent"``
+        does not emit ``--mode agent`` (that value is not listed). Omits ``--print``,
+        ``--output-format``, and ``--trust`` (headless-only). ``--force`` is kept. When
         ``model`` is the resolved ``auto`` value from :attr:`auto_model`, it is passed
         as ``--model auto``. Prompts follow ``--`` so a leading ``-`` is not parsed as
         a flag.
@@ -66,15 +67,22 @@ class CursorCliAdapter(CodingAgentCliAdapter):
         if not isinstance(profile, CursorCliProfile):
             raise ValueError("Cursor requires a Cursor profile")
         arguments: list[str] = [self.executable]
-        if profile.agent is not None:
+        notes: list[str] = []
+        # Documented ``--mode`` values are plan|ask; agent is the default with no flag.
+        if profile.agent in {"plan", "ask"}:
             arguments.extend(("--mode", profile.agent))
+        elif profile.agent == "agent":
+            notes.append(
+                "profile agent='agent' omits --mode; Cursor defaults to agent mode when "
+                "--mode is unset (docs list only plan|ask)"
+            )
         if model is not None:
             arguments.extend(("--model", model))
         if profile.force:
             arguments.append("--force")
         if prompt is not None:
             arguments.extend(("--", prompt))
-        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd)
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd, notes=tuple(notes))
 
 
 @hookimpl

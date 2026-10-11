@@ -95,7 +95,9 @@ All notable changes to this project are documented here. The format follows
   (unverified), so `PLUGIN_API_VERSION` is unchanged and existing plugins keep working.
   Callers must resolve `model` first; `ensure_interactive_model_resolved` rejects the
   literal `auto` when the adapter has no `auto_model`. Gemini CLI and GitHub Copilot CLI
-  declare `auto_model = "auto"` from their official docs alongside Cursor.
+  declare `auto_model = "auto"` from their official docs alongside Cursor. Interactive
+  Cursor emits `--mode` only for documented `plan`/`ask` (not `agent`); pi prompt
+  separators assume pi >= 1.x.
 - Optional `[assistant]` configuration (`AssistantSettings`) for the interactive
   configuration assistant: `agent` (registered coding-agent provider) and `model`.
   Adapters may declare `auto_model` when their CLI documents native automatic model

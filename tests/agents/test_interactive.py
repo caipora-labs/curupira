@@ -275,6 +275,20 @@ def test_cursor_interactive_launch_argv_and_auto_model(tmp_path: Path) -> None:
     assert "--trust" not in bare.argv
     _assert_no_headless_flags(bare.argv)
 
+    ask = adapter.interactive_launch(
+        CursorCliProfile(agent="ask"), model=None, prompt=None, cwd=tmp_path
+    )
+    assert ask is not None
+    assert ask.argv == ("agent", "--mode", "ask")
+
+    default_agent = adapter.interactive_launch(
+        CursorCliProfile(agent="agent", force=True), model=None, prompt=None, cwd=tmp_path
+    )
+    assert default_agent is not None
+    assert default_agent.argv == ("agent", "--force")
+    assert "--mode" not in default_agent.argv
+    assert any("omits --mode" in note for note in default_agent.notes)
+
     resolved = resolve_assistant_model(CursorCliAdapter, "auto")
     assert resolved.model == "auto"
     auto = adapter.interactive_launch(
@@ -347,6 +361,7 @@ def test_copilot_interactive_launch_argv(tmp_path: Path) -> None:
 
     bare = adapter.interactive_launch(profile, model=None, prompt=None, cwd=tmp_path)
     assert bare is not None
+    # Official Copilot CLI reference documents --agent=AGENT for custom agents.
     assert bare.argv == (
         "copilot",
         "--agent=reviewer",
@@ -465,6 +480,7 @@ def test_pi_interactive_launch_argv(tmp_path: Path) -> None:
     )
     assert dashed is not None
     assert dashed.argv == ("pi", "--no-approve", "--", DASH_PROMPT)
+    assert any("pi >= 1.x" in note for note in dashed.notes)
 
 
 def test_qwen_interactive_launch_argv(tmp_path: Path) -> None:

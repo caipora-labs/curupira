@@ -131,8 +131,9 @@ class CopilotCliAdapter(CodingAgentCliAdapter):
         """Build an interactive ``copilot`` TUI launch.
 
         Official docs: ``copilot`` launches the interactive UI; ``--interactive=PROMPT``
-        seeds the first turn, and ``--model``, ``--agent``, and tool-permission flags
-        apply (https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference).
+        seeds the first turn, and ``--model``, ``--agent=AGENT`` (custom agents),
+        ``--reasoning-effort``, and tool-permission flags apply
+        (https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference).
         Omits ``--output-format=json``, ``--no-ask-user``, ``--session-id``, and
         ``--prompt`` (programmatic / exit-after-completion).
         """
