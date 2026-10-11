@@ -196,20 +196,49 @@ class AssistantPanel(Vertical, can_focus=True):
 
     def focus_content(self) -> None:
         """Move keyboard focus to the picker or PTY inside the panel."""
+        self.can_focus = True
         try:
-            self.query_one("#assistant-pty", PtyTerminal).focus()
+            terminal = self.query_one("#assistant-pty", PtyTerminal)
+            terminal.can_focus = True
+            terminal.focus()
             return
         except NoMatches:
             pass
         try:
-            self.query_one("#assistant-picker", OptionList).focus()
+            picker = self.query_one("#assistant-picker", OptionList)
+            picker.can_focus = True
+            picker.focus()
             return
         except NoMatches:
             pass
         self.focus()
 
+    def suspend_focus_for_host(self) -> None:
+        """Drop panel widgets from the Tab cycle so F6 returns keys to the dashboard.
+
+        After F6 moves focus to the main TUI, Tab must cycle dashboard controls (and
+        F1–F5 stay on the host). Leaving the PTY/picker focusable would steal Tab.
+        """
+        terminal = self.pty_terminal()
+        if terminal is not None:
+            terminal.can_focus = False
+        try:
+            self.query_one("#assistant-picker", OptionList).can_focus = False
+        except NoMatches:
+            pass
+        self.can_focus = False
+
     async def action_close_panel(self) -> None:
-        """Binding handler: close the panel."""
+        """Close the panel, or forward Escape to a focused assistant PTY.
+
+        The panel binds Escape for picker/error screens. When the PTY has focus that
+        binding would otherwise swallow the key before ``PtyTerminal.on_key``; forward
+        ``\\x1b`` to the child and keep the panel open instead.
+        """
+        terminal = self.pty_terminal()
+        if terminal is not None and terminal.has_focus:
+            terminal.write(b"\x1b")
+            return
         await self.close_panel()
 
     async def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:

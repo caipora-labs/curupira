@@ -7,8 +7,8 @@ never appends a second ``assistant`` declaration that would invalidate the TOML
 and stall hot-reload admissions.
 
 Writes are atomic (temp file in the same directory + ``os.replace``) and preserve
-the destination file mode. End-of-line comments on existing ``agent`` / ``model``
-lines are kept when those keys are rewritten.
+the destination file mode and newline style (LF or CRLF). End-of-line comments on
+existing ``agent`` / ``model`` lines are kept when those keys are rewritten.
 """
 
 from __future__ import annotations
@@ -23,7 +23,10 @@ from pathlib import Path
 
 _SECTION_HEADER = re.compile(r"^\[([^\]]+)\]\s*(?:#.*)?$", re.MULTILINE)
 _AGENT_LINE = re.compile(r"^(\s*)agent\s*=\s*([^#\n]*?)(\s*#.*)?$", re.MULTILINE)
-_MODEL_LINE = re.compile(r"^(\s*)model\s*=\s*([^#\n]*?)(\s*#.*)?$", re.MULTILINE)
+# Consume the trailing newline (or end-of-string) so removing ``model`` does not
+# leave a blank line. The value group stays non-greedy; ``(?:\n|$)`` forces it to
+# extend to the real end of the line (unlike a bare ``\n?``, which under-matches).
+_MODEL_LINE = re.compile(r"^(\s*)model\s*=\s*([^#\n]*?)(\s*#.*)?(?:\n|$)", re.MULTILINE)
 _INLINE_ASSISTANT = re.compile(r"^\s*assistant\s*=\s*\{", re.MULTILINE)
 _DOTTED_ASSISTANT = re.compile(r"^\s*assistant\.[A-Za-z0-9_-]+\s*=", re.MULTILINE)
 _QUOTED_ASSISTANT_HEADER = re.compile(
@@ -56,6 +59,9 @@ def persist_assistant_agent(
     comments outside that section are left untouched. Does not invent a second
     state file: the path is the same settings TOML Curupira already loads.
 
+    The file's newline style (LF or CRLF) is detected from the existing bytes and
+    preserved on write; processing always uses ``\\n`` internally.
+
     Args:
         config_path: Existing Curupira configuration file.
         agent: Registered coding-agent provider name.
@@ -75,7 +81,7 @@ def persist_assistant_agent(
     if not normalized:
         raise ValueError("assistant.agent must be a non-empty provider name")
 
-    text = path.read_text(encoding="utf-8")
+    text, newline = _read_text_with_newline(path)
     kind = _assistant_shape(text)
     if kind == "unsupported":
         raise UnsupportedAssistantTomlError(_UNSUPPORTED_MESSAGE)
@@ -83,7 +89,7 @@ def persist_assistant_agent(
     if kind == "absent":
         suffix = "" if text.endswith("\n") or not text else "\n"
         body = _render_assistant_table(normalized, model)
-        _atomic_write(path, f"{text}{suffix}\n{body}")
+        _atomic_write(path, f"{text}{suffix}\n{body}", newline=newline)
         return
 
     span = _assistant_span(text)
@@ -92,7 +98,21 @@ def persist_assistant_agent(
         raise UnsupportedAssistantTomlError(_UNSUPPORTED_MESSAGE)
     start, end = span
     updated = _rewrite_assistant_section(text[start:end], normalized, model)
-    _atomic_write(path, f"{text[:start]}{updated}{text[end:]}")
+    _atomic_write(path, f"{text[:start]}{updated}{text[end:]}", newline=newline)
+
+
+def _read_text_with_newline(path: Path) -> tuple[str, str]:
+    """Return ``(text_with_lf, newline)`` without collapsing CRLF across the file.
+
+    ``newline`` is ``\"\\r\\n\"`` when the raw bytes contain CRLF, otherwise ``\"\\n\"``.
+    The returned text always uses ``\\n`` so regex rewrites stay newline-agnostic.
+    """
+    raw = path.read_bytes()
+    newline = "\r\n" if b"\r\n" in raw else "\n"
+    text = raw.decode("utf-8")
+    if newline == "\r\n":
+        text = text.replace("\r\n", "\n")
+    return text, newline
 
 
 def _assistant_shape(text: str) -> str:
@@ -137,7 +157,7 @@ def _assistant_span(text: str) -> tuple[int, int] | None:
 
 
 def _render_assistant_table(agent: str, model: str | None) -> str:
-    """Render a complete ``[assistant]`` table."""
+    """Render a complete ``[assistant]`` table (LF separators)."""
     lines = ["[assistant]", f'agent = "{_escape_toml_string(agent)}"']
     if model is not None:
         lines.append(f'model = "{_escape_toml_string(model)}"')
@@ -155,8 +175,8 @@ def _rewrite_assistant_section(section: str, agent: str, model: str | None) -> s
         section = section.rstrip("\n") + f"\n{agent_value}\n"
 
     if model is None:
+        # _MODEL_LINE consumes the trailing newline so removal does not leave a blank.
         section = _MODEL_LINE.sub("", section)
-        section = re.sub(r"\n{3,}", "\n\n", section)
         if not section.endswith("\n"):
             section += "\n"
         return section
@@ -165,7 +185,9 @@ def _rewrite_assistant_section(section: str, agent: str, model: str | None) -> s
     model_match = _MODEL_LINE.search(section)
     if model_match is not None:
         comment = model_match.group(3) or ""
-        section = _MODEL_LINE.sub(f"{model_match.group(1)}{model_value}{comment}", section, count=1)
+        indent = model_match.group(1)
+        # Re-add the newline that _MODEL_LINE consumed.
+        section = _MODEL_LINE.sub(f"{indent}{model_value}{comment}\n", section, count=1)
     else:
         section = section.rstrip("\n") + f"\n{model_value}\n"
     if not section.endswith("\n"):
@@ -173,12 +195,15 @@ def _rewrite_assistant_section(section: str, agent: str, model: str | None) -> s
     return section
 
 
-def _atomic_write(path: Path, content: str) -> None:
+def _atomic_write(path: Path, content: str, *, newline: str = "\n") -> None:
     """Write ``content`` via a temp file in ``path.parent`` and ``os.replace``.
 
-    Preserves the destination file's permission bits (``stat.S_IMODE``).
+    ``content`` must use ``\\n`` line endings; they are converted to ``newline``
+    (``\\n`` or ``\\r\\n``) before writing. Preserves the destination file's
+    permission bits (``stat.S_IMODE``).
     """
     mode = stat.S_IMODE(path.stat().st_mode)
+    payload = content.replace("\n", newline).encode("utf-8")
     fd, tmp_name = tempfile.mkstemp(
         dir=str(path.parent),
         prefix=".curupira-assistant-",
@@ -186,8 +211,8 @@ def _atomic_write(path: Path, content: str) -> None:
     )
     tmp_path = Path(tmp_name)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(content)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
         tmp_path.chmod(mode)

@@ -19,7 +19,7 @@ from curupira.agents.interactive import InteractiveLaunchSpec
 from curupira.config import ApplicationSettings
 from curupira.models import CliProfileBase, CodingTaskRequest
 from curupira.telemetry import TaskTelemetry
-from curupira.tui.app import HelpScreen, OrchestratorApp
+from curupira.tui.app import ConfigScreen, HelpScreen, OrchestratorApp
 from curupira.tui.assistant_panel import AssistantPanel
 from curupira.tui.pty_terminal import PtyTerminal
 from curupira.vcs.git_cli import NativeGitVersionControl
@@ -70,6 +70,15 @@ if args.model:
 else:
     print("MODEL_OMITTED", flush=True)
 
+# Non-canonical input so single-byte controls (Esc, Ctrl+C) are readable without a
+# trailing newline — matching how interactive coding-agent CLIs configure the tty.
+try:
+    import tty
+
+    tty.setcbreak(sys.stdin.fileno())
+except Exception:
+    pass
+
 try:
     while True:
         ready, _, _ = select.select([sys.stdin], [], [], 0.05)
@@ -82,6 +91,10 @@ try:
             print("INTERRUPTED", flush=True)
             write_status(event="interrupt")
             sys.exit(0)
+        if b"\\x1b" in data:
+            print("ESCAPE", flush=True)
+            write_status(event="escape")
+            continue
         text = data.decode("utf-8", errors="replace")
         print(f"ECHO:{text}", flush=True)
 except KeyboardInterrupt:
@@ -644,6 +657,109 @@ async def test_ctrl_c_with_pty_focused_interrupts_agent_not_app(
         assert panel.is_open
         assert app.is_running
         assert app.return_value is None
+        app.exit(0)
+
+
+@pytest.mark.asyncio
+async def test_escape_with_pty_focused_reaches_agent_and_keeps_panel_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = _write_fake_script(tmp_path)
+    marker = tmp_path / "marker.txt"
+    monkeypatch.setattr(_FakeAssistantAdapter, "script", script)
+    monkeypatch.setattr(_FakeAssistantAdapter, "marker", marker)
+    _install_fake_adapters(monkeypatch, {"fake-asst": _FakeAssistantAdapter})
+    config_path = _write_config(tmp_path, assistant={"agent": "fake-asst"})
+    settings = _settings_for(tmp_path, assistant={"agent": "fake-asst"})
+    app = _build_app(config_path, settings)
+    async with app.run_test(size=(120, 40)) as pilot:
+        panel, terminal = await _open_assistant_with_pty(app, pilot, marker)
+        await _wait_until(lambda: terminal.has_focus, pilot)
+        await pilot.press("escape")
+        await _wait_until(
+            lambda: marker.exists() and _marker_fields(marker).get("event") == "escape",
+            pilot,
+            attempts=120,
+        )
+        assert panel.is_open
+        assert terminal.has_focus
+        assert app.is_running
+        app.exit(0)
+
+
+class _FakePauseScheduler:
+    """Minimal scheduler stub so F2 can toggle pause during pilot tests."""
+
+    def __init__(self) -> None:
+        self.paused = False
+        self.reload_requested = False
+
+    def pause(self) -> None:
+        self.paused = True
+
+    def resume(self) -> None:
+        self.paused = False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("key", ["f2", "f3", "f5", "tab"])
+async def test_main_tui_shortcuts_with_focus_on_dashboard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, key: str
+) -> None:
+    script = _write_fake_script(tmp_path)
+    marker = tmp_path / "marker.txt"
+    monkeypatch.setattr(_FakeAssistantAdapter, "script", script)
+    monkeypatch.setattr(_FakeAssistantAdapter, "marker", marker)
+    _install_fake_adapters(monkeypatch, {"fake-asst": _FakeAssistantAdapter})
+    config_path = _write_config(tmp_path, assistant={"agent": "fake-asst"})
+    settings = _settings_for(tmp_path, assistant={"agent": "fake-asst"})
+    app = _build_app(config_path, settings)
+    scheduler = _FakePauseScheduler()
+    app._scheduler = scheduler  # type: ignore[assignment]
+    refresh_hits = 0
+    original_refresh = app.action_refresh_metrics
+
+    def _count_refresh() -> None:
+        nonlocal refresh_hits
+        refresh_hits += 1
+        original_refresh()
+
+    app.action_refresh_metrics = _count_refresh  # type: ignore[method-assign]
+    async with app.run_test(size=(120, 40)) as pilot:
+        panel, terminal = await _open_assistant_with_pty(app, pilot, marker)
+        await _wait_until(lambda: terminal.has_focus, pilot)
+        await pilot.press("f6")
+        log = app.query_one("#orchestrator-log", RichLog)
+        await _wait_until(lambda: log.has_focus, pilot)
+        assert panel.is_open
+        assert not panel.focus_is_inside()
+
+        await pilot.press(key)
+
+        if key == "f2":
+            assert scheduler.paused
+            assert panel.is_open
+            assert not panel.focus_is_inside()
+        elif key == "f3":
+            await _wait_until(
+                lambda: any(isinstance(screen, ConfigScreen) for screen in app.screen_stack),
+                pilot,
+            )
+            assert panel.is_open
+            await pilot.press("escape")
+            await _wait_until(
+                lambda: not any(isinstance(screen, ConfigScreen) for screen in app.screen_stack),
+                pilot,
+            )
+        elif key == "f5":
+            assert refresh_hits >= 1
+            assert panel.is_open
+            assert not panel.focus_is_inside()
+        else:
+            assert key == "tab"
+            assert panel.is_open
+            assert not panel.focus_is_inside()
+            assert not terminal.has_focus
         app.exit(0)
 
 

@@ -53,9 +53,10 @@ down the child process. Window resize propagates to the PTY via `TIOCSWINSZ` /
 `SIGWINCH`.
 
 Persistence only rewrites a standard unquoted `[assistant]` table (atomic replace in the
-same directory, preserving file mode and end-of-line comments on existing `agent` /
-`model` lines). It does not run a full TOML pretty-printer; other comments and tables
-outside that section are left as-is.
+same directory, preserving file mode, newline style (LF or CRLF), and end-of-line comments
+on existing `agent` / `model` lines). Removing `model` drops that line without leaving an
+extra blank in the section. It does not run a full TOML pretty-printer; other comments and
+tables outside that section are left as-is.
 
 ## Related configuration
 

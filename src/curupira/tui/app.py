@@ -319,6 +319,7 @@ class OrchestratorApp(App[int]):
         if not panel.is_open:
             return
         if panel.focus_is_inside():
+            panel.suspend_focus_for_host()
             self._focus_main_dashboard()
         else:
             panel.focus_content()
