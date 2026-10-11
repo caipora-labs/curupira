@@ -160,18 +160,32 @@ Windows is unsupported in v1; the widget should render the placeholder instead o
 spawning a child.
 
 `pyte` (LGPL-3.0) is a dynamic runtime dependency of this MIT-licensed project; it is
-not vendored or statically linked. The PTY reader reads up to 2 KiB, feeds pyte in
-1 KiB slices, and checks a 10 ms per-tick budget before and after each feed, then
-yields (`remove_reader` / `asyncio.sleep(0)` / re-add). Measured on Linux with Textual
-`run_test` over a 25 s sample (workloads did not finish in that window):
+not vendored or statically linked. The PTY reader reads up to 1 KiB, feeds pyte in
+256-byte slices under a 5 ms per-tick budget (checked before and after each feed),
+then yields (`remove_reader` / `asyncio.sleep(0)` / re-add). Rendering caches Rich
+styles, coalesces identical adjacent cells into one segment, rebuilds only dirty
+rows into Textual strips, and refreshes those rows at about 30 fps (region refresh
+so the compositor stays on the partial-update path). Scrollback uses a bounded
+deque on `Screen.index` rather than `pyte.HistoryScreen` (whose per-event
+`__getattribute__` wrapper dominated feed time).
+
+Re-measure with:
+
+```bash
+uv run --no-sync python scripts/measure_pty_throughput.py --seconds 20
+```
+
+Figures below were reproduced on Linux 6.12.94+ (x86_64), Intel Xeon Processor,
+4 CPUs, 15 GiB RAM, Python 3.11.17, Textual `run_test` size `(120, 40)`, 20 s
+sample, 1 ms ticker (workloads did not finish in that window):
 
 | Workload | Throughput | Loop latency p50 / p99 / max |
 | --- | --- | --- |
-| `yes \| head -c 50000000` | ~0.071 MB/s (~0.068 MiB/s) | 15 ms / 71 ms / 75 ms |
-| `seq 2000000` | ~0.103 MB/s (~0.098 MiB/s) | 13 ms / 78 ms / 85 ms |
-| `cat` of a 40 MB file | ~1.35 MB/s (~1.29 MiB/s) | ~0 ms / 40 ms / 66 ms |
+| `yes \| head -c 50000000` | 0.386 MB/s (0.368 MiB/s) | 10.9 ms / 16.1 ms / 26.5 ms |
+| `seq 2000000` | 0.579 MB/s (0.552 MiB/s) | 10.6 ms / 19.5 ms / 30.7 ms |
+| `cat` of a 40 MiB file | 0.904 MB/s (0.862 MiB/s) | 10.4 ms / 47.1 ms / 80.3 ms |
 
-Re-measure and update these figures when changing the reader loop.
+Update these figures when changing the reader or render path.
 
 ### PtyTerminal lifecycle caveats (documented, not changed)
 

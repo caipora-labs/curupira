@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import errno
+import math
 import os
 import sys
 import time
@@ -115,6 +116,30 @@ def test_clamp_terminal_dimensions_uses_one_by_one_for_zero() -> None:
     assert clamp_terminal_dimensions(0, 5) == (1, 5)
     assert clamp_terminal_dimensions(3, 0) == (3, 1)
     assert clamp_terminal_dimensions(80, 24) == (80, 24)
+
+
+def test_emulator_scrollback_retains_scrolled_off_rows() -> None:
+    """Cheap Screen scrollback must keep discarded top rows without HistoryScreen."""
+    import pyte
+
+    from curupira.tui import pty_terminal as pty_terminal_module
+
+    writes: list[bytes] = []
+    emulator = pty_terminal_module._EmulatorScreen(
+        8,
+        2,
+        history=8,
+        on_write=writes.append,
+    )
+    stream = pyte.ByteStream(emulator)
+    stream.feed(b"AAAA\nBBBB\nCCCC\n")
+    assert len(emulator.scrollback) >= 1
+    retained = [
+        "".join(row[column].data for column in range(emulator.columns)).rstrip()
+        for row in emulator.scrollback
+    ]
+    assert "AAAA" in retained
+    assert writes == []
 
 
 @pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
@@ -480,12 +505,15 @@ async def test_flood_keeps_event_loop_ticking() -> None:
                 previous = now
 
         ticker = asyncio.create_task(_ticker())
-        await _wait_until(lambda: "FLOOD_DONE" in _visible_text(terminal), pilot, attempts=200)
+        await _wait_until(lambda: "FLOOD_DONE" in _visible_text(terminal), pilot, attempts=400)
         ticker.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await ticker
         assert gaps
-        assert max(gaps) < 0.25
+        ordered = sorted(gaps)
+        p99_index = max(0, math.ceil(len(ordered) * 0.99) - 1)
+        assert ordered[p99_index] < 0.100
+        assert ordered[-1] < 0.150
         app.exit()
 
 

@@ -13,10 +13,12 @@ logged. Process lifecycle cleanup runs in ``on_unmount`` (the App's teardown is
 too late for reliable reaping) with an ``atexit`` safety net.
 
 ``pyte`` is LGPL-3.0 and is used as a dynamic dependency of this MIT-licensed
-project. The reader feeds pyte in 1 KiB slices under a 10 ms per-tick time
-budget checked before each feed, then yields (``remove_reader`` /
+project. The reader feeds pyte in 256-byte slices under a 5 ms per-tick time
+budget checked before and after each feed, then yields (``remove_reader`` /
 ``asyncio.sleep(0)`` / re-add) so the event loop stays responsive during
-floods. Measured Linux figures live in CONTRIBUTING.md.
+floods. Rendering caches Rich styles, coalesces identical adjacent cells into
+Textual strips, and refreshes dirty rows at about 30 fps. Measured Linux
+figures live in CONTRIBUTING.md.
 """
 
 from __future__ import annotations
@@ -33,23 +35,29 @@ import struct
 import sys
 import time
 import weakref
-from collections.abc import Callable, Mapping, Sequence
+from collections import deque
+from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import ClassVar
 
 import pyte
 from pyte import modes as pyte_modes
+from pyte.screens import Char, Margins
+from rich.segment import Segment
+from rich.style import Style
 from rich.text import Text
 from textual import events
 from textual.app import RenderResult
 from textual.binding import BindingType
+from textual.geometry import Region
 from textual.message import Message
 from textual.reactive import reactive
+from textual.strip import Strip
 from textual.widget import Widget
 from typing_extensions import override
 
 from curupira.tui.pty_keys import bracketed_paste_enabled, key_to_bytes, paste_to_bytes
-from curupira.tui.pty_render import render_emulator
+from curupira.tui.pty_render import render_line_strip, render_line_text
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +66,11 @@ _DEFAULT_SCROLLBACK = 5_000
 _DEFAULT_ORPHAN_TIMEOUT_SECONDS = 30.0
 _REFRESH_INTERVAL_SECONDS = 1.0 / 30.0
 _KILL_GRACE_SECONDS = 0.1
-# pyte.ByteStream.feed on ~32 KiB can take 150-270 ms; keep each feed tiny and
-# check the time budget before every feed so a single callback cannot stall.
-_READ_CHUNK_BYTES = 2_048
-_FEED_SLICE_BYTES = 1_024
-_FEED_TIME_BUDGET_SECONDS = 0.010
+# Keep each feed tiny and check the time budget before and after every slice so
+# a single reader callback cannot stall the event loop.
+_READ_CHUNK_BYTES = 1_024
+_FEED_SLICE_BYTES = 256
+_FEED_TIME_BUDGET_SECONDS = 0.005
 _POLL_INTERVAL_SECONDS = 0.05
 _MAX_WRITE_BUFFER_BYTES = 1_048_576
 _UNSUPPORTED_MESSAGE = "PTY terminals are not supported on Windows in v1."
@@ -121,8 +129,14 @@ def _reset_child_signals() -> None:
             signal.signal(sig, signal.SIG_DFL)
 
 
-class _EmulatorScreen(pyte.HistoryScreen):
-    """History-backed pyte screen that replies to device-status queries."""
+class _EmulatorScreen(pyte.Screen):
+    """pyte screen with cheap scrollback that replies to device-status queries.
+
+    ``pyte.HistoryScreen`` wraps every stream event through ``__getattribute__``,
+    which makes dense newline floods several times slower than ``Screen``. This
+    subclass keeps a bounded deque of scrolled-off row buffers without that
+    per-event wrapper cost.
+    """
 
     def __init__(
         self,
@@ -132,13 +146,22 @@ class _EmulatorScreen(pyte.HistoryScreen):
         history: int,
         on_write: Callable[[bytes], None],
     ) -> None:
-        super().__init__(columns, lines, history=history)
+        super().__init__(columns, lines)
+        self.scrollback: deque[MutableMapping[int, Char]] = deque(maxlen=max(history, 0))
         self._on_write = on_write
 
     @override
     def write_process_input(self, data: str) -> None:
         """Forward DA/DSR replies to the PTY master."""
         self._on_write(data.encode("utf-8", errors="replace"))
+
+    @override
+    def index(self) -> None:
+        """Scroll up and retain the discarded top row in ``scrollback``."""
+        top, bottom = self.margins or Margins(0, self.lines - 1)
+        if self.cursor.y == bottom and self.scrollback.maxlen:
+            self.scrollback.append(self.buffer[top])
+        super().index()
 
 
 class PtyTerminal(Widget, can_focus=True):
@@ -240,6 +263,9 @@ class PtyTerminal(Widget, can_focus=True):
         self._emulator: _EmulatorScreen | None = None
         self._stream: pyte.ByteStream | None = None
         self._render_dirty = False
+        self._line_cache: list[Text] = []
+        self._strip_cache: list[Strip] = []
+        self._cached_cursor_row: int | None = None
         self._reader_installed = False
         self._writer_installed = False
         self._reader_resume_task: asyncio.Task[None] | None = None
@@ -273,12 +299,30 @@ class PtyTerminal(Widget, can_focus=True):
             return self._placeholder
         if self._emulator is None:
             return self._placeholder
-        cursor_visible = pyte_modes.DECTCEM in self._emulator.mode
-        show_cursor = self.has_focus and cursor_visible and self.finished_code is None
-        output = render_emulator(self._emulator, show_cursor=show_cursor)
+        self._sync_render_caches(rebuild_text=True)
+        output = Text()
+        for row_index, line in enumerate(self._line_cache[: self._emulator.lines]):
+            if row_index:
+                output.append("\n")
+            output.append_text(line)
         if self.finished_code is not None:
             output.append(f"\nProcess exited ({self.finished_code})", style="bold")
         return output
+
+    @override
+    def render_line(self, y: int) -> Strip:
+        """Return a cached content strip so Textual skips full Visual conversion."""
+        if not self._supported or self._emulator is None:
+            return super().render_line(y)
+        if y < len(self._strip_cache):
+            return self._strip_cache[y]
+        if self.finished_code is not None and y == len(self._strip_cache):
+            footer = f"Process exited ({self.finished_code})"
+            width = max(self.content_size.width, 1)
+            padded = footer[:width].ljust(width)
+            return Strip([Segment(padded, Style(bold=True))], width)
+        width = max(self.content_size.width, 1)
+        return Strip.blank(width, self.rich_style)
 
     def write(self, data: bytes | str) -> None:
         """Write bytes (or UTF-8 text) to the PTY master.
@@ -370,6 +414,9 @@ class PtyTerminal(Widget, can_focus=True):
             on_write=self._write_master,
         )
         self._stream = pyte.ByteStream(self._emulator)
+        self._line_cache.clear()
+        self._strip_cache.clear()
+        self._cached_cursor_row = None
         self._render_dirty = True
 
         pid, master_fd = pty.fork()
@@ -505,7 +552,7 @@ class PtyTerminal(Widget, can_focus=True):
             end = min(offset + _FEED_SLICE_BYTES, length)
             self._stream.feed(bytes(data[offset:end]))
             offset = end
-            # A single 1 KiB feed can still burn most of the budget; yield after it.
+            # A single slice can still burn most of the budget; yield after it.
             if time.perf_counter() >= deadline:
                 return offset, True
         return offset, False
@@ -589,12 +636,85 @@ class PtyTerminal(Widget, can_focus=True):
                 return None
             await asyncio.sleep(_POLL_INTERVAL_SECONDS)
 
+    def _cursor_should_show(self) -> bool:
+        """Whether the cursor cell should be highlighted in the current frame."""
+        if self._emulator is None or self.finished_code is not None:
+            return False
+        cursor_visible = pyte_modes.DECTCEM in self._emulator.mode
+        return self.has_focus and cursor_visible
+
+    def _rows_needing_redraw(self, *, rebuild_text: bool) -> set[int]:
+        """Collect pyte dirty rows plus cursor rows that must be repainted."""
+        emulator = self._emulator
+        if emulator is None:
+            return set()
+        dirty = set(emulator.dirty)
+        cursor_row = emulator.cursor.y
+        if self._cached_cursor_row is not None and self._cached_cursor_row != cursor_row:
+            dirty.add(self._cached_cursor_row)
+        if self._cursor_should_show():
+            dirty.add(cursor_row)
+        # Strip-only flushes clear ``_line_cache``; a later ``render()`` must
+        # rebuild every row rather than only the cursor line.
+        if (rebuild_text and len(self._line_cache) != emulator.lines) or not dirty:
+            return set(range(emulator.lines))
+        return dirty
+
+    def _ensure_strip_cache_size(self, lines: int, columns: int) -> None:
+        """Grow or shrink the strip cache to match the emulator geometry."""
+        while len(self._strip_cache) < lines:
+            self._strip_cache.append(Strip.blank(columns, self.rich_style))
+        if len(self._strip_cache) > lines:
+            del self._strip_cache[lines:]
+
+    def _sync_render_caches(self, *, rebuild_text: bool = False) -> set[int]:
+        """Rebuild dirty strip rows (and text on demand); return refreshed rows.
+
+        Args:
+            rebuild_text: Also refresh ``_line_cache`` for ``render()`` callers.
+        """
+        emulator = self._emulator
+        if emulator is None:
+            return set()
+        show_cursor = self._cursor_should_show()
+        dirty = self._rows_needing_redraw(rebuild_text=rebuild_text)
+        self._ensure_strip_cache_size(emulator.lines, emulator.columns)
+        if rebuild_text:
+            self._line_cache = [
+                self._line_cache[row_index]
+                if row_index < len(self._line_cache)
+                else Text(" " * emulator.columns)
+                for row_index in range(emulator.lines)
+            ]
+        rebuilt: set[int] = set()
+        for row_index in dirty:
+            if 0 <= row_index < emulator.lines:
+                self._strip_cache[row_index] = render_line_strip(
+                    emulator, row_index, show_cursor=show_cursor
+                )
+                if rebuild_text:
+                    self._line_cache[row_index] = render_line_text(
+                        emulator, row_index, show_cursor=show_cursor
+                    )
+                rebuilt.add(row_index)
+        if not rebuild_text and rebuilt:
+            self._line_cache.clear()
+        emulator.dirty.clear()
+        self._cached_cursor_row = emulator.cursor.y if show_cursor else None
+        return rebuilt
+
     def _flush_if_dirty(self) -> None:
-        """Refresh the widget at most ~30 fps when the emulator changed."""
+        """Refresh dirty rows at most ~30 fps when the emulator changed."""
         if not self._render_dirty:
             return
         self._render_dirty = False
-        self.refresh()
+        rebuilt = self._sync_render_caches()
+        if not rebuilt:
+            return
+        width = max(self.content_size.width, 1)
+        # Region refreshes keep the compositor on the partial-update path; a
+        # blank refresh() marks the full screen dirty and forces ~300 ms paints.
+        self.refresh(*(Region(0, row, width, 1) for row in sorted(rebuilt)))
 
     def _content_dimensions(self) -> tuple[int, int]:
         """Return columns and rows from the border-exclusive content size."""
@@ -608,6 +728,9 @@ class PtyTerminal(Widget, can_focus=True):
         columns, lines = self._content_dimensions()
         if columns != self._emulator.columns or lines != self._emulator.lines:
             self._emulator.resize(lines=lines, columns=columns)
+            self._line_cache.clear()
+            self._strip_cache.clear()
+            self._cached_cursor_row = None
             self._render_dirty = True
         if self._master_fd is None or self._pid is None:
             return
