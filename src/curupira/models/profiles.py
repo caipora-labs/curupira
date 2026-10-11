@@ -102,8 +102,8 @@ class CodexCliProfile(CliProfileBase):
     auto_review: bool = Field(
         default=False,
         description=(
-            "When true, the adapter adds ``--config approval_policy=\"on-request\"`` and "
-            "``--config approvals_reviewer=\"auto_review\"``. Requires ``sandbox`` to be "
+            'When true, the adapter adds ``--config approval_policy="on-request"`` and '
+            '``--config approvals_reviewer="auto_review"``. Requires ``sandbox`` to be '
             "unset or ``workspace-write``. When false (the default), those flags are omitted."
         ),
     )
