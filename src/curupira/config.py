@@ -32,13 +32,63 @@ from curupira.models.configuration import (
 
 
 class ApplicationSettings(BaseSettings):
-    """Application configuration; environment variables do not override the TOML."""
+    """Root Curupira TOML configuration loaded by the CLI.
+
+    Top-level tables are ``settings``, ``repositories``, ``agents``, and
+    ``automations``. ``repositories``, ``agents``, and ``automations`` are
+    required; ``repositories`` and ``automations`` must each contain at least
+    one entry. ``settings`` may be omitted and then uses
+    ``ExecutionSettings`` defaults. Environment variables do not override the
+    TOML. When the CLI is invoked without ``--config``, the path comes from
+    ``runtime.default_config_path()``, which is
+    ``runtime.dispatch_home() / "settings.toml"`` (``~/.curupira/settings.toml``).
+    """
 
     model_config = SettingsConfigDict(extra="forbid", validate_default=True)
-    settings: ExecutionSettings = Field(default_factory=ExecutionSettings)
-    repositories: dict[Identifier, RepositoryConfiguration] = Field(min_length=1)
-    agents: AgentsSettings
-    automations: dict[Identifier, AutomationConfiguration] = Field(min_length=1)
+    settings: ExecutionSettings = Field(
+        default_factory=ExecutionSettings,
+        description=(
+            "Optional ``[settings]`` table for shared scheduling, workspace and "
+            "state paths, process limits, polling, and telemetry. When omitted, "
+            "ExecutionSettings defaults apply. Optional ``otlp_endpoint`` is an "
+            "OTLP/HTTP URL; when set, Curupira exports one span per dispatched "
+            "task with attributes ``curupira.repo``, ``curupira.task.type``, "
+            "``curupira.task.id``, and ``curupira.result`` (plus failure details "
+            "on errors). When unset, no telemetry is exported."
+        ),
+    )
+    repositories: dict[Identifier, RepositoryConfiguration] = Field(
+        min_length=1,
+        description=(
+            "Required non-empty ``[repositories.<alias>]`` mapping of checkout "
+            "aliases to remote URL and optional path or setup script. Alias keys "
+            "must match the identifier pattern ``^[A-Za-z0-9_-]+$``. Each "
+            "automation's ``repository`` must name an entry here "
+            "(``validate_cross_references``); distinct repository aliases must "
+            "not resolve to the same workspace path."
+        ),
+    )
+    agents: AgentsSettings = Field(
+        description=(
+            "Required ``[agents]`` table with inherited ``defaults`` and named "
+            "``profiles``. Automations resolve ``profile`` against "
+            "``agents.profiles``, using ``agents.defaults.profile`` when the "
+            "automation omits ``profile`` "
+            "(``validate_cross_references``)."
+        ),
+    )
+    automations: dict[Identifier, AutomationConfiguration] = Field(
+        min_length=1,
+        description=(
+            "Required non-empty ``[automations.<name>]`` mapping of automation "
+            "names to trigger-specific configuration. Keys must match "
+            "``^[A-Za-z0-9_-]+$``. Each entry must reference an existing "
+            "repository alias and an existing profile name (explicit or "
+            "``agents.defaults.profile``); prompt placeholders must be allowed "
+            "for the trigger; cron ``end_date`` must not precede ``start_date`` "
+            "(``validate_cross_references``)."
+        ),
+    )
     assistant: AssistantSettings = Field(
         default_factory=AssistantSettings,
         description=(
