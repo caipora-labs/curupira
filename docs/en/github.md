@@ -37,9 +37,10 @@ operations use native `git` and your normal Git credentials for the repository `
 
 ### Token scopes
 
-The interactive `gh auth login` flow grants `repo`, which covers private and public
-repositories. A classic token limited to public repositories needs `public_repo`. Curupira
-only reads Search results and never changes issues or pull requests. See
+Use a token with the `repo` scope for private repositories, or `public_repo` when you only
+need public repositories. Check `gh auth status` for the scopes on your current login.
+Curupira itself only reads Search results; the coding agent it launches may do more,
+depending on its profile. See
 [GitHub's GraphQL authentication guide](https://docs.github.com/en/graphql/guides/forming-calls-with-graphql#authenticating-with-graphql)
 for how requested data maps to scopes.
 

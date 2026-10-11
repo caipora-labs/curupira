@@ -18,9 +18,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed (behavior)
 
-- Since GraphQL Search (#163), `project:` is only a Search qualifier. Curupira no longer
-  filters board items by Status (Todo) and no longer forces `state=open` for project
-  queries.
+- Since GraphQL Search (#163), Curupira no longer filters board items by Status (Todo);
+  `project:` is only a Search qualifier, and `state` is an explicit filter that defaults
+  to `open`.
 
 ### Changed
 
