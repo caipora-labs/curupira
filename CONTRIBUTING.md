@@ -35,6 +35,18 @@ CLIs, and Azure CLI) are invoked through `AsyncProcessRunner` using
 `asyncio.create_subprocess_exec` with bounded capture, timeouts, and process-group
 cleanup on POSIX.
 
+Build the distributions, reject retired OpsCli branding in the packaged README and
+metadata long description (case-insensitive `opscli`), and run `twine check` with one
+command:
+
+```bash
+uv run --no-sync python scripts/check_packaged_readme.py
+```
+
+CI's "Build and smoke-test distributions" job runs the same script before the install
+smoke test. Use `--no-build` to check an existing `dist/` directory, or `--no-twine` to
+skip the Twine step.
+
 ## Extending Curupira
 
 Curupira separates task discovery (`tasks/`), repository version control (`vcs/`), and
@@ -136,6 +148,29 @@ Versioning is `MAJOR.MINOR.PATCH`. The single version source is
 Built wheels and sdists use that string as-is, so the Git tag and the file match
 character for character after the tag's leading `v`.
 
+### Release-candidate checklist
+
+Run this checklist before tagging either a `.devN` rehearsal or a stable cut.
+`publish.yml` publishes tags that contain `.dev` to real PyPI (environment `pypi`),
+so the checklist must pass before any tag is pushed. A maintainer decides when to tag;
+do not tag, publish, or release from automation that skips these steps.
+
+1. Set `__version__` in `src/curupira/_version.py` and move `CHANGELOG.md` entries as
+   appropriate for the cut.
+2. Run the full verification suite from [AGENTS.md](AGENTS.md) (`pytest`, Ruff, Pyrefly,
+   example-config validate, and docs build when docs changed).
+3. Build and gate packaging metadata:
+
+```bash
+uv run --no-sync python scripts/check_packaged_readme.py
+```
+
+4. Inspect the packaged long description that PyPI will render (for example
+   `tar -xOf dist/curupira-*.tar.gz '*/PKG-INFO' | sed -n '/^$/,$p'` or the
+   `METADATA` payload inside the wheel) and confirm it says Curupira, not OpsCli.
+5. Wait for CI green on that commit, then a maintainer tags and pushes
+   `vX.Y.Z.devN` or `vX.Y.Z`.
+
 ### PyPI development rehearsal
 
 Tag `vX.Y.Z.devN` publishes package `X.Y.Z.devN` (PEP 440) to PyPI. Bump the version
@@ -173,8 +208,8 @@ To cut a release:
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` into a new version section.
 2. Bump `__version__` in `src/curupira/_version.py` to the stable `X.Y.Z` version.
-3. Run the full verification suite and confirm `uv build` plus
-   `uv run --no-sync twine check dist/*` pass.
+3. Complete the [release-candidate checklist](#release-candidate-checklist) (verification
+   suite, `scripts/check_packaged_readme.py`, inspect packaged README).
 4. Rehearse with a `vX.Y.Z.devN` tag on PyPI (see above) before the first production
    publication.
 5. Tag the validated commit as `vX.Y.Z` and push the tag. The `publish.yml` workflow

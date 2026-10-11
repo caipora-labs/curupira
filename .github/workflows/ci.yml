@@ -84,8 +84,8 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - run: uv sync --frozen --dev
-      - run: uv build
-      - run: uv run --no-sync twine check dist/*
+      - name: Build, reject OpsCli in packaged README/metadata, twine check
+        run: uv run --no-sync python scripts/check_packaged_readme.py
       - name: Smoke-test the installed wheel outside the repository
         run: |
           uv run --no-sync python scripts/smoke_install.py \
