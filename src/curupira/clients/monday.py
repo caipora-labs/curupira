@@ -15,11 +15,12 @@ from curupira.errors import HttpApiError, TransientHttpApiError
 from curupira.models.monday import MondayBoardItem, MondayItemsPage, MondayListRequest
 
 _MONDAY_GRAPHQL_URL = "https://api.monday.com/v2"
-# Current stable monday.com API version (see developer.monday.com API versioning).
-_API_VERSION = "2026-07"
+# monday.com API Current version as of 2026-10-01 (see developer.monday.com API versioning).
+_API_VERSION = "2026-10"
 # Environment variable *name* for the personal API token (not a secret value).
 _DEFAULT_TOKEN_ENV = "MONDAY_API_TOKEN"  # noqa: S105
 _MAX_RETRY_AFTER_SECONDS = 60.0
+_DEFAULT_RETRY_DELAY_SECONDS = 1.0
 
 _FIRST_PAGE_QUERY = """
 query CurupiraMondayItems($boardIds: [ID!]!, $limit: Int!, $queryParams: ItemsQuery) {
@@ -139,11 +140,13 @@ class MondayClient:
 
     @resilient(
         retry=RetryConfig(
+            # Retry spacing is owned exclusively by ``_sleep_before_retry`` (Retry-After /
+            # retry_in_seconds, else a 1s default). delay=0 avoids stacking a second wait.
             max_attempts=3,
-            delay=1.0,
-            backoff_factor=2.0,
-            max_delay=5.0,
-            jitter=True,
+            delay=0.0,
+            backoff_factor=1.0,
+            max_delay=0.0,
+            jitter=False,
             retry_on=(TransientHttpApiError,),
         )
     )
@@ -157,12 +160,13 @@ class MondayClient:
             try:
                 response = await client.post(self._endpoint, headers=headers, json=body)
             except httpx.TransportError as error:
+                await _sleep_before_retry(None)
                 raise TransientHttpApiError(
                     f"monday.com GraphQL transport failed: {error}"
                 ) from error
         if response.status_code in {429, 502, 503, 504} or response.status_code >= 500:
             retry_after = _retry_after_from_response(response)
-            await _maybe_sleep_retry_after(retry_after)
+            await _sleep_before_retry(retry_after)
             raise TransientHttpApiError(
                 f"monday.com GraphQL temporarily failed with status {response.status_code}",
                 retry_after_seconds=retry_after,
@@ -185,7 +189,7 @@ class MondayClient:
         try:
             _raise_for_graphql_errors(document)
         except TransientHttpApiError as error:
-            await _maybe_sleep_retry_after(error.retry_after_seconds)
+            await _sleep_before_retry(error.retry_after_seconds)
             raise
         return document
 
@@ -314,7 +318,7 @@ def _retry_in_seconds_from_errors(errors: list[object]) -> float | None:
     return None
 
 
-async def _maybe_sleep_retry_after(seconds: float | None) -> None:
-    if seconds is None or seconds <= 0:
-        return
-    await asyncio.sleep(min(seconds, _MAX_RETRY_AFTER_SECONDS))
+async def _sleep_before_retry(seconds: float | None) -> None:
+    """Wait before a transient retry using only the API-suggested (or default) delay."""
+    delay = _DEFAULT_RETRY_DELAY_SECONDS if seconds is None or seconds <= 0 else seconds
+    await asyncio.sleep(min(delay, _MAX_RETRY_AFTER_SECONDS))

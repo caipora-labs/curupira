@@ -36,7 +36,7 @@ strings such as `topics` or `new_group12345`:
 curl -s -X POST https://api.monday.com/v2 \
   -H "Authorization: $MONDAY_API_TOKEN" \
   -H "Content-Type: application/json" \
-  -H "API-Version: 2026-07" \
+  -H "API-Version: 2026-10" \
   -d '{"query":"query { boards(ids: [1234567890]) { groups { id title } } }"}'
 ```
 

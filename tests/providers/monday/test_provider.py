@@ -312,6 +312,29 @@ async def test_later_page_failure_returns_partial_tasks(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_later_page_http_error_returns_partial_without_resetting_cursor(
+    tmp_path: Path,
+) -> None:
+    """Non-transient errors mid-poll must not discard the cursor and re-read page one."""
+    client = FakeMondayClient(
+        [
+            MondayItemsPage(items=(_board_item("1", "One"),), cursor="p2"),
+            HttpApiError("Cursor invalid for this page"),
+            MondayItemsPage(items=(_board_item("1", "One"),), cursor="p2b"),
+        ]
+    )
+    automation = resolved_automation(tmp_path, "board-items", "monday-items")
+    source = MondayItemSource(client)
+
+    tasks = await source.discover(automation, 10)
+
+    assert [task.identity.id for task in tasks] == ["1"]
+    assert source._cursor == "p2"
+    assert [request.cursor for request in client.requests] == [None, "p2"]
+    assert len(client._pages) == 1
+
+
+@pytest.mark.asyncio
 async def test_end_to_end_mock_transport_group_filter(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         body = request.content.decode()

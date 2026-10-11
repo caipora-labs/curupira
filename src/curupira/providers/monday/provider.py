@@ -114,7 +114,10 @@ class MondayItemSource(TaskSource):
                 return _PageFetchResult(kind="return_partial")
             raise
         except HttpApiError:
-            if cursor is not None and not cursor_reset_attempted:
+            # Reset only when resuming a cursor from a prior poll with no tasks yet.
+            # A non-transient failure on a later page of this poll must keep the cursor
+            # and return the partial batch instead of re-reading the first page.
+            if cursor is not None and not cursor_reset_attempted and not tasks:
                 return _PageFetchResult(kind="reset_cursor")
             if tasks:
                 return _PageFetchResult(kind="return_partial")

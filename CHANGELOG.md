@@ -89,7 +89,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - Built-in monday.com board item discovery (`trigger_type = "monday-items"`) through the
-  GraphQL API over `httpx` (`API-Version: 2026-07`), with optional `group_ids` filtering,
+  GraphQL API over `httpx` (`API-Version: 2026-10`), with optional `group_ids` filtering,
   string-preserved item IDs, cursor pagination that continues across polls (expired
   cursors reset to the first page; later-page failures return partial results),
   `Retry-After` / `retry_in_seconds` for transient rate limits, permanent handling for

@@ -60,7 +60,7 @@ def _client(
 async def test_list_items_single_page_preserves_string_ids() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["Authorization"] == _FAKE_API_CREDENTIAL
-        assert request.headers["API-Version"] == "2026-07"
+        assert request.headers["API-Version"] == "2026-10"
         assert "Bearer" not in request.headers["Authorization"]
         body = json.loads(request.content.decode())
         assert body["variables"]["boardIds"] == ["1234567890"]
@@ -166,7 +166,11 @@ async def test_http_401_is_actionable_and_hides_token() -> None:
 
 
 @pytest.mark.asyncio
-async def test_http_429_retries_then_succeeds() -> None:
+async def test_http_429_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def no_sleep(seconds: float) -> None:
+        del seconds
+
+    monkeypatch.setattr("curupira.clients.monday.asyncio.sleep", no_sleep)
     attempts = {"count": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -182,7 +186,12 @@ async def test_http_429_retries_then_succeeds() -> None:
 
 
 @pytest.mark.asyncio
-async def test_http_503_is_transient() -> None:
+async def test_http_503_is_transient(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def no_sleep(seconds: float) -> None:
+        del seconds
+
+    monkeypatch.setattr("curupira.clients.monday.asyncio.sleep", no_sleep)
+
     def handler(request: httpx.Request) -> httpx.Response:
         del request
         return httpx.Response(503, text="unavailable")
@@ -380,7 +389,7 @@ async def test_blank_cursor_string_normalized_to_none() -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_version_header_is_current_stable(
+async def test_api_version_header_is_pinned_current(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     seen: list[str] = []
@@ -394,7 +403,7 @@ async def test_api_version_header_is_current_stable(
 
     monkeypatch.setattr("curupira.clients.monday.asyncio.sleep", no_sleep)
     await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
-    assert seen == ["2026-07"]
+    assert seen == ["2026-10"]
 
 
 @pytest.mark.asyncio
@@ -443,7 +452,8 @@ async def test_complexity_budget_exhausted_is_transient_and_honors_retry_in_seco
     page = await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
     assert page.items[0].id == "1"
     assert attempts["count"] == 2
-    assert 2.0 in sleeps
+    # ``@resilient(delay=0)`` may still call ``sleep(0)`` between attempts.
+    assert [seconds for seconds in sleeps if seconds > 0] == [2.0]
 
 
 @pytest.mark.asyncio
@@ -467,4 +477,24 @@ async def test_http_429_honors_retry_after_header(
 
     page = await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
     assert page.items[0].id == "1"
-    assert 3.0 in sleeps
+    assert [seconds for seconds in sleeps if seconds > 0] == [3.0]
+
+
+@pytest.mark.asyncio
+async def test_http_503_uses_default_retry_delay_without_resilient_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sleeps: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("curupira.clients.monday.asyncio.sleep", record_sleep)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(503, text="unavailable")
+
+    with pytest.raises(TransientHttpApiError, match="503"):
+        await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+    assert [seconds for seconds in sleeps if seconds > 0] == [1.0, 1.0, 1.0]
