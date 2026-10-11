@@ -26,7 +26,8 @@ The saved agent applies the next time you open the panel; you do not need to res
 TUI. Opening the panel again starts a new interactive session with that agent.
 
 If `[assistant].model` is `"auto"` and the agent you pick has no native automatic model,
-Curupira removes the `model` key from `[assistant]` when it saves the new agent.
+Curupira removes the `model` key from `[assistant]` when it saves the new agent. A
+concrete model is kept.
 
 !!! warning
     Saving the agent choice updates your settings TOML on disk. That file change triggers

@@ -177,11 +177,6 @@ All notable changes to this project are documented here. The format follows
   custom agent, reasoning effort, and explicit tool permissions. Curupira assigns its
   session UUID, disables user questions, and preserves the CLI's raw JSONL output.
 
-### Fixed
-
-- Surgical `[assistant]` TOML persistence keeps the blank line before the next table when
-  clearing `model` on an agent switch and when appending a key at the end of the section.
-
 ## [0.2.0] - 2026-10-08
 
 ### Added
