@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 from typing import ClassVar
 
@@ -217,15 +218,13 @@ class AssistantPanel(Vertical, can_focus=True):
         """Drop panel widgets from the Tab cycle so F6 returns keys to the dashboard.
 
         After F6 moves focus to the main TUI, Tab must cycle dashboard controls (and
-        F1–F5 stay on the host). Leaving the PTY/picker focusable would steal Tab.
+        F1-F5 stay on the host). Leaving the PTY/picker focusable would steal Tab.
         """
         terminal = self.pty_terminal()
         if terminal is not None:
             terminal.can_focus = False
-        try:
+        with contextlib.suppress(NoMatches):
             self.query_one("#assistant-picker", OptionList).can_focus = False
-        except NoMatches:
-            pass
         self.can_focus = False
 
     async def action_close_panel(self) -> None:
