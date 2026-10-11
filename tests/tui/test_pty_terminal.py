@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -306,29 +308,55 @@ open({str(marker)!r}, "wb").write(data)
 
 @pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
 @pytest.mark.asyncio
-async def test_child_closing_tty_is_reaped_without_blocking(tmp_path: Path) -> None:
-    marker = tmp_path / "closed.txt"
-    child = f"""
-import os, sys, time, pathlib
-sys.stdout.write("CLOSING\\n")
-sys.stdout.flush()
-pathlib.Path({str(marker)!r}).write_text("closed")
-os.close(0)
-os.close(1)
-os.close(2)
-time.sleep(30)
-"""
-    app = _PtyHarness([sys.executable, "-c", child])
+async def test_child_closing_tty_keeps_running_and_reports_real_exit(
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "survived"
+    app = _PtyHarness(
+        [
+            "sh",
+            "-c",
+            f"exec >/dev/null 2>&1 </dev/null; sleep 1; touch {marker}; exit 5",
+        ]
+    )
     async with app.run_test(size=(80, 24)) as pilot:
         terminal = app.query_one(PtyTerminal)
-        await _wait_until(lambda: marker.exists(), pilot)
-        await _wait_until(lambda: len(app.finished_codes) == 1, pilot)
-        assert terminal.finished_code is not None
-        # Child closed the tty but kept running; grace then SIGHUP/SIGKILL.
-        assert terminal.finished_code < 0
-        assert "CLOSING" in _visible_text(terminal)
-        assert terminal.pid is None
+        await _wait_until(lambda: terminal.pid is not None, pilot)
+        # Master EOF must not kill the child before it finishes its work.
+        await _wait_until(lambda: marker.exists(), pilot, attempts=60)
+        await _wait_until(lambda: app.finished_codes == [5], pilot, attempts=60)
+        assert terminal.finished_code == 5
+        assert marker.exists()
         app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+async def test_unmount_kills_child_that_closed_its_tty(tmp_path: Path) -> None:
+    marker = tmp_path / "should_not_exist"
+    app = _PtyHarness(
+        [
+            "sh",
+            "-c",
+            f"exec >/dev/null 2>&1 </dev/null; sleep 30; touch {marker}",
+        ]
+    )
+    async with app.run_test(size=(80, 24)) as pilot:
+        terminal = app.query_one(PtyTerminal)
+        await _wait_until(lambda: terminal.pid is not None, pilot)
+        pid = terminal.pid
+        assert pid is not None
+        # Reader stops on EOF, but the master stays open until force-shutdown.
+        await _wait_until(
+            lambda: terminal._reap_task is not None and not terminal._reader_installed,
+            pilot,
+            attempts=40,
+        )
+        assert terminal.pid == pid
+        app.exit()
+    with pytest.raises(ProcessLookupError):
+        os.kill(pid, 0)
+    assert not marker.exists()
 
 
 @pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
@@ -402,31 +430,61 @@ async def test_restart_after_exit_keeps_working() -> None:
 
 @pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
 @pytest.mark.asyncio
-async def test_zero_content_size_clamps_emulator_to_one_by_one() -> None:
-    class TinyHarness(App[None]):
-        CSS = "PtyTerminal { width: 1; height: 1; min-width: 0; min-height: 0; }"
+async def test_zero_content_size_clamps_emulator_to_one_by_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from textual.geometry import Size
 
+    class ZeroHarness(App[None]):
         @override
         def compose(self) -> ComposeResult:
             yield PtyTerminal(["bash", "-c", "sleep 1"], env=default_pty_environment(), id="pty")
 
-    app = TinyHarness()
-    async with app.run_test(size=(2, 2)) as pilot:
+    app = ZeroHarness()
+    async with app.run_test(size=(40, 20)) as pilot:
         terminal = app.query_one(PtyTerminal)
-        await _wait_until(lambda: terminal._emulator is not None, pilot)
-        terminal._apply_winsize()
-        await _wait_until(
-            lambda: (
-                terminal._emulator is not None
-                and terminal._emulator.columns == max(1, terminal.content_size.width)
-                and terminal._emulator.lines == max(1, terminal.content_size.height)
-            ),
-            pilot,
-        )
+
+        def _zero_content_size(_self: PtyTerminal) -> Size:
+            return Size(0, 0)
+
+        monkeypatch.setattr(type(terminal), "content_size", property(_zero_content_size))
+        assert terminal._content_dimensions() == (1, 1)
+        # Without the clamp, a zero size used to become the 80x24 default.
+        assert clamp_terminal_dimensions(0, 0) != (80, 24)
         assert clamp_terminal_dimensions(0, 0) == (1, 1)
+        terminal._apply_winsize()
+        await _wait_until(lambda: terminal._emulator is not None, pilot)
         assert terminal._emulator is not None
-        assert terminal._emulator.columns >= 1
-        assert terminal._emulator.lines >= 1
+        assert terminal._emulator.columns == 1
+        assert terminal._emulator.lines == 1
+        app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+async def test_flood_keeps_event_loop_ticking() -> None:
+    app = _PtyHarness(["bash", "-c", "yes | head -c 500000; printf 'FLOOD_DONE\\n'"])
+    async with app.run_test(size=(80, 24)) as pilot:
+        terminal = app.query_one(PtyTerminal)
+        await _wait_until(lambda: terminal.pid is not None, pilot)
+        gaps: list[float] = []
+        previous = time.perf_counter()
+
+        async def _ticker() -> None:
+            nonlocal previous
+            while "FLOOD_DONE" not in _visible_text(terminal) and terminal.pid is not None:
+                await asyncio.sleep(0)
+                now = time.perf_counter()
+                gaps.append(now - previous)
+                previous = now
+
+        ticker = asyncio.create_task(_ticker())
+        await _wait_until(lambda: "FLOOD_DONE" in _visible_text(terminal), pilot, attempts=200)
+        ticker.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await ticker
+        assert gaps
+        assert max(gaps) < 0.5
         app.exit()
 
 

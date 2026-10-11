@@ -22,8 +22,8 @@ curupira tui
   (building block for a future side-panel coding assistant). It is not mounted in the
   orchestrator layout or configured via TOML yet. Platform support in v1: Linux and
   macOS; Windows shows an unsupported placeholder. Emulation uses `pyte` (LGPL-3.0) as
-  a dynamic dependency. Throughput is about 130 KB/s (a 5 MB flood takes on the order of
-  a minute) while the dashboard stays responsive.
+  a dynamic dependency. On Linux, a 5 MB PTY flood measured about 44 KiB/s with a max
+  event-loop gap of about 0.13 s (reader yields every ~10 ms of pyte work).
 
 While `run --watch` or `tui` is running, editing the configuration file hot-reloads settings without restarting the process. New work stops being admitted as soon as the file changes; tasks that are already running keep their resolved snapshots and finish. After every in-flight task completes, Curupira reloads the TOML, rebuilds discovery feeds, and resumes polling with the latest configuration. If the updated file is invalid, admission stays paused until a valid configuration is saved.
 

@@ -13,9 +13,11 @@ logged. Process lifecycle cleanup runs in ``on_unmount`` (the App's teardown is
 too late for reliable reaping) with an ``atexit`` safety net.
 
 ``pyte`` is LGPL-3.0 and is used as a dynamic dependency of this MIT-licensed
-project. Throughput with the current reader loop is about 130 KB/s (a 5 MB flood
-takes on the order of a minute) while the UI stays responsive; each ready
-callback drains multiple large chunks up to a per-tick bound.
+project. The reader feeds pyte in 32 KiB chunks under a 10 ms per-tick time
+budget, then yields (``remove_reader`` / ``asyncio.sleep(0)`` / re-add) so the
+event loop stays responsive during floods. On Linux, a 5 MB ``yes | head -c``
+flood measured about 44 KiB/s (~111 s) with a max event-loop gap of about
+0.13 s; see CONTRIBUTING.md.
 """
 
 from __future__ import annotations
@@ -54,12 +56,12 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_ENV_KEYS: tuple[str, ...] = ("PATH", "HOME", "LANG", "USER", "SHELL")
 _DEFAULT_SCROLLBACK = 5_000
+_DEFAULT_ORPHAN_TIMEOUT_SECONDS = 30.0
 _REFRESH_INTERVAL_SECONDS = 1.0 / 30.0
 _KILL_GRACE_SECONDS = 0.1
-_NATURAL_EXIT_GRACE_SECONDS = 0.05
-_SIGHUP_GRACE_SECONDS = 0.1
-_READ_CHUNK_BYTES = 65_536
-_MAX_READ_BYTES_PER_TICK = 512_000
+_READ_CHUNK_BYTES = 32_768
+_FEED_TIME_BUDGET_SECONDS = 0.010
+_POLL_INTERVAL_SECONDS = 0.05
 _UNSUPPORTED_MESSAGE = "PTY terminals are not supported on Windows in v1."
 _LIVE_TERMINALS: weakref.WeakSet[PtyTerminal] = weakref.WeakSet()
 _ATEXIT_REGISTERED = False
@@ -194,6 +196,7 @@ class PtyTerminal(Widget, can_focus=True):
         *,
         escape_key: str = "ctrl+g",
         scrollback: int = _DEFAULT_SCROLLBACK,
+        orphan_timeout_seconds: float = _DEFAULT_ORPHAN_TIMEOUT_SECONDS,
         name: str | None = None,
         id: str | None = None,
         classes: str | None = None,
@@ -207,12 +210,17 @@ class PtyTerminal(Widget, can_focus=True):
             cwd: Working directory for the child, or ``None`` for the parent cwd.
             escape_key: Key binding that returns focus to the host UI.
             scrollback: Bounded pyte history lines retained above the viewport.
+            orphan_timeout_seconds: After the PTY master closes, wait this long
+                for a natural child exit before escalating to ``SIGHUP`` /
+                ``SIGKILL``. Unmount, restart, and atexit always escalate.
             name: Optional Textual widget name.
             id: Optional Textual widget id.
             classes: Optional Textual CSS classes.
         """
         if not argv:
             raise ValueError("argv must contain at least the executable path")
+        if orphan_timeout_seconds < 0:
+            raise ValueError("orphan_timeout_seconds must be non-negative")
         super().__init__(name=name, id=id, classes=classes)
         self._argv = tuple(argv)
         self._env = dict(env) if env is not None else default_pty_environment()
@@ -221,6 +229,7 @@ class PtyTerminal(Widget, can_focus=True):
         self._cwd = Path(cwd) if cwd is not None else None
         self._escape_key = escape_key
         self._scrollback = scrollback
+        self._orphan_timeout_seconds = orphan_timeout_seconds
         self._supported = _posix_supported()
         self.unsupported = not self._supported
         self._master_fd: int | None = None
@@ -229,6 +238,7 @@ class PtyTerminal(Widget, can_focus=True):
         self._stream: pyte.ByteStream | None = None
         self._render_dirty = False
         self._reader_installed = False
+        self._reader_resume_task: asyncio.Task[None] | None = None
         self._shutting_down = False
         self._reap_task: asyncio.Task[None] | None = None
         self._placeholder = Text(_UNSUPPORTED_MESSAGE)
@@ -398,11 +408,13 @@ class PtyTerminal(Widget, can_focus=True):
         self._reader_installed = False
 
     def _on_master_readable(self) -> None:
-        """Drain the master fd into pyte when the kernel signals readiness."""
+        """Feed pyte under a short time budget, then yield to the event loop."""
         if self._master_fd is None or self._stream is None:
             return
+        deadline = time.perf_counter() + _FEED_TIME_BUDGET_SECONDS
         total = 0
-        while total < _MAX_READ_BYTES_PER_TICK:
+        budget_hit = False
+        while True:
             try:
                 chunk = os.read(self._master_fd, _READ_CHUNK_BYTES)
             except OSError as error:
@@ -415,51 +427,92 @@ class PtyTerminal(Widget, can_focus=True):
                 return
             self._stream.feed(chunk)
             total += len(chunk)
+            if time.perf_counter() >= deadline:
+                budget_hit = True
+                break
         if total:
             self._render_dirty = True
+        if budget_hit:
+            self._yield_reader()
 
-    def _on_master_closed(self) -> None:
-        """Handle EOF/EIO without blocking: close the master and reap async."""
-        if self._shutting_down:
+    def _yield_reader(self) -> None:
+        """Pause the master reader so other loop callbacks can run."""
+        if self._reader_resume_task is not None and not self._reader_resume_task.done():
             return
-        self._shutting_down = True
         self._remove_reader()
+
+        async def _resume() -> None:
+            await asyncio.sleep(0)
+            if self._master_fd is None or self._shutting_down:
+                return
+            self._install_reader()
+            # Drain any bytes already pending without waiting for another edge.
+            self._on_master_readable()
+
+        self._reader_resume_task = asyncio.create_task(_resume())
+
+    def _close_master_fd(self) -> None:
+        """Close the PTY master if it is still open."""
         master_fd = self._master_fd
         self._master_fd = None
         if master_fd is not None:
             with contextlib.suppress(OSError):
                 os.close(master_fd)
+
+    def _on_master_closed(self) -> None:
+        """Stop reading on EOF/EIO; poll for a natural exit (do not kill yet).
+
+        The master fd stays open until the child is reaped or force-shutdown
+        runs. Closing it early would deliver ``SIGHUP`` to a child that only
+        redirected stdio away from the tty.
+        """
+        if self._shutting_down:
+            return
+        self._remove_reader()
+        if self._reap_task is not None and not self._reap_task.done():
+            return
         self._reap_task = asyncio.create_task(self._reap_after_master_closed())
 
     async def _reap_after_master_closed(self) -> None:
-        """Poll for a natural exit, then escalate SIGHUP and SIGKILL."""
+        """Poll until the child exits; escalate only after orphan timeout.
+
+        EOF on the master only means the tty side is gone. The child may keep
+        running with redirected stdio, so this path never signals until
+        ``orphan_timeout_seconds`` elapses. Unmount/restart/atexit use
+        :meth:`_shutdown_child` instead.
+        """
         pid = self._pid
         if pid is None:
             return
-        exit_code = await self._poll_exit(pid, _NATURAL_EXIT_GRACE_SECONDS)
-        if exit_code is None:
+        exit_code = await self._poll_exit(pid, self._orphan_timeout_seconds)
+        if exit_code is None and not self._shutting_down:
             self._signal_group(pid, signal.SIGHUP)
-            exit_code = await self._poll_exit(pid, _SIGHUP_GRACE_SECONDS)
-        if exit_code is None:
+            exit_code = await self._poll_exit(pid, _KILL_GRACE_SECONDS)
+        if exit_code is None and not self._shutting_down:
             self._signal_group(pid, signal.SIGKILL)
             exit_code = await self._poll_exit(pid, _KILL_GRACE_SECONDS)
         if exit_code is None:
-            exit_code = -1
+            return
+        if self._pid != pid:
+            return
+        self._close_master_fd()
         self._pid = None
         self.finished_code = exit_code
         self.post_message(self.Finished(exit_code))
         self._render_dirty = True
 
-    async def _poll_exit(self, pid: int, grace_seconds: float) -> int | None:
-        """Poll ``waitpid(WNOHANG)`` until the child exits or grace elapses."""
-        deadline = time.monotonic() + grace_seconds
+    async def _poll_exit(self, pid: int, timeout_seconds: float) -> int | None:
+        """Poll ``waitpid(WNOHANG)`` until the child exits or timeout elapses."""
+        if timeout_seconds == 0:
+            return self._try_reap(pid)
+        deadline = time.monotonic() + timeout_seconds
         while True:
             reaped = self._try_reap(pid)
             if reaped is not None:
                 return reaped
             if time.monotonic() >= deadline:
                 return None
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(_POLL_INTERVAL_SECONDS)
 
     def _flush_if_dirty(self) -> None:
         """Refresh the widget at most ~30 fps when the emulator changed."""
@@ -511,12 +564,16 @@ class PtyTerminal(Widget, can_focus=True):
         self._reap_task = None
         if task is not None and not task.done():
             task.cancel()
+        resume = self._reader_resume_task
+        self._reader_resume_task = None
+        if resume is not None and not resume.done():
+            resume.cancel()
 
     def _shutdown_child(self, *, grace_seconds: float) -> int:
         """Force-close the master, signal the process group, and reap.
 
-        Used for unmount, restart, and atexit. Natural EOF uses the async
-        reap path instead so a normal exit code is not replaced by SIGKILL.
+        Used for unmount, restart, and atexit. Master EOF alone only polls for
+        a natural exit (see :meth:`_reap_after_master_closed`).
 
         Args:
             grace_seconds: Delay between ``SIGHUP`` and ``SIGKILL``.
@@ -527,11 +584,7 @@ class PtyTerminal(Widget, can_focus=True):
         self._cancel_reap_task()
         self._shutting_down = True
         self._remove_reader()
-        master_fd = self._master_fd
-        self._master_fd = None
-        if master_fd is not None:
-            with contextlib.suppress(OSError):
-                os.close(master_fd)
+        self._close_master_fd()
 
         pid = self._pid
         exit_code = -1

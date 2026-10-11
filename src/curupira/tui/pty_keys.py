@@ -94,6 +94,15 @@ def _encode_arrow(base: str, *, modifier: int | None, application: bool) -> byte
     return f"\x1b[{final}".encode()
 
 
+def _encode_home_end(base: str, *, modifier: int | None, application: bool) -> bytes:
+    final = _HOME_END_FINAL[base]
+    if modifier is not None:
+        return _encode_csi_final(final, modifier=modifier)
+    if application:
+        return f"\x1bO{final}".encode()
+    return f"\x1b[{final}".encode()
+
+
 def _encode_fkey(base: str, *, modifier: int | None) -> bytes | None:
     if base in _FKEY_SS3:
         final = _FKEY_SS3[base]
@@ -137,7 +146,11 @@ def key_to_bytes(event: Key, modes: set[int] | None = None) -> bytes | None:
             application=application_cursor_keys(active_modes),
         )
     if base in _HOME_END_FINAL:
-        return _encode_csi_final(_HOME_END_FINAL[base], modifier=modifier)
+        return _encode_home_end(
+            base,
+            modifier=modifier,
+            application=application_cursor_keys(active_modes),
+        )
     if base in _TILDE_KEYS:
         return _encode_csi_tilde(_TILDE_KEYS[base], modifier=modifier)
     fkey = _encode_fkey(base, modifier=modifier)

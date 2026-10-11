@@ -160,9 +160,11 @@ Windows is unsupported in v1; the widget should render the placeholder instead o
 spawning a child.
 
 `pyte` (LGPL-3.0) is a dynamic runtime dependency of this MIT-licensed project; it is
-not vendored or statically linked. PTY throughput is about 130 KB/s with the current
-reader loop (a 5 MB flood takes on the order of a minute) while the Textual UI stays
-responsive — each ready callback drains multiple large chunks up to a per-tick bound.
+not vendored or statically linked. The PTY reader feeds pyte in 32 KiB chunks under a
+10 ms per-tick budget, then yields so other loop callbacks can run. Measured on Linux
+with Textual `run_test` and `yes | head -c 5000000`: about **44 KiB/s** (~111 s for
+5 MB) and a **max event-loop gap of about 0.13 s** (p95 about 0.08 s). Re-measure and
+update these figures when changing the reader loop.
 
 ## Dependency audits
 

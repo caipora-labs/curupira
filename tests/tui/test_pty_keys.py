@@ -26,13 +26,16 @@ def test_arrow_and_editing_keys_use_xterm_sequences() -> None:
     assert key_to_bytes(Key("escape", character=None)) == b"\x1b"
 
 
-def test_decckm_switches_arrow_keys_to_ss3() -> None:
+def test_decckm_switches_arrow_and_home_end_to_ss3() -> None:
     assert application_cursor_keys({_DECCKM})
     assert key_to_bytes(Key("up", character=None), modes={_DECCKM}) == b"\x1bOA"
     assert key_to_bytes(Key("down", character=None), modes={_DECCKM}) == b"\x1bOB"
     assert key_to_bytes(Key("right", character=None), modes={_DECCKM}) == b"\x1bOC"
     assert key_to_bytes(Key("left", character=None), modes={_DECCKM}) == b"\x1bOD"
+    assert key_to_bytes(Key("home", character=None), modes={_DECCKM}) == b"\x1bOH"
+    assert key_to_bytes(Key("end", character=None), modes={_DECCKM}) == b"\x1bOF"
     assert key_to_bytes(Key("up", character=None), modes=set()) == b"\x1b[A"
+    assert key_to_bytes(Key("home", character=None), modes=set()) == b"\x1b[H"
 
 
 @pytest.mark.parametrize(

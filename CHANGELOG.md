@@ -95,8 +95,8 @@ All notable changes to this project are documented here. The format follows
   `on_unmount` (plus an `atexit` safety net). Public API: `PtyTerminal(argv, env, cwd,
   escape_key="ctrl+g")` with `write()`, `restart()`, and a `Finished` message. Linux
   and macOS only in v1; Windows mounts an unsupported placeholder. Not wired into the
-  orchestrator layout or configuration yet. Reader throughput and event-loop stall
-  bounds are documented from measured values on Linux.
+  orchestrator layout or configuration yet. On Linux a 5 MB PTY flood measured about
+  44 KiB/s with a max event-loop gap of about 0.13 s (see CONTRIBUTING.md).
 - Optional `[assistant]` configuration (`AssistantSettings`) for the interactive
   configuration assistant: `agent` (registered coding-agent provider) and `model`.
   Adapters may declare `auto_model` when their CLI documents native automatic model
