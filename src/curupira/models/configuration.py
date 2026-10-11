@@ -311,15 +311,26 @@ class RepositoryConfiguration(ValidatedModel):
 
 
 class AgentDefaults(ValidatedModel):
-    """Profile reference and timezone inherited by automation definitions.
+    """Profile reference and timezone inherited by automation definitions."""
 
-    Attributes:
-        profile: Name of the CLI profile used when an automation does not override it.
-        timezone: IANA timezone inherited by cron automations without their own timezone.
-    """
-
-    profile: Identifier = "opencode"
-    timezone: NonEmptyString = "UTC"
+    profile: Identifier = Field(
+        default="opencode",
+        description=(
+            "Name of the CLI profile used when an automation omits ``profile``. "
+            "Must be a key in ``agents.profiles`` (enforced by "
+            "``AgentsSettings`` and by ``ApplicationSettings.validate_cross_references``). "
+            "Default is ``opencode``. Must match the identifier pattern "
+            "``^[A-Za-z0-9_-]+$``."
+        ),
+    )
+    timezone: NonEmptyString = Field(
+        default="UTC",
+        description=(
+            "IANA timezone inherited by cron automations that omit their own "
+            "``timezone``. Default is ``UTC``. Must name a known IANA zone; "
+            "unknown values are rejected."
+        ),
+    )
 
     @field_validator("timezone")
     @classmethod
@@ -539,15 +550,27 @@ def default_profiles() -> dict[str, CliProfile]:
 
 
 class AgentsSettings(ValidatedModel):
-    """Named CLI profiles and inherited defaults for coding agents.
+    """Named CLI profiles and inherited defaults for coding agents."""
 
-    Attributes:
-        defaults: Profile and timezone inherited by automations.
-        profiles: Non-empty mapping of user-chosen names to provider-specific CLI options.
-    """
-
-    defaults: AgentDefaults = Field(default_factory=AgentDefaults)
-    profiles: dict[Identifier, CliProfile] = Field(default_factory=default_profiles, min_length=1)
+    defaults: AgentDefaults = Field(
+        default_factory=AgentDefaults,
+        description=(
+            "``[agents.defaults]`` profile name and timezone inherited by "
+            "automations that do not override them. The default profile must "
+            "exist in ``profiles``."
+        ),
+    )
+    profiles: dict[Identifier, CliProfile] = Field(
+        default_factory=default_profiles,
+        min_length=1,
+        description=(
+            "Non-empty mapping of user-chosen profile names to "
+            "provider-specific CLI options under ``[agents.profiles.<name>]``. "
+            "Keys must match ``^[A-Za-z0-9_-]+$``. At least one profile is "
+            "required; when omitted, Curupira supplies a single ``opencode`` "
+            "profile. ``defaults.profile`` must name an entry in this mapping."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_default_profile(self) -> "AgentsSettings":
