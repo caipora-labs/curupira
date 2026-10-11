@@ -85,6 +85,8 @@ def resolved_automation(
         config.update(schedule="0 9 * * *", start_date="2026-10-01T00:00:00+00:00")
     elif trigger == "trello-cli-cards":
         config["board_id"] = "board123"
+    elif trigger == "monday-items":
+        config["board_id"] = "1234567890"
     elif trigger == "azure-cli-pull-requests":
         config["repo"] = forge_repo
     else:

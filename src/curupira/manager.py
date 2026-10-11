@@ -25,6 +25,7 @@ _BUILT_IN_PROVIDER_MODULES: tuple[str, ...] = (
     "curupira.providers.gemini.provider",
     "curupira.providers.github.provider",
     "curupira.providers.kilo.provider",
+    "curupira.providers.monday.provider",
     "curupira.providers.opencode.provider",
     "curupira.providers.pi.provider",
     "curupira.providers.qwen.provider",

@@ -686,6 +686,42 @@ class TrelloAutomationConfiguration(AutomationConfigurationBase):
     )
 
 
+class MondayAutomationConfiguration(AutomationConfigurationBase):
+    """Discover items from one monday.com board through the GraphQL API.
+
+    Selected by ``trigger_type = "monday-items"``.
+    """
+
+    trigger_type: NonEmptyString = Field(
+        default="monday-items",
+        description="Must be `monday-items` for this model.",
+    )
+    board_id: NonEmptyString = Field(
+        description=(
+            "monday.com board ID queried via GraphQL `boards(ids: …) { items_page }`. "
+            "Curupira keeps each item's string ID for task identity and prompt "
+            "placeholders. IDs remain strings even when the API encodes them as numbers."
+        )
+    )
+    group_ids: tuple[NonEmptyString, ...] | None = Field(
+        default=None,
+        description=(
+            "Optional board group IDs that restrict discovery. When set, the first page "
+            "request filters with `query_params` so only items in those groups are "
+            "returned; later pages continue from the opaque cursor. When omitted "
+            "(`null`), all non-archived, non-deleted items on the board are eligible."
+        ),
+    )
+    token_env: NonEmptyString = Field(
+        default="MONDAY_API_TOKEN",
+        description=(
+            "Name of the environment variable that holds the personal monday.com API "
+            "token. Defaults to `MONDAY_API_TOKEN`. Curupira sends the value in the "
+            "`Authorization` header and never logs or echoes the token itself."
+        ),
+    )
+
+
 class CronAutomationConfiguration(AutomationConfigurationBase):
     """Produce local cron occurrences within an optional inclusive date window.
 

@@ -152,13 +152,17 @@ set the automation's GitHub `repo` to `owner/name`.
 - `azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
 - `trello-cli-cards` discovers Trello cards through Scale-Flow's `trello-cli` for a
   configured `board_id`, optionally restricted to `list_ids`.
+- `monday-items` discovers monday.com board items through the GraphQL API for a
+  configured `board_id`, optionally restricted to `group_ids` (token from `token_env`,
+  default `MONDAY_API_TOKEN`). See the [monday.com task source guide](monday.md).
 - `cron` produces occurrences from a five-field `schedule` instead of querying a forge.
 - Installed [plugins](plugins.md) add their own trigger types; `curu plugins list` shows
   every available type and its prompt placeholders.
 
 Each automation requires `repository` (alias) and `prompt`. GitHub and Azure triggers also
 require forge `repo` identity (`owner/name` or `organization/project/repository`). Cron
-requires `schedule`. Trello automations require `board_id`. Optional `profile` selects a
+requires `schedule`. Trello automations require `board_id`. monday.com automations require
+`board_id` and a token in the environment named by `token_env`. Optional `profile` selects a
 CLI profile. Different repository aliases cannot share one workspace path. Automations keep
 file order, and one-shot selection follows that order.
 

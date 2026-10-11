@@ -2,10 +2,10 @@
 
 **Curupira** (by Caipora Labs) is the product name. The PyPI project, primary console script, and Python import are `curupira`. The short command `curu` is the same entry point.
 
-Curupira runs automations on your machine. It takes a GitHub issue or pull request, a Trello card, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
+Curupira runs automations on your machine. It takes a GitHub issue or pull request, a Trello card, a monday.com item, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
 
 Each automation in the settings TOML watches one source (issues, pull requests, Trello
-cards, or a cron schedule) and carries its own prompt. All automations share one discovery,
+cards, monday.com items, or a cron schedule) and carries its own prompt. All automations share one discovery,
 scheduling, and execution pipeline: `run` drains currently available tasks, while
 `run --watch` polls every automation continuously.
 
@@ -23,6 +23,9 @@ scheduling, and execution pipeline: `run` drains currently available tasks, whil
   [`qwen`](https://github.com/QwenLM/qwen-code)
 - For Trello automations, install and authenticate the
   [Scale-Flow `trello-cli`](https://github.com/Scale-Flow/trello-cli).
+- For monday.com automations, set a personal API token in `MONDAY_API_TOKEN` (or the
+  environment variable named by `token_env`); see the
+  [monday.com task source guide](https://caipora-labs.github.io/curupira/monday/).
 
 ## Installation
 
@@ -103,12 +106,16 @@ source:
   [GitHub task source guide](https://caipora-labs.github.io/curupira/github/)
 - `"azure-cli-pull-requests"` — lists Azure DevOps pull requests with `az repos pr list`
 - `"trello-cli-cards"` — discovers cards from a configured board with Scale-Flow's `trello-cli`
+- `"monday-items"` — discovers board items through the monday.com GraphQL API; see the
+  [monday.com task source guide](https://caipora-labs.github.io/curupira/monday/)
 - `"cron"` — produces occurrences from `schedule` instead of querying a forge
 
 Every automation requires `repository` and `prompt`. GitHub/Azure triggers also require
 forge `repo` identity; cron requires `schedule`. Trello automations require `board_id` and
 optionally accept `list_ids`; see the
 [Trello task source guide](https://caipora-labs.github.io/curupira/trello/).
+monday.com automations require `board_id` and a token in `token_env` (default
+`MONDAY_API_TOKEN`), and optionally accept `group_ids`.
 For Azure DevOps, forge `repo` uses `organization/project/repository` (organization name,
 not a full URL). Optional `status` (`active` by default), `source_branch`, and
 `target_branch` filter the Azure list. Optional `profile` selects a named CLI profile;
@@ -139,8 +146,10 @@ arguments is documented on the
 Placeholders use `${name}` syntax and are validated when the configuration loads.
 Common fields: `${repo}`, `${repository}`, `${automation_id}`, `${task_type}`,
 `${task_number}`, `${task_title}`, `${task_body}`, `${task_url}`. Trello cards add `${card_id}`,
-`${card_title}`, `${card_body}`, `${card_url}`, `${card_list_id}`. GitHub issue and
-pull-request placeholders are listed in the
+`${card_title}`, `${card_body}`, `${card_url}`, `${card_list_id}`. monday.com items add
+`${item_id}`, `${item_name}`, `${item_url}`, and related fields listed in the
+[monday.com task source guide](https://caipora-labs.github.io/curupira/monday/).
+GitHub issue and pull-request placeholders are listed in the
 [GitHub task source guide](https://caipora-labs.github.io/curupira/github/).
 For cron tasks, `${task_number}` is the occurrence timestamp.
 

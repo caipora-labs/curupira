@@ -9,5 +9,6 @@ from curupira.tasks import (  # noqa: F401
     cron,
     github_issues,
     github_pull_requests,
+    monday_items,
     trello_cards,
 )

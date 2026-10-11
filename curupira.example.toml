@@ -163,3 +163,21 @@ schedule = "0 9 * * 1"
 # start_date = 2026-10-05T00:00:00+02:00
 # end_date = 2026-12-31T23:59:00+01:00
 prompt = "Perform weekly maintenance for ${repository} (occurrence ${task_number})."
+
+# monday.com GraphQL discovery (read-only). Requires MONDAY_API_TOKEN (or token_env).
+# [automations.board-items]
+# trigger_type = "monday-items"
+# repository = "api"
+# board_id = "1234567890"
+# group_ids = ["topics"]
+# # token_env = "MONDAY_API_TOKEN"
+# prompt = """
+# Handle monday.com item ${item_id}: ${item_name}
+#
+# Group: ${item_group_title} (${item_group_id})
+# Board: ${board_id}
+# State: ${item_state}
+# URL: ${item_url}
+#
+# ${item_columns}
+# """

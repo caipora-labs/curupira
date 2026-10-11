@@ -127,5 +127,6 @@ def test_registered_lists_built_in_triggers() -> None:
         "github-pull-requests",
         "azure-cli-pull-requests",
         "cron",
+        "monday-items",
         "trello-cli-cards",
     } <= set(registry.registered())

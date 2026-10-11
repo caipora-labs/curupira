@@ -18,6 +18,7 @@ from curupira.models.configuration import (
     CronAutomationConfiguration,
     ExecutionSettings,
     IssueAutomationConfiguration,
+    MondayAutomationConfiguration,
     PollingSettings,
     PullRequestAutomationConfiguration,
     RepositoryConfiguration,
@@ -30,7 +31,20 @@ from curupira.models.github import (
     GhPullRequest,
     GitHubSearchRequest,
 )
-from curupira.models.items import CronItem, IssueItem, PullRequestItem, TrelloCardItem
+from curupira.models.items import (
+    CronItem,
+    IssueItem,
+    MondayItem,
+    PullRequestItem,
+    TrelloCardItem,
+)
+from curupira.models.monday import (
+    MondayBoardItem,
+    MondayColumnValue,
+    MondayGroup,
+    MondayItemsPage,
+    MondayListRequest,
+)
 from curupira.models.process import (
     CodingTaskRequest,
     CommandRequest,
@@ -87,6 +101,13 @@ __all__ = [
     "GitHubSearchRequest",
     "IssueAutomationConfiguration",
     "IssueItem",
+    "MondayAutomationConfiguration",
+    "MondayBoardItem",
+    "MondayColumnValue",
+    "MondayGroup",
+    "MondayItem",
+    "MondayItemsPage",
+    "MondayListRequest",
     "OpenCodeCliProfile",
     "PollingSettings",
     "ProcessResult",

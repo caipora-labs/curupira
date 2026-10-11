@@ -81,6 +81,7 @@ nav:
   - TUI assistant: assistant.md
   - GitHub tasks: github.md
   - Trello tasks: trello.md
+  - monday.com tasks: monday.md
   - Operations: operations.md
   - Providers and agents:
       - Overview: providers.md

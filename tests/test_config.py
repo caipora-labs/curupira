@@ -15,6 +15,7 @@ from curupira.models import (
     CronAutomationConfiguration,
     CursorCliProfile,
     IssueAutomationConfiguration,
+    MondayAutomationConfiguration,
     PullRequestAutomationConfiguration,
     TrelloAutomationConfiguration,
 )
@@ -36,6 +37,8 @@ def configuration(trigger: str = "github-issues", **overrides: Any) -> Applicati
         automation["schedule"] = "0 9 * * 1"
     elif trigger == "trello-cli-cards":
         automation["board_id"] = "board123"
+    elif trigger == "monday-items":
+        automation["board_id"] = "1234567890"
     elif trigger == "azure-cli-pull-requests":
         automation["repo"] = "contoso/api-project/api"
         automation["repository"] = "azure-api"
@@ -53,6 +56,7 @@ def configuration(trigger: str = "github-issues", **overrides: Any) -> Applicati
         ("github-pull-requests", PullRequestAutomationConfiguration),
         ("azure-cli-pull-requests", AzurePullRequestAutomationConfiguration),
         ("trello-cli-cards", TrelloAutomationConfiguration),
+        ("monday-items", MondayAutomationConfiguration),
         ("cron", CronAutomationConfiguration),
     ],
 )
@@ -543,3 +547,20 @@ async def test_example_configuration_is_valid() -> None:
     settings = await load_settings(Path("curupira.example.toml"))
     assert "resolve-ready-issues" in settings.automations
     assert settings.repositories["api"].remote.endswith("acme/api.git")
+
+
+async def test_monday_docs_toml_snippet_validates_alone(tmp_path: Path) -> None:
+    """The configure-an-automation snippet in docs/en/monday.md must validate standalone."""
+    docs = Path("docs/en/monday.md").read_text(encoding="utf-8")
+    marker = "## Configure an automation"
+    section = docs.split(marker, 1)[1]
+    fence_parts = section.split("```toml", 1)
+    assert len(fence_parts) == 2, "expected a ```toml fence after Configure an automation"
+    snippet = fence_parts[1].split("```", 1)[0].strip()
+    path = tmp_path / "monday-docs-snippet.toml"
+    path.write_text(snippet + "\n", encoding="utf-8")
+    settings = await load_settings(path)
+    automation = settings.automations["board-items"]
+    assert isinstance(automation, MondayAutomationConfiguration)
+    assert automation.board_id == "1234567890"
+    assert automation.group_ids == ("topics",)
