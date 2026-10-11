@@ -139,9 +139,7 @@ async def run_continuous_dispatch(
             name="curupira-config-reload-watch",
         )
         try:
-            await scheduler.run(
-                tasks, resume_sessions=recovered, initial_tasks=initial_tasks
-            )
+            await scheduler.run(tasks, resume_sessions=recovered, initial_tasks=initial_tasks)
         finally:
             watcher.cancel()
             await asyncio.gather(watcher, return_exceptions=True)

@@ -357,9 +357,7 @@ class GitHubGraphQLClient:
             retry_on=(TransientHttpApiError,),
         )
     )
-    async def _graphql_resilient(
-        self, query: str, variables: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def _graphql_resilient(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
         token = await self._token_provider.get_token()
         headers = {
             "Authorization": f"Bearer {token}",

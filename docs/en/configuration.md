@@ -176,8 +176,10 @@ identity when the trigger has one; `${repository}` is the checkout alias. Each t
 exposes the fields of its typed item model: issues provide `${issue_number}`,
 `${issue_title}`, `${issue_body}`, and `${issue_url}`; pull requests provide
 `${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
-`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`, and
-`${pull_request_base_ref}`. For cron tasks, `${task_number}` is the occurrence timestamp.
+`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`,
+`${pull_request_base_ref}`, and optional refreshed metadata such as
+`${pull_request_head_sha}` and `${pull_request_mergeable}`. For cron tasks,
+`${task_number}` is the occurrence timestamp.
 
 ## Checkout and setup
 

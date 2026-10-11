@@ -66,7 +66,9 @@ class GitHubTaskRevalidator:
             )
             linked_numbers.append(str(reference.number))
             linked_states.append(_state(issue.state))
-        return task.model_copy(update=_pull_request_task_fields(pull, linked_numbers, linked_states))
+        return task.model_copy(
+            update=_pull_request_task_fields(pull, linked_numbers, linked_states)
+        )
 
 
 def _view_request(task: Task) -> GhTaskViewRequest:

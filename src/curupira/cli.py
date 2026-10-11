@@ -412,9 +412,7 @@ async def _execute_scheduled_command(
         completed_tasks = CompletedTaskRepository(settings.settings.state_db_path)
         runner = AsyncProcessRunner()
         feeds = create_task_feeds(settings, cron, runner=runner)
-        initial_tasks, remaining = _limit_initial_tasks(
-            await poll_task_feeds(feeds), options.size
-        )
+        initial_tasks, remaining = _limit_initial_tasks(await poll_task_feeds(feeds), options.size)
         revalidate = GitHubTaskRevalidator(GitHubGraphQLClient(runner))
         executor = TaskExecutor(
             settings.settings,
