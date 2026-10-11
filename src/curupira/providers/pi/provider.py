@@ -1,12 +1,14 @@
 """Native pi coding-agent CLI argument translation."""
 
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.interactive import InteractiveLaunchSpec
 from curupira.hooks import hookimpl
 from curupira.models import CliProfileBase, CodingTaskRequest
 from curupira.models.base import NonEmptyString
@@ -138,6 +140,53 @@ class PiCliAdapter(CodingAgentCliAdapter):
         elif profile.approve is False:
             arguments.append("--no-approve")
         return (*arguments, "--", request.message)
+
+    @override
+    def interactive_launch(
+        self,
+        profile: CliProfileBase,
+        *,
+        model: str | None,
+        prompt: str | None,
+        cwd: Path,
+    ) -> InteractiveLaunchSpec:
+        """Build an interactive ``pi`` TUI launch.
+
+        Official docs: ``pi`` opens the terminal UI when stdin/stdout are TTYs;
+        positional messages seed the first prompt, and ``--model``, ``--provider``,
+        ``--thinking``, tool, and approve flags apply (https://pi.dev/docs/latest/cli).
+        ``--provider`` requires ``--model``; it is emitted only when ``model`` is set
+        and equals the profile's own ``model`` so the provider is never paired with a
+        different assistant model. Omits ``--mode json``. Prompts follow ``--`` so a
+        leading ``-`` is not parsed as a flag; that terminator requires pi 1.x (pi
+        0.73.1 rejects ``--`` as an unknown option).
+        """
+        self.ensure_interactive_model_resolved(model)
+        if not isinstance(profile, PiCliProfile):
+            raise ValueError("pi requires a pi profile")
+        arguments: list[str] = [self.executable]
+        notes: list[str] = []
+        if model is not None:
+            if profile.model_provider is not None and model == profile.model:
+                arguments.extend(("--provider", profile.model_provider))
+            arguments.extend(("--model", model))
+        if profile.effort is not None:
+            arguments.extend(("--thinking", profile.effort))
+        if profile.tools:
+            arguments.extend(("--tools", ",".join(profile.tools)))
+        if profile.exclude_tools:
+            arguments.extend(("--exclude-tools", ",".join(profile.exclude_tools)))
+        if profile.approve is True:
+            arguments.append("--approve")
+        elif profile.approve is False:
+            arguments.append("--no-approve")
+        if prompt is not None:
+            arguments.extend(("--", prompt))
+            notes.append(
+                "initial prompt uses the -- terminator, which requires pi >= 1.x "
+                "(pi 0.73.1 rejects -- as an unknown option)"
+            )
+        return InteractiveLaunchSpec(argv=tuple(arguments), cwd=cwd, notes=tuple(notes))
 
     @override
     def session_id_from_line(self, line: str) -> str | None:

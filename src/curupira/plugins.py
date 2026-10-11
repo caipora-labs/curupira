@@ -9,6 +9,11 @@ from dataclasses import dataclass
 from importlib.metadata import EntryPoint, entry_points
 
 from curupira.agents.base import CodingAgentCliAdapter
+from curupira.agents.interactive import (
+    InteractiveLaunchSpec,
+    default_pty_env,
+    spec_available,
+)
 from curupira.clients.process import AsyncProcessRunner
 from curupira.errors import DispatchError, PluginLoadError
 from curupira.models import (
@@ -50,6 +55,7 @@ __all__ = [
     "DispatchError",
     "FeedDependencies",
     "Identifier",
+    "InteractiveLaunchSpec",
     "LoadedAgentPlugin",
     "LoadedPlugin",
     "NonEmptyString",
@@ -64,11 +70,13 @@ __all__ = [
     "TriggerState",
     "ValidatedModel",
     "VersionControl",
+    "default_pty_env",
     "flatten_for_template",
     "load_agent_plugins",
     "load_plugins",
     "loaded_agent_plugins",
     "loaded_plugins",
+    "spec_available",
 ]
 
 

@@ -86,12 +86,25 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Pure-data `InteractiveLaunchSpec` and optional
+  `CodingAgentCliAdapter.interactive_launch` for verified interactive coding-agent CLI
+  invocations (Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI,
+  Kilo CLI, pi, and Qwen Code). Helpers `default_pty_env` (allowlisted PTY environment;
+  does not forward provider API keys) and `spec_available` support a later embedded
+  terminal panel; no process or PTY is started here. The default returns `None`
+  (unverified), so `PLUGIN_API_VERSION` is unchanged and existing plugins keep working.
+  Callers must resolve `model` first; `ensure_interactive_model_resolved` rejects the
+  literal `auto` when the adapter has no `auto_model`. Gemini CLI and GitHub Copilot CLI
+  declare `auto_model = "auto"` from their official docs alongside Cursor. Interactive
+  Cursor emits `--mode` only for documented `plan`/`ask` (not `agent`); pi prompt
+  separators assume pi >= 1.x.
 - Optional `[assistant]` configuration (`AssistantSettings`) for the interactive
   configuration assistant: `agent` (registered coding-agent provider) and `model`.
   Adapters may declare `auto_model` when their CLI documents native automatic model
-  selection (Cursor sets `auto_model = "auto"`); `resolve_assistant_model` maps an
-  unset or literal `auto` request onto that capability, and `validate` rejects
-  `assistant.model = "auto"` for providers without it.
+  selection (Cursor, Gemini CLI, and GitHub Copilot CLI set `auto_model = "auto"`);
+  `resolve_assistant_model` maps an unset or literal `auto` request onto that
+  capability, and `validate` rejects `assistant.model = "auto"` for providers without
+  it.
 - Packaging guard (`scripts/check_packaged_readme.py`) that builds the sdist and
   wheel, fails when the packaged README or metadata long description contains
   `opscli` (case-insensitive; retired OpsCli branding must not ship on PyPI), and
