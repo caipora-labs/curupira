@@ -10,6 +10,7 @@ import pytest
 from typing_extensions import override
 
 from curupira.clients.monday import MondayClient
+from curupira.errors import HttpApiError, TransientHttpApiError
 from curupira.models import MondayListRequest, PollingSettings, Task, TaskIdentity
 from curupira.models.items import MondayItem
 from curupira.models.monday import MondayBoardItem, MondayColumnValue, MondayGroup, MondayItemsPage
@@ -23,11 +24,13 @@ from tests.helpers import resolved_automation
 # Mock credential for client construction in tests (not a real secret).
 _FAKE_API_CREDENTIAL = "monday-test-credential"
 
+_ScriptedPage = MondayItemsPage | BaseException
+
 
 class FakeMondayClient(MondayClient):
-    """Return scripted pages and record list requests."""
+    """Return scripted pages (or raise scripted errors) and record list requests."""
 
-    def __init__(self, pages: list[MondayItemsPage]) -> None:
+    def __init__(self, pages: list[_ScriptedPage]) -> None:
         super().__init__(environ={"MONDAY_API_TOKEN": _FAKE_API_CREDENTIAL})
         self._pages = list(pages)
         self.requests: list[MondayListRequest] = []
@@ -37,7 +40,10 @@ class FakeMondayClient(MondayClient):
         self.requests.append(request)
         if not self._pages:
             return MondayItemsPage(items=(), cursor=None)
-        return self._pages.pop(0)
+        outcome = self._pages.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
 
 
 def _board_item(
@@ -260,6 +266,49 @@ def test_trigger_builds_shared_polling_feed(tmp_path: Path) -> None:
 
     assert isinstance(feed, PollingTaskFeed)
     assert feed.automation is automation
+
+
+@pytest.mark.asyncio
+async def test_expired_cursor_clears_and_retries_first_page(tmp_path: Path) -> None:
+    client = FakeMondayClient(
+        [
+            MondayItemsPage(items=(_board_item("1", "One"),), cursor="stale"),
+            HttpApiError("Cursor expired"),
+            MondayItemsPage(items=(_board_item("2", "Two"),), cursor=None),
+        ]
+    )
+    automation = resolved_automation(tmp_path, "board-items", "monday-items")
+    source = MondayItemSource(client)
+
+    first = await source.discover(automation, 1)
+    assert [task.identity.id for task in first] == ["1"]
+    assert client.requests[0].cursor is None
+    assert client.requests[0].limit == 1
+
+    second = await source.discover(automation, 5)
+    assert [task.identity.id for task in second] == ["2"]
+    assert client.requests[1].cursor == "stale"
+    assert client.requests[2].cursor is None
+    assert source._cursor is None
+
+
+@pytest.mark.asyncio
+async def test_later_page_failure_returns_partial_tasks(tmp_path: Path) -> None:
+    client = FakeMondayClient(
+        [
+            MondayItemsPage(items=(_board_item("1", "One"),), cursor="page-2"),
+            TransientHttpApiError("monday.com GraphQL temporarily failed with status 503"),
+        ]
+    )
+    automation = resolved_automation(tmp_path, "board-items", "monday-items")
+    source = MondayItemSource(client)
+
+    tasks = await source.discover(automation, 10)
+
+    assert [task.identity.id for task in tasks] == ["1"]
+    assert source._cursor == "page-2"
+    assert len(client.requests) == 2
+    assert client.requests[1].cursor == "page-2"
 
 
 @pytest.mark.asyncio

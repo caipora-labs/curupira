@@ -57,7 +57,16 @@ class HttpApiError(DispatchError):
 
 
 class TransientHttpApiError(TransientCliError):
-    """A temporary HTTP API failure that is safe to retry."""
+    """A temporary HTTP API failure that is safe to retry.
+
+    Attributes:
+        retry_after_seconds: Optional delay suggested by the remote API
+            (``Retry-After`` or GraphQL ``retry_in_seconds``) before the next attempt.
+    """
+
+    def __init__(self, message: str, *, retry_after_seconds: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
 
 
 class WorkspacePathError(DispatchError):

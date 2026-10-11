@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import Mapping
 from typing import Any
@@ -14,8 +15,11 @@ from curupira.errors import HttpApiError, TransientHttpApiError
 from curupira.models.monday import MondayBoardItem, MondayItemsPage, MondayListRequest
 
 _MONDAY_GRAPHQL_URL = "https://api.monday.com/v2"
+# Current stable monday.com API version (see developer.monday.com API versioning).
+_API_VERSION = "2026-07"
 # Environment variable *name* for the personal API token (not a secret value).
 _DEFAULT_TOKEN_ENV = "MONDAY_API_TOKEN"  # noqa: S105
+_MAX_RETRY_AFTER_SECONDS = 60.0
 
 _FIRST_PAGE_QUERY = """
 query CurupiraMondayItems($boardIds: [ID!]!, $limit: Int!, $queryParams: ItemsQuery) {
@@ -106,7 +110,11 @@ class MondayClient:
                 }
             body = {"query": _FIRST_PAGE_QUERY, "variables": variables}
         document = await self._post_resilient(token, body)
-        raw_page = _page_from_response(document, has_cursor=bool(request.cursor))
+        raw_page = _page_from_response(
+            document,
+            has_cursor=bool(request.cursor),
+            board_id=request.board_id,
+        )
         try:
             items = TypeAdapter(list[MondayBoardItem]).validate_python(raw_page["items"])
         except ValidationError as error:
@@ -143,7 +151,7 @@ class MondayClient:
         headers = {
             "Authorization": token,
             "Content-Type": "application/json",
-            "API-Version": "2024-10",
+            "API-Version": _API_VERSION,
         }
         async with httpx.AsyncClient(transport=self._transport, timeout=30.0) as client:
             try:
@@ -153,14 +161,18 @@ class MondayClient:
                     f"monday.com GraphQL transport failed: {error}"
                 ) from error
         if response.status_code in {429, 502, 503, 504} or response.status_code >= 500:
+            retry_after = _retry_after_from_response(response)
+            await _maybe_sleep_retry_after(retry_after)
             raise TransientHttpApiError(
-                f"monday.com GraphQL temporarily failed with status {response.status_code}"
+                f"monday.com GraphQL temporarily failed with status {response.status_code}",
+                retry_after_seconds=retry_after,
             )
         if response.status_code in {401, 403}:
             raise HttpApiError(
                 f"monday.com GraphQL authentication failed with status "
                 f"{response.status_code}; check that {self._token_env} holds a valid "
-                "personal API token with boards:read access"
+                "personal API token and that its owner can open the board in the "
+                "monday.com UI"
             )
         if response.status_code >= 400:
             raise HttpApiError(f"monday.com GraphQL failed with status {response.status_code}")
@@ -170,7 +182,11 @@ class MondayClient:
             raise HttpApiError("monday.com GraphQL returned non-JSON output") from error
         if not isinstance(document, dict):
             raise HttpApiError("monday.com GraphQL returned a non-object payload")
-        _raise_for_graphql_errors(document)
+        try:
+            _raise_for_graphql_errors(document)
+        except TransientHttpApiError as error:
+            await _maybe_sleep_retry_after(error.retry_after_seconds)
+            raise
         return document
 
 
@@ -187,12 +203,25 @@ def _raise_for_graphql_errors(document: dict[str, Any]) -> None:
         else:
             messages.append(str(item))
     message = "; ".join(messages) if messages else "unknown GraphQL error"
+    if _is_permanent_complexity_error(message):
+        raise HttpApiError(
+            f"monday.com GraphQL error: {message}. Reduce settings.polling.batch_size "
+            "so each query stays within the 5M complexity limit."
+        )
     if _is_transient_graphql_error(message):
-        raise TransientHttpApiError(f"monday.com GraphQL temporary error: {message}")
+        raise TransientHttpApiError(
+            f"monday.com GraphQL temporary error: {message}",
+            retry_after_seconds=_retry_in_seconds_from_errors(errors),
+        )
     raise HttpApiError(f"monday.com GraphQL error: {message}")
 
 
-def _page_from_response(document: dict[str, Any], *, has_cursor: bool) -> dict[str, Any]:
+def _page_from_response(
+    document: dict[str, Any],
+    *,
+    has_cursor: bool,
+    board_id: str,
+) -> dict[str, Any]:
     data = document.get("data")
     if data is None:
         raise HttpApiError("monday.com GraphQL response missing data")
@@ -204,8 +233,13 @@ def _page_from_response(document: dict[str, Any], *, has_cursor: bool) -> dict[s
             raise HttpApiError("monday.com GraphQL response missing next_items_page")
         return _normalize_page(page)
     boards = data.get("boards")
-    if not isinstance(boards, list) or not boards:
+    if not isinstance(boards, list):
         raise HttpApiError("monday.com GraphQL response missing boards")
+    if not boards:
+        raise HttpApiError(
+            f"monday.com board {board_id} not found or not accessible with this token; "
+            "check board_id"
+        )
     board = boards[0]
     if not isinstance(board, dict):
         raise HttpApiError("monday.com GraphQL board payload is unexpected")
@@ -222,9 +256,65 @@ def _normalize_page(page: dict[str, Any]) -> dict[str, Any]:
     return {"items": items, "cursor": page.get("cursor")}
 
 
+def _is_permanent_complexity_error(message: str) -> bool:
+    """Return whether the error is a single-query 5M complexity exceed (not retryable)."""
+    lowered = message.lower()
+    if "budget" in lowered:
+        return False
+    return "query complexity exceeds" in lowered or (
+        "complexity" in lowered and "exceed" in lowered
+    )
+
+
 def _is_transient_graphql_error(message: str) -> bool:
     lowered = message.lower()
+    if _is_permanent_complexity_error(message):
+        return False
     return any(
         marker in lowered
-        for marker in ("rate limit", "complexity", "timeout", "timed out", "temporarily")
+        for marker in (
+            "rate limit",
+            "minute limit",
+            "concurrency",
+            "budget",
+            "timeout",
+            "timed out",
+            "temporarily",
+            "daily_limit",
+            "daily limit",
+        )
     )
+
+
+def _retry_after_from_response(response: httpx.Response) -> float | None:
+    header = response.headers.get("Retry-After")
+    if header is None:
+        return None
+    try:
+        return float(header.strip())
+    except ValueError:
+        return None
+
+
+def _retry_in_seconds_from_errors(errors: list[object]) -> float | None:
+    for item in errors:
+        if not isinstance(item, dict):
+            continue
+        extensions = item.get("extensions")
+        if not isinstance(extensions, dict):
+            continue
+        raw = extensions.get("retry_in_seconds")
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            return float(raw)
+        if isinstance(raw, str):
+            try:
+                return float(raw.strip())
+            except ValueError:
+                continue
+    return None
+
+
+async def _maybe_sleep_retry_after(seconds: float | None) -> None:
+    if seconds is None or seconds <= 0:
+        return
+    await asyncio.sleep(min(seconds, _MAX_RETRY_AFTER_SECONDS))

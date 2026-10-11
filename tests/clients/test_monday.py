@@ -60,6 +60,7 @@ def _client(
 async def test_list_items_single_page_preserves_string_ids() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["Authorization"] == _FAKE_API_CREDENTIAL
+        assert request.headers["API-Version"] == "2026-07"
         assert "Bearer" not in request.headers["Authorization"]
         body = json.loads(request.content.decode())
         assert body["variables"]["boardIds"] == ["1234567890"]
@@ -159,6 +160,8 @@ async def test_http_401_is_actionable_and_hides_token() -> None:
         await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
     message = str(error.value)
     assert "MONDAY_API_TOKEN" in message
+    assert "open the board in the monday.com UI" in message
+    assert "boards:read" not in message
     assert _FAKE_API_CREDENTIAL not in message
 
 
@@ -223,10 +226,21 @@ async def test_missing_data_payload() -> None:
 
 
 @pytest.mark.asyncio
-async def test_unexpected_boards_payload() -> None:
+async def test_empty_boards_is_actionable() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         del request
         return httpx.Response(200, json={"data": {"boards": []}})
+
+    with pytest.raises(HttpApiError, match="board 99 not found or not accessible") as error:
+        await _client(handler).list_items_page(MondayListRequest(board_id="99", limit=1))
+    assert "check board_id" in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_boards_payload_must_be_a_list() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json={"data": {"boards": {"id": "1"}}})
 
     with pytest.raises(HttpApiError, match="missing boards"):
         await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
@@ -363,3 +377,94 @@ async def test_blank_cursor_string_normalized_to_none() -> None:
     page = await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
     assert page.cursor is None
     assert page.items[0].id == "1"
+
+
+@pytest.mark.asyncio
+async def test_api_version_header_is_current_stable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers["API-Version"])
+        return httpx.Response(200, json=_first_page([_item("1", "Ok")], cursor=None))
+
+    async def no_sleep(seconds: float) -> None:
+        del seconds
+
+    monkeypatch.setattr("curupira.clients.monday.asyncio.sleep", no_sleep)
+    await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+    assert seen == ["2026-07"]
+
+
+@pytest.mark.asyncio
+async def test_query_complexity_exceeds_is_permanent_with_batch_size_hint() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={"errors": [{"message": "Query complexity exceeds the limit of 5000000"}]},
+        )
+
+    with pytest.raises(HttpApiError, match="batch_size") as error:
+        await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+    assert not isinstance(error.value, TransientHttpApiError)
+
+
+@pytest.mark.asyncio
+async def test_complexity_budget_exhausted_is_transient_and_honors_retry_in_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sleeps: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("curupira.clients.monday.asyncio.sleep", record_sleep)
+    attempts = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        attempts["count"] += 1
+        if attempts["count"] < 2:
+            return httpx.Response(
+                200,
+                json={
+                    "errors": [
+                        {
+                            "message": "Complexity budget exhausted",
+                            "extensions": {"retry_in_seconds": 2},
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(200, json=_first_page([_item("1", "Ok")], cursor=None))
+
+    page = await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+    assert page.items[0].id == "1"
+    assert attempts["count"] == 2
+    assert 2.0 in sleeps
+
+
+@pytest.mark.asyncio
+async def test_http_429_honors_retry_after_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sleeps: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("curupira.clients.monday.asyncio.sleep", record_sleep)
+    attempts = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        attempts["count"] += 1
+        if attempts["count"] < 2:
+            return httpx.Response(429, text="rate limited", headers={"Retry-After": "3"})
+        return httpx.Response(200, json=_first_page([_item("1", "Ok")], cursor=None))
+
+    page = await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+    assert page.items[0].id == "1"
+    assert 3.0 in sleeps
