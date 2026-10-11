@@ -18,10 +18,12 @@ class MacroEnvironment(Protocol):
 
 
 class _TriggerGuide(NamedTuple):
-    """Doc link and prerequisites for one built-in trigger type."""
+    """Plain-language docs metadata for one built-in trigger type."""
 
     guide: str
     prerequisites: str
+    summary: str
+    link_label: str = "Guide"
 
 
 # Built-in trigger docs metadata. Unknown (plugin) types fall back in triggers_table().
@@ -29,26 +31,34 @@ _TRIGGER_GUIDES: dict[str, _TriggerGuide] = {
     "github-issues": _TriggerGuide(
         "github.md",
         "`gh` authenticated (`gh auth login`)",
+        "Finds issues using filters you set in TOML",
     ),
     "github-pull-requests": _TriggerGuide(
         "github.md",
         "`gh` authenticated (`gh auth login`)",
+        "Finds pull requests using filters you set in TOML",
     ),
     "azure-cli-pull-requests": _TriggerGuide(
-        "automations.md#azure-devops-pull-requests",
+        "#azure-devops-pull-requests",
         "`az` + Azure DevOps extension (`az login`)",
+        "Lists Azure DevOps pull requests with the Azure CLI",
+        "This page",
     ),
     "trello-cli-cards": _TriggerGuide(
         "trello.md",
-        "Scale-Flow `trello-cli` (`trello auth login`)",
+        "`trello` CLI (`trello auth login`)",
+        "Finds open cards on a Trello board",
     ),
     "monday-items": _TriggerGuide(
         "monday.md",
         "`MONDAY_API_TOKEN` (or `token_env`) set",
+        "Finds board items through monday.com's API (read-only)",
     ),
     "cron": _TriggerGuide(
-        "automations.md#cron",
+        "#cron",
         "None (local schedule)",
+        "Runs on a local schedule you set",
+        "This page",
     ),
 }
 
@@ -62,8 +72,8 @@ _TRIGGER_ORDER: tuple[str, ...] = (
 )
 
 
-def _trigger_summary(trigger: Trigger) -> str:
-    """Return the first line of the configuration model docstring for the table."""
+def _plugin_trigger_summary(trigger: Trigger) -> str:
+    """Fallback summary for plugin triggers without built-in guide metadata."""
     doc = (trigger.configuration_model.__doc__ or "").strip()
     first = doc.splitlines()[0] if doc else trigger.trigger_type
     return first.replace("``", "`")
@@ -134,11 +144,12 @@ def define_env(env: MacroEnvironment) -> None:
                 guide = "plugins.md"
                 prerequisites = "See the plugin documentation"
                 link_label = "Plugins"
+                summary = _plugin_trigger_summary(trigger)
             else:
                 guide = guide_meta.guide
                 prerequisites = guide_meta.prerequisites
-                link_label = "Guide"
-            summary = _trigger_summary(trigger)
+                link_label = guide_meta.link_label
+                summary = guide_meta.summary
             lines.append(
                 f"| `{trigger_type}` | {summary} | {prerequisites} | [{link_label}]({guide}) |"
             )

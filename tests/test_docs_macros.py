@@ -81,7 +81,24 @@ def test_triggers_table_has_one_row_per_registered_trigger(
         assert any(f"| `{trigger_type}` |" in row for row in rows)
     assert "| `github-issues` |" in rows[0]
     assert "[Guide](github.md)" in rows[0]
+    assert any("[This page](#cron)" in row for row in rows)
+    assert any("[This page](#azure-devops-pull-requests)" in row for row in rows)
     assert any("MONDAY_API_TOKEN" in row for row in rows)
+    assert any("Finds issues using filters you set in TOML" in row for row in rows)
+    assert any("Finds board items through monday.com's API (read-only)" in row for row in rows)
+    technical_markers = (
+        "GraphQL",
+        "httpx",
+        "Scale-Flow",
+        "coalesce",
+        "occurrence",
+        "worktree",
+        "forge",
+    )
+    for row in rows:
+        what_it_does = row.split("|")[2]
+        for marker in technical_markers:
+            assert marker not in what_it_does, row
     for trigger_type in main._TRIGGER_GUIDES:
         assert trigger_type in registered
 

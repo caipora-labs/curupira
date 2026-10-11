@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Documentation
 
+- New automations reference page: trigger overview, a minimal TOML example per trigger,
+  first-run commands, a security note and common errors. English only; Spanish and
+  Portuguese will follow.
 - TUI assistant docs: clearer description of the in-panel agent, session start and
   saved-agent behavior.
 - GitHub docs clarify token prerequisites and scopes, `repo` vs `repository`, the
@@ -88,11 +91,6 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- Automations reference page (`docs/en/automations.md`) for newcomers: registry-generated
-  trigger overview table, minimal copyable TOML per built-in trigger, prompt placeholders,
-  first-use commands (`validate`, `run --dry-run`, `run --watch`, `run --size`), untrusted
-  task-text security note, and common configuration errors. Linked from the README and
-  MkDocs nav; Spanish/Portuguese translations are a follow-up.
 - Built-in monday.com board item discovery (`trigger_type = "monday-items"`) through the
   GraphQL API over `httpx` (`API-Version: 2026-10`), with optional `group_ids` filtering,
   string-preserved item IDs, cursor pagination that continues across polls (expired
