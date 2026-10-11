@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
@@ -13,23 +13,52 @@ from curupira.models.base import NonEmptyString
 
 
 class PiCliProfile(CliProfileBase):
-    """Options supported by the pi coding-agent CLI.
+    """pi coding-agent CLI profile. Set ``provider`` to ``\"pi\"`` in TOML."""
 
-    Attributes:
-        provider: Discriminator identifying the pi CLI.
-        model_provider: Optional provider constraint for the selected model.
-        effort: Optional pi thinking level.
-        tools: Tool allowlist passed to pi.
-        exclude_tools: Tools excluded from pi's available tools.
-        approve: Explicit project-trust decision for this process.
-    """
-
-    provider: Literal["pi"] = "pi"
-    model_provider: NonEmptyString | None = None
-    effort: Literal["off", "minimal", "low", "medium", "high", "xhigh", "max"] | None = None
-    tools: tuple[NonEmptyString, ...] = ()
-    exclude_tools: tuple[NonEmptyString, ...] = ()
-    approve: bool | None = None
+    provider: Literal["pi"] = Field(
+        default="pi",
+        description='Discriminator identifying the pi CLI. Must be "pi".',
+    )
+    model_provider: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional provider constraint for the selected model. Requires ``model`` "
+            "when set. When set, the adapter passes ``--provider``; when unset, that "
+            "flag is omitted."
+        ),
+    )
+    effort: Literal["off", "minimal", "low", "medium", "high", "xhigh", "max"] | None = Field(
+        default=None,
+        description=(
+            "Optional pi thinking level. Allowed values: off, minimal, low, medium, "
+            "high, xhigh, max. When set, the adapter passes ``--thinking``; when unset, "
+            "that flag is omitted."
+        ),
+    )
+    tools: tuple[NonEmptyString, ...] = Field(
+        default=(),
+        description=(
+            "Tool allowlist passed to pi. When non-empty, the adapter passes "
+            "``--tools`` as a comma-separated list. When empty (the default), that "
+            "flag is omitted."
+        ),
+    )
+    exclude_tools: tuple[NonEmptyString, ...] = Field(
+        default=(),
+        description=(
+            "Tools excluded from pi's available tools. When non-empty, the adapter "
+            "passes ``--exclude-tools`` as a comma-separated list. When empty (the "
+            "default), that flag is omitted."
+        ),
+    )
+    approve: bool | None = Field(
+        default=None,
+        description=(
+            "Optional explicit project-trust decision. When true, the adapter adds "
+            "``--approve``; when false, ``--no-approve``; when unset, neither flag is "
+            "passed."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_model_provider(self) -> "PiCliProfile":
