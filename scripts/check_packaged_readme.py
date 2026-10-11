@@ -32,24 +32,37 @@ def assert_no_opscli_in_distributions(dist: Path) -> None:
     if not sources:
         message = f"Expected at least one sdist in {dist}"
         raise SystemExit(message)
+    hits: list[str] = []
     for wheel in wheels:
-        _assert_texts_clean(wheel, _wheel_readme_and_metadata(wheel))
+        hits.extend(_opscli_hits(wheel, _wheel_readme_and_metadata(wheel)))
     for source in sources:
-        _assert_texts_clean(source, _sdist_readme_and_metadata(source))
+        hits.extend(_opscli_hits(source, _sdist_readme_and_metadata(source)))
+    if hits:
+        detail = "\n".join(hits)
+        message = f"{detail}\n(retired OpsCli branding must not ship in release metadata)"
+        raise SystemExit(message)
 
 
-def _assert_texts_clean(archive: Path, labeled_texts: list[tuple[str, str]]) -> None:
-    for label, text in labeled_texts:
-        if FORBIDDEN in text.lower():
-            message = (
-                f"{archive.name}: {label} contains {FORBIDDEN!r} "
-                "(retired OpsCli branding must not ship in release metadata)"
-            )
-            raise SystemExit(message)
+def _opscli_hits(archive: Path, members: list[tuple[str, str, int]]) -> list[str]:
+    """Return ``archive:member:line: snippet`` for every OpsCli line.
+
+    ``line_offset`` shifts description-body lines so numbers match the member
+    file (METADATA / PKG-INFO headers plus the blank separator).
+    """
+    hits: list[str] = []
+    for member, text, line_offset in members:
+        for index, line in enumerate(text.splitlines(), start=1):
+            if FORBIDDEN not in line.lower():
+                continue
+            snippet = line.strip()
+            if len(snippet) > 80:
+                snippet = f"{snippet[:77]}..."
+            hits.append(f"{archive.name}:{member}:{line_offset + index}: {snippet}")
+    return hits
 
 
-def _wheel_readme_and_metadata(wheel: Path) -> list[tuple[str, str]]:
-    texts: list[tuple[str, str]] = []
+def _wheel_readme_and_metadata(wheel: Path) -> list[tuple[str, str, int]]:
+    texts: list[tuple[str, str, int]] = []
     with zipfile.ZipFile(wheel) as archive:
         metadata_name = next(
             (name for name in archive.namelist() if name.endswith(".dist-info/METADATA")),
@@ -58,17 +71,18 @@ def _wheel_readme_and_metadata(wheel: Path) -> list[tuple[str, str]]:
         if metadata_name is None:
             message = f"Missing METADATA in {wheel}"
             raise SystemExit(message)
-        metadata = Parser().parsestr(archive.read(metadata_name).decode())
-        texts.append((f"{metadata_name} long description", _long_description(metadata)))
+        raw = archive.read(metadata_name).decode()
+        metadata = Parser().parsestr(raw)
+        texts.append((metadata_name, _long_description(metadata), _description_line_offset(raw)))
         for name in archive.namelist():
             basename = Path(name).name.lower()
             if basename.startswith("readme"):
-                texts.append((name, archive.read(name).decode()))
+                texts.append((name, archive.read(name).decode(), 0))
     return texts
 
 
-def _sdist_readme_and_metadata(source: Path) -> list[tuple[str, str]]:
-    texts: list[tuple[str, str]] = []
+def _sdist_readme_and_metadata(source: Path) -> list[tuple[str, str, int]]:
+    texts: list[tuple[str, str, int]] = []
     with tarfile.open(source, "r:gz") as archive:
         metadata_member = next(
             (member for member in archive.getmembers() if member.name.endswith("/PKG-INFO")),
@@ -81,8 +95,15 @@ def _sdist_readme_and_metadata(source: Path) -> list[tuple[str, str]]:
         if extracted is None:
             message = f"Cannot read PKG-INFO from {source}"
             raise SystemExit(message)
-        metadata = Parser().parsestr(extracted.read().decode())
-        texts.append((f"{metadata_member.name} long description", _long_description(metadata)))
+        raw = extracted.read().decode()
+        metadata = Parser().parsestr(raw)
+        texts.append(
+            (
+                metadata_member.name,
+                _long_description(metadata),
+                _description_line_offset(raw),
+            )
+        )
         for member in archive.getmembers():
             if not member.isfile():
                 continue
@@ -93,7 +114,7 @@ def _sdist_readme_and_metadata(source: Path) -> list[tuple[str, str]]:
             if file_obj is None:
                 message = f"Cannot read {member.name} from {source}"
                 raise SystemExit(message)
-            texts.append((member.name, file_obj.read().decode()))
+            texts.append((member.name, file_obj.read().decode(), 0))
     return texts
 
 
@@ -104,6 +125,14 @@ def _long_description(metadata: Message) -> str:
         return payload
     description = metadata.get("Description")
     return description or ""
+
+
+def _description_line_offset(raw_metadata: str) -> int:
+    """Return how many member lines precede the long-description body."""
+    for index, line in enumerate(raw_metadata.splitlines()):
+        if line == "":
+            return index + 1
+    return 0
 
 
 def _build_distributions(dist: Path) -> None:

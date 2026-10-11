@@ -78,7 +78,7 @@ def test_opscli_in_metadata_description_fails(tmp_path: Path) -> None:
     checker = _load_checker()
     _write_pair(tmp_path, description="# OpsCli\n\nLegacy name.\n")
 
-    with pytest.raises(SystemExit, match="opscli"):
+    with pytest.raises(SystemExit, match=r"(?i)opscli"):
         checker.assert_no_opscli_in_distributions(tmp_path)
 
 
@@ -89,7 +89,7 @@ def test_opscli_case_insensitive_in_sdist_readme_fails(tmp_path: Path) -> None:
     _write_wheel(dist, description="# Curupira\n")
     _write_sdist(dist, description="# Welcome to OPSCLI\n")
 
-    with pytest.raises(SystemExit, match="opscli"):
+    with pytest.raises(SystemExit, match=r"(?i)opscli"):
         checker.assert_no_opscli_in_distributions(tmp_path)
 
 
@@ -112,8 +112,35 @@ def test_opscli_only_in_wheel_readme_member_fails(tmp_path: Path) -> None:
         archive.writestr("README.md", "This package was called OpsCli.\n")
     _write_sdist(dist, description="# Curupira\n")
 
-    with pytest.raises(SystemExit, match="opscli"):
+    with pytest.raises(SystemExit, match=r"(?i)opscli"):
         checker.assert_no_opscli_in_distributions(tmp_path)
+
+
+def test_failure_reports_archive_member_line_and_snippet(tmp_path: Path) -> None:
+    checker = _load_checker()
+    dist = tmp_path
+    dist.mkdir(parents=True, exist_ok=True)
+    metadata = (
+        "Metadata-Version: 2.1\n"
+        "Name: curupira\n"
+        "Version: 0.1.0\n"
+        "Summary: test\n"
+        "Description-Content-Type: text/markdown\n"
+        "\n"
+        "# Curupira\n"
+    )
+    wheel = dist / "curupira-0.1.0-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr("curupira-0.1.0.dist-info/METADATA", metadata)
+        archive.writestr("README.md", "Curupira\n\nFormerly OpsCli branding.\n")
+    _write_sdist(dist, description="# Curupira\n")
+
+    with pytest.raises(SystemExit) as excinfo:
+        checker.assert_no_opscli_in_distributions(tmp_path)
+
+    message = str(excinfo.value)
+    assert "curupira-0.1.0-py3-none-any.whl:README.md:3:" in message
+    assert "Formerly OpsCli branding." in message
 
 
 def test_missing_wheel_fails(tmp_path: Path) -> None:
