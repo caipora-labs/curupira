@@ -42,9 +42,7 @@ operations use native `git` and your normal Git credentials for the repository `
 ### Token scopes
 
 The [GitHub CLI `gh auth login` manual](https://cli.github.com/manual/gh_auth_login) states
-that tokens passed with `--with-token` need at least `repo`, `read:org`, and `gist`. A
-normal browser `gh auth login` already requests that minimum set (including `repo`), which
-covers GraphQL Search of issues and pull requests for repositories the account can access.
+that tokens passed with `--with-token` need at least `repo`, `read:org`, and `gist`.
 
 [GitHub's GraphQL authentication guide](https://docs.github.com/en/graphql/guides/forming-calls-with-graphql#authenticating-with-graphql)
 notes that the data you request dictates the scopes or permissions needed, and that a
