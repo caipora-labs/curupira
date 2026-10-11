@@ -94,6 +94,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Documentation
 
+- Added a GitHub task source guide (`docs/en/github.md`) covering issue and pull-request
+  triggers, prerequisites and token scopes, configuration field defaults, selection and
+  deduplication, prompt placeholders, worktrees, and common errors. The README GitHub
+  sections now summarize and link to that page.
 - Removed the README "Trello listener" section, which described a `trello-cli` trigger
   that Curupira does not ship; the README now points to trigger plugins instead.
 - Each coding-agent provider has its own page under "Providers and agents". The provider
