@@ -65,6 +65,7 @@ def test_collect_built_in_triggers_includes_official_providers() -> None:
         "github-pull-requests",
         "azure-cli-pull-requests",
         "cron",
+        "monday-items",
         "trello-cli-cards",
     }
     assert isinstance(by_type["github-issues"], IssueTrigger)

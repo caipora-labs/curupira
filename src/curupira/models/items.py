@@ -61,3 +61,27 @@ class TrelloCardItem(ValidatedModel):
     card_body: str = ""
     card_url: NonEmptyString
     card_list_id: str = ""
+
+
+class MondayItem(ValidatedModel):
+    """monday.com board item fields available as prompt placeholders.
+
+    Attributes:
+        item_id: monday.com item ID preserved as a string.
+        item_name: Item name.
+        item_url: HTML URL of the item.
+        item_group_id: ID of the group that currently holds the item.
+        item_group_title: Title of that group, or empty when absent.
+        board_id: Board ID from the automation configuration.
+        item_state: Item state such as ``active``.
+        item_columns: Optional human-readable column values as plain text.
+    """
+
+    item_id: NonEmptyString
+    item_name: str
+    item_url: NonEmptyString
+    item_group_id: str = ""
+    item_group_title: str = ""
+    board_id: NonEmptyString
+    item_state: str = "active"
+    item_columns: str = ""
