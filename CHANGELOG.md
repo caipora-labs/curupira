@@ -7,12 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Documentation
 
-- TUI assistant page (`docs/en/assistant.md`): drop the unexplained Omarchy reference;
-  describe the in-panel agent without suspending the TUI; keep session-start details
-  user-facing (`[assistant].model`, cwd where `curu tui` started, CLI login only); note
-  that a saved agent applies on the next panel open and that saving an agent switch with
-  `model=None` removes `[assistant].model`. Contributor launch internals moved to
-  `CONTRIBUTING.md`.
+- TUI assistant docs: clearer description of the in-panel agent, session start and
+  saved-agent behavior.
 - GitHub docs clarify token prerequisites and scopes, `repo` vs `repository`, the
   `project:` Search qualifier (no board-column filtering), and that issue/PR title and
   body placeholders are untrusted prompt input. Contributor-facing GitHub provider paths
@@ -180,6 +176,11 @@ All notable changes to this project are documented here. The format follows
 - GitHub Copilot CLI (`copilot`) as a built-in provider, with profile options for model,
   custom agent, reasoning effort, and explicit tool permissions. Curupira assigns its
   session UUID, disables user questions, and preserves the CLI's raw JSONL output.
+
+### Fixed
+
+- Surgical `[assistant]` TOML persistence keeps the blank line before the next table when
+  clearing `model` on an agent switch and when appending a key at the end of the section.
 
 ## [0.2.0] - 2026-10-08
 

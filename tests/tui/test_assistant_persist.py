@@ -162,9 +162,12 @@ def test_persist_agent_switch_clearing_model_keeps_blank_before_next_table(
         encoding="utf-8",
     )
     persist_assistant_agent(config, agent="opencode", model=None)
-    assert config.read_text(encoding="utf-8") == (
-        '[assistant]\nagent = "opencode"\n\n[settings]\nmax_active_tasks = 1\n'
-    )
+    text = config.read_text(encoding="utf-8")
+    assert text == ('[assistant]\nagent = "opencode"\n\n[settings]\nmax_active_tasks = 1\n')
+    after = tomllib.loads(text)
+    assert after["assistant"] == {"agent": "opencode"}
+    assert "model" not in after["assistant"]
+    assert after["settings"]["max_active_tasks"] == 1
 
 
 def test_persist_append_at_end_of_table_keeps_blank_before_next_table(
@@ -176,6 +179,10 @@ def test_persist_append_at_end_of_table_keeps_blank_before_next_table(
         encoding="utf-8",
     )
     persist_assistant_agent(config, agent="claude", model="auto")
-    assert config.read_text(encoding="utf-8") == (
+    text = config.read_text(encoding="utf-8")
+    assert text == (
         '[assistant]\nagent = "claude"\nmodel = "auto"\n\n[settings]\nmax_active_tasks = 1\n'
     )
+    after = tomllib.loads(text)
+    assert after["assistant"] == {"agent": "claude", "model": "auto"}
+    assert after["settings"]["max_active_tasks"] == 1
