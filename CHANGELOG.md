@@ -86,6 +86,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Embedded coding-agent assistant in `curu tui`: `Ctrl+G` toggles a half-width side
+  panel that lists registered agents when `[assistant].agent` is unset, persists the
+  choice into the existing `[assistant]` TOML table, and runs the adapter's
+  `interactive_launch` recipe inside `PtyTerminal` in the project working directory.
+  `F6` toggles keyboard focus between the panel and the main dashboard without closing
+  the panel. With the PTY focused, `Ctrl+C` interrupts the agent child and `Esc` is
+  forwarded to the agent (panel stays open); with focus on the main TUI, `Ctrl+C` quits
+  and tears down the child. Surgical `[assistant]` writes preserve newline style (LF or
+  CRLF) and drop a cleared `model` line without an extra blank. Model resolution follows
+  `resolve_assistant_model` / `auto_model` (omit the model flag and show a short notice
+  when the adapter has no native auto). Missing executables and config write failures
+  show a clear message instead of a stack trace. Docs: `docs/en/assistant.md`.
 - Pure-data `InteractiveLaunchSpec` and optional
   `CodingAgentCliAdapter.interactive_launch` for verified interactive coding-agent CLI
   invocations (Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI,

@@ -11,7 +11,8 @@ from typing import ClassVar
 import psutil
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.widgets import Footer, RichLog, Static
 from typing_extensions import override
@@ -21,6 +22,7 @@ from curupira.config_reload import run_continuous_dispatch
 from curupira.models import Task
 from curupira.scheduler import TaskScheduler
 from curupira.telemetry import TaskTelemetry
+from curupira.tui.assistant_panel import AssistantPanel
 from curupira.tui.logging_handler import TuiLogHandler, attach_rich_log
 from curupira.tui.status import OrchestratorStatus
 from curupira.tui.widgets import AgentsPanel, LogsPanel, MetricsPanel
@@ -53,12 +55,15 @@ class HelpScreen(ModalScreen[None]):
         """Render shortcut help text."""
         yield Static(
             "[b]Ajuda — Orquestrador Curupira[/b]\n\n"
-            "Ctrl+C  Sair\n"
+            "Ctrl+C  Sair (na TUI) / interromper o agent (no PTY)\n"
+            "Ctrl+G  Abrir / fechar assistente (painel lateral)\n"
             "F1      Esta ajuda\n"
             "F2      Pausar / retomar admissão de tarefas\n"
             "F3      Mostrar resumo da configuração\n"
-            "F5      Atualizar métricas do sistema\n\n"
-            "Pressione Esc ou F1 para fechar.",
+            "F5      Atualizar métricas do sistema\n"
+            "F6      Alternar foco assistente ↔ TUI (sem fechar)\n"
+            "Esc     Fechar painel (sem PTY) / repassado ao agent (no PTY)\n\n"
+            "Pressione Esc ou F1 para fechar esta ajuda.",
             id="help-box",
             markup=True,
         )
@@ -112,7 +117,11 @@ class OrchestratorApp(App[int]):
         background: #000000;
         color: #e8e8e8;
     }
+    #main-row {
+        height: 1fr;
+    }
     #dashboard {
+        width: 1fr;
         height: 1fr;
         padding: 1;
     }
@@ -123,6 +132,8 @@ class OrchestratorApp(App[int]):
     """
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("ctrl+c", "quit", "Sair", priority=True),
+        Binding("ctrl+g", "toggle_assistant", "Assistente", priority=True),
+        Binding("f6", "toggle_assistant_focus", "Foco", priority=True),
         Binding("f1", "show_help", "Ajuda"),
         Binding("f2", "toggle_pause", "Pausar"),
         Binding("f3", "show_config", "Config"),
@@ -150,11 +161,17 @@ class OrchestratorApp(App[int]):
 
     @override
     def compose(self) -> ComposeResult:
-        """Assemble the three dashboard panels and footer."""
-        with Vertical(id="dashboard"):
-            yield MetricsPanel(id="metrics-panel")
-            yield AgentsPanel(id="agents-panel")
-            yield LogsPanel(id="logs-panel")
+        """Assemble the dashboard, optional assistant side panel, and footer."""
+        with Horizontal(id="main-row"):
+            with Vertical(id="dashboard"):
+                yield MetricsPanel(id="metrics-panel")
+                yield AgentsPanel(id="agents-panel")
+                yield LogsPanel(id="logs-panel")
+            yield AssistantPanel(
+                self._settings,
+                self._config_path,
+                id="assistant-panel",
+            )
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -208,6 +225,7 @@ class OrchestratorApp(App[int]):
     def _on_settings_reloaded(self, settings: ApplicationSettings) -> None:
         """Refresh dashboard state after a successful configuration reload."""
         self._settings = settings
+        self.query_one("#assistant-panel", AssistantPanel).update_settings(settings)
         self._status.update(self._status.tasks, settings.settings.max_active_tasks)
         self.call_later(self._refresh_agents)
         self.call_later(self._refresh_activity)
@@ -283,9 +301,67 @@ class OrchestratorApp(App[int]):
         """Force an immediate host-metrics refresh."""
         self._refresh_metrics()
 
+    async def action_toggle_assistant(self) -> None:
+        """Open or close the embedded assistant side panel (Ctrl+G)."""
+        panel = self.query_one("#assistant-panel", AssistantPanel)
+        await panel.toggle()
+        if not panel.is_open:
+            self._focus_main_dashboard()
+
+    def action_toggle_assistant_focus(self) -> None:
+        """Toggle keyboard focus between the assistant panel and the main TUI (F6).
+
+        Does not open or close the panel. When the panel is closed the binding is a
+        no-op. Used so dashboard shortcuts (F1-F5, Tab) remain reachable while the
+        assistant PTY stays alive.
+        """
+        panel = self.query_one("#assistant-panel", AssistantPanel)
+        if not panel.is_open:
+            return
+        if panel.focus_is_inside():
+            panel.suspend_focus_for_host()
+            self._focus_main_dashboard()
+        else:
+            panel.focus_content()
+
+    def on_assistant_panel_agent_chosen(self, message: AssistantPanel.AgentChosen) -> None:
+        """Keep the app settings snapshot aligned after the user picks an agent."""
+        self._settings = message.settings
+
+    def on_assistant_panel_closed(self, message: AssistantPanel.Closed) -> None:
+        """Return keyboard focus to the main dashboard after the panel closes."""
+        del message
+        self._focus_main_dashboard()
+
+    def _focus_main_dashboard(self) -> None:
+        """Move keyboard focus to the orchestrator log (main TUI)."""
+        try:
+            self.query_one("#orchestrator-log", RichLog).focus()
+        except NoMatches:
+            self.set_focus(None)
+
+    def _assistant_pty_has_focus(self) -> bool:
+        """Return whether the assistant's PtyTerminal currently has keyboard focus."""
+        panel = self.query_one("#assistant-panel", AssistantPanel)
+        terminal = panel.pty_terminal()
+        return terminal is not None and terminal.has_focus
+
     @override
     async def action_quit(self) -> None:
-        """Exit the dashboard, cancelling the scheduler via unmount."""
+        """Quit the TUI, or forward Ctrl+C to the focused assistant PTY.
+
+        When the assistant ``PtyTerminal`` has focus, ``Ctrl+C`` interrupts the
+        agent child (``\\x03``) and does not exit. When focus is on the main TUI,
+        close the panel (tearing down any child) and exit as usual.
+        """
+        panel = self.query_one("#assistant-panel", AssistantPanel)
+        if self._assistant_pty_has_focus():
+            terminal = panel.pty_terminal()
+            if terminal is not None:
+                terminal.write(b"\x03")
+            return
+        if panel.is_open:
+            await panel.close_panel()
         self.exit(self._exit_code)
 
 
