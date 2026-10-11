@@ -76,6 +76,40 @@ query CurupiraIssueView($owner: String!, $name: String!, $number: Int!) {
   }
 }
 """
+_ISSUE_CLOSING_PULL_REQUESTS_QUERY = """
+query CurupiraIssueClosingPullRequests(
+  $owner: String!, $name: String!, $number: Int!
+) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      closedByPullRequestsReferences(first: 50, includeClosedPrs: false) {
+        nodes {
+          number
+          title
+          body
+          url
+          state
+          isDraft
+          headRefName
+          baseRefName
+          headRefOid
+          mergeable
+          mergeStateStatus
+          mergedAt
+          closingIssuesReferences(first: 20) {
+            nodes {
+              number
+              repository {
+                nameWithOwner
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
 _PULL_REQUEST_VIEW_QUERY = """
 query CurupiraPullRequestView($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -319,15 +353,26 @@ class GitHubGraphQLClient:
     async def list_pull_requests_for_issue(
         self, repo: str, issue_number: int
     ) -> list[GhPullRequest]:
-        """Find open PRs whose body or closing metadata may reference an issue."""
-        return await self.list_pull_requests(
-            GitHubSearchRequest(
-                repo=repo,
-                query=f"repo:{repo} is:pr is:open {issue_number} in:body",
-                limit=100,
-                item_kind="pull_request",
-            )
+        """Return open PRs that close or are linked to an issue (Development sidebar)."""
+        owner, name = _split_repo(repo)
+        document = await self._graphql_resilient(
+            _ISSUE_CLOSING_PULL_REQUESTS_QUERY,
+            {"owner": owner, "name": name, "number": issue_number},
         )
+        node = _repository_child(document, "issue")
+        references = node.get("closedByPullRequestsReferences")
+        if not isinstance(references, dict):
+            return []
+        raw_nodes = references.get("nodes")
+        if not isinstance(raw_nodes, list):
+            return []
+        payload = [
+            _normalize_pull_request_node(item) for item in raw_nodes if isinstance(item, dict)
+        ]
+        try:
+            return TypeAdapter(list[GhPullRequest]).validate_python(payload)
+        except ValidationError as error:
+            raise HttpApiError(f"GitHub returned invalid pull request JSON: {error}") from error
 
     @resilient(
         retry=RetryConfig(

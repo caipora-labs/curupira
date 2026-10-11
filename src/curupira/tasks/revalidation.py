@@ -9,7 +9,7 @@ from curupira.models.items import IssueItem, PullRequestItem
 
 TaskValidator = Callable[[Task], Awaitable[Task | None]]
 _CLOSING_REFERENCE = re.compile(
-    r"\b(?:clos(?:e|es|ed)|fix(?:es|ed)?|resolv(?:e|es|ed))\s+"
+    r"\b(?:clos(?:e|es|ed)|fix(?:es|ed)?|resolv(?:e|es|ed))\s*:?\s*"
     r"(?:(?P<repo>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+))?#(?P<number>\d+)\b",
     flags=re.IGNORECASE,
 )
@@ -47,7 +47,7 @@ class GitHubTaskRevalidator:
         pulls = await self._gh.list_pull_requests_for_issue(
             task.identity.repo, int(task.identity.id)
         )
-        if any(_closes_issue(pull, task.identity.repo, int(task.identity.id)) for pull in pulls):
+        if pulls:
             return None
         return task.model_copy(update=_issue_task_fields(issue))
 
@@ -119,6 +119,7 @@ def _state(value: str | None) -> str:
 
 
 def _closes_issue(pull: GhPullRequest, repo: str, issue_number: int) -> bool:
+    """Return whether ``pull`` closes ``issue_number`` via GraphQL refs or body keywords."""
     for reference in pull.closing_issues_references:
         linked_repo = reference.repository.name_with_owner if reference.repository else None
         if reference.number == issue_number and (

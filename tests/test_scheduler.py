@@ -8,6 +8,7 @@ from pathlib import Path
 from typing_extensions import override
 
 from curupira.agents.base import SessionStartedCallback
+from curupira.errors import HttpApiError
 from curupira.executor import TaskExecutor
 from curupira.models import (
     CodingTaskRequest,
@@ -401,3 +402,130 @@ async def test_pull_request_item_head_sha_changes_dispatch_key(tmp_path: Path) -
     second = with_pull_request_item(first, pull_request_head_sha="b")
     assert isinstance(first.item, PullRequestItem)
     assert first.dispatch_key != second.dispatch_key
+
+
+async def test_revalidation_error_defers_candidate_and_keeps_session(tmp_path: Path) -> None:
+    task = issue_task(tmp_path)
+    session = RunningCodingSession(task=task, session_id="keep-me", message="old prompt")
+    database = tmp_path / "state.sqlite3"
+    sessions = RunningSessionRepository(database)
+    await sessions.save(session)
+    adapter = RecordingAdapter()
+
+    async def failing_validator(_: Task) -> Task | None:
+        raise HttpApiError("503")
+
+    worker = TaskExecutor(
+        ExecutionSettings(state_db_path=database),
+        FakeVersionControl(),
+        sessions,
+        CronScheduleRepository(database),
+        adapter_factory=lambda _: adapter,
+    )
+    scheduler = TaskScheduler(ExecutionSettings(), worker, task_validator=failing_validator)
+
+    await scheduler.run(stream([]), resume_sessions=[session])
+
+    assert adapter.requests == []
+    assert scheduler.failed_tasks >= 1
+    saved = await sessions.list_all()
+    assert len(saved) == 1
+    assert saved[0].session_id == "keep-me"
+
+
+async def test_obsolete_pre_start_snapshot_does_not_persist_completed(tmp_path: Path) -> None:
+    adapter = RecordingAdapter()
+    database = tmp_path / "state.sqlite3"
+    completed = CompletedTaskRepository(database)
+    task = issue_task(tmp_path)
+
+    async def rename(_: Task) -> Task:
+        return task.model_copy(update={"title": "Changed before start"})
+
+    async def next_action(_: Task) -> str:
+        return "should-not-be-saved"
+
+    worker = TaskExecutor(
+        ExecutionSettings(state_db_path=database),
+        FakeVersionControl(),
+        RunningSessionRepository(database),
+        CronScheduleRepository(database),
+        adapter_factory=lambda _: adapter,
+        pre_start_validator=rename,
+    )
+    await TaskScheduler(
+        ExecutionSettings(state_db_path=database),
+        worker,
+        completion_verifier=next_action,
+        completed_tasks=completed,
+    ).run(stream([]), initial_tasks=[task])
+
+    assert adapter.requests == []
+    assert await completed.get(task) is None
+
+
+async def test_admission_limit_counts_recovered_sessions_and_skips_discards(
+    tmp_path: Path,
+) -> None:
+    adapter = RecordingAdapter()
+    database = tmp_path / "state.sqlite3"
+    sessions = RunningSessionRepository(database)
+    closed = issue_task(tmp_path, 1)
+    open_issue = issue_task(tmp_path, 2)
+    session = RunningCodingSession(task=open_issue, session_id="resume-2", message="continue")
+    await sessions.save(session)
+    github = FakeGitHub(
+        issues=[
+            GhIssue(
+                number=1,
+                title=closed.title,
+                url=closed.url,
+                state="CLOSED",
+            ),
+            GhIssue(
+                number=2,
+                title=open_issue.title,
+                body="Details",
+                url=open_issue.url,
+                state="OPEN",
+            ),
+        ]
+    )
+    worker = TaskExecutor(
+        ExecutionSettings(state_db_path=database),
+        FakeVersionControl(),
+        sessions,
+        CronScheduleRepository(database),
+        adapter_factory=lambda _: adapter,
+    )
+    scheduler = TaskScheduler(
+        ExecutionSettings(max_active_tasks=3),
+        worker,
+        task_validator=GitHubTaskRevalidator(github),
+    )
+
+    await scheduler.run(
+        stream([issue_task(tmp_path, 3)]),
+        resume_sessions=[session],
+        initial_tasks=[closed],
+        admission_limit=1,
+    )
+
+    assert len(adapter.requests) == 1
+    assert adapter.requests[0].session_id == "resume-2"
+
+
+async def test_check_conclusion_change_alone_does_not_change_fingerprint(
+    tmp_path: Path,
+) -> None:
+    base = with_pull_request_item(
+        pull_request_task(tmp_path, 12),
+        pull_request_is_draft=False,
+        pull_request_head_sha="same",
+        pull_request_mergeable="UNKNOWN",
+        pull_request_merge_state_status="UNKNOWN",
+        pull_request_check_conclusions=("IN_PROGRESS",),
+    )
+    checks_done = with_pull_request_item(base, pull_request_check_conclusions=("SUCCESS",))
+    assert base.workflow_stage == checks_done.workflow_stage
+    assert base.state_fingerprint == checks_done.state_fingerprint

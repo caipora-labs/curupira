@@ -9,7 +9,7 @@ from pydantic import AwareDatetime, BaseModel, SerializeAsAny, model_validator
 
 from curupira.models.base import Identifier, NonEmptyString, ValidatedModel
 from curupira.models.configuration import AutomationConfiguration
-from curupira.models.items import PullRequestItem
+from curupira.models.items import IssueItem, PullRequestItem
 from curupira.models.profiles import CliProfile
 
 
@@ -124,20 +124,38 @@ class Task(ValidatedModel):
 
     @property
     def state_fingerprint(self) -> str:
-        """Return a stable fingerprint of source state relevant to repeating work."""
-        pull = self.item if isinstance(self.item, PullRequestItem) else None
-        state = json.dumps(
-            {
+        """Return a stable fingerprint of source state relevant to repeating work.
+
+        Pull-request fingerprints use head SHA, discrete workflow stage, title, and
+        body. Volatile mergeability and check conclusions are omitted so in-progress
+        check transitions do not re-admit an unchanged completed snapshot.
+        """
+        if isinstance(self.item, PullRequestItem):
+            payload = {
+                "title": self.title,
+                "url": self.url,
+                "body": self.item.pull_request_body,
+                "is_draft": self.item.pull_request_is_draft,
+                "head_sha": self.item.pull_request_head_sha,
+                "workflow_stage": int(self.workflow_stage),
+            }
+        elif isinstance(self.item, IssueItem):
+            payload = {
+                "title": self.title,
+                "url": self.url,
+                "body": self.item.issue_body,
+                "workflow_stage": int(self.workflow_stage),
+            }
+        else:
+            payload = {
                 "title": self.title,
                 "url": self.url,
                 "item": self.item.model_dump(mode="json"),
-                "head_sha": None if pull is None else pull.pull_request_head_sha,
                 "workflow_stage": int(self.workflow_stage),
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        return hashlib.sha256(state.encode()).hexdigest()
+            }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
 
     @model_validator(mode="before")
     @classmethod

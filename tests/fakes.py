@@ -88,11 +88,16 @@ class FakeGitHub(GitHubGraphQLClient):
     """Return configured GitHub items without calling the GraphQL API."""
 
     def __init__(
-        self, *, issues: list[GhIssue] | None = None, pulls: list[GhPullRequest] | None = None
+        self,
+        *,
+        issues: list[GhIssue] | None = None,
+        pulls: list[GhPullRequest] | None = None,
+        development_links: dict[int, tuple[int, ...]] | None = None,
     ) -> None:
         super().__init__()
         self.issues = issues or []
         self.pulls = pulls or []
+        self.development_links = development_links or {}
         self.requests: list[GitHubSearchRequest] = []
         self.vcs = FakeVersionControl()
 
@@ -152,8 +157,14 @@ class FakeGitHub(GitHubGraphQLClient):
     async def list_pull_requests_for_issue(
         self, repo: str, issue_number: int
     ) -> list[GhPullRequest]:
-        del repo, issue_number
-        return self.pulls
+        from curupira.tasks.revalidation import _closes_issue
+
+        linked = set(self.development_links.get(issue_number, ()))
+        return [
+            pull
+            for pull in self.pulls
+            if pull.number in linked or _closes_issue(pull, repo, issue_number)
+        ]
 
 
 def use_fake_github(monkeypatch: pytest.MonkeyPatch, fake: FakeGitHub) -> FakeGitHub:

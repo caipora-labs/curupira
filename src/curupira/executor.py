@@ -11,7 +11,7 @@ from curupira.agents.base import (
     CodingAgentCliAdapter,
 )
 from curupira.clients.process import AsyncProcessRunner
-from curupira.errors import PromptRenderError
+from curupira.errors import DispatchError, PromptRenderError
 from curupira.models import (
     CodingTaskRequest,
     ExecutionSettings,
@@ -148,7 +148,19 @@ class TaskExecutor:
                 )
                 return result
         if self._pre_start_validator is not None:
-            current = await self._pre_start_validator(task)
+            try:
+                current = await self._pre_start_validator(task)
+            except DispatchError as error:
+                logger.error(
+                    "Pre-start revalidation failed for %s: %s; keeping saved session",
+                    task.identity.key,
+                    type(error).__name__,
+                )
+                return ProcessResult(
+                    returncode=0,
+                    stdout="Revalidation failed before agent start; session kept for retry.",
+                    obsolete=True,
+                )
             if current is None or current.state_fingerprint != task.state_fingerprint:
                 await self._sessions.delete(task)
                 logger.info(
@@ -161,6 +173,7 @@ class TaskExecutor:
                     stdout=(
                         "Task changed before agent start; current source state will be rechecked."
                     ),
+                    obsolete=True,
                 )
         original_message = resumed.message if resumed is not None else render_task_prompt(task)
 

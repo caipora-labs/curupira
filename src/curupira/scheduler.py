@@ -6,6 +6,7 @@ from collections import deque
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Sequence
 from pathlib import Path
 
+from curupira.errors import DispatchError
 from curupira.executor import TaskExecutor
 from curupira.models import ExecutionSettings, ProcessResult, RunningCodingSession, Task
 from curupira.storage import CompletedTaskRepository
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 WorkItem = tuple[Task, RunningCodingSession | None]
 ActiveTasks = dict[asyncio.Task[ProcessResult], Task]
 ReaderTask = asyncio.Task[WorkItem | None]
+_REVALIDATION_BACKOFF_SECONDS = 0.05
 
 
 class TaskScheduler:
@@ -40,6 +42,8 @@ class TaskScheduler:
         self._admit.set()
         self._reload_requested = False
         self.failed_tasks = 0
+        self._admission_limit: int | None = None
+        self._admitted = 0
 
     def pause(self) -> None:
         """Stop admitting newly discovered work until ``resume`` is called."""
@@ -72,8 +76,11 @@ class TaskScheduler:
         *,
         resume_sessions: Sequence[RunningCodingSession] = (),
         initial_tasks: Sequence[Task] = (),
+        admission_limit: int | None = None,
     ) -> None:
         """Consume bounded work while validating recovered and discovered snapshots."""
+        self._admission_limit = admission_limit
+        self._admitted = 0
         pending: deque[WorkItem] = deque()
         for session in resume_sessions:
             pending.append((session.task, session))
@@ -92,27 +99,66 @@ class TaskScheduler:
                     await tasks.aclose()
 
         source = incoming()
-        exhausted = False
         try:
-            self._notify_active_tasks(active)
-            while not self._should_exit(exhausted, pending, active):
-                if self._reload_requested and not active:
-                    pending.clear()
-                    break
-                reader, exhausted = await self._advance_admission(
-                    reader, exhausted, pending, active, source, seen
-                )
-                waiting = self._waiting_tasks(active, reader)
-                if not waiting:
-                    if await self._wait_while_idle(exhausted, pending):
-                        continue
-                    break
-                finished, _ = await asyncio.wait(waiting, return_when=asyncio.FIRST_COMPLETED)
-                reader, exhausted = self._collect_reader(reader, finished, pending, seen, exhausted)
-                await self._reap_finished(active, finished, seen)
-                self._notify_active_tasks(active)
+            reader = await self._run_loop(pending, active, seen, reader, source)
         finally:
             await self._cancel_all(reader, active, source)
+
+    async def _run_loop(
+        self,
+        pending: deque[WorkItem],
+        active: ActiveTasks,
+        seen: set[str],
+        reader: ReaderTask | None,
+        source: AsyncGenerator[WorkItem, None],
+    ) -> ReaderTask | None:
+        """Drive admission, discovery, and reaping until the scheduler should exit."""
+        exhausted = False
+        self._notify_active_tasks(active)
+        while not self._should_exit(exhausted, pending, active):
+            stop, reader, exhausted = await self._prepare_cycle(pending, active, reader, exhausted)
+            if stop:
+                return reader
+            reader, exhausted, deferred_only = await self._advance_admission(
+                reader, exhausted, pending, active, source, seen
+            )
+            if deferred_only and exhausted and not active and pending:
+                logger.warning(
+                    "Leaving %s task(s) deferred after revalidation errors; sessions kept",
+                    len(pending),
+                )
+                pending.clear()
+                return reader
+            waiting = self._waiting_tasks(active, reader)
+            if not waiting:
+                if await self._wait_while_idle(exhausted, pending):
+                    continue
+                return reader
+            finished, _ = await asyncio.wait(waiting, return_when=asyncio.FIRST_COMPLETED)
+            reader, exhausted = self._collect_reader(reader, finished, pending, seen, exhausted)
+            await self._reap_finished(active, finished, seen)
+            self._notify_active_tasks(active)
+        return reader
+
+    async def _prepare_cycle(
+        self,
+        pending: deque[WorkItem],
+        active: ActiveTasks,
+        reader: ReaderTask | None,
+        exhausted: bool,
+    ) -> tuple[bool, ReaderTask | None, bool]:
+        """Handle reload drain and admission-limit stop conditions for one loop cycle."""
+        if self._reload_requested and not active:
+            pending.clear()
+            return True, reader, exhausted
+        if self._admission_limit is not None and self._admitted >= self._admission_limit:
+            pending.clear()
+            exhausted = True
+            if reader is not None:
+                await self._cancel_reader(reader)
+                reader = None
+            return not active, reader, exhausted
+        return False, reader, exhausted
 
     def _should_exit(self, exhausted: bool, pending: deque[WorkItem], active: ActiveTasks) -> bool:
         """Return whether the scheduler has no work left and is not paused."""
@@ -126,15 +172,18 @@ class TaskScheduler:
         active: ActiveTasks,
         source: AsyncGenerator[WorkItem, None],
         seen: set[str],
-    ) -> tuple[ReaderTask | None, bool]:
+    ) -> tuple[ReaderTask | None, bool, bool]:
         """Launch work or cancel discovery while a reload drain is in progress."""
+        deferred_only = False
         if self._admit.is_set():
-            await self._launch_available(pending, active, seen)
-            return self._ensure_reader(reader, exhausted, pending, source), exhausted
+            deferred_only = await self._launch_available(pending, active, seen)
+            if self._admission_limit is not None and self._admitted >= self._admission_limit:
+                return reader, exhausted, deferred_only
+            return self._ensure_reader(reader, exhausted, pending, source), exhausted, deferred_only
         if self._reload_requested and reader is not None:
             await self._cancel_reader(reader)
-            return None, exhausted
-        return reader, exhausted
+            return None, exhausted, deferred_only
+        return reader, exhausted, deferred_only
 
     @staticmethod
     def _waiting_tasks(active: ActiveTasks, reader: ReaderTask | None) -> set[asyncio.Task[object]]:
@@ -168,11 +217,20 @@ class TaskScheduler:
 
     async def _launch_available(
         self, pending: deque[WorkItem], active: ActiveTasks, seen: set[str]
-    ) -> None:
-        """Start pending tasks while concurrency and checkout exclusivity allow it."""
+    ) -> bool:
+        """Start pending tasks while concurrency, size, and checkout exclusivity allow it.
+
+        Returns:
+            Whether every candidate was deferred by a revalidation error this round.
+        """
+        if self._admission_limit is not None and self._admitted >= self._admission_limit:
+            return False
         occupied: set[Path] = {item.automation.workspace_path for item in active.values()}
-        validated = await self._validate_pending(pending, seen)
+        validated, deferred_only = await self._validate_pending(pending, seen)
         for selected, resumed in validated:
+            if self._admission_limit is not None and self._admitted >= self._admission_limit:
+                pending.append((selected, resumed))
+                continue
             path = selected.automation.workspace_path
             if selected.automation.configuration.checkout == "worktree":
                 path = path.with_name(f"{path.name}.worktrees") / selected.identity.key
@@ -185,15 +243,31 @@ class TaskScheduler:
             )
             active[worker] = selected
             occupied.add(path)
+            self._admitted += 1
             self._notify_active_tasks(active)
+        return deferred_only
 
-    async def _validate_pending(self, pending: deque[WorkItem], seen: set[str]) -> list[WorkItem]:
+    async def _validate_pending(
+        self, pending: deque[WorkItem], seen: set[str]
+    ) -> tuple[list[WorkItem], bool]:
         """Revalidate, retire stale sessions, and prepare one pending admission round."""
         candidates = list(pending)
         pending.clear()
         validated: list[WorkItem] = []
+        deferred_errors = 0
         for item in candidates:
-            refreshed = await self._validate_candidate(item, seen)
+            try:
+                refreshed = await self._validate_candidate(item, seen)
+            except DispatchError as error:
+                self.failed_tasks += 1
+                deferred_errors += 1
+                logger.error(
+                    "Revalidation failed for %s: %s",
+                    item[0].url,
+                    type(error).__name__,
+                )
+                pending.append(item)
+                continue
             if refreshed is None:
                 continue
             selected, resumed = refreshed
@@ -203,7 +277,9 @@ class TaskScheduler:
                     await self._executor.discard_session(resumed.task)
                 continue
             validated.append(refreshed)
-        return validated
+        if deferred_errors and not validated:
+            await asyncio.sleep(_REVALIDATION_BACKOFF_SECONDS)
+        return validated, bool(deferred_errors) and not validated
 
     async def _validate_candidate(self, item: WorkItem, seen: set[str]) -> WorkItem | None:
         """Refresh one candidate and retire any session or result for an outdated snapshot."""
@@ -253,6 +329,8 @@ class TaskScheduler:
         source: AsyncGenerator[WorkItem, None],
     ) -> ReaderTask | None:
         """Read the next work item in the background until the stream is bounded or exhausted."""
+        if self._admission_limit is not None and self._admitted >= self._admission_limit:
+            return reader
         if reader is None and not exhausted and len(pending) < self._settings.max_pending_tasks:
             return asyncio.create_task(anext(source, None))
         return reader
@@ -280,6 +358,7 @@ class TaskScheduler:
             if (
                 result is not None
                 and result.returncode == 0
+                and not result.obsolete
                 and self._completion_verifier is not None
             ):
                 try:

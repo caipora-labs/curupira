@@ -270,14 +270,6 @@ async def _batch_stream(feeds: Sequence[TaskFeed], size: int | None) -> AsyncIte
             yield task
 
 
-def _limit_initial_tasks(tasks: Sequence[Task], size: int | None) -> tuple[list[Task], int | None]:
-    """Apply a finite drain's cap to its initial poll and return the remaining allowance."""
-    if size is None:
-        return list(tasks), None
-    admitted = list(tasks[:size])
-    return admitted, size - len(admitted)
-
-
 async def async_main(options: CliOptions) -> int:
     """Load validated settings and execute the selected CLI command."""
     instance_lock: DispatchInstanceLock | None = None
@@ -412,7 +404,10 @@ async def _execute_scheduled_command(
         completed_tasks = CompletedTaskRepository(settings.settings.state_db_path)
         runner = AsyncProcessRunner()
         feeds = create_task_feeds(settings, cron, runner=runner)
-        initial_tasks, remaining = _limit_initial_tasks(await poll_task_feeds(feeds), options.size)
+        # Pass the full initial poll; the scheduler applies ``admission_limit`` after
+        # revalidation so discarded work does not consume ``--size``, and recovered
+        # sessions count toward the same limit.
+        initial_tasks = await poll_task_feeds(feeds)
         revalidate = GitHubTaskRevalidator(GitHubGraphQLClient(runner))
         executor = TaskExecutor(
             settings.settings,
@@ -432,9 +427,10 @@ async def _execute_scheduled_command(
             completed_tasks=completed_tasks,
         )
         await scheduler.run(
-            _batch_stream(feeds, remaining),
+            _batch_stream(feeds, None),
             resume_sessions=recovered,
             initial_tasks=initial_tasks,
+            admission_limit=options.size,
         )
         return 1 if scheduler.failed_tasks else 0
     finally:

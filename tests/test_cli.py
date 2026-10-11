@@ -3,6 +3,7 @@
 import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -10,16 +11,20 @@ from typer.testing import CliRunner
 from curupira.cli import (
     CliOptions,
     _batch_stream,
-    _limit_initial_tasks,
+    _execute_scheduled_command,
     _program_name,
     app,
     async_main,
     main,
 )
 from curupira.config import load_settings
-from curupira.models import IssueAutomationConfiguration, Task
+from curupira.executor import TaskExecutor
+from curupira.models import GhIssue, IssueAutomationConfiguration, RunningCodingSession, Task
 from curupira.runtime import DispatchInstanceLock, dispatch_home
+from curupira.storage import RunningSessionRepository
 from curupira.tasks.base import TaskFeed
+from curupira.telemetry import TaskTelemetry
+from tests.fakes import FakeGitHub, FakeVersionControl, RecordingAdapter, use_fake_github
 from tests.helpers import issue_task
 
 runner = CliRunner()
@@ -116,15 +121,6 @@ async def test_batch_stream_stops_at_size_even_when_more_tasks_exist(tmp_path: P
     assert [task async for task in _batch_stream([feed], 2)] == tasks[:2]
 
 
-async def test_initial_batch_counts_against_finite_size_limit(tmp_path: Path) -> None:
-    tasks = [issue_task(tmp_path, number) for number in range(1, 4)]
-
-    admitted, remaining = _limit_initial_tasks(tasks, 1)
-
-    assert admitted == tasks[:1]
-    assert remaining == 0
-
-
 async def test_batch_stream_exits_cleanly_for_empty_queue() -> None:
     assert [task async for task in _batch_stream([SequenceFeed([])], None)] == []
 
@@ -196,6 +192,84 @@ async def test_validate_is_side_effect_free_for_cron_only_configuration(
     assert await async_main(CliOptions(command="validate", config=path)) == 0
     assert "1 automations" in capsys.readouterr().out
     assert sorted(item.name for item in tmp_path.iterdir()) == ["config.toml"]
+
+
+async def test_run_size_one_admits_recovered_session_after_discarded_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    workspaces = tmp_path / "workspaces"
+    workspaces.mkdir()
+    state_db = tmp_path / "state.sqlite3"
+    config_path = tmp_path / "settings.toml"
+    config_path.write_text(
+        f"[settings]\nmax_active_tasks = 3\n"
+        f'workspace_dir = "{workspaces}"\n'
+        f'state_db_path = "{state_db}"\n'
+        "[repositories.api]\n"
+        'remote = "https://github.com/acme/api.git"\n'
+        f'path = "{workspaces / "api"}"\n'
+        "[agents.defaults]\n"
+        'profile = "opencode"\n'
+        "[agents.profiles.opencode]\n"
+        'provider = "opencode"\n'
+        "[automations.work]\n"
+        'trigger_type = "github-issues"\n'
+        'repository = "api"\n'
+        'repo = "acme/api"\n'
+        'labels = ["agent-ready"]\n'
+        'prompt = "Handle ${task_number}: ${task_title}"\n',
+        encoding="utf-8",
+    )
+    settings = await load_settings(config_path)
+    closed = issue_task(workspaces / "api", 1, name="work")
+    open_issue = issue_task(workspaces / "api", 2, name="work")
+    sessions = RunningSessionRepository(state_db)
+    await sessions.save(
+        RunningCodingSession(task=open_issue, session_id="resume-2", message="continue")
+    )
+    adapter = RecordingAdapter()
+    use_fake_github(
+        monkeypatch,
+        FakeGitHub(
+            issues=[
+                GhIssue(number=1, title=closed.title, url=closed.url, state="CLOSED"),
+                GhIssue(
+                    number=2,
+                    title=open_issue.title,
+                    body="Details",
+                    url=open_issue.url,
+                    state="OPEN",
+                ),
+            ]
+        ),
+    )
+
+    def fake_feeds(*_args: object, **_kwargs: object) -> list[TaskFeed]:
+        return [SequenceFeed([[closed]])]
+
+    monkeypatch.setattr("curupira.cli.create_task_feeds", fake_feeds)
+
+    def make_executor(*args: Any, **kwargs: Any) -> TaskExecutor:
+        def factory(_provider: str) -> RecordingAdapter:
+            return adapter
+
+        kwargs["adapter_factory"] = factory
+        return TaskExecutor(*args, **kwargs)
+
+    monkeypatch.setattr("curupira.cli.TaskExecutor", make_executor)
+
+    code = await _execute_scheduled_command(
+        settings,
+        FakeVersionControl(),
+        TaskTelemetry(),
+        CliOptions(command="run", config=config_path, size=1),
+    )
+
+    assert code == 0
+    assert len(adapter.requests) == 1
+    assert adapter.requests[0].session_id == "resume-2"
 
 
 async def test_example_configuration_is_valid(tmp_path: Path) -> None:

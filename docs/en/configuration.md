@@ -204,16 +204,22 @@ Discovery filters such as `linked_pull_request = false` (`-linked:pr`) only affe
 GitHub Search returns for new work. They do not protect recovered sessions that were saved
 before an issue gained a linked PR. Scheduler enforcement is separate: before a new task or
 saved session starts an agent, Curupira fetches the current issue or pull-request state,
-drops closed or merged items, rejects an issue that already has an open closing-reference
-PR (and retires its stale issue session), and restarts a PR session when the head SHA or
-workflow stage no longer matches the saved snapshot.
+drops closed or merged items, rejects an issue that already has an open closing or
+Development-linked PR (via GraphQL `closedByPullRequestsReferences`, including body forms
+such as `Fixes: #N`), retires its stale issue session, and restarts a PR session when the
+head SHA or workflow stage no longer matches the saved snapshot. A transient revalidation
+error defers that candidate, keeps any saved session, and does not stop the scheduler.
 
-After a successful agent run, Curupira stores the completed source fingerprint plus an
-explicit next action in `state_db_path`. An unchanged completed snapshot is skipped across
-dispatch cycles; a changed head, stage, title, or body can be admitted again.
+After a successful agent run (the coding-agent CLI actually executed), Curupira stores the
+completed source fingerprint plus an explicit next action in `state_db_path`. An unchanged
+completed snapshot is skipped across dispatch cycles. Fingerprints use head SHA, discrete
+workflow stage, title, and body — not volatile check conclusions — so in-progress check
+transitions alone do not re-admit work. A changed head, stage, title, or body can be
+admitted again. Snapshots skipped as obsolete before the agent starts are not recorded as
+completed.
 
-Finite `run --size N` drains admit at most `N` tasks, including tasks found in the initial
-poll as well as later batches.
+Finite `run --size N` drains admit at most `N` tasks after revalidation. Recovered sessions
+count toward `N`; candidates discarded during revalidation do not.
 
 `max_active_tasks` bounds concurrent agents. Checkouts using the same path run sequentially.
 Cron automations coalesce overdue ticks into one pending occurrence and never run themselves

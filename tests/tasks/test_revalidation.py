@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from curupira.models import GhIssue, GhPullRequest
+from curupira.models import GhIssue, GhIssueReference, GhPullRequest, GhRepositoryReference
 from curupira.models.items import IssueItem
-from curupira.tasks.revalidation import GitHubTaskRevalidator
+from curupira.tasks.revalidation import GitHubTaskRevalidator, _closes_issue
 from tests.fakes import FakeGitHub
 from tests.helpers import issue_task, pull_request_task
 
@@ -89,6 +89,58 @@ async def test_merged_pull_request_is_not_eligible(tmp_path: Path) -> None:
     )
 
     assert await GitHubTaskRevalidator(github)(task) is None
+
+
+async def test_issue_with_development_sidebar_link_is_not_eligible(tmp_path: Path) -> None:
+    task = issue_task(tmp_path)
+    github = FakeGitHub(
+        issues=[
+            GhIssue(
+                number=42,
+                title="Current issue",
+                url="https://github.com/acme/api/issues/42",
+                state="OPEN",
+            )
+        ],
+        pulls=[
+            GhPullRequest(
+                number=12,
+                title="Linked only via Development",
+                body="No closing keyword in the body",
+                url="https://github.com/acme/api/pull/12",
+                state="OPEN",
+            )
+        ],
+        development_links={42: (12,)},
+    )
+
+    assert await GitHubTaskRevalidator(github)(task) is None
+
+
+async def test_fixes_with_colon_closes_issue() -> None:
+    pull = GhPullRequest(
+        number=12,
+        title="Patch",
+        body="Fixes: #42",
+        url="https://github.com/acme/api/pull/12",
+    )
+    assert _closes_issue(pull, "acme/api", 42)
+
+
+async def test_structured_closing_reference_closes_issue() -> None:
+    pull = GhPullRequest(
+        number=12,
+        title="Patch",
+        body="",
+        url="https://github.com/acme/api/pull/12",
+        closingIssuesReferences=[
+            GhIssueReference(
+                number=42,
+                repository=GhRepositoryReference(nameWithOwner="acme/api"),
+            )
+        ],
+    )
+    assert _closes_issue(pull, "acme/api", 42)
 
 
 async def test_completion_next_action_for_still_open_work(tmp_path: Path) -> None:
