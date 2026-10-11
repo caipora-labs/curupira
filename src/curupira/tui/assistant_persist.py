@@ -1,13 +1,45 @@
-"""Persist ``[assistant]`` preferences into the Curupira TOML configuration."""
+"""Persist ``[assistant]`` preferences into the Curupira TOML configuration.
+
+Only a standard unquoted ``[assistant]`` table is rewritten in place. Inline
+tables (``assistant = {…}``), dotted keys (``assistant.agent = …``), and quoted
+headers (``["assistant"]``) are refused without modifying the file so Curupira
+never appends a second ``assistant`` declaration that would invalidate the TOML
+and stall hot-reload admissions.
+
+Writes are atomic (temp file in the same directory + ``os.replace``) and preserve
+the destination file mode. End-of-line comments on existing ``agent`` / ``model``
+lines are kept when those keys are rewritten.
+"""
 
 from __future__ import annotations
 
+import contextlib
+import os
 import re
+import stat
+import tempfile
+import tomllib
 from pathlib import Path
 
 _SECTION_HEADER = re.compile(r"^\[([^\]]+)\]\s*(?:#.*)?$", re.MULTILINE)
-_AGENT_LINE = re.compile(r"^(\s*)agent\s*=\s*.*$", re.MULTILINE)
-_MODEL_LINE = re.compile(r"^(\s*)model\s*=\s*.*$", re.MULTILINE)
+_AGENT_LINE = re.compile(r"^(\s*)agent\s*=\s*([^#\n]*?)(\s*#.*)?$", re.MULTILINE)
+_MODEL_LINE = re.compile(r"^(\s*)model\s*=\s*([^#\n]*?)(\s*#.*)?$", re.MULTILINE)
+_INLINE_ASSISTANT = re.compile(r"^\s*assistant\s*=\s*\{", re.MULTILINE)
+_DOTTED_ASSISTANT = re.compile(r"^\s*assistant\.[A-Za-z0-9_-]+\s*=", re.MULTILINE)
+_QUOTED_ASSISTANT_HEADER = re.compile(
+    r"""^\s*\[["']assistant["']\]\s*(?:#.*)?$""",
+    re.MULTILINE,
+)
+
+_UNSUPPORTED_MESSAGE = (
+    "assistant settings use an unsupported TOML shape (inline table, dotted key, "
+    "or quoted header); use a standard [assistant] table, or omit it so Curupira "
+    "can append one"
+)
+
+
+class UnsupportedAssistantTomlError(ValueError):
+    """Raised when ``assistant`` is declared in a shape this writer will not touch."""
 
 
 def persist_assistant_agent(
@@ -18,10 +50,11 @@ def persist_assistant_agent(
 ) -> None:
     """Write ``assistant.agent`` (and optional ``model``) into an existing TOML file.
 
-    Updates an existing ``[assistant]`` table in place when present; otherwise appends
-    one. Other tables and comments outside that section are left untouched. Does not
-    invent a second state file: the path is the same settings TOML Curupira already
-    loads.
+    Updates an existing standard ``[assistant]`` table in place when present;
+    otherwise appends one. Refuses (without writing) when ``assistant`` already
+    exists as an inline table, dotted keys, or a quoted header. Other tables and
+    comments outside that section are left untouched. Does not invent a second
+    state file: the path is the same settings TOML Curupira already loads.
 
     Args:
         config_path: Existing Curupira configuration file.
@@ -32,6 +65,8 @@ def persist_assistant_agent(
     Raises:
         FileNotFoundError: If ``config_path`` is not an existing file.
         ValueError: If ``agent`` is empty after stripping.
+        UnsupportedAssistantTomlError: If ``assistant`` uses an unsupported shape.
+        OSError: If the atomic replace fails (for example permission denied).
     """
     path = config_path.expanduser().resolve()
     if not path.is_file():
@@ -41,20 +76,56 @@ def persist_assistant_agent(
         raise ValueError("assistant.agent must be a non-empty provider name")
 
     text = path.read_text(encoding="utf-8")
-    section = _assistant_span(text)
-    if section is None:
+    kind = _assistant_shape(text)
+    if kind == "unsupported":
+        raise UnsupportedAssistantTomlError(_UNSUPPORTED_MESSAGE)
+
+    if kind == "absent":
         suffix = "" if text.endswith("\n") or not text else "\n"
         body = _render_assistant_table(normalized, model)
-        path.write_text(f"{text}{suffix}\n{body}", encoding="utf-8")
+        _atomic_write(path, f"{text}{suffix}\n{body}")
         return
 
-    start, end = section
+    span = _assistant_span(text)
+    if span is None:
+        # Defensive: _assistant_shape reported standard but the header vanished.
+        raise UnsupportedAssistantTomlError(_UNSUPPORTED_MESSAGE)
+    start, end = span
     updated = _rewrite_assistant_section(text[start:end], normalized, model)
-    path.write_text(f"{text[:start]}{updated}{text[end:]}", encoding="utf-8")
+    _atomic_write(path, f"{text[:start]}{updated}{text[end:]}")
+
+
+def _assistant_shape(text: str) -> str:
+    """Classify how ``assistant`` appears in the TOML source.
+
+    Returns:
+        ``\"standard\"`` for an unquoted ``[assistant]`` table header,
+        ``\"absent\"`` when no assistant declaration is present,
+        ``\"unsupported\"`` for inline / dotted / quoted forms (or any parse that
+        yields an ``assistant`` key without a standard header).
+    """
+    if _INLINE_ASSISTANT.search(text) or _DOTTED_ASSISTANT.search(text):
+        return "unsupported"
+    if _QUOTED_ASSISTANT_HEADER.search(text):
+        return "unsupported"
+
+    standard = _assistant_span(text) is not None
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        # Leave invalid files alone; the caller should not rewrite them.
+        return "unsupported"
+
+    has_key = isinstance(data.get("assistant"), dict)
+    if standard:
+        return "standard"
+    if has_key:
+        return "unsupported"
+    return "absent"
 
 
 def _assistant_span(text: str) -> tuple[int, int] | None:
-    """Return the ``[start, end)`` byte offsets of the ``[assistant]`` table body."""
+    """Return the ``[start, end)`` offsets of a standard ``[assistant]`` table."""
     headers = list(_SECTION_HEADER.finditer(text))
     for index, match in enumerate(headers):
         if match.group(1) != "assistant":
@@ -75,11 +146,13 @@ def _render_assistant_table(agent: str, model: str | None) -> str:
 
 def _rewrite_assistant_section(section: str, agent: str, model: str | None) -> str:
     """Replace ``agent`` / ``model`` lines inside an existing ``[assistant]`` section."""
-    agent_line = f'agent = "{_escape_toml_string(agent)}"'
-    if _AGENT_LINE.search(section):
-        section = _AGENT_LINE.sub(agent_line, section, count=1)
+    agent_value = f'agent = "{_escape_toml_string(agent)}"'
+    agent_match = _AGENT_LINE.search(section)
+    if agent_match is not None:
+        comment = agent_match.group(3) or ""
+        section = _AGENT_LINE.sub(f"{agent_match.group(1)}{agent_value}{comment}", section, count=1)
     else:
-        section = section.rstrip("\n") + f"\n{agent_line}\n"
+        section = section.rstrip("\n") + f"\n{agent_value}\n"
 
     if model is None:
         section = _MODEL_LINE.sub("", section)
@@ -88,14 +161,41 @@ def _rewrite_assistant_section(section: str, agent: str, model: str | None) -> s
             section += "\n"
         return section
 
-    model_line = f'model = "{_escape_toml_string(model)}"'
-    if _MODEL_LINE.search(section):
-        section = _MODEL_LINE.sub(model_line, section, count=1)
+    model_value = f'model = "{_escape_toml_string(model)}"'
+    model_match = _MODEL_LINE.search(section)
+    if model_match is not None:
+        comment = model_match.group(3) or ""
+        section = _MODEL_LINE.sub(f"{model_match.group(1)}{model_value}{comment}", section, count=1)
     else:
-        section = section.rstrip("\n") + f"\n{model_line}\n"
+        section = section.rstrip("\n") + f"\n{model_value}\n"
     if not section.endswith("\n"):
         section += "\n"
     return section
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Write ``content`` via a temp file in ``path.parent`` and ``os.replace``.
+
+    Preserves the destination file's permission bits (``stat.S_IMODE``).
+    """
+    mode = stat.S_IMODE(path.stat().st_mode)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=str(path.parent),
+        prefix=".curupira-assistant-",
+        suffix=".tmp",
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        tmp_path.chmod(mode)
+        tmp_path.replace(path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            tmp_path.unlink()
+        raise
 
 
 def _escape_toml_string(value: str) -> str:

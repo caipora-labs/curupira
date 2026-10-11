@@ -16,7 +16,7 @@ curupira tui
 - `run --size N` limits a finite drain to at most N tasks.
 - `run --dry-run` previews one selected task without reserving or persisting cron occurrences, checking out a repository, or executing.
 - `run --watch` polls all automations continuously until interrupted. It exits `1` if an executed task failed, otherwise `0`.
-- `tui` runs the same continuous scheduler as `run --watch` inside an interactive Textual dashboard (metrics, active agents, and logs). Shortcuts: `Ctrl+G` open/close the [embedded assistant](assistant.md) side panel, `F1` help, `F2` pause/resume admissions, `F3` config summary, `F5` refresh metrics, `Ctrl+C` quit.
+- `tui` runs the same continuous scheduler as `run --watch` inside an interactive Textual dashboard (metrics, active agents, and logs). Shortcuts: `Ctrl+G` open/close the [embedded assistant](assistant.md) side panel, `F6` toggle focus between the assistant and the main dashboard (panel stays open), `F1` help, `F2` pause/resume admissions, `F3` config summary, `F5` refresh metrics, `Ctrl+C` quit from the main TUI (or interrupt the agent when the assistant PTY has focus).
 - The dashboard hosts the assistant in a half-width side panel backed by the reusable
   `PtyTerminal` widget (`curupira.tui.pty_terminal.PtyTerminal`). Platform support in
   v1: Linux and macOS; Windows shows an unsupported placeholder. Emulation uses `pyte`

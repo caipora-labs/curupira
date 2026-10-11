@@ -23,17 +23,22 @@ from curupira.tui.assistant_launch import (
     plan_assistant_launch,
     pty_environment_for,
 )
-from curupira.tui.assistant_persist import persist_assistant_agent
+from curupira.tui.assistant_persist import (
+    UnsupportedAssistantTomlError,
+    persist_assistant_agent,
+)
 from curupira.tui.pty_terminal import PtyTerminal
 
 
-class AssistantPanel(Vertical):
+class AssistantPanel(Vertical, can_focus=True):
     """Half-width side panel that hosts agent selection or an interactive PTY.
 
     Ctrl+G on the host app toggles visibility. When open without a stored
     ``assistant.agent``, the panel lists registered coding-agent providers.
     Choosing one writes ``[assistant]`` in the existing settings TOML and starts
-    the adapter's interactive launch inside :class:`PtyTerminal`.
+    the adapter's interactive launch inside :class:`PtyTerminal`. The panel itself
+    is focusable so Escape closes it on error screens (no PTY); with a PTY focused,
+    Escape is forwarded to the agent instead.
     """
 
     DEFAULT_CSS = """
@@ -120,15 +125,41 @@ class AssistantPanel(Vertical):
         self._config_path = config_path
         self._cwd = cwd if cwd is not None else Path.cwd()
         self._open = False
+        self._notice_text = ""
+        self._message_text = ""
 
     @property
     def is_open(self) -> bool:
         """Whether the side panel is currently visible."""
         return self._open
 
+    @property
+    def notice_text(self) -> str:
+        """Current amber notice text (model/default caveats), not read from the widget."""
+        return self._notice_text
+
+    @property
+    def message_text(self) -> str:
+        """Current status / error message text."""
+        return self._message_text
+
     def update_settings(self, settings: ApplicationSettings) -> None:
         """Replace the in-memory settings snapshot (for example after reload)."""
         self._settings = settings
+
+    def focus_is_inside(self) -> bool:
+        """Return whether the screen's focused widget is this panel or a descendant."""
+        focused = self.app.focused
+        if focused is None:
+            return False
+        return focused is self or self in focused.ancestors
+
+    def pty_terminal(self) -> PtyTerminal | None:
+        """Return the mounted PTY widget, or ``None`` when absent."""
+        try:
+            return self.query_one("#assistant-pty", PtyTerminal)
+        except NoMatches:
+            return None
 
     @override
     def compose(self) -> ComposeResult:
@@ -186,9 +217,11 @@ class AssistantPanel(Vertical):
         option_id = event.option_id
         if not isinstance(option_id, str):
             return
-        self._persist_and_apply(option_id)
+        persist_error = self._persist_and_apply(option_id)
         await self._clear_body()
         self._mount_body()
+        if persist_error is not None:
+            self._set_message(persist_error)
         self.focus_content()
 
     async def on_pty_terminal_focus_released(self, message: PtyTerminal.FocusReleased) -> None:
@@ -196,21 +229,32 @@ class AssistantPanel(Vertical):
         del message
         await self.close_panel()
 
-    def _persist_and_apply(self, provider: str) -> None:
-        """Write ``assistant.agent`` and update the in-memory settings snapshot."""
+    def _persist_and_apply(self, provider: str) -> str | None:
+        """Write ``assistant.agent`` and update the in-memory settings snapshot.
+
+        Returns a user-facing error when the disk write fails. The in-memory choice
+        still applies so the interactive session can start.
+        """
         adapters = registered()
         if provider not in adapters:
             self._set_message(f"Unknown coding-agent provider: {provider}")
-            return
+            return None
         model = self._settings.assistant.model
         try:
             resolve_assistant_model(adapters[provider], model)
         except ValueError:
             model = None
-        persist_assistant_agent(self._config_path, agent=provider, model=model)
+        persist_error: str | None = None
+        try:
+            persist_assistant_agent(self._config_path, agent=provider, model=model)
+        except UnsupportedAssistantTomlError as error:
+            persist_error = str(error)
+        except OSError as error:
+            persist_error = f"Could not save assistant.agent to {self._config_path}: {error}"
         assistant = AssistantSettings(agent=provider, model=model)
         self._settings = self._settings.model_copy(update={"assistant": assistant})
         self.post_message(self.AgentChosen(provider, self._settings))
+        return persist_error
 
     def _mount_body(self) -> None:
         """Mount picker, error text, or PtyTerminal based on current settings."""
@@ -224,13 +268,11 @@ class AssistantPanel(Vertical):
             self._set_notice(plan.notice)
         if plan.error is not None or plan.spec is None:
             self._set_message(plan.error or "Interactive launch is unavailable.")
+            self.focus()
             return
         notes = "\n".join(plan.spec.notes)
         if notes:
-            existing = self.query_one("#assistant-notice", Static)
-            prior = str(existing.renderable) if existing.renderable else ""
-            combined = "\n".join(part for part in (prior, notes) if part)
-            self._set_notice(combined)
+            self._append_notice(notes)
         terminal = PtyTerminal(
             plan.spec.argv,
             env=pty_environment_for(plan.spec),
@@ -259,8 +301,17 @@ class AssistantPanel(Vertical):
 
     def _set_notice(self, text: str) -> None:
         """Update the amber notice line above the PTY."""
+        self._notice_text = text
         self.query_one("#assistant-notice", Static).update(text)
+
+    def _append_notice(self, text: str) -> None:
+        """Append a line to the notice using stored state (not the Static renderable)."""
+        if not text:
+            return
+        combined = "\n".join(part for part in (self._notice_text, text) if part)
+        self._set_notice(combined)
 
     def _set_message(self, text: str) -> None:
         """Update the main status / error message."""
+        self._message_text = text
         self.query_one("#assistant-message", Static).update(text)

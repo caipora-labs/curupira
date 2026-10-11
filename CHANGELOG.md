@@ -90,35 +90,38 @@ All notable changes to this project are documented here. The format follows
   panel that lists registered agents when `[assistant].agent` is unset, persists the
   choice into the existing `[assistant]` TOML table, and runs the adapter's
   `interactive_launch` recipe inside `PtyTerminal` in the project working directory.
-  Model resolution follows `resolve_assistant_model` / `auto_model` (omit the model flag
-  and show a short notice when the adapter has no native auto). Missing executables show
-  a clear PATH/install message; closing the panel tears down the PTY child. Docs:
-  `docs/en/assistant.md`.
+  `F6` toggles keyboard focus between the panel and the main dashboard without closing
+  the panel. With the PTY focused, `Ctrl+C` interrupts the agent child; with focus on
+  the main TUI, `Ctrl+C` quits and tears down the child. Model resolution follows
+  `resolve_assistant_model` / `auto_model` (omit the model flag and show a short notice
+  when the adapter has no native auto). Missing executables and config write failures
+  show a clear message instead of a stack trace. Docs: `docs/en/assistant.md`.
 - Pure-data `InteractiveLaunchSpec` and optional
   `CodingAgentCliAdapter.interactive_launch` for verified interactive coding-agent CLI
   invocations (Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI,
   Kilo CLI, pi, and Qwen Code). Helpers `default_pty_env` (allowlisted PTY environment;
-  does not forward provider API keys) and `spec_available` support the embedded
-  terminal panel; no process or PTY is started from the spec helpers themselves. The
-  default returns `None` (unverified), so `PLUGIN_API_VERSION` is unchanged and existing
-  plugins keep working. Callers must resolve `model` first;
-  `ensure_interactive_model_resolved` rejects the literal `auto` when the adapter has no
-  `auto_model`. Gemini CLI and GitHub Copilot CLI declare `auto_model = "auto"` from
-  their official docs alongside Cursor. Interactive Cursor emits `--mode` only for
-  documented `plan`/`ask` (not `agent`); pi prompt separators assume pi >= 1.x.
+  does not forward provider API keys) and `spec_available` support a later embedded
+  terminal panel; no process or PTY is started here. The default returns `None`
+  (unverified), so `PLUGIN_API_VERSION` is unchanged and existing plugins keep working.
+  Callers must resolve `model` first; `ensure_interactive_model_resolved` rejects the
+  literal `auto` when the adapter has no `auto_model`. Gemini CLI and GitHub Copilot CLI
+  declare `auto_model = "auto"` from their official docs alongside Cursor. Interactive
+  Cursor emits `--mode` only for documented `plan`/`ask` (not `agent`); pi prompt
+  separators assume pi >= 1.x.
 - Reusable `PtyTerminal` Textual widget (`curupira.tui.pty_terminal`) for an embedded
-  interactive PTY, used by the TUI assistant side panel. It spawns a child with
-  `pty.fork`, emulates the stream with `pyte` (LGPL-3.0, dynamic dependency), forwards
-  keys/paste (DECCKM, xterm modified keys, bracketed paste when the child enables mode
-  2004), resizes via `content_size` + `TIOCSWINSZ`/`SIGWINCH`, keeps the last screen
-  with an exit status overlay on the last content row (covering that row if the child
-  exited without a trailing newline), clears scrollback on emulator `reset`/`resize`,
-  and cleans up in `on_unmount` (plus an `atexit` safety net). Public API:
-  `PtyTerminal(argv, env, cwd, escape_key="ctrl+g")` with `write()`, `restart()`, and a
-  `Finished` message. Linux and macOS only in v1; Windows mounts an unsupported
-  placeholder. Reader feeds pyte in 256-byte slices under a 5 ms budget; render path
-  caches styles, coalesces runs, refreshes dirty strip rows at ~30 fps, and keeps
-  scrollback without `HistoryScreen`. Throughput script:
+  interactive PTY, intended as the building block for a future side-panel coding
+  assistant. It spawns a child with `pty.fork`, emulates the stream with `pyte`
+  (LGPL-3.0, dynamic dependency), forwards keys/paste (DECCKM, xterm modified keys,
+  bracketed paste when the child enables mode 2004), resizes via `content_size` +
+  `TIOCSWINSZ`/`SIGWINCH`, keeps the last screen with an exit status overlay on the
+  last content row (covering that row if the child exited without a trailing newline),
+  clears scrollback on emulator `reset`/`resize`, and cleans up in `on_unmount` (plus
+  an `atexit` safety net). Public API: `PtyTerminal(argv, env, cwd,
+  escape_key="ctrl+g")` with `write()`, `restart()`, and a `Finished` message. Linux
+  and macOS only in v1; Windows mounts an unsupported placeholder. Not wired into the
+  orchestrator layout or configuration yet. Reader feeds pyte in 256-byte slices under
+  a 5 ms budget; render path caches styles, coalesces runs, refreshes dirty strip rows
+  at ~30 fps, and keeps scrollback without `HistoryScreen`. Throughput script:
   `scripts/measure_pty_throughput.py --runs 3`. Observed ranges (Textual `run_test`
   `(120, 40)`, 20 s, 1 ms ticker, Linux 6.12.94+, Python 3.11.17) vary by host: on
   4 CPUs, `yes | head -c 50M` 0.345-0.371 MB/s (p99 16.2-17.2 ms), `seq 2000000`
@@ -131,12 +134,12 @@ All notable changes to this project are documented here. The format follows
   only (`yes`/`seq` < 50 ms, dense `cat` < 100 ms). Outbound writes retry after
   `EAGAIN` via `add_writer`.
 - Optional `[assistant]` configuration (`AssistantSettings`) for the interactive
-  configuration assistant and TUI side panel: `agent` (registered coding-agent provider)
-  and `model`. Adapters may declare `auto_model` when their CLI documents native
-  automatic model selection (Cursor, Gemini CLI, and GitHub Copilot CLI set
-  `auto_model = "auto"`); `resolve_assistant_model` maps an unset or literal `auto`
-  request onto that capability, and `validate` rejects `assistant.model = "auto"` for
-  providers without it.
+  configuration assistant: `agent` (registered coding-agent provider) and `model`.
+  Adapters may declare `auto_model` when their CLI documents native automatic model
+  selection (Cursor, Gemini CLI, and GitHub Copilot CLI set `auto_model = "auto"`);
+  `resolve_assistant_model` maps an unset or literal `auto` request onto that
+  capability, and `validate` rejects `assistant.model = "auto"` for providers without
+  it.
 - Packaging guard (`scripts/check_packaged_readme.py`) that builds the sdist and
   wheel, fails when the packaged README or metadata long description contains
   `opscli` (case-insensitive; retired OpsCli branding must not ship on PyPI), and
