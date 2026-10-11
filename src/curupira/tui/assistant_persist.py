@@ -8,7 +8,9 @@ and stall hot-reload admissions.
 
 Writes are atomic (temp file in the same directory + ``os.replace``) and preserve
 the destination file mode and newline style (LF or CRLF). End-of-line comments on
-existing ``agent`` / ``model`` lines are kept when those keys are rewritten.
+existing ``agent`` / ``model`` lines are kept when those keys are rewritten. A blank
+line before the next table stays in place when clearing ``model`` or appending a key
+at the end of the section.
 """
 
 from __future__ import annotations
@@ -164,6 +166,20 @@ def _render_assistant_table(agent: str, model: str | None) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _append_table_line(section: str, line: str) -> str:
+    """Append a key line before trailing blank lines that separate the next table.
+
+    ``rstrip(\"\\n\")`` would collapse the blank separator before a following table
+    header; keep those trailing newlines and insert ``line`` immediately after the
+    last content line.
+    """
+    stripped = section.rstrip("\n")
+    trailing = section[len(stripped) :]
+    if not trailing:
+        return f"{section}\n{line}\n"
+    return f"{stripped}\n{line}{trailing}"
+
+
 def _rewrite_assistant_section(section: str, agent: str, model: str | None) -> str:
     """Replace ``agent`` / ``model`` lines inside an existing ``[assistant]`` section."""
     agent_value = f'agent = "{_escape_toml_string(agent)}"'
@@ -172,7 +188,7 @@ def _rewrite_assistant_section(section: str, agent: str, model: str | None) -> s
         comment = agent_match.group(3) or ""
         section = _AGENT_LINE.sub(f"{agent_match.group(1)}{agent_value}{comment}", section, count=1)
     else:
-        section = section.rstrip("\n") + f"\n{agent_value}\n"
+        section = _append_table_line(section, agent_value)
 
     if model is None:
         # _MODEL_LINE consumes the trailing newline so removal does not leave a blank.
@@ -189,7 +205,7 @@ def _rewrite_assistant_section(section: str, agent: str, model: str | None) -> s
         # Re-add the newline that _MODEL_LINE consumed.
         section = _MODEL_LINE.sub(f"{indent}{model_value}{comment}\n", section, count=1)
     else:
-        section = section.rstrip("\n") + f"\n{model_value}\n"
+        section = _append_table_line(section, model_value)
     if not section.endswith("\n"):
         section += "\n"
     return section

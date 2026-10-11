@@ -81,36 +81,39 @@ issue/PR after `vcs/base.py`. A new coding-agent adapter implements
 `display_name`, and `install_url`, and contributes itself through the Pluggy hook
 `curupira_coding_agent_adapters` in its provider module. Set `auto_model` only when the
 CLI's official docs confirm a native automatic model value (otherwise leave the default
-`None`). The TUI assistant (`Ctrl+G` in `curu tui`) calls `resolve_assistant_model` and
-then `interactive_launch`: when `auto_model` is unset it omits the model flag and shows a
-short notice that the CLI default applies—do not invent a `--model auto` (or similar) in
-`interactive_launch`. Override `interactive_launch` only when official CLI docs confirm an
-interactive TUI invocation (cite the URL in a code comment); return a pure-data
-`InteractiveLaunchSpec` (`argv`, extra `env`, `cwd`, `notes`) and omit headless-only
-flags. Leave the default (`None`) when interactive mode is unverified—the panel reports
-that explicitly and must never invent flags. The new method has a default, so
-`PLUGIN_API_VERSION` does not bump and existing plugins keep working. When its CLI reports
-the session in a shape other than a `sessionID`, `session_id`, or `thread_id` JSON field,
-the adapter overrides `session_id_from_line`; when the CLI instead accepts a
-caller-chosen session ID, it sets `assigns_session_id = True` and passes
-`request.new_session_id` to the CLI. When the final answer is not a shape the shared
-`render_output` already understands, it overrides `render_output`. Adapters never start
-processes or handle timeouts and output limits themselves; `run_task` and
-`AsyncProcessRunner` own headless runs, and the TUI assistant mounts `interactive_launch`
-specs inside `PtyTerminal`. A built-in coding-agent adapter lives in its own package under
-`providers/<name>/` (or shares a package with related triggers), is listed in
-`manager.py`, and is discovered through Pluggy so `create_cli_adapter` and profile
-validation find it through the registry; it belongs in its own issue/PR after
-`agents/base.py`. Providers that need extra Python packages should declare an optional
-dependency extra and use lazy imports so the default install stays lean; providers that
-only wrap an external CLI stay in the default install. Third-party adapters register under
-the `curupira.agents` entry-point group instead. A trigger can supply its own clone
-mechanism through `Trigger.create_version_control`. Azure DevOps pull-request listing is
-supported via `azure-cli-pull-requests`; cloning still uses the GitHub CLI version-control
-adapter unless `path` points at an existing checkout. Trello card discovery is built in
-through Scale-Flow's `trello-cli`; other services such as Monday fit a plugin.
-Configuration accepts only the trigger types and agent providers registered by built-ins
-and installed plugins.
+`None`). The TUI assistant (`Ctrl+G` in `curu tui`) resolves the model with
+`resolve_assistant_model` against the adapter's `auto_model`, builds an
+`InteractiveLaunchSpec` from `interactive_launch`, and hosts it in `PtyTerminal` with
+`cwd=Path.cwd()` (the directory where `curu tui` was started) and the allowlisted
+environment from `default_pty_env` (no provider API keys). When `auto_model` is unset it
+omits the model flag and shows a short notice that the CLI default applies—do not invent
+a `--model auto` (or similar) in `interactive_launch`. Override `interactive_launch` only
+when official CLI docs confirm an interactive TUI invocation (cite the URL in a code
+comment); return a pure-data `InteractiveLaunchSpec` (`argv`, extra `env`, `cwd`,
+`notes`) and omit headless-only flags. Leave the default (`None`) when interactive mode
+is unverified—the panel reports that explicitly and must never invent flags. The new
+method has a default, so `PLUGIN_API_VERSION` does not bump and existing plugins keep
+working. When its CLI reports the session in a shape other than a `sessionID`,
+`session_id`, or `thread_id` JSON field, the adapter overrides `session_id_from_line`;
+when the CLI instead accepts a caller-chosen session ID, it sets
+`assigns_session_id = True` and passes `request.new_session_id` to the CLI. When the
+final answer is not a shape the shared `render_output` already understands, it overrides
+`render_output`. Adapters never start processes or handle timeouts and output limits
+themselves; `run_task` and `AsyncProcessRunner` own headless runs, and the TUI assistant
+mounts `interactive_launch` specs inside `PtyTerminal`. A built-in coding-agent adapter
+lives in its own package under `providers/<name>/` (or shares a package with related
+triggers), is listed in `manager.py`, and is discovered through Pluggy so
+`create_cli_adapter` and profile validation find it through the registry; it belongs in
+its own issue/PR after `agents/base.py`. Providers that need extra Python packages should
+declare an optional dependency extra and use lazy imports so the default install stays
+lean; providers that only wrap an external CLI stay in the default install. Third-party
+adapters register under the `curupira.agents` entry-point group instead. A trigger can
+supply its own clone mechanism through `Trigger.create_version_control`. Azure DevOps
+pull-request listing is supported via `azure-cli-pull-requests`; cloning still uses the
+GitHub CLI version-control adapter unless `path` points at an existing checkout. Trello
+card discovery is built in through Scale-Flow's `trello-cli`; other services such as
+Monday fit a plugin. Configuration accepts only the trigger types and agent providers
+registered by built-ins and installed plugins.
 
 When adding a coding-agent provider, add its package under
 `src/curupira/providers/<provider>/`, a matching test package under

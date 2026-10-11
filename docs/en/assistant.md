@@ -1,8 +1,7 @@
 # TUI assistant
 
-`curu tui` embeds a coding-agent assistant in a side panel, inspired by Omarchy-style
-workflows where the coding agent stays inside the orchestrator UI instead of suspending
-it.
+`curu tui` embeds a coding-agent assistant in a side panel. The coding agent runs
+inside the panel so you do not need to suspend the TUI.
 
 ## Shortcuts
 
@@ -23,7 +22,11 @@ When the panel opens and `[assistant].agent` is unset, Curupira lists every codi
 provider registered in `curupira.agents` (built-ins and installed plugins). Choosing one
 writes `agent` into the existing `[assistant]` table of your settings TOML—the same
 place and format as the [configuration assistant settings](configuration.md#assistant).
-Opening the panel again reuses that choice and starts a new interactive session.
+The saved agent applies the next time you open the panel; you do not need to restart the
+TUI. Opening the panel again starts a new interactive session with that agent.
+
+When an agent switch clears the model, Curupira removes the existing `model` key from
+`[assistant]`.
 
 !!! warning
     Saving the agent choice updates your settings TOML on disk. That file change triggers
@@ -38,19 +41,16 @@ the choice in memory for the current session.
 
 ## How the session starts
 
-1. Resolve the model with `resolve_assistant_model` against the adapter's `auto_model`
-   capability (unset `assistant.model` prefers native auto when the adapter declares it).
-2. Build an `InteractiveLaunchSpec` from the adapter's `interactive_launch` recipe.
-3. Host that command in the reusable `PtyTerminal` widget in the project working
-   directory (`Path.cwd()` when `curu tui` was started), using the allowlisted PTY
-   environment from `default_pty_env`.
+1. The model comes from `[assistant].model`. When that key is unset, Curupira uses the
+   provider's native automatic model when the adapter supports it; otherwise the CLI's
+   own default applies (with a short notice).
+2. The interactive command runs in the directory where you started `curu tui`.
+3. Provider API keys are not forwarded into the embedded terminal; use the coding-agent
+   CLI's own login.
 
-If the adapter has no native `auto_model`, Curupira omits the model flag and shows a
-short notice that the CLI's own default model applies. If the executable is missing from
-`PATH`, the panel shows a clear install message instead of a stack trace. Closing the
-panel (or quitting the TUI from the main dashboard) unmounts `PtyTerminal`, which tears
-down the child process. Window resize propagates to the PTY via `TIOCSWINSZ` /
-`SIGWINCH`.
+If the executable is missing from `PATH`, the panel shows a clear install message instead
+of a stack trace. Closing the panel (or quitting the TUI from the main dashboard) tears
+down the child process. Window resize propagates to the PTY.
 
 Persistence only rewrites a standard unquoted `[assistant]` table (atomic replace in the
 same directory, preserving file mode, newline style (LF or CRLF), and end-of-line comments
