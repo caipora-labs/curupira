@@ -9,7 +9,6 @@ from typing import Any
 
 import httpx
 from pydantic import TypeAdapter, ValidationError
-from pyresilience import RetryConfig, resilient
 
 from curupira.errors import HttpApiError, TransientHttpApiError
 from curupira.models.monday import MondayBoardItem, MondayItemsPage, MondayListRequest
@@ -19,6 +18,7 @@ _MONDAY_GRAPHQL_URL = "https://api.monday.com/v2"
 _API_VERSION = "2026-10"
 # Environment variable *name* for the personal API token (not a secret value).
 _DEFAULT_TOKEN_ENV = "MONDAY_API_TOKEN"  # noqa: S105
+_MAX_TRANSIENT_ATTEMPTS = 3
 _MAX_RETRY_AFTER_SECONDS = 60.0
 _DEFAULT_RETRY_DELAY_SECONDS = 1.0
 
@@ -138,19 +138,20 @@ class MondayClient:
             )
         return token.strip()
 
-    @resilient(
-        retry=RetryConfig(
-            # Retry spacing is owned exclusively by ``_sleep_before_retry`` (Retry-After /
-            # retry_in_seconds, else a 1s default). delay=0 avoids stacking a second wait.
-            max_attempts=3,
-            delay=0.0,
-            backoff_factor=1.0,
-            max_delay=0.0,
-            jitter=False,
-            retry_on=(TransientHttpApiError,),
-        )
-    )
     async def _post_resilient(self, token: str, body: dict[str, Any]) -> dict[str, Any]:
+        """POST with up to three attempts; sleep only between retries, never after the last."""
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                return await self._post_once(token, body)
+            except TransientHttpApiError as error:
+                if attempt >= _MAX_TRANSIENT_ATTEMPTS:
+                    raise
+                await _sleep_before_retry(error.retry_after_seconds)
+
+    async def _post_once(self, token: str, body: dict[str, Any]) -> dict[str, Any]:
+        """Execute one GraphQL POST and map transport/HTTP/GraphQL failures."""
         headers = {
             "Authorization": token,
             "Content-Type": "application/json",
@@ -160,13 +161,11 @@ class MondayClient:
             try:
                 response = await client.post(self._endpoint, headers=headers, json=body)
             except httpx.TransportError as error:
-                await _sleep_before_retry(None)
                 raise TransientHttpApiError(
                     f"monday.com GraphQL transport failed: {error}"
                 ) from error
         if response.status_code in {429, 502, 503, 504} or response.status_code >= 500:
             retry_after = _retry_after_from_response(response)
-            await _sleep_before_retry(retry_after)
             raise TransientHttpApiError(
                 f"monday.com GraphQL temporarily failed with status {response.status_code}",
                 retry_after_seconds=retry_after,
@@ -186,11 +185,7 @@ class MondayClient:
             raise HttpApiError("monday.com GraphQL returned non-JSON output") from error
         if not isinstance(document, dict):
             raise HttpApiError("monday.com GraphQL returned a non-object payload")
-        try:
-            _raise_for_graphql_errors(document)
-        except TransientHttpApiError as error:
-            await _sleep_before_retry(error.retry_after_seconds)
-            raise
+        _raise_for_graphql_errors(document)
         return document
 
 

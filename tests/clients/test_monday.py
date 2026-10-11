@@ -452,8 +452,7 @@ async def test_complexity_budget_exhausted_is_transient_and_honors_retry_in_seco
     page = await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
     assert page.items[0].id == "1"
     assert attempts["count"] == 2
-    # ``@resilient(delay=0)`` may still call ``sleep(0)`` between attempts.
-    assert [seconds for seconds in sleeps if seconds > 0] == [2.0]
+    assert sleeps == [2.0]
 
 
 @pytest.mark.asyncio
@@ -497,4 +496,5 @@ async def test_http_503_uses_default_retry_delay_without_resilient_backoff(
 
     with pytest.raises(TransientHttpApiError, match="503"):
         await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
-    assert [seconds for seconds in sleeps if seconds > 0] == [1.0, 1.0, 1.0]
+    # Two sleeps between three attempts; no wait after the final failure.
+    assert sleeps == [1.0, 1.0]

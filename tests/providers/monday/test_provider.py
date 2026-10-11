@@ -335,6 +335,78 @@ async def test_later_page_http_error_returns_partial_without_resetting_cursor(
 
 
 @pytest.mark.asyncio
+async def test_third_page_http_error_returns_partial_keeping_cursor(
+    tmp_path: Path,
+) -> None:
+    """HttpApiError on page 3 returns tasks from pages 1-2 and keeps cursor p3."""
+    client = FakeMondayClient(
+        [
+            MondayItemsPage(items=(_board_item("1", "One"),), cursor="p2"),
+            MondayItemsPage(items=(_board_item("2", "Two"),), cursor="p3"),
+            HttpApiError("monday.com GraphQL failed with status 400"),
+        ]
+    )
+    automation = resolved_automation(tmp_path, "board-items", "monday-items")
+    source = MondayItemSource(client)
+
+    tasks = await source.discover(automation, 10)
+
+    assert [task.identity.id for task in tasks] == ["1", "2"]
+    assert source._cursor == "p3"
+    assert [request.cursor for request in client.requests] == [None, "p2", "p3"]
+
+
+@pytest.mark.asyncio
+async def test_expired_cursor_then_second_page_http_error_keeps_new_cursor(
+    tmp_path: Path,
+) -> None:
+    """After an expired-cursor reset, a later-page HttpApiError keeps the new cursor."""
+    client = FakeMondayClient(
+        [
+            MondayItemsPage(items=(_board_item("1", "One"),), cursor="stale"),
+            HttpApiError("Cursor expired"),
+            MondayItemsPage(items=(_board_item("2", "Two"),), cursor="q2"),
+            HttpApiError("monday.com GraphQL failed with status 400"),
+        ]
+    )
+    automation = resolved_automation(tmp_path, "board-items", "monday-items")
+    source = MondayItemSource(client)
+
+    first = await source.discover(automation, 1)
+    assert [task.identity.id for task in first] == ["1"]
+    assert source._cursor == "stale"
+
+    second = await source.discover(automation, 10)
+    assert [task.identity.id for task in second] == ["2"]
+    assert source._cursor == "q2"
+    assert [request.cursor for request in client.requests] == [None, "stale", None, "q2"]
+
+
+@pytest.mark.asyncio
+async def test_expired_cursor_then_persistent_failure_clears_cursor_and_raises(
+    tmp_path: Path,
+) -> None:
+    """Expired cursor plus a persistent first-page failure clears the cursor and raises."""
+    client = FakeMondayClient(
+        [
+            MondayItemsPage(items=(_board_item("1", "One"),), cursor="stale"),
+            HttpApiError("Cursor expired"),
+            HttpApiError("monday.com board 123 not found or not accessible"),
+        ]
+    )
+    automation = resolved_automation(tmp_path, "board-items", "monday-items")
+    source = MondayItemSource(client)
+
+    first = await source.discover(automation, 1)
+    assert [task.identity.id for task in first] == ["1"]
+
+    with pytest.raises(HttpApiError, match="not found or not accessible"):
+        await source.discover(automation, 10)
+    assert source._cursor is None
+    assert [request.cursor for request in client.requests] == [None, "stale", None]
+
+
+@pytest.mark.asyncio
 async def test_end_to_end_mock_transport_group_filter(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         body = request.content.decode()
