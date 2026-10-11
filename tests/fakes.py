@@ -1,5 +1,6 @@
 """Controlled native-process and checkout boundaries for behavioral tests."""
 
+import re
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -24,6 +25,29 @@ from curupira.models.configuration import (
     PullRequestAutomationConfiguration,
 )
 from curupira.vcs.base import Checkout, CheckoutRequest, VersionControl
+
+_CLOSING_REFERENCE = re.compile(
+    r"\b(?:clos(?:e|es|ed)|fix(?:es|ed)?|resolv(?:e|es|ed))\s*:?\s*"
+    r"(?:(?P<repo>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+))?#(?P<number>\d+)\b",
+    flags=re.IGNORECASE,
+)
+
+
+def closes_issue(pull: GhPullRequest, repo: str, issue_number: int) -> bool:
+    """Return whether ``pull`` closes ``issue_number`` (fake GraphQL + body keywords)."""
+    for reference in pull.closing_issues_references:
+        linked_repo = reference.repository.name_with_owner if reference.repository else None
+        if reference.number == issue_number and (
+            linked_repo is None or linked_repo.casefold() == repo.casefold()
+        ):
+            return True
+    for match in _CLOSING_REFERENCE.finditer(pull.body or ""):
+        linked_repo = match.group("repo")
+        if int(match.group("number")) == issue_number and (
+            linked_repo is None or linked_repo.casefold() == repo.casefold()
+        ):
+            return True
+    return False
 
 
 class FakeVersionControl(VersionControl):
@@ -157,13 +181,13 @@ class FakeGitHub(GitHubGraphQLClient):
     async def list_pull_requests_for_issue(
         self, repo: str, issue_number: int
     ) -> list[GhPullRequest]:
-        from curupira.tasks.revalidation import _closes_issue
-
         linked = set(self.development_links.get(issue_number, ()))
         return [
             pull
             for pull in self.pulls
-            if pull.number in linked or _closes_issue(pull, repo, issue_number)
+            if (pull.state or "OPEN").upper() == "OPEN"
+            and pull.merged_at is None
+            and (pull.number in linked or closes_issue(pull, repo, issue_number))
         ]
 
 

@@ -7,13 +7,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- GitHub dispatch revalidates current issue and pull-request state before starting or
-  resuming an agent. Closed or merged items leave the queue, issues with an open closing
-  or Development-linked pull request do not invoke the coding-agent CLI (stale issue
-  sessions are retired), and recovered PR sessions restart when the head SHA or workflow
-  stage changes. Completed snapshots retain an explicit next action so unchanged work is
-  not repeated every dispatch cycle. Transient revalidation errors defer a candidate
-  without dropping its saved session or stopping the scheduler.
+- GitHub dispatch revalidates current issue and pull-request state before admitting a
+  candidate (once per admission; not again immediately before agent start). Closed or
+  merged items leave the queue, issues with an open closing or Development-linked pull
+  request do not invoke the coding-agent CLI (stale issue sessions are retired), and
+  recovered PR sessions restart when the head SHA, draft flag, title, or body changes.
+  Completed snapshots retain an explicit next action so unchanged work is not repeated
+  every dispatch cycle. Transient revalidation errors defer a candidate without dropping
+  its saved session or stopping the scheduler. Closing-PR lookup uses GraphQL
+  ``closedByPullRequestsReferences`` and fails closed when the result set spans more than
+  one page.
 
 ### Changed
 

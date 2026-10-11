@@ -102,7 +102,7 @@ class Task(ValidatedModel):
 
     @property
     def dispatch_key(self) -> str:
-        """Return the in-memory admission key, including PR head and stage revisions."""
+        """Return the in-memory admission key, including PR head revision."""
         if self.identity.task_type == "github-pull-requests" and isinstance(
             self.item, PullRequestItem
         ):
@@ -110,7 +110,6 @@ class Task(ValidatedModel):
                 [
                     self.identity.key,
                     self.item.pull_request_head_sha,
-                    int(self.workflow_stage),
                     self.state_fingerprint,
                 ],
                 separators=(",", ":"),
@@ -126,9 +125,10 @@ class Task(ValidatedModel):
     def state_fingerprint(self) -> str:
         """Return a stable fingerprint of source state relevant to repeating work.
 
-        Pull-request fingerprints use head SHA, discrete workflow stage, title, and
-        body. Volatile mergeability and check conclusions are omitted so in-progress
-        check transitions do not re-admit an unchanged completed snapshot.
+        Pull-request fingerprints use head SHA, draft flag, title, and body. Derived
+        workflow stage, mergeability, merge-state status, and check conclusions are
+        omitted so check or conflict transitions alone do not re-admit an unchanged
+        completed snapshot.
         """
         if isinstance(self.item, PullRequestItem):
             payload = {
@@ -137,21 +137,18 @@ class Task(ValidatedModel):
                 "body": self.item.pull_request_body,
                 "is_draft": self.item.pull_request_is_draft,
                 "head_sha": self.item.pull_request_head_sha,
-                "workflow_stage": int(self.workflow_stage),
             }
         elif isinstance(self.item, IssueItem):
             payload = {
                 "title": self.title,
                 "url": self.url,
                 "body": self.item.issue_body,
-                "workflow_stage": int(self.workflow_stage),
             }
         else:
             payload = {
                 "title": self.title,
                 "url": self.url,
                 "item": self.item.model_dump(mode="json"),
-                "workflow_stage": int(self.workflow_stage),
             }
         return hashlib.sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()

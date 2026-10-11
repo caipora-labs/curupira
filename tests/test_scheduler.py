@@ -215,13 +215,14 @@ async def test_recovered_pr_with_new_head_drops_stale_session_and_starts_fresh(
     assert await sessions.list_all() == []
 
 
-async def test_recovered_pr_that_moved_stage_starts_a_fresh_task(tmp_path: Path) -> None:
+async def test_recovered_pr_check_stage_change_resumes_same_session(tmp_path: Path) -> None:
     stale = with_pull_request_item(
         pull_request_task(tmp_path, 12),
         pull_request_is_draft=False,
         pull_request_head_sha="same-head",
         pull_request_mergeable="UNKNOWN",
-        pull_request_merge_state_status="UNKNOWN",
+        pull_request_merge_state_status="BLOCKED",
+        pull_request_check_conclusions=("PENDING",),
     )
     session = RunningCodingSession(task=stale, session_id="old-review", message="stale prompt")
     database = tmp_path / "state.sqlite3"
@@ -232,8 +233,11 @@ async def test_recovered_pr_that_moved_stage_starts_a_fresh_task(tmp_path: Path)
         pulls=[
             GhPullRequest(
                 number=12,
-                title="Review",
-                url="https://github.com/acme/api/pull/12",
+                title=stale.title,
+                body=stale.item.pull_request_body
+                if isinstance(stale.item, PullRequestItem)
+                else "",
+                url=stale.url,
                 state="OPEN",
                 isDraft=False,
                 headRefOid="same-head",
@@ -257,9 +261,7 @@ async def test_recovered_pr_that_moved_stage_starts_a_fresh_task(tmp_path: Path)
     await scheduler.run(stream([]), resume_sessions=[session])
 
     assert len(adapter.requests) == 1
-    assert adapter.requests[0].session_id is None
-    assert adapter.requests[0].message != "stale prompt"
-    assert await sessions.list_all() == []
+    assert adapter.requests[0].session_id == "old-review"
 
 
 async def test_closed_issue_recovery_is_retired_without_starting_an_agent(
@@ -515,17 +517,30 @@ async def test_admission_limit_counts_recovered_sessions_and_skips_discards(
     assert adapter.requests[0].session_id == "resume-2"
 
 
-async def test_check_conclusion_change_alone_does_not_change_fingerprint(
+async def test_check_and_mergeable_transitions_do_not_change_fingerprint(
     tmp_path: Path,
 ) -> None:
-    base = with_pull_request_item(
+    pending = with_pull_request_item(
         pull_request_task(tmp_path, 12),
         pull_request_is_draft=False,
         pull_request_head_sha="same",
         pull_request_mergeable="UNKNOWN",
-        pull_request_merge_state_status="UNKNOWN",
-        pull_request_check_conclusions=("IN_PROGRESS",),
+        pull_request_merge_state_status="BLOCKED",
+        pull_request_check_conclusions=("PENDING",),
     )
-    checks_done = with_pull_request_item(base, pull_request_check_conclusions=("SUCCESS",))
-    assert base.workflow_stage == checks_done.workflow_stage
-    assert base.state_fingerprint == checks_done.state_fingerprint
+    success = with_pull_request_item(
+        pending,
+        pull_request_mergeable="MERGEABLE",
+        pull_request_merge_state_status="CLEAN",
+        pull_request_check_conclusions=("SUCCESS",),
+    )
+    conflicting = with_pull_request_item(
+        success,
+        pull_request_mergeable="CONFLICTING",
+        pull_request_merge_state_status="DIRTY",
+        pull_request_check_conclusions=("SUCCESS",),
+    )
+    assert pending.workflow_stage != success.workflow_stage
+    assert success.workflow_stage != conflicting.workflow_stage
+    assert pending.state_fingerprint == success.state_fingerprint == conflicting.state_fingerprint
+    assert pending.dispatch_key == success.dispatch_key == conflicting.dispatch_key

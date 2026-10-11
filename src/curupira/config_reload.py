@@ -102,6 +102,7 @@ async def run_continuous_dispatch(
         runner = AsyncProcessRunner()
         feeds = create_task_feeds(current, cron, runner=runner)
         initial_tasks = await poll_task_feeds(feeds)
+        # Revalidate once at admission time (no executor pre-start duplicate).
         revalidate = GitHubTaskRevalidator(GitHubGraphQLClient(runner))
         executor = TaskExecutor(
             current.settings,
@@ -111,7 +112,6 @@ async def run_continuous_dispatch(
             adapter_factory=adapter_factory,
             telemetry=telemetry,
             runner=runner,
-            pre_start_validator=revalidate,
         )
         scheduler = TaskScheduler(
             current.settings,

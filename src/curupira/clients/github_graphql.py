@@ -83,6 +83,9 @@ query CurupiraIssueClosingPullRequests(
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
       closedByPullRequestsReferences(first: 50, includeClosedPrs: false) {
+        pageInfo {
+          hasNextPage
+        }
         nodes {
           number
           title
@@ -353,7 +356,12 @@ class GitHubGraphQLClient:
     async def list_pull_requests_for_issue(
         self, repo: str, issue_number: int
     ) -> list[GhPullRequest]:
-        """Return open PRs that close or are linked to an issue (Development sidebar)."""
+        """Return open PRs that close or are linked to an issue (Development sidebar).
+
+        Uses GraphQL ``closedByPullRequestsReferences`` (``includeClosedPrs: false``).
+        When GitHub reports ``hasNextPage``, this method fails closed with
+        ``HttpApiError`` so the scheduler does not dispatch an agent on a partial set.
+        """
         owner, name = _split_repo(repo)
         document = await self._graphql_resilient(
             _ISSUE_CLOSING_PULL_REQUESTS_QUERY,
@@ -363,6 +371,12 @@ class GitHubGraphQLClient:
         references = node.get("closedByPullRequestsReferences")
         if not isinstance(references, dict):
             return []
+        page_info = references.get("pageInfo")
+        if isinstance(page_info, dict) and page_info.get("hasNextPage") is True:
+            raise HttpApiError(
+                "GitHub returned more closing pull-request references than one page; "
+                "refusing to dispatch until the full set can be read"
+            )
         raw_nodes = references.get("nodes")
         if not isinstance(raw_nodes, list):
             return []
@@ -370,9 +384,14 @@ class GitHubGraphQLClient:
             _normalize_pull_request_node(item) for item in raw_nodes if isinstance(item, dict)
         ]
         try:
-            return TypeAdapter(list[GhPullRequest]).validate_python(payload)
+            pulls = TypeAdapter(list[GhPullRequest]).validate_python(payload)
         except ValidationError as error:
             raise HttpApiError(f"GitHub returned invalid pull request JSON: {error}") from error
+        return [
+            pull
+            for pull in pulls
+            if (pull.state or "").upper() == "OPEN" and pull.merged_at is None
+        ]
 
     @resilient(
         retry=RetryConfig(

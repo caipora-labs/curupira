@@ -379,6 +379,146 @@ async def test_invalid_github_graphql_payloads_fail() -> None:
         )
 
 
+def _closing_pr_node(
+    *,
+    number: int,
+    title: str,
+    body: str,
+    state: str = "OPEN",
+    closing_issue: int | None = None,
+) -> dict[str, object]:
+    references: list[dict[str, object]] = []
+    if closing_issue is not None:
+        references.append(
+            {
+                "number": closing_issue,
+                "repository": {"nameWithOwner": "acme/api"},
+            }
+        )
+    return {
+        "number": number,
+        "title": title,
+        "body": body,
+        "url": f"https://github.com/acme/api/pull/{number}",
+        "state": state,
+        "isDraft": False,
+        "headRefName": f"branch-{number}",
+        "baseRefName": "main",
+        "headRefOid": f"sha-{number}",
+        "mergeable": "MERGEABLE",
+        "mergeStateStatus": "CLEAN",
+        "mergedAt": None,
+        "closingIssuesReferences": {"nodes": references},
+    }
+
+
+def _issue_closing_prs_payload(
+    nodes: list[dict[str, object]], *, has_next_page: bool = False
+) -> dict[str, object]:
+    return {
+        "data": {
+            "repository": {
+                "issue": {
+                    "closedByPullRequestsReferences": {
+                        "pageInfo": {"hasNextPage": has_next_page},
+                        "nodes": nodes,
+                    }
+                }
+            }
+        }
+    }
+
+
+def _graphql_client(handler: Callable[[httpx.Request], httpx.Response]) -> GitHubGraphQLClient:
+    return GitHubGraphQLClient(
+        token_provider=GitHubCliTokenProvider(
+            RecordingRunner(ProcessResult(returncode=0, stdout="token"))
+        ),
+        transport=httpx.MockTransport(handler),
+    )
+
+
+async def test_list_pull_requests_for_issue_includes_development_sidebar_link() -> None:
+    payload = _issue_closing_prs_payload(
+        [
+            _closing_pr_node(
+                number=12,
+                title="Linked only via Development",
+                body="No closing keyword in the body",
+                closing_issue=42,
+            )
+        ]
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode())
+        assert "closedByPullRequestsReferences" in body["query"]
+        assert body["variables"] == {"owner": "acme", "name": "api", "number": 42}
+        return httpx.Response(200, json=payload)
+
+    pulls = await _graphql_client(handler).list_pull_requests_for_issue("acme/api", 42)
+    assert [pull.number for pull in pulls] == [12]
+
+
+async def test_list_pull_requests_for_issue_includes_fixes_body_form() -> None:
+    payload = _issue_closing_prs_payload(
+        [_closing_pr_node(number=9, title="Patch", body="Fixes: #42")]
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json=payload)
+
+    pulls = await _graphql_client(handler).list_pull_requests_for_issue("acme/api", 42)
+    assert [pull.number for pull in pulls] == [9]
+
+
+async def test_list_pull_requests_for_issue_excludes_closed_pull_requests() -> None:
+    payload = _issue_closing_prs_payload(
+        [
+            _closing_pr_node(
+                number=8,
+                title="Already closed",
+                body="Fixes #42",
+                state="CLOSED",
+            )
+        ]
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json=payload)
+
+    pulls = await _graphql_client(handler).list_pull_requests_for_issue("acme/api", 42)
+    assert pulls == []
+
+
+async def test_list_pull_requests_for_issue_rejects_invalid_json() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json=_issue_closing_prs_payload([{"number": "not-an-int", "title": "bad"}]),
+        )
+
+    with pytest.raises(HttpApiError, match="invalid pull request JSON"):
+        await _graphql_client(handler).list_pull_requests_for_issue("acme/api", 42)
+
+
+async def test_list_pull_requests_for_issue_fails_closed_when_has_next_page() -> None:
+    payload = _issue_closing_prs_payload(
+        [_closing_pr_node(number=1, title="First page", body="Fixes #42")],
+        has_next_page=True,
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json=payload)
+
+    with pytest.raises(HttpApiError, match="than one page"):
+        await _graphql_client(handler).list_pull_requests_for_issue("acme/api", 42)
+
+
 async def test_native_git_version_control_clones_with_literal_remote_and_destination(
     tmp_path: Path,
 ) -> None:

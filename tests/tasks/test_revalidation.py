@@ -4,8 +4,8 @@ from pathlib import Path
 
 from curupira.models import GhIssue, GhIssueReference, GhPullRequest, GhRepositoryReference
 from curupira.models.items import IssueItem
-from curupira.tasks.revalidation import GitHubTaskRevalidator, _closes_issue
-from tests.fakes import FakeGitHub
+from curupira.tasks.revalidation import GitHubTaskRevalidator
+from tests.fakes import FakeGitHub, closes_issue
 from tests.helpers import issue_task, pull_request_task
 
 
@@ -124,7 +124,7 @@ async def test_fixes_with_colon_closes_issue() -> None:
         body="Fixes: #42",
         url="https://github.com/acme/api/pull/12",
     )
-    assert _closes_issue(pull, "acme/api", 42)
+    assert closes_issue(pull, "acme/api", 42)
 
 
 async def test_structured_closing_reference_closes_issue() -> None:
@@ -140,7 +140,7 @@ async def test_structured_closing_reference_closes_issue() -> None:
             )
         ],
     )
-    assert _closes_issue(pull, "acme/api", 42)
+    assert closes_issue(pull, "acme/api", 42)
 
 
 async def test_completion_next_action_for_still_open_work(tmp_path: Path) -> None:

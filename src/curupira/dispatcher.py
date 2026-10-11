@@ -67,6 +67,7 @@ async def dispatch_next_task(
         return DispatchOutcome(selected=available[0] if available else None)
     sessions = RunningSessionRepository(settings.settings.state_db_path)
     completed_tasks = CompletedTaskRepository(settings.settings.state_db_path)
+    # One revalidation per candidate before execute (no executor pre-start duplicate).
     revalidate = GitHubTaskRevalidator(GitHubGraphQLClient(process_runner))
     executor = TaskExecutor(
         settings.settings,
@@ -76,7 +77,6 @@ async def dispatch_next_task(
         adapter_factory=adapter_factory,
         telemetry=telemetry,
         runner=process_runner,
-        pre_start_validator=revalidate,
     )
     for selected in available:
         outcome = await _try_dispatch_candidate(

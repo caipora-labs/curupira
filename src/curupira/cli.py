@@ -408,6 +408,8 @@ async def _execute_scheduled_command(
         # revalidation so discarded work does not consume ``--size``, and recovered
         # sessions count toward the same limit.
         initial_tasks = await poll_task_feeds(feeds)
+        # Revalidate once at admission time. The executor pre-start hook is left unset
+        # so each candidate does not hit GitHub twice before the agent starts.
         revalidate = GitHubTaskRevalidator(GitHubGraphQLClient(runner))
         executor = TaskExecutor(
             settings.settings,
@@ -416,7 +418,6 @@ async def _execute_scheduled_command(
             cron,
             telemetry=telemetry,
             runner=runner,
-            pre_start_validator=revalidate,
         )
         scheduler = TaskScheduler(
             settings.settings,
