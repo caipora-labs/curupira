@@ -13,11 +13,16 @@ import pytest
 from rich.console import Console
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.events import Paste
+from textual.events import Key, Paste
 from textual.widgets import Static
 from typing_extensions import override
 
-from curupira.tui.pty_terminal import PtyTerminal, default_pty_environment
+from curupira.tui.pty_keys import key_to_bytes
+from curupira.tui.pty_terminal import (
+    PtyTerminal,
+    clamp_terminal_dimensions,
+    default_pty_environment,
+)
 
 
 class _FocusTarget(Static, can_focus=True):
@@ -71,7 +76,7 @@ def _visible_text(terminal: PtyTerminal) -> str:
     return str(terminal.render())
 
 
-async def _wait_until(predicate: Callable[[], bool], pilot: Any, *, attempts: int = 80) -> None:
+async def _wait_until(predicate: Callable[[], bool], pilot: Any, *, attempts: int = 100) -> None:
     for _ in range(attempts):
         if predicate():
             return
@@ -102,6 +107,13 @@ def test_windows_guard_builds_unsupported_placeholder(monkeypatch: pytest.Monkey
     assert "Windows" in str(terminal.render())
 
 
+def test_clamp_terminal_dimensions_uses_one_by_one_for_zero() -> None:
+    assert clamp_terminal_dimensions(0, 0) == (1, 1)
+    assert clamp_terminal_dimensions(0, 5) == (1, 5)
+    assert clamp_terminal_dimensions(3, 0) == (3, 1)
+    assert clamp_terminal_dimensions(80, 24) == (80, 24)
+
+
 @pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
 @pytest.mark.asyncio
 async def test_typed_input_echoes_through_cat() -> None:
@@ -129,16 +141,24 @@ async def test_resize_updates_tput_cols_and_lines() -> None:
     async with app.run_test(size=(60, 20)) as pilot:
         terminal = app.query_one(PtyTerminal)
         await _wait_until(lambda: terminal.content_size.width > 1, pilot)
-        await pilot.pause(0.2)
-        terminal._apply_winsize()
-        expected = f"{terminal.content_size.width} {terminal.content_size.height}"
-        await _wait_until(lambda: expected in _visible_text(terminal), pilot)
+        await _wait_until(lambda: terminal._emulator is not None, pilot)
+
+        def _synced() -> bool:
+            assert terminal._emulator is not None
+            terminal._apply_winsize()
+            expected = f"{terminal.content_size.width} {terminal.content_size.height}"
+            return (
+                terminal._emulator.columns == terminal.content_size.width
+                and terminal._emulator.lines == terminal.content_size.height
+                and expected in _visible_text(terminal)
+            )
+
+        await _wait_until(_synced, pilot)
 
         await pilot.resize_terminal(100, 40)
-        await pilot.pause(0.1)
-        terminal._apply_winsize()
+        await _wait_until(lambda: terminal.content_size.width >= 90, pilot)
+        await _wait_until(_synced, pilot)
         expected = f"{terminal.content_size.width} {terminal.content_size.height}"
-        await _wait_until(lambda: expected in _visible_text(terminal), pilot)
         assert expected in _visible_text(terminal)
         app.exit()
 
@@ -206,13 +226,108 @@ open({str(marker)!r}, "wb").write(data)
 
 @pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
 @pytest.mark.asyncio
-async def test_child_exit_emits_finished_message() -> None:
-    app = _PtyHarness(["bash", "-c", "exit 42"])
+async def test_child_exit_keeps_screen_and_shows_footer() -> None:
+    app = _PtyHarness(["bash", "-c", "printf 'VISIBLE\\n'; exit 42"])
     async with app.run_test(size=(80, 24)) as pilot:
         await _wait_until(lambda: app.finished_codes == [42], pilot)
         terminal = app.query_one(PtyTerminal)
         assert terminal.finished_code == 42
-        assert "42" in _visible_text(terminal)
+        text = _visible_text(terminal)
+        assert "VISIBLE" in text
+        assert "Process exited (42)" in text
+        assert terminal._emulator is not None
+        app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", [0, 3])
+async def test_normal_exit_codes_are_preserved(code: int) -> None:
+    app = _PtyHarness(["bash", "-c", f"exit {code}"])
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _wait_until(lambda: app.finished_codes == [code], pilot)
+        assert app.finished_codes == [code]
+        assert app.query_one(PtyTerminal).finished_code == code
+        app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+async def test_bad_cwd_exits_with_127() -> None:
+    app = _PtyHarness(["true"], cwd=Path("/nonexistent-curupira-pty-cwd"))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _wait_until(lambda: app.finished_codes == [127], pilot)
+        assert app.query_one(PtyTerminal).finished_code == 127
+        app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+async def test_sigpipe_restored_for_shell_pipeline() -> None:
+    app = _PtyHarness(["bash", "-c", "yes | head -n 3; printf 'PIPELINE_OK\\n'"])
+    async with app.run_test(size=(80, 24)) as pilot:
+        terminal = app.query_one(PtyTerminal)
+        await _wait_until(lambda: "PIPELINE_OK" in _visible_text(terminal), pilot)
+        text = _visible_text(terminal)
+        assert "Broken pipe" not in text
+        assert "y" in text
+        app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+async def test_decckm_arrows_are_forwarded_from_widget(tmp_path: Path) -> None:
+    marker = tmp_path / "keys.bin"
+    child = f"""
+import os, sys, tty
+sys.stdout.write("\\x1b[?1hREADY\\n")
+sys.stdout.flush()
+tty.setraw(0)
+data = os.read(0, 20)
+open({str(marker)!r}, "wb").write(data)
+"""
+    app = _PtyHarness([sys.executable, "-c", child])
+    async with app.run_test(size=(80, 24)) as pilot:
+        terminal = app.query_one(PtyTerminal)
+        terminal.focus()
+        await _wait_until(lambda: "READY" in _visible_text(terminal), pilot)
+        await _wait_until(
+            lambda: terminal._emulator is not None and (1 << 5) in terminal._emulator.mode,
+            pilot,
+        )
+        modes = terminal._emulator.mode if terminal._emulator is not None else set()
+        payload = key_to_bytes(Key("up", character=None), modes=modes)
+        assert payload == b"\x1bOA"
+        terminal.write(payload)
+        await _wait_until(lambda: marker.exists(), pilot)
+        assert marker.read_bytes() == b"\x1bOA"
+        app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+async def test_child_closing_tty_is_reaped_without_blocking(tmp_path: Path) -> None:
+    marker = tmp_path / "closed.txt"
+    child = f"""
+import os, sys, time, pathlib
+sys.stdout.write("CLOSING\\n")
+sys.stdout.flush()
+pathlib.Path({str(marker)!r}).write_text("closed")
+os.close(0)
+os.close(1)
+os.close(2)
+time.sleep(30)
+"""
+    app = _PtyHarness([sys.executable, "-c", child])
+    async with app.run_test(size=(80, 24)) as pilot:
+        terminal = app.query_one(PtyTerminal)
+        await _wait_until(lambda: marker.exists(), pilot)
+        await _wait_until(lambda: len(app.finished_codes) == 1, pilot)
+        assert terminal.finished_code is not None
+        # Child closed the tty but kept running; grace then SIGHUP/SIGKILL.
+        assert terminal.finished_code < 0
+        assert "CLOSING" in _visible_text(terminal)
+        assert terminal.pid is None
         app.exit()
 
 
@@ -251,7 +366,6 @@ async def test_write_and_restart_replace_running_child() -> None:
         terminal = app.query_one(PtyTerminal)
         terminal.focus()
         await _wait_until(lambda: terminal.pid is not None, pilot)
-        await pilot.pause(0.1)
         await pilot.press("p", "i", "n", "g", "enter")
         await _wait_until(lambda: "ping" in _visible_text(terminal), pilot)
         old_pid = terminal.pid
@@ -261,8 +375,58 @@ async def test_write_and_restart_replace_running_child() -> None:
         terminal.restart()
         await _wait_until(lambda: terminal.pid is not None and terminal.pid != old_pid, pilot)
         assert terminal.pid != old_pid
+        assert terminal.finished_code is None
         with pytest.raises(ProcessLookupError):
             os.kill(old_pid, 0)
+        app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+async def test_restart_after_exit_keeps_working() -> None:
+    app = _PtyHarness(["bash", "-c", "printf 'FIRST\\n'; exit 0"])
+    async with app.run_test(size=(80, 24)) as pilot:
+        terminal = app.query_one(PtyTerminal)
+        await _wait_until(lambda: app.finished_codes == [0], pilot)
+        assert "FIRST" in _visible_text(terminal)
+        terminal.restart()
+        await _wait_until(
+            lambda: terminal.pid is not None and terminal.finished_code is None,
+            pilot,
+        )
+        # Same argv runs again and finishes.
+        await _wait_until(lambda: terminal.finished_code == 0, pilot)
+        assert "FIRST" in _visible_text(terminal)
+        app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+async def test_zero_content_size_clamps_emulator_to_one_by_one() -> None:
+    class TinyHarness(App[None]):
+        CSS = "PtyTerminal { width: 1; height: 1; min-width: 0; min-height: 0; }"
+
+        @override
+        def compose(self) -> ComposeResult:
+            yield PtyTerminal(["bash", "-c", "sleep 1"], env=default_pty_environment(), id="pty")
+
+    app = TinyHarness()
+    async with app.run_test(size=(2, 2)) as pilot:
+        terminal = app.query_one(PtyTerminal)
+        await _wait_until(lambda: terminal._emulator is not None, pilot)
+        terminal._apply_winsize()
+        await _wait_until(
+            lambda: (
+                terminal._emulator is not None
+                and terminal._emulator.columns == max(1, terminal.content_size.width)
+                and terminal._emulator.lines == max(1, terminal.content_size.height)
+            ),
+            pilot,
+        )
+        assert clamp_terminal_dimensions(0, 0) == (1, 1)
+        assert terminal._emulator is not None
+        assert terminal._emulator.columns >= 1
+        assert terminal._emulator.lines >= 1
         app.exit()
 
 

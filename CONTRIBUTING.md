@@ -144,6 +144,11 @@ machine and are not exercised in CI:
 Windows is unsupported in v1; the widget should render the placeholder instead of
 spawning a child.
 
+`pyte` (LGPL-3.0) is a dynamic runtime dependency of this MIT-licensed project; it is
+not vendored or statically linked. PTY throughput is about 130 KB/s with the current
+reader loop (a 5 MB flood takes on the order of a minute) while the Textual UI stays
+responsive — each ready callback drains multiple large chunks up to a per-tick bound.
+
 ## Dependency audits
 
 `pip-audit` runs in CI against the synced development environment:

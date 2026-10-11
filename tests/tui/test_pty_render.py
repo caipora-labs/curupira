@@ -28,3 +28,20 @@ def test_render_emulator_applies_sgr_truecolor_reverse_and_cursor() -> None:
 
     cursor_cell = rendered.get_style_at_offset(console, 2)
     assert cursor_cell.reverse
+
+
+def test_cursor_toggles_reverse_on_reverse_video_cell() -> None:
+    emulator = pyte.Screen(4, 1)
+    stream = pyte.ByteStream(emulator)
+    stream.feed(b"\x1b[7mZ")
+    # Cursor rests on the reverse-video cell.
+    emulator.cursor.x = 0
+    emulator.cursor.y = 0
+
+    without_cursor = render_emulator(emulator, show_cursor=False)
+    with_cursor = render_emulator(emulator, show_cursor=True)
+    console = Console(force_terminal=True, color_system="truecolor")
+
+    assert without_cursor.get_style_at_offset(console, 0).reverse
+    # Toggling reverse makes the cursor visible on an already-reversed cell.
+    assert not with_cursor.get_style_at_offset(console, 0).reverse

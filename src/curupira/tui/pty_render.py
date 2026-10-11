@@ -67,6 +67,7 @@ def render_emulator(
             char = row[column_index]
             style = _char_style(char)
             if show_cursor and row_index == cursor_y and column_index == cursor_x:
-                style = style + Style(reverse=True)
+                # Toggle reverse so the cursor stays visible on reverse-video cells.
+                style = style + Style(reverse=not bool(style.reverse))
             output.append(char.data, style=style)
     return output

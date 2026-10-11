@@ -11,6 +11,11 @@ The child is spawned with ``pty.fork`` (session leader), driven by asyncio
 ``add_reader`` on the master fd, and emulated with ``pyte``. PTY bytes are never
 logged. Process lifecycle cleanup runs in ``on_unmount`` (the App's teardown is
 too late for reliable reaping) with an ``atexit`` safety net.
+
+``pyte`` is LGPL-3.0 and is used as a dynamic dependency of this MIT-licensed
+project. Throughput with the current reader loop is about 130 KB/s (a 5 MB flood
+takes on the order of a minute) while the UI stays responsive; each ready
+callback drains multiple large chunks up to a per-tick bound.
 """
 
 from __future__ import annotations
@@ -48,15 +53,21 @@ from curupira.tui.pty_render import render_emulator
 logger = logging.getLogger(__name__)
 
 _DEFAULT_ENV_KEYS: tuple[str, ...] = ("PATH", "HOME", "LANG", "USER", "SHELL")
-_DEFAULT_COLUMNS = 80
-_DEFAULT_LINES = 24
 _DEFAULT_SCROLLBACK = 5_000
 _REFRESH_INTERVAL_SECONDS = 1.0 / 30.0
 _KILL_GRACE_SECONDS = 0.1
-_READ_CHUNK_BYTES = 16_384
+_NATURAL_EXIT_GRACE_SECONDS = 0.05
+_SIGHUP_GRACE_SECONDS = 0.1
+_READ_CHUNK_BYTES = 65_536
+_MAX_READ_BYTES_PER_TICK = 512_000
 _UNSUPPORTED_MESSAGE = "PTY terminals are not supported on Windows in v1."
 _LIVE_TERMINALS: weakref.WeakSet[PtyTerminal] = weakref.WeakSet()
 _ATEXIT_REGISTERED = False
+_CHILD_RESET_SIGNALS: tuple[signal.Signals, ...] = (
+    signal.SIGPIPE,
+    signal.SIGINT,
+    signal.SIGQUIT,
+)
 
 
 def default_pty_environment() -> dict[str, str]:
@@ -71,6 +82,11 @@ def default_pty_environment() -> dict[str, str]:
     environment["TERM"] = "xterm-256color"
     environment["COLORTERM"] = "truecolor"
     return environment
+
+
+def clamp_terminal_dimensions(width: int, height: int) -> tuple[int, int]:
+    """Clamp PTY columns/rows to at least 1x1 (including a zero content size)."""
+    return max(1, width), max(1, height)
 
 
 def _posix_supported() -> bool:
@@ -91,6 +107,13 @@ def _ensure_atexit() -> None:
         return
     atexit.register(_atexit_cleanup)
     _ATEXIT_REGISTERED = True
+
+
+def _reset_child_signals() -> None:
+    """Restore signals Python ignores so pipeline children receive SIGPIPE."""
+    for sig in _CHILD_RESET_SIGNALS:
+        with contextlib.suppress(OSError, ValueError, AttributeError):
+            signal.signal(sig, signal.SIG_DFL)
 
 
 class _EmulatorScreen(pyte.HistoryScreen):
@@ -207,6 +230,7 @@ class PtyTerminal(Widget, can_focus=True):
         self._render_dirty = False
         self._reader_installed = False
         self._shutting_down = False
+        self._reap_task: asyncio.Task[None] | None = None
         self._placeholder = Text(_UNSUPPORTED_MESSAGE)
         self._bindings.bind(
             escape_key,
@@ -228,12 +252,17 @@ class PtyTerminal(Widget, can_focus=True):
 
     @override
     def render(self) -> RenderResult:
-        """Render the emulated terminal buffer or the Windows placeholder."""
-        if not self._supported or self._emulator is None:
+        """Render the emulated buffer, optional exit footer, or placeholder."""
+        if not self._supported:
+            return self._placeholder
+        if self._emulator is None:
             return self._placeholder
         cursor_visible = pyte_modes.DECTCEM in self._emulator.mode
-        show_cursor = self.has_focus and cursor_visible
-        return render_emulator(self._emulator, show_cursor=show_cursor)
+        show_cursor = self.has_focus and cursor_visible and self.finished_code is None
+        output = render_emulator(self._emulator, show_cursor=show_cursor)
+        if self.finished_code is not None:
+            output.append(f"\nProcess exited ({self.finished_code})", style="bold")
+        return output
 
     def write(self, data: bytes | str) -> None:
         """Write bytes (or UTF-8 text) to the PTY master.
@@ -267,8 +296,9 @@ class PtyTerminal(Widget, can_focus=True):
             return
         _ensure_atexit()
         _LIVE_TERMINALS.add(self)
-        self._spawn()
-        self.call_after_refresh(self._apply_winsize)
+        # Spawn after the first layout pass so the child does not start at a
+        # transient 1x1 content size that scrolls early output out of view.
+        self.call_after_refresh(self._spawn_after_layout)
         self.set_interval(_REFRESH_INTERVAL_SECONDS, self._flush_if_dirty, name="pty-refresh")
 
     def on_unmount(self) -> None:
@@ -287,7 +317,8 @@ class PtyTerminal(Widget, can_focus=True):
             return
         if event.key == self._escape_key:
             return
-        payload = key_to_bytes(event)
+        modes = self._emulator.mode if self._emulator is not None else set()
+        payload = key_to_bytes(event, modes=modes)
         if payload is None:
             return
         event.stop()
@@ -303,10 +334,17 @@ class PtyTerminal(Widget, can_focus=True):
         bracketed = bracketed_paste_enabled(self._emulator.mode)
         self._write_master(paste_to_bytes(event.text, bracketed=bracketed))
 
+    def _spawn_after_layout(self) -> None:
+        """Spawn once the widget has a laid-out content size."""
+        if self._pid is not None or self._emulator is not None:
+            return
+        self._spawn()
+
     def _spawn(self) -> None:
         """Fork a PTY session and exec ``argv`` in the child."""
         import pty
 
+        self._cancel_reap_task()
         self._shutting_down = False
         columns, lines = self._content_dimensions()
         self._emulator = _EmulatorScreen(
@@ -330,15 +368,18 @@ class PtyTerminal(Widget, can_focus=True):
         self._install_reader()
 
     def _child_exec(self) -> None:
-        """Run inside the forked child: reset env and exec ``argv``."""
-        if self._cwd is not None:
-            os.chdir(self._cwd)
-        os.environ.clear()
-        os.environ.update(self._env)
+        """Run inside the forked child: reset signals/env and exec ``argv``."""
         try:
+            _reset_child_signals()
+            if self._cwd is not None:
+                os.chdir(self._cwd)
+            os.environ.clear()
+            os.environ.update(self._env)
             os.execvp(self._argv[0], list(self._argv))
-        except OSError:
+        except Exception:
+            # Child must never unwind into the parent Textual process.
             os._exit(127)
+        os._exit(127)
 
     def _install_reader(self) -> None:
         """Register the master fd with the asyncio event loop."""
@@ -360,18 +401,65 @@ class PtyTerminal(Widget, can_focus=True):
         """Drain the master fd into pyte when the kernel signals readiness."""
         if self._master_fd is None or self._stream is None:
             return
-        try:
-            chunk = os.read(self._master_fd, _READ_CHUNK_BYTES)
-        except OSError as error:
-            if error.errno in {errno.EAGAIN, errno.EWOULDBLOCK, errno.EINTR}:
+        total = 0
+        while total < _MAX_READ_BYTES_PER_TICK:
+            try:
+                chunk = os.read(self._master_fd, _READ_CHUNK_BYTES)
+            except OSError as error:
+                if error.errno in {errno.EAGAIN, errno.EWOULDBLOCK, errno.EINTR}:
+                    break
+                self._on_master_closed()
                 return
-            self._handle_child_exit()
+            if not chunk:
+                self._on_master_closed()
+                return
+            self._stream.feed(chunk)
+            total += len(chunk)
+        if total:
+            self._render_dirty = True
+
+    def _on_master_closed(self) -> None:
+        """Handle EOF/EIO without blocking: close the master and reap async."""
+        if self._shutting_down:
             return
-        if not chunk:
-            self._handle_child_exit()
+        self._shutting_down = True
+        self._remove_reader()
+        master_fd = self._master_fd
+        self._master_fd = None
+        if master_fd is not None:
+            with contextlib.suppress(OSError):
+                os.close(master_fd)
+        self._reap_task = asyncio.create_task(self._reap_after_master_closed())
+
+    async def _reap_after_master_closed(self) -> None:
+        """Poll for a natural exit, then escalate SIGHUP and SIGKILL."""
+        pid = self._pid
+        if pid is None:
             return
-        self._stream.feed(chunk)
+        exit_code = await self._poll_exit(pid, _NATURAL_EXIT_GRACE_SECONDS)
+        if exit_code is None:
+            self._signal_group(pid, signal.SIGHUP)
+            exit_code = await self._poll_exit(pid, _SIGHUP_GRACE_SECONDS)
+        if exit_code is None:
+            self._signal_group(pid, signal.SIGKILL)
+            exit_code = await self._poll_exit(pid, _KILL_GRACE_SECONDS)
+        if exit_code is None:
+            exit_code = -1
+        self._pid = None
+        self.finished_code = exit_code
+        self.post_message(self.Finished(exit_code))
         self._render_dirty = True
+
+    async def _poll_exit(self, pid: int, grace_seconds: float) -> int | None:
+        """Poll ``waitpid(WNOHANG)`` until the child exits or grace elapses."""
+        deadline = time.monotonic() + grace_seconds
+        while True:
+            reaped = self._try_reap(pid)
+            if reaped is not None:
+                return reaped
+            if time.monotonic() >= deadline:
+                return None
+            await asyncio.sleep(0.01)
 
     def _flush_if_dirty(self) -> None:
         """Refresh the widget at most ~30 fps when the emulator changed."""
@@ -383,9 +471,7 @@ class PtyTerminal(Widget, can_focus=True):
     def _content_dimensions(self) -> tuple[int, int]:
         """Return columns and rows from the border-exclusive content size."""
         size = self.content_size
-        columns = max(1, size.width or _DEFAULT_COLUMNS)
-        lines = max(1, size.height or _DEFAULT_LINES)
-        return columns, lines
+        return clamp_terminal_dimensions(size.width, size.height)
 
     def _apply_winsize(self) -> None:
         """Resize pyte and push ``TIOCSWINSZ`` / ``SIGWINCH`` to the child."""
@@ -419,18 +505,18 @@ class PtyTerminal(Widget, can_focus=True):
                 return
             view = view[written:]
 
-    def _handle_child_exit(self) -> None:
-        """Reap a child that closed the master and publish ``Finished``."""
-        if self._shutting_down:
-            return
-        exit_code = self._shutdown_child(grace_seconds=0.0)
-        self.finished_code = exit_code
-        self.post_message(self.Finished(exit_code))
-        self._placeholder = Text(f"Process exited ({exit_code})")
-        self._render_dirty = True
+    def _cancel_reap_task(self) -> None:
+        """Cancel an in-flight async reap when forcing shutdown or restart."""
+        task = self._reap_task
+        self._reap_task = None
+        if task is not None and not task.done():
+            task.cancel()
 
     def _shutdown_child(self, *, grace_seconds: float) -> int:
-        """Close the master, signal the process group, and wait for reaping.
+        """Force-close the master, signal the process group, and reap.
+
+        Used for unmount, restart, and atexit. Natural EOF uses the async
+        reap path instead so a normal exit code is not replaced by SIGKILL.
 
         Args:
             grace_seconds: Delay between ``SIGHUP`` and ``SIGKILL``.
@@ -438,6 +524,7 @@ class PtyTerminal(Widget, can_focus=True):
         Returns:
             Exit code when known, otherwise ``-1``.
         """
+        self._cancel_reap_task()
         self._shutting_down = True
         self._remove_reader()
         master_fd = self._master_fd
@@ -464,7 +551,7 @@ class PtyTerminal(Widget, can_focus=True):
                 if reaped is not None:
                     exit_code = reaped
         self._pid = None
-        self._emulator = None
+        # Keep the last screen for display; restart replaces the emulator.
         self._stream = None
         return exit_code
 
