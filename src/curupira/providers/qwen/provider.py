@@ -12,18 +12,28 @@ from curupira.models import CliProfileBase, CodingTaskRequest
 
 
 class QwenCodeCliProfile(CliProfileBase):
-    """Options supported by the Qwen Code CLI.
+    """Qwen Code CLI profile. Set ``provider`` to ``\"qwen\"`` in TOML."""
 
-    Attributes:
-        provider: Discriminator identifying the Qwen Code CLI.
-        model: Optional Qwen Code model identifier.
-        approval_mode: Optional native approval policy.
-        max_session_turns: Optional maximum number of turns for one session.
-    """
-
-    provider: Literal["qwen"] = "qwen"
-    approval_mode: Literal["plan", "default", "auto-edit", "auto", "yolo"] | None = None
-    max_session_turns: Annotated[int, Field(strict=True, ge=1)] | None = None
+    provider: Literal["qwen"] = Field(
+        default="qwen",
+        description='Discriminator identifying the Qwen Code CLI. Must be "qwen".',
+    )
+    approval_mode: Literal["plan", "default", "auto-edit", "auto", "yolo"] | None = Field(
+        default=None,
+        description=(
+            "Optional Qwen Code approval policy. Allowed values: plan, default, "
+            "auto-edit, auto, yolo. When set, the adapter passes ``--approval-mode``; "
+            "when unset, that flag is omitted."
+        ),
+    )
+    max_session_turns: Annotated[int, Field(strict=True, ge=1)] | None = Field(
+        default=None,
+        description=(
+            "Optional maximum number of turns for one session. Must be an integer "
+            "greater than or equal to 1. When set, the adapter passes "
+            "``--max-session-turns``; when unset, that flag is omitted."
+        ),
+    )
 
 
 class QwenCodeCliAdapter(CodingAgentCliAdapter):

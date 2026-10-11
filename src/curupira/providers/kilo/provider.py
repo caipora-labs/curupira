@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from curupira.agents.base import CodingAgentCliAdapter
 from curupira.hooks import hookimpl
@@ -13,19 +13,36 @@ from curupira.models.profiles import CliProfileBase
 
 
 class KiloCliProfile(CliProfileBase):
-    """Kilo options, including native custom-agent and reasoning-variant selection.
+    """Kilo CLI profile. Set ``provider`` to ``\"kilo\"`` in TOML.
 
-    Attributes:
-        provider: Discriminator identifying the Kilo CLI.
-        agent: Optional configured Kilo agent name.
-        effort: Optional provider-specific reasoning variant.
-        auto_approve: Whether Kilo auto-approves permissions not explicitly denied.
+    When ``model`` is set it must use the ``provider/model`` format.
     """
 
-    provider: Literal["kilo"] = "kilo"
-    agent: NonEmptyString | None = None
-    effort: NonEmptyString | None = None
-    auto_approve: bool = False
+    provider: Literal["kilo"] = Field(
+        default="kilo",
+        description='Discriminator identifying the Kilo CLI. Must be "kilo".',
+    )
+    agent: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional configured Kilo agent name. When set, the adapter passes "
+            "``--agent``; when unset, that flag is omitted."
+        ),
+    )
+    effort: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional Kilo reasoning variant. When set, the adapter passes "
+            "``--variant``; when unset, that flag is omitted."
+        ),
+    )
+    auto_approve: bool = Field(
+        default=False,
+        description=(
+            "When true, the adapter adds ``--auto``. When false (the default), that "
+            "flag is omitted."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_model_format(self) -> "KiloCliProfile":

@@ -2,40 +2,64 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BeforeValidator, SerializeAsAny, model_validator
+from pydantic import BeforeValidator, Field, SerializeAsAny, model_validator
 
 from curupira.models.base import NonEmptyString, ValidatedModel
 
 
 class CliProfileBase(ValidatedModel):
-    """Options common to every supported CLI.
+    """Options common to every supported coding-agent CLI profile.
 
     Agent plugins extend this model and give ``provider`` a default equal to their
-    registered provider.
-
-    Attributes:
-        provider: Registered coding-agent provider selecting the profile model.
-        model: Optional provider-specific model identifier.
+    registered provider name.
     """
 
-    provider: NonEmptyString
-    model: NonEmptyString | None = None
+    provider: NonEmptyString = Field(
+        description=(
+            "Registered coding-agent provider name that selects which profile model "
+            "and adapter Curupira uses for this profile table."
+        ),
+    )
+    model: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional provider-specific model identifier. When set, built-in adapters "
+            "pass it as ``--model``; when unset, that flag is omitted."
+        ),
+    )
 
 
 class OpenCodeCliProfile(CliProfileBase):
-    """OpenCode options, including native custom-agent selection.
+    """OpenCode CLI profile. Set ``provider`` to ``\"opencode\"`` in TOML.
 
-    Attributes:
-        provider: Discriminator identifying the OpenCode CLI.
-        agent: Optional configured OpenCode agent name.
-        effort: Optional provider-specific effort level.
-        auto_approve: Whether OpenCode runs with approval prompts disabled.
+    When ``model`` is set it must use the ``provider/model`` format.
     """
 
-    provider: Literal["opencode"] = "opencode"
-    agent: NonEmptyString | None = None
-    effort: NonEmptyString | None = None
-    auto_approve: bool = False
+    provider: Literal["opencode"] = Field(
+        default="opencode",
+        description='Discriminator identifying the OpenCode CLI. Must be "opencode".',
+    )
+    agent: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional configured OpenCode agent name. When set, the adapter passes "
+            "``--agent``; when unset, that flag is omitted."
+        ),
+    )
+    effort: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional OpenCode reasoning variant. When set, the adapter passes "
+            "``--variant``; when unset, that flag is omitted."
+        ),
+    )
+    auto_approve: bool = Field(
+        default=False,
+        description=(
+            "When true, the adapter adds ``--auto`` so OpenCode runs with approval "
+            "prompts disabled. When false (the default), that flag is omitted."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_model_format(self) -> "OpenCodeCliProfile":
@@ -46,21 +70,43 @@ class OpenCodeCliProfile(CliProfileBase):
 
 
 class CodexCliProfile(CliProfileBase):
-    """Codex options, including selection of an existing CLI configuration profile.
+    """Codex CLI profile. Set ``provider`` to ``\"codex\"`` in TOML."""
 
-    Attributes:
-        provider: Discriminator identifying the Codex CLI.
-        agent: Optional configured Codex agent name.
-        effort: Optional Codex reasoning effort.
-        sandbox: Optional Codex sandbox permission level.
-        auto_review: Whether Codex should review changes automatically.
-    """
-
-    provider: Literal["codex"] = "codex"
-    agent: NonEmptyString | None = None
-    effort: Literal["low", "medium", "high", "xhigh", "max", "ultra"] | None = None
-    sandbox: Literal["read-only", "workspace-write", "danger-full-access"] | None = None
-    auto_review: bool = False
+    provider: Literal["codex"] = Field(
+        default="codex",
+        description='Discriminator identifying the Codex CLI. Must be "codex".',
+    )
+    agent: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional configured Codex CLI configuration profile name. When set, the "
+            "adapter passes ``--profile``; when unset, that flag is omitted."
+        ),
+    )
+    effort: Literal["low", "medium", "high", "xhigh", "max", "ultra"] | None = Field(
+        default=None,
+        description=(
+            "Optional Codex reasoning effort. Allowed values: low, medium, high, "
+            "xhigh, max, ultra. When set, the adapter passes "
+            "``--config model_reasoning_effort=<json>``; when unset, that flag is omitted."
+        ),
+    )
+    sandbox: Literal["read-only", "workspace-write", "danger-full-access"] | None = Field(
+        default=None,
+        description=(
+            "Optional Codex sandbox permission level. Allowed values: read-only, "
+            "workspace-write, danger-full-access. When set, the adapter passes "
+            "``--sandbox``; when unset, that flag is omitted."
+        ),
+    )
+    auto_review: bool = Field(
+        default=False,
+        description=(
+            'When true, the adapter adds ``--config approval_policy="on-request"`` and '
+            '``--config approvals_reviewer="auto_review"``. Requires ``sandbox`` to be '
+            "unset or ``workspace-write``. When false (the default), those flags are omitted."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_approval_options(self) -> "CodexCliProfile":
@@ -71,39 +117,75 @@ class CodexCliProfile(CliProfileBase):
 
 
 class ClaudeCodeCliProfile(CliProfileBase):
-    """Claude Code options, including native custom-agent selection.
+    """Claude Code CLI profile. Set ``provider`` to ``\"claude\"`` in TOML."""
 
-    Attributes:
-        provider: Discriminator identifying the Claude Code CLI.
-        agent: Optional configured Claude Code agent name.
-        effort: Optional Claude model effort level.
-        permission_mode: Optional Claude Code permission mode.
-        permission_prompts: Whether permission prompts are handled by the host or disabled.
-    """
-
-    provider: Literal["claude"] = "claude"
-    agent: NonEmptyString | None = None
-    effort: Literal["low", "medium", "high", "xhigh", "max", "ultracode"] | None = None
+    provider: Literal["claude"] = Field(
+        default="claude",
+        description='Discriminator identifying the Claude Code CLI. Must be "claude".',
+    )
+    agent: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Optional configured Claude Code agent name. When set, the adapter passes "
+            "``--agent``; when unset, that flag is omitted."
+        ),
+    )
+    effort: Literal["low", "medium", "high", "xhigh", "max", "ultracode"] | None = Field(
+        default=None,
+        description=(
+            "Optional Claude model effort level. Allowed values: low, medium, high, "
+            "xhigh, max, ultracode. When set, the adapter passes ``--effort``; when "
+            "unset, that flag is omitted."
+        ),
+    )
     permission_mode: (
         Literal["default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"] | None
-    ) = None
-    permission_prompts: Literal["host", "none"] | None = None
+    ) = Field(
+        default=None,
+        description=(
+            "Optional Claude Code permission mode. Allowed values: default, acceptEdits, "
+            "plan, auto, dontAsk, bypassPermissions. When set, the adapter passes "
+            "``--permission-mode``; when unset, that flag is omitted."
+        ),
+    )
+    permission_prompts: Literal["host", "none"] | None = Field(
+        default=None,
+        description=(
+            "Optional Claude Code permission-prompt handling. Allowed values: host, none. "
+            "When set, the adapter passes ``--permission-prompts``; when unset, that flag "
+            "is omitted."
+        ),
+    )
 
 
 class CursorCliProfile(CliProfileBase):
-    """Cursor options, including native agent/ask/plan mode selection.
+    """Cursor CLI profile. Set ``provider`` to ``\"cursor\"`` in TOML."""
 
-    Attributes:
-        provider: Discriminator identifying the Cursor CLI.
-        agent: Optional Cursor execution mode.
-        force: Whether to force execution in a non-interactive environment.
-        trust: Whether to trust the current workspace.
-    """
-
-    provider: Literal["cursor"] = "cursor"
-    agent: Literal["agent", "ask", "plan"] | None = None
-    force: bool = False
-    trust: bool = False
+    provider: Literal["cursor"] = Field(
+        default="cursor",
+        description='Discriminator identifying the Cursor CLI. Must be "cursor".',
+    )
+    agent: Literal["agent", "ask", "plan"] | None = Field(
+        default=None,
+        description=(
+            "Optional Cursor execution mode. Allowed values: agent, ask, plan. When set, "
+            "the adapter passes ``--mode``; when unset, that flag is omitted."
+        ),
+    )
+    force: bool = Field(
+        default=False,
+        description=(
+            "When true, the adapter adds ``--force``. When false (the default), that flag "
+            "is omitted."
+        ),
+    )
+    trust: bool = Field(
+        default=False,
+        description=(
+            "When true, the adapter adds ``--trust``. When false (the default), that flag "
+            "is omitted."
+        ),
+    )
 
 
 def parse_cli_profile(value: object) -> object:

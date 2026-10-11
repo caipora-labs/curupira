@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from typing_extensions import override
 
 from curupira.agents.base import CodingAgentCliAdapter
@@ -12,18 +12,27 @@ from curupira.models import CliProfileBase, CodingTaskRequest
 
 
 class GeminiCliProfile(CliProfileBase):
-    """Gemini CLI options that Curupira maps to native command-line flags.
+    """Gemini CLI profile. Set ``provider`` to ``\"gemini\"`` in TOML."""
 
-    Attributes:
-        provider: Discriminator identifying the Gemini CLI.
-        model: Optional Gemini model identifier, inherited from the base profile.
-        approval_mode: Optional native Gemini approval policy.
-        skip_trust: Whether to trust the current workspace for this session.
-    """
-
-    provider: Literal["gemini"] = "gemini"
-    approval_mode: Literal["default", "auto_edit", "yolo", "plan"] | None = None
-    skip_trust: bool = False
+    provider: Literal["gemini"] = Field(
+        default="gemini",
+        description='Discriminator identifying the Gemini CLI. Must be "gemini".',
+    )
+    approval_mode: Literal["default", "auto_edit", "yolo", "plan"] | None = Field(
+        default=None,
+        description=(
+            "Optional Gemini approval policy. Allowed values: default, auto_edit, yolo, "
+            "plan. When set, the adapter passes ``--approval-mode``; when unset, that "
+            "flag is omitted."
+        ),
+    )
+    skip_trust: bool = Field(
+        default=False,
+        description=(
+            "When true, the adapter adds ``--skip-trust``. When false (the default), "
+            "that flag is omitted."
+        ),
+    )
 
 
 class _GeminiStreamEvent(BaseModel):

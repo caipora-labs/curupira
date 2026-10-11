@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Documentation
+
+- Coding-agent CLI profile models (`CliProfileBase` and every registered provider
+  profile) document each field with `Field(description=...)` derived from the adapter
+  argument mapping, so schema-driven CLI docs can read descriptions without duplicating
+  class-docstring `Attributes:` blocks.
+
 ### Changed
 
 - **Breaking:** configuration splits into `[repositories.<alias>]`, `[agents.*]`, and
@@ -98,6 +105,10 @@ All notable changes to this project are documented here. The format follows
   `Field(description=...)` on every field (and keep a short class docstring naming the
   TOML table) so generated CLI/config help can read descriptions from the Pydantic
   schema without duplicating an `Attributes:` block.
+- Added a GitHub task source guide (`docs/en/github.md`) covering issue and pull-request
+  triggers, prerequisites and token scopes, configuration field defaults, selection and
+  deduplication, prompt placeholders, worktrees, and common errors. The README GitHub
+  sections now summarize and link to that page.
 - Removed the README "Trello listener" section, which described a `trello-cli` trigger
   that Curupira does not ship; the README now points to trigger plugins instead.
 - Each coding-agent provider has its own page under "Providers and agents". The provider
