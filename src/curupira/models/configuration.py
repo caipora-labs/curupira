@@ -439,6 +439,28 @@ class AgentsSettings(ValidatedModel):
 CodingAgentsSettings = AgentsSettings
 
 
+class AssistantSettings(ValidatedModel):
+    """Preferred coding-agent CLI and model for the interactive configuration assistant."""
+
+    agent: Identifier | None = Field(
+        default=None,
+        description=(
+            "Registered coding-agent provider that runs the configuration assistant "
+            "(for example ``cursor`` or ``claude``). Defaults to unset until the user "
+            "chooses a provider; when set, must match a name from the agent registry."
+        ),
+    )
+    model: NonEmptyString | None = Field(
+        default=None,
+        description=(
+            "Model identifier passed to the assistant's CLI. Defaults to unset, which "
+            "selects the provider's native automatic model when the adapter declares "
+            "``auto_model``, otherwise omits the model flag so the CLI uses its own "
+            "default. The literal ``auto`` is allowed only for providers with native auto."
+        ),
+    )
+
+
 def normalize_date(value: datetime | None, timezone: ZoneInfo) -> datetime | None:
     """Interpret naive schedule-window dates in the effective timezone."""
     if value is None:

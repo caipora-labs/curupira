@@ -46,6 +46,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Optional `[assistant]` configuration (`AssistantSettings`) for the interactive
+  configuration assistant: `agent` (registered coding-agent provider) and `model`.
+  Adapters may declare `auto_model` when their CLI documents native automatic model
+  selection (Cursor sets `auto_model = "auto"`); `resolve_assistant_model` maps an
+  unset or literal `auto` request onto that capability, and `validate` rejects
+  `assistant.model = "auto"` for providers without it.
 - Packaging guard (`scripts/check_packaged_readme.py`) that builds the sdist and
   wheel, fails when the packaged README or metadata long description contains
   `opscli` (case-insensitive; retired OpsCli branding must not ship on PyPI), and

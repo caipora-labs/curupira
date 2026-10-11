@@ -15,6 +15,11 @@ class CursorCliAdapter(CodingAgentCliAdapter):
     profile_model = CursorCliProfile
     display_name = "Cursor"
     install_url = "https://docs.cursor.com/en/cli/overview"
+    # Cursor's CLI accepts ``--model <model>`` (passed below) and documents Auto as a
+    # selectable model via ``--model`` / ``/model``; see
+    # https://cursor.com/docs/cli/reference/parameters and
+    # https://cursor.com/docs/cli/changelog ("switch anytime with `/model` or `--model`").
+    auto_model = "auto"
 
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
         """Build a headless invocation with native mode and permission overrides."""

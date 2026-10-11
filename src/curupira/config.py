@@ -16,6 +16,7 @@ from typing_extensions import override
 
 from curupira.models import (
     AgentsSettings,
+    AssistantSettings,
     CronAutomationConfiguration,
     ExecutionSettings,
     ResolvedAutomation,
@@ -38,10 +39,19 @@ class ApplicationSettings(BaseSettings):
     repositories: dict[Identifier, RepositoryConfiguration] = Field(min_length=1)
     agents: AgentsSettings
     automations: dict[Identifier, AutomationConfiguration] = Field(min_length=1)
+    assistant: AssistantSettings = Field(
+        default_factory=AssistantSettings,
+        description=(
+            "Interactive configuration assistant preferences. When the TOML omits "
+            "``[assistant]``, both agent and model stay unset."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_cross_references(self) -> "ApplicationSettings":
         """Validate automation references, prompts, cron windows, and workspace ownership."""
+        from curupira.agents.assistant import resolve_assistant_model
+        from curupira.agents.registry import registered
         from curupira.tasks.registry import get
 
         defaults = self.agents.defaults
@@ -73,6 +83,16 @@ class ApplicationSettings(BaseSettings):
             previous = paths.setdefault(workspace, automation.repository)
             if previous != automation.repository:
                 raise ValueError("different repositories cannot share a workspace path")
+        if self.assistant.agent is not None:
+            adapters = registered()
+            adapter = adapters.get(self.assistant.agent)
+            if adapter is None:
+                available = ", ".join(sorted(adapters))
+                raise ValueError(
+                    f"assistant.agent {self.assistant.agent!r} is not a registered coding "
+                    f"agent provider; registered providers: {available}"
+                )
+            resolve_assistant_model(adapter, self.assistant.model)
         return self
 
     def resolve_automations(self) -> dict[str, ResolvedAutomation]:

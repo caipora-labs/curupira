@@ -32,6 +32,8 @@ than maintaining a parallel field table here.
 
 ::: curupira.models.configuration.AgentsSettings
 
+::: curupira.models.configuration.AssistantSettings
+
 ::: curupira.models.configuration.IssueAutomationConfiguration
 
 ::: curupira.models.configuration.PullRequestAutomationConfiguration
@@ -99,6 +101,19 @@ Each profile's `provider` selects a registered coding agent: `claude`, `codex`, 
 `cursor`, `gemini`, `opencode`, `pi`, or `qwen`, plus any provider added by an installed
 [agent plugin](plugins.md#agent-plugins). `curu plugins list` shows every available
 provider and its executable.
+
+## Assistant
+
+`[assistant]` is optional. It records which registered coding-agent provider should run
+the interactive configuration assistant and which model that CLI should use:
+
+- `agent`: a provider name from the agent registry (the same identifiers used in profile
+  `provider` values). Leave unset until you choose one.
+- `model`: a concrete model id, or omit it to prefer the provider's native automatic
+  selection when the adapter declares `auto_model` (Cursor documents `--model auto`).
+  The literal `auto` is rejected for providers without that capability.
+
+Existing TOML files without `[assistant]` keep the unset defaults.
 
 ## Repositories
 
