@@ -47,6 +47,19 @@ CI's "Build and smoke-test distributions" job runs the same script before the in
 smoke test. Use `--no-build` to check an existing `dist/` directory, or `--no-twine` to
 skip the Twine step.
 
+## Built-in GitHub triggers
+
+GitHub issue and pull-request discovery lives under
+`src/curupira/providers/github/` (`issues.py`, `pull_requests.py`). Compatibility
+re-exports keep `curupira.tasks.github_issues` and
+`curupira.tasks.github_pull_requests` import paths working. Typed filter models are
+`IssueAutomationConfiguration` and `PullRequestAutomationConfiguration` in
+`src/curupira/models/configuration.py`. Search qualifiers are compiled in
+`src/curupira/clients/github_search.py`; GraphQL Search runs over `httpx` in
+`github_graphql.py`. Feeds use `PollingTaskFeed` with `[settings.polling]`
+(`PollingSettings`). Prompt placeholders come from `COMMON_PROMPT_FIELDS` plus
+`IssueItem` / `PullRequestItem` fields in `models/items.py`.
+
 ## Extending Curupira
 
 Curupira separates task discovery (`tasks/`), repository version control (`vcs/`), and
@@ -66,7 +79,9 @@ version-control provider implements `VersionControl.clone` and belongs in its ow
 issue/PR after `vcs/base.py`. A new coding-agent adapter implements
 `CodingAgentCliAdapter.build_arguments`, declares its `provider`, `profile_model`,
 `display_name`, and `install_url`, and contributes itself through the Pluggy hook
-`curupira_coding_agent_adapters` in its provider module. When its CLI reports the session
+`curupira_coding_agent_adapters` in its provider module. Set `auto_model` only when the
+CLI's official docs confirm a native automatic model value (otherwise leave the default
+`None`). When its CLI reports the session
 in a shape other than a `sessionID`, `session_id`, or `thread_id` JSON field, the adapter
 overrides `session_id_from_line`; when the CLI instead accepts a caller-chosen session ID,
 it sets `assigns_session_id = True` and passes `request.new_session_id` to the CLI. When

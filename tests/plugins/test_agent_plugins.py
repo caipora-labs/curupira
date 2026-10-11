@@ -91,6 +91,16 @@ def test_load_agent_plugins_registers_entry_points_once(install: Install) -> Non
     assert list(agent_registry.registered())[-1] == "echo"
 
 
+def test_plugin_adapters_default_auto_model_to_none(install: Install) -> None:
+    install(agent_entry_point("echo", f"{MODULE}:EchoCliAdapter"))
+
+    adapter = agent_registry.get("echo")
+
+    assert adapter is EchoCliAdapter
+    assert EchoCliAdapter.auto_model is None
+    assert "auto_model" not in EchoCliAdapter.__dict__
+
+
 def test_agent_plugins_do_not_load_trigger_entry_points(install: Install) -> None:
     install(FakeEntryPoint("echo", f"{MODULE}:EchoCliAdapter"))
 
