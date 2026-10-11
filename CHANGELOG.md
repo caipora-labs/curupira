@@ -46,6 +46,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Reusable `PtyTerminal` Textual widget (`curupira.tui.pty_terminal`) for an embedded
+  interactive PTY, intended as the building block for a future side-panel coding
+  assistant. It spawns a child with `pty.fork`, emulates the stream with `pyte`,
+  forwards keys/paste (including bracketed paste when the child enables mode 2004),
+  resizes via `content_size` + `TIOCSWINSZ`/`SIGWINCH`, and cleans up in `on_unmount`
+  (plus an `atexit` safety net). Public API: `PtyTerminal(argv, env, cwd,
+  escape_key="ctrl+g")` with `write()`, `restart()`, and a `Finished` message. Linux
+  and macOS only in v1; Windows mounts an unsupported placeholder. Not wired into the
+  orchestrator layout or configuration yet. Depends on `pyte`.
 - Packaging guard (`scripts/check_packaged_readme.py`) that builds the sdist and
   wheel, fails when the packaged README or metadata long description contains
   `opscli` (case-insensitive; retired OpsCli branding must not ship on PyPI), and

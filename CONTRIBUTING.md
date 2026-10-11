@@ -127,6 +127,23 @@ The leaf `accent` is the hover color. The dark scheme swaps the neutrals and use
 `primary` for links. The optional product accent (`#014FC9` / `#011E58`) is not
 applied on the docs theme.
 
+## PtyTerminal manual checks
+
+Automated tests cover the `PtyTerminal` widget with fake children (`bash -c`, `cat`,
+and small Python scripts) under Textual's `run_test`. The following still need a real
+machine and are not exercised in CI:
+
+- Drive a real coding-agent CLI inside the widget (Claude Code, Codex, OpenCode, or
+  Cursor) and confirm interactive input, redraw, and resize feel correct.
+- Kill the Curupira host process hard (for example `SIGKILL`) while a PTY child is
+  running and confirm whether an orphan remains; the widget's `atexit` hook cannot run
+  in that case.
+- Spot-check on macOS: `pty.fork`, window-size updates (`TIOCSWINSZ` / `SIGWINCH`), and
+  process-group cleanup.
+
+Windows is unsupported in v1; the widget should render the placeholder instead of
+spawning a child.
+
 ## Dependency audits
 
 `pip-audit` runs in CI against the synced development environment:
