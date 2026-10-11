@@ -94,6 +94,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Documentation
 
+- `ApplicationSettings`, `AgentsSettings`, and `AgentDefaults` expose non-empty
+  `Field(description=...)` text on every field (and model docstrings without
+  duplicated `Attributes:` blocks) so CLI help can read configuration docs from the
+  Pydantic schema.
 - Removed the README "Trello listener" section, which described a `trello-cli` trigger
   that Curupira does not ship; the README now points to trigger plugins instead.
 - Each coding-agent provider has its own page under "Providers and agents". The provider
