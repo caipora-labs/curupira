@@ -7,13 +7,44 @@ All notable changes to this project are documented here. The format follows
 
 ### Documentation
 
+- GitHub docs clarify token prerequisites and scopes, `repo` vs `repository`, the
+  `project:` Search qualifier (no board-column filtering), and that issue/PR title and
+  body placeholders are untrusted prompt input. Contributor-facing GitHub provider paths
+  and configuration model names moved from `docs/en/github.md` into `CONTRIBUTING.md`.
 - Coding-agent CLI profile models (`CliProfileBase` and every registered provider
   profile) document each field with `Field(description=...)` derived from the adapter
   argument mapping, so schema-driven CLI docs can read descriptions without duplicating
   class-docstring `Attributes:` blocks.
+- Automation (trigger) configuration models expose English `Field(description=...)`
+  text on every field, including shared base fields, so `model_json_schema()` can drive
+  CLI documentation without duplicating `Attributes:` blocks in class docstrings.
+- `ExecutionSettings`, `PollingSettings`, and `RepositoryConfiguration` expose
+  `Field(description=...)` on every field (and keep a short class docstring naming the
+  TOML table) so generated CLI/config help can read descriptions from the Pydantic
+  schema without duplicating an `Attributes:` block.
+- `ApplicationSettings`, `AgentsSettings`, and `AgentDefaults` expose non-empty
+  `Field(description=...)` text on every field (and model docstrings without
+  duplicated `Attributes:` blocks) so CLI help can read configuration docs from the
+  Pydantic schema.
+- Added a GitHub task source guide (`docs/en/github.md`) covering issue and pull-request
+  triggers, prerequisites and token scopes, configuration field defaults, selection and
+  deduplication, prompt placeholders, worktrees, and common errors. The README GitHub
+  sections now summarize and link to that page.
+- Removed the README "Trello listener" section, which described a `trello-cli` trigger
+  that Curupira does not ship; the README now points to trigger plugins instead.
+- Each coding-agent provider has its own page under "Providers and agents". The provider
+  table and the coding-agent CLIs in the installation requirements are generated from the
+  agent registry, so a new provider only adds its page and one nav line. The README
+  provider section now links to the documentation instead of repeating CLI arguments.
+- The provider overview lists Kilo's `auto_approve` permission override.
+- Added the GitHub Copilot CLI provider guide, including its headless permissions and
+  authentication environment-variable precedence.
 
 ### Changed
 
+- Since GraphQL Search (#163), Curupira no longer filters board items by Status (Todo);
+  `project:` is only a Search qualifier, and `state` is an explicit filter that defaults
+  to `open`.
 - **Breaking:** configuration splits into `[repositories.<alias>]`, `[agents.*]`, and
   `[automations.*]` (replacing nested `coding_agents.automations`). Each repository alias
   requires a full Git `remote` URL and may set `path` / `setup_script`. Automations
@@ -43,6 +74,15 @@ All notable changes to this project are documented here. The format follows
   triggers construct clients from `runner`. Existing automation TOML placeholders stay
   valid. In-flight `RunningCodingSession` snapshots from API v1 cannot be resumed after
   upgrade — restart `watch`. Coding-agent adapters remain CLI-based.
+- Task deadlines use `settings.task_timeout_minutes` (default 20) instead of optional
+  `task_timeout_seconds`. Omit the key to keep the 20-minute default; the value is
+  converted to seconds when starting the coding agent or setup script.
+- CLI dispatch is unified under `run`: a finite drain (formerly `batch`, with optional
+  `--size`) is the default, and continuous polling is `run --watch` (formerly `watch`).
+  The standalone `batch` and `watch` commands are removed. `run --dry-run` still previews
+  one task without reserving or executing. `tui` is unchanged.
+- Install instructions in the README and documentation use `uv tool install curupira`
+  without a version pin, with a note on pinning `curupira==X.Y.Z` when needed.
 
 ### Added
 
@@ -86,45 +126,6 @@ All notable changes to this project are documented here. The format follows
 - GitHub Copilot CLI (`copilot`) as a built-in provider, with profile options for model,
   custom agent, reasoning effort, and explicit tool permissions. Curupira assigns its
   session UUID, disables user questions, and preserves the CLI's raw JSONL output.
-
-### Changed
-
-- Task deadlines use `settings.task_timeout_minutes` (default 20) instead of optional
-  `task_timeout_seconds`. Omit the key to keep the 20-minute default; the value is
-  converted to seconds when starting the coding agent or setup script.
-- CLI dispatch is unified under `run`: a finite drain (formerly `batch`, with optional
-  `--size`) is the default, and continuous polling is `run --watch` (formerly `watch`).
-  The standalone `batch` and `watch` commands are removed. `run --dry-run` still previews
-  one task without reserving or executing. `tui` is unchanged.
-- Install instructions in the README and documentation use `uv tool install curupira`
-  without a version pin, with a note on pinning `curupira==X.Y.Z` when needed.
-
-### Documentation
-
-- Automation (trigger) configuration models expose English `Field(description=...)`
-  text on every field, including shared base fields, so `model_json_schema()` can drive
-  CLI documentation without duplicating `Attributes:` blocks in class docstrings.
-- `ExecutionSettings`, `PollingSettings`, and `RepositoryConfiguration` expose
-  `Field(description=...)` on every field (and keep a short class docstring naming the
-  TOML table) so generated CLI/config help can read descriptions from the Pydantic
-  schema without duplicating an `Attributes:` block.
-- `ApplicationSettings`, `AgentsSettings`, and `AgentDefaults` expose non-empty
-  `Field(description=...)` text on every field (and model docstrings without
-  duplicated `Attributes:` blocks) so CLI help can read configuration docs from the
-  Pydantic schema.
-- Added a GitHub task source guide (`docs/en/github.md`) covering issue and pull-request
-  triggers, prerequisites and token scopes, configuration field defaults, selection and
-  deduplication, prompt placeholders, worktrees, and common errors. The README GitHub
-  sections now summarize and link to that page.
-- Removed the README "Trello listener" section, which described a `trello-cli` trigger
-  that Curupira does not ship; the README now points to trigger plugins instead.
-- Each coding-agent provider has its own page under "Providers and agents". The provider
-  table and the coding-agent CLIs in the installation requirements are generated from the
-  agent registry, so a new provider only adds its page and one nav line. The README
-  provider section now links to the documentation instead of repeating CLI arguments.
-- The provider overview lists Kilo's `auto_approve` permission override.
-- Added the GitHub Copilot CLI provider guide, including its headless permissions and
-  authentication environment-variable precedence.
 
 ## [0.2.0] - 2026-10-08
 
