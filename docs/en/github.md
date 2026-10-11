@@ -143,7 +143,7 @@ Models reject unknown keys.
 
 ### Shared GitHub filters
 
-Compiled into the Search query by `src/curupira/clients/github_search.py`.
+Compiled into the Search query.
 
 | Field | Default | Search qualifier / behavior |
 | --- | --- | --- |
@@ -154,10 +154,12 @@ Compiled into the Search query by `src/curupira/clients/github_search.py`.
 | `assignee` | `None` | Login, `@me`, `none` → `no:assignee`, or `any` → `assignee:*` |
 | `author` | `None` | `author:…` |
 | `milestone` | `None` | `milestone:…` |
-| `project` | `None` | `project:<value>` qualifier, for example `acme/5` (owner/project number). It matches items that belong to that GitHub Project. Curupira does not filter by board column or Status (such as Todo); only Search qualifiers are applied. Values with whitespace or `:` are quoted. |
+| `project` | `None` | `project:<value>`, for example `acme/5` |
 | `sort` | `"created-asc"` | Appended as `sort:…`. Allowed: `created-asc`, `created-desc`, `updated-asc`, `updated-desc`, `comments-asc`, `comments-desc` |
 
-Values with whitespace or `"`, `:`, `,` are quoted in the compiled query.
+Curupira does not filter by board column or Status (such as Todo); only Search
+qualifiers are applied. Values with whitespace or `"`, `:`, `,` are quoted in the
+compiled query.
 
 ### Issue-only fields
 
@@ -183,7 +185,7 @@ qualifiers.
 
 ### Related polling settings
 
-Under `[settings.polling]` (`PollingSettings`):
+Under `[settings.polling]`:
 
 | Field | Default |
 | --- | --- |
@@ -201,12 +203,12 @@ automation:
 repo:acme/api is:issue is:open label:agent-ready -linked:pr sort:created-asc
 ```
 
-Discovery uses GraphQL Search (`ISSUE` search type covers both issues and pull requests)
-over `httpx`. There is no free-form `query` field: filters are typed TOML only.
+Discovery uses GraphQL Search (`ISSUE` search type covers both issues and pull requests).
+There is no free-form `query` field: filters are typed TOML only.
 
 ### Deduplication
 
-`PollingTaskFeed` keeps an in-memory (per process) set of task identity keys
+Each automation keeps an in-memory (per process) set of task identity keys
 (`[automation_id, repo, task_type, id]`). After a task is admitted, later polls in that
 process skip it for that automation. The set is not persisted: after a restart, an item that
 still matches the filters is discovered again. Deduplication is per automation, so two
@@ -222,15 +224,14 @@ minutes (`300` seconds). Any successful discovery resets the interval.
 Placeholders use `${name}` syntax and are validated when the configuration loads. Unknown
 placeholders are rejected.
 
-**Common fields** (`COMMON_PROMPT_FIELDS`): `${repo}`, `${repository}`,
-`${automation_id}`, `${task_type}`, `${task_number}`, `${task_title}`, `${task_body}`,
-`${task_url}`. `${repo}` is the forge identity; `${repository}` is the checkout alias.
-`${task_body}` is filled from the item's `*_body` field.
+**Common fields:** `${repo}`, `${repository}`, `${automation_id}`, `${task_type}`,
+`${task_number}`, `${task_title}`, `${task_body}`, `${task_url}`. `${repo}` is the forge
+identity; `${repository}` is the checkout alias. `${task_body}` is filled from the item's
+body field.
 
-**Issues** (`IssueItem`): `${issue_number}`, `${issue_title}`, `${issue_body}`,
-`${issue_url}`.
+**Issues:** `${issue_number}`, `${issue_title}`, `${issue_body}`, `${issue_url}`.
 
-**Pull requests** (`PullRequestItem`): `${pull_request_number}`, `${pull_request_title}`,
+**Pull requests:** `${pull_request_number}`, `${pull_request_title}`,
 `${pull_request_body}`, `${pull_request_url}`, `${pull_request_is_draft}`,
 `${pull_request_head_ref}`, `${pull_request_base_ref}`.
 
@@ -241,8 +242,10 @@ Booleans render as `true` / `false`; missing optional values render as empty str
 Titles and bodies (`${issue_title}`, `${issue_body}`, `${pull_request_title}`,
 `${pull_request_body}`) come from anyone who can open an issue or pull request and are
 placed in the coding agent's prompt, so a hostile author can try to steer the agent
-(prompt injection). Restrict what reaches the agent with `labels` (applied only by people
-you trust), `author` or `assignee`, and review what your agent profile is allowed to run.
+(prompt injection). The agent can run destructive actions in the checkout it works in,
+so the risk depends on what you allow in the agent profile. Restrict what reaches the
+agent with `labels` (applied only by people you trust), `author` or `assignee`, and
+review what your agent profile is allowed to run.
 
 ## Checkout and worktrees
 
