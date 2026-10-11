@@ -104,6 +104,10 @@ All notable changes to this project are documented here. The format follows
 - Automation (trigger) configuration models expose English `Field(description=...)`
   text on every field, including shared base fields, so `model_json_schema()` can drive
   CLI documentation without duplicating `Attributes:` blocks in class docstrings.
+- `ExecutionSettings`, `PollingSettings`, and `RepositoryConfiguration` expose
+  `Field(description=...)` on every field (and keep a short class docstring naming the
+  TOML table) so generated CLI/config help can read descriptions from the Pydantic
+  schema without duplicating an `Attributes:` block.
 - `ApplicationSettings`, `AgentsSettings`, and `AgentDefaults` expose non-empty
   `Field(description=...)` text on every field (and model docstrings without
   duplicated `Attributes:` blocks) so CLI help can read configuration docs from the
