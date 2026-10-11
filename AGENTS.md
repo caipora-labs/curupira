@@ -60,8 +60,8 @@ on each other.
 | `src/curupira/storage/` | SQLite persistence for sessions and cron state. |
 | `src/curupira/cli.py`, `tui/` | Typer commands and the Textual dashboard. `tui/pty_terminal.py` is the reusable `PtyTerminal` PTY widget (not wired into the layout yet). |
 | `tests/` | Mirrors `src/` (`tests/providers/<name>/` for each provider); shared fakes in `tests/fakes.py`, builders in `tests/helpers.py`. |
-| `docs/en/` | Canonical documentation; `docs/pt/` and `docs/es/` are translations. One page per provider in `docs/en/providers/`. |
-| `main.py` | MkDocs macros; the provider table and install list come from the agent registry. |
+| `docs/en/` | Canonical documentation; `docs/pt/` and `docs/es/` are translations. One page per provider in `docs/en/providers/`; `automations.md` is the newcomer trigger reference. |
+| `main.py` | MkDocs macros; the provider table, trigger table, and install list come from the agent and trigger registries. |
 
 ## Code style
 
