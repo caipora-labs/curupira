@@ -7,10 +7,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Documentation
 
+- GitHub docs clarify token prerequisites and scopes, `repo` vs `repository`, the
+  `project:` Search qualifier (no board-column filtering), and that issue/PR title and
+  body placeholders are untrusted prompt input. Contributor-facing GitHub provider paths
+  and configuration model names moved from `docs/en/github.md` into `CONTRIBUTING.md`.
 - Coding-agent CLI profile models (`CliProfileBase` and every registered provider
   profile) document each field with `Field(description=...)` derived from the adapter
   argument mapping, so schema-driven CLI docs can read descriptions without duplicating
   class-docstring `Attributes:` blocks.
+
+### Changed (behavior)
+
+- Since GraphQL Search (#163), `project:` is only a Search qualifier. Curupira no longer
+  filters board items by Status (Todo) and no longer forces `state=open` for project
+  queries.
 
 ### Changed
 

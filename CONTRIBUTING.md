@@ -47,6 +47,15 @@ CI's "Build and smoke-test distributions" job runs the same script before the in
 smoke test. Use `--no-build` to check an existing `dist/` directory, or `--no-twine` to
 skip the Twine step.
 
+## Built-in GitHub triggers
+
+GitHub issue and pull-request discovery lives under
+`src/curupira/providers/github/` (`issues.py`, `pull_requests.py`). Compatibility
+re-exports keep `curupira.tasks.github_issues` and
+`curupira.tasks.github_pull_requests` import paths working. Typed filter models are
+`IssueAutomationConfiguration` and `PullRequestAutomationConfiguration` in
+`src/curupira/models/configuration.py`.
+
 ## Extending Curupira
 
 Curupira separates task discovery (`tasks/`), repository version control (`vcs/`), and

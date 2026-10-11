@@ -15,10 +15,6 @@ worktree where that agent runs.
 | `github-issues` | Issues in one `owner/repository` |
 | `github-pull-requests` | Pull requests in one `owner/repository` |
 
-Implementation lives under `src/curupira/providers/github/` (`issues.py`, `pull_requests.py`),
-with compatibility re-exports at `curupira.tasks.github_issues` and
-`curupira.tasks.github_pull_requests`.
-
 ## Prerequisites
 
 1. Install the [GitHub CLI](https://cli.github.com/) (`gh`).
@@ -28,7 +24,7 @@ with compatibility re-exports at `curupira.tasks.github_issues` and
    gh auth login
    ```
 
-3. Confirm Curupira can read a token:
+3. Confirm `gh` has a token (Curupira reads it with the same command):
 
    ```sh
    gh auth token
@@ -41,18 +37,16 @@ operations use native `git` and your normal Git credentials for the repository `
 
 ### Token scopes
 
-The [GitHub CLI `gh auth login` manual](https://cli.github.com/manual/gh_auth_login) states
-that tokens passed with `--with-token` need at least `repo`, `read:org`, and `gist`.
-
+The interactive `gh auth login` flow grants `repo`, which covers private and public
+repositories. A classic token limited to public repositories needs `public_repo`. Curupira
+only reads Search results and never changes issues or pull requests. See
 [GitHub's GraphQL authentication guide](https://docs.github.com/en/graphql/guides/forming-calls-with-graphql#authenticating-with-graphql)
-notes that the data you request dictates the scopes or permissions needed, and that a
-classic PAT needs `public_repo` to access public repositories when broader `repo` is not
-granted. Curupira only reads Search results; it never mutates forge objects.
+for how requested data maps to scopes.
 
 ## Minimal issue automation
 
-`repository` is a `[repositories.<alias>]` checkout key. `repo` is the GitHub
-`owner/name` identity used for Search (independent of the clone URL).
+In an automation, `repo` is the GitHub `owner/name` that Curupira searches. `repository` is
+the alias of a `[repositories.<alias>]` checkout where the agent runs. They can differ.
 
 ```toml
 [repositories.api]
@@ -81,6 +75,8 @@ curupira --config path/to/settings.toml validate
 ```
 
 ## Minimal pull-request automation
+
+`repo` and `repository` mean the same as in [Minimal issue automation](#minimal-issue-automation).
 
 ```toml
 [repositories.api]
@@ -132,9 +128,7 @@ chosen agent CLI installed and authenticated.
 
 ## Configuration fields
 
-Defaults come from `IssueAutomationConfiguration` /
-`PullRequestAutomationConfiguration` in `src/curupira/models/configuration.py` and the
-shared bases they extend. Models are frozen and reject unknown keys (`extra="forbid"`).
+Models reject unknown keys.
 
 ### Shared automation fields
 
@@ -159,7 +153,7 @@ Compiled into the Search query by `src/curupira/clients/github_search.py`.
 | `assignee` | `None` | Login, `@me`, `none` → `no:assignee`, or `any` → `assignee:*` |
 | `author` | `None` | `author:…` |
 | `milestone` | `None` | `milestone:…` |
-| `project` | `None` | Passed through verbatim as `project:<value>`; see [Searching issues and pull requests](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests) for GitHub's `project:` qualifier |
+| `project` | `None` | `project:<value>` qualifier, for example `acme/5` (owner/project number). It matches items that belong to that GitHub Project. Curupira does not filter by board column or Status (such as Todo); only Search qualifiers are applied. Values with whitespace or `:` are quoted. |
 | `sort` | `"created-asc"` | Appended as `sort:…`. Allowed: `created-asc`, `created-desc`, `updated-asc`, `updated-desc`, `comments-asc`, `comments-desc` |
 
 Values with whitespace or `"`, `:`, `,` are quoted in the compiled query.
@@ -240,6 +234,14 @@ placeholders are rejected.
 `${pull_request_head_ref}`, `${pull_request_base_ref}`.
 
 Booleans render as `true` / `false`; missing optional values render as empty strings.
+
+## Security: issue and pull-request text is untrusted
+
+Titles and bodies (`${issue_title}`, `${issue_body}`, `${pull_request_title}`,
+`${pull_request_body}`) come from anyone who can open an issue or pull request and are
+placed in the coding agent's prompt, so a hostile author can try to steer the agent
+(prompt injection). Restrict what reaches the agent with `labels` (applied only by people
+you trust), `author` or `assignee`, and review what your agent profile is allowed to run.
 
 ## Checkout and worktrees
 
