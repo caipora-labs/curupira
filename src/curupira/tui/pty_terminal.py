@@ -13,11 +13,10 @@ logged. Process lifecycle cleanup runs in ``on_unmount`` (the App's teardown is
 too late for reliable reaping) with an ``atexit`` safety net.
 
 ``pyte`` is LGPL-3.0 and is used as a dynamic dependency of this MIT-licensed
-project. The reader feeds pyte in 32 KiB chunks under a 10 ms per-tick time
-budget, then yields (``remove_reader`` / ``asyncio.sleep(0)`` / re-add) so the
-event loop stays responsive during floods. On Linux, a 5 MB ``yes | head -c``
-flood measured about 44 KiB/s (~111 s) with a max event-loop gap of about
-0.13 s; see CONTRIBUTING.md.
+project. The reader feeds pyte in 1 KiB slices under a 10 ms per-tick time
+budget checked before each feed, then yields (``remove_reader`` /
+``asyncio.sleep(0)`` / re-add) so the event loop stays responsive during
+floods. Measured Linux figures live in CONTRIBUTING.md.
 """
 
 from __future__ import annotations
@@ -59,9 +58,13 @@ _DEFAULT_SCROLLBACK = 5_000
 _DEFAULT_ORPHAN_TIMEOUT_SECONDS = 30.0
 _REFRESH_INTERVAL_SECONDS = 1.0 / 30.0
 _KILL_GRACE_SECONDS = 0.1
-_READ_CHUNK_BYTES = 32_768
+# pyte.ByteStream.feed on ~32 KiB can take 150-270 ms; keep each feed tiny and
+# check the time budget before every feed so a single callback cannot stall.
+_READ_CHUNK_BYTES = 2_048
+_FEED_SLICE_BYTES = 1_024
 _FEED_TIME_BUDGET_SECONDS = 0.010
 _POLL_INTERVAL_SECONDS = 0.05
+_MAX_WRITE_BUFFER_BYTES = 1_048_576
 _UNSUPPORTED_MESSAGE = "PTY terminals are not supported on Windows in v1."
 _LIVE_TERMINALS: weakref.WeakSet[PtyTerminal] = weakref.WeakSet()
 _ATEXIT_REGISTERED = False
@@ -238,7 +241,10 @@ class PtyTerminal(Widget, can_focus=True):
         self._stream: pyte.ByteStream | None = None
         self._render_dirty = False
         self._reader_installed = False
+        self._writer_installed = False
         self._reader_resume_task: asyncio.Task[None] | None = None
+        self._pending_input = bytearray()
+        self._write_buffer = bytearray()
         self._shutting_down = False
         self._reap_task: asyncio.Task[None] | None = None
         self._placeholder = Text(_UNSUPPORTED_MESSAGE)
@@ -407,33 +413,102 @@ class PtyTerminal(Widget, can_focus=True):
             asyncio.get_running_loop().remove_reader(self._master_fd)
         self._reader_installed = False
 
+    def _install_writer(self) -> None:
+        """Register a writability callback while the outbound buffer is non-empty."""
+        if self._master_fd is None or self._writer_installed:
+            return
+        loop = asyncio.get_running_loop()
+        loop.add_writer(self._master_fd, self._flush_write_buffer)
+        self._writer_installed = True
+
+    def _remove_writer(self) -> None:
+        """Drop the asyncio writer for the master fd."""
+        if self._master_fd is None or not self._writer_installed:
+            return
+        with contextlib.suppress(RuntimeError, ValueError, OSError):
+            asyncio.get_running_loop().remove_writer(self._master_fd)
+        self._writer_installed = False
+
     def _on_master_readable(self) -> None:
         """Feed pyte under a short time budget, then yield to the event loop."""
         if self._master_fd is None or self._stream is None:
             return
         deadline = time.perf_counter() + _FEED_TIME_BUDGET_SECONDS
-        total = 0
-        budget_hit = False
-        while True:
-            try:
-                chunk = os.read(self._master_fd, _READ_CHUNK_BYTES)
-            except OSError as error:
-                if error.errno in {errno.EAGAIN, errno.EWOULDBLOCK, errno.EINTR}:
-                    break
-                self._on_master_closed()
-                return
-            if not chunk:
-                self._on_master_closed()
-                return
-            self._stream.feed(chunk)
-            total += len(chunk)
-            if time.perf_counter() >= deadline:
-                budget_hit = True
+        total = self._drain_pending_under_budget(deadline)
+        if total < 0:
+            return
+        while time.perf_counter() < deadline:
+            chunk = self._read_master_chunk()
+            if chunk is None:
                 break
+            if chunk == b"":
+                self._on_master_closed()
+                return
+            fed, budget_hit = self._feed_bytes_under_budget(chunk, deadline)
+            total += fed
+            if fed < len(chunk):
+                self._pending_input.extend(chunk[fed:])
+            if budget_hit:
+                self._mark_dirty_and_yield(total)
+                return
         if total:
             self._render_dirty = True
+
+    def _drain_pending_under_budget(self, deadline: float) -> int:
+        """Feed any leftover input; return bytes fed, or ``-1`` if yielded."""
+        if not self._pending_input:
+            return 0
+        fed, budget_hit = self._feed_bytes_under_budget(self._pending_input, deadline)
+        del self._pending_input[:fed]
         if budget_hit:
-            self._yield_reader()
+            self._mark_dirty_and_yield(fed)
+            return -1
+        return fed
+
+    def _read_master_chunk(self) -> bytes | None:
+        """Read one chunk from the master, or ``None`` on EAGAIN."""
+        if self._master_fd is None:
+            return None
+        try:
+            return os.read(self._master_fd, _READ_CHUNK_BYTES)
+        except OSError as error:
+            if error.errno in {errno.EAGAIN, errno.EWOULDBLOCK, errno.EINTR}:
+                return None
+            self._on_master_closed()
+            return b""
+
+    def _mark_dirty_and_yield(self, total: int) -> None:
+        """Mark the widget dirty when bytes were fed, then yield the reader."""
+        if total:
+            self._render_dirty = True
+        self._yield_reader()
+
+    def _feed_bytes_under_budget(
+        self, data: bytes | bytearray, deadline: float
+    ) -> tuple[int, bool]:
+        """Feed ``data`` to pyte in small slices until the time budget is hit.
+
+        Args:
+            data: Bytes awaiting ``ByteStream.feed``.
+            deadline: ``time.perf_counter()`` deadline for this callback.
+
+        Returns:
+            A pair ``(bytes_fed, budget_hit)``.
+        """
+        if self._stream is None or not data:
+            return 0, False
+        offset = 0
+        length = len(data)
+        while offset < length:
+            if time.perf_counter() >= deadline:
+                return offset, True
+            end = min(offset + _FEED_SLICE_BYTES, length)
+            self._stream.feed(bytes(data[offset:end]))
+            offset = end
+            # A single 1 KiB feed can still burn most of the budget; yield after it.
+            if time.perf_counter() >= deadline:
+                return offset, True
+        return offset, False
 
     def _yield_reader(self) -> None:
         """Pause the master reader so other loop callbacks can run."""
@@ -544,19 +619,37 @@ class PtyTerminal(Widget, can_focus=True):
             logger.debug("Failed to deliver PTY window size to child pid=%s", self._pid)
 
     def _write_master(self, data: bytes) -> None:
-        """Write to the master fd without logging payload bytes."""
+        """Queue bytes for the master fd; retry on ``EAGAIN`` via ``add_writer``."""
         if self._master_fd is None or not data:
             return
-        view = memoryview(data)
-        while view:
+        remaining = _MAX_WRITE_BUFFER_BYTES - len(self._write_buffer)
+        if remaining <= 0:
+            return
+        self._write_buffer.extend(data[:remaining])
+        self._flush_write_buffer()
+
+    def _flush_write_buffer(self) -> None:
+        """Write as much of the outbound buffer as the kernel will accept."""
+        if self._master_fd is None:
+            self._write_buffer.clear()
+            self._remove_writer()
+            return
+        while self._write_buffer:
             try:
-                written = os.write(self._master_fd, view)
+                written = os.write(self._master_fd, self._write_buffer)
             except OSError as error:
                 if error.errno in {errno.EAGAIN, errno.EWOULDBLOCK, errno.EINTR}:
+                    self._install_writer()
                     return
                 logger.debug("PTY master write failed for pid=%s", self._pid)
+                self._write_buffer.clear()
+                self._remove_writer()
                 return
-            view = view[written:]
+            if written == 0:
+                self._install_writer()
+                return
+            del self._write_buffer[:written]
+        self._remove_writer()
 
     def _cancel_reap_task(self) -> None:
         """Cancel an in-flight async reap when forcing shutdown or restart."""
@@ -584,6 +677,9 @@ class PtyTerminal(Widget, can_focus=True):
         self._cancel_reap_task()
         self._shutting_down = True
         self._remove_reader()
+        self._remove_writer()
+        self._write_buffer.clear()
+        self._pending_input.clear()
         self._close_master_fd()
 
         pid = self._pid

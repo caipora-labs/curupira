@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import errno
 import os
 import sys
 import time
@@ -484,7 +485,36 @@ async def test_flood_keeps_event_loop_ticking() -> None:
         with contextlib.suppress(asyncio.CancelledError):
             await ticker
         assert gaps
-        assert max(gaps) < 0.5
+        assert max(gaps) < 0.25
+        app.exit()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="PtyTerminal v1 requires POSIX")
+@pytest.mark.asyncio
+async def test_write_retries_after_eagain(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = _PtyHarness(["cat"])
+    async with app.run_test(size=(80, 24)) as pilot:
+        terminal = app.query_one(PtyTerminal)
+        await _wait_until(
+            lambda: terminal.pid is not None and terminal._master_fd is not None,
+            pilot,
+        )
+        master_fd = terminal._master_fd
+        assert master_fd is not None
+        real_write = os.write
+        calls = {"n": 0}
+
+        def flaky_write(fd: int, data: bytes | bytearray | memoryview) -> int:
+            if fd == master_fd and calls["n"] == 0:
+                calls["n"] += 1
+                raise OSError(errno.EAGAIN, "Resource temporarily unavailable")
+            return real_write(fd, data)
+
+        monkeypatch.setattr(os, "write", flaky_write)
+        terminal.write("retried\n")
+        await _wait_until(lambda: "retried" in _visible_text(terminal), pilot)
+        assert calls["n"] == 1
+        assert terminal._write_buffer == bytearray()
         app.exit()
 
 

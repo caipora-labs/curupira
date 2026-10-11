@@ -95,8 +95,10 @@ All notable changes to this project are documented here. The format follows
   `on_unmount` (plus an `atexit` safety net). Public API: `PtyTerminal(argv, env, cwd,
   escape_key="ctrl+g")` with `write()`, `restart()`, and a `Finished` message. Linux
   and macOS only in v1; Windows mounts an unsupported placeholder. Not wired into the
-  orchestrator layout or configuration yet. On Linux a 5 MB PTY flood measured about
-  44 KiB/s with a max event-loop gap of about 0.13 s (see CONTRIBUTING.md).
+  orchestrator layout or configuration yet. Reader feeds pyte in 1 KiB slices under a
+  10 ms budget; Linux 25 s samples measured ≈0.071 MB/s (`yes | head -c 50M`, loop
+  p50/p99 ≈ 15/71 ms), ≈0.103 MB/s (`seq 2000000`, 13/78 ms), ≈1.35 MB/s (`cat` 40 MB,
+  ≈0/40 ms). Outbound writes retry after `EAGAIN` via `add_writer`.
 - Optional `[assistant]` configuration (`AssistantSettings`) for the interactive
   configuration assistant: `agent` (registered coding-agent provider) and `model`.
   Adapters may declare `auto_model` when their CLI documents native automatic model

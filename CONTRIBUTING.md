@@ -160,11 +160,32 @@ Windows is unsupported in v1; the widget should render the placeholder instead o
 spawning a child.
 
 `pyte` (LGPL-3.0) is a dynamic runtime dependency of this MIT-licensed project; it is
-not vendored or statically linked. The PTY reader feeds pyte in 32 KiB chunks under a
-10 ms per-tick budget, then yields so other loop callbacks can run. Measured on Linux
-with Textual `run_test` and `yes | head -c 5000000`: about **44 KiB/s** (~111 s for
-5 MB) and a **max event-loop gap of about 0.13 s** (p95 about 0.08 s). Re-measure and
-update these figures when changing the reader loop.
+not vendored or statically linked. The PTY reader reads up to 2 KiB, feeds pyte in
+1 KiB slices, and checks a 10 ms per-tick budget before and after each feed, then
+yields (`remove_reader` / `asyncio.sleep(0)` / re-add). Measured on Linux with Textual
+`run_test` over a 25 s sample (workloads did not finish in that window):
+
+| Workload | Throughput | Loop latency p50 / p99 / max |
+| --- | --- | --- |
+| `yes \| head -c 50000000` | ~0.071 MB/s (~0.068 MiB/s) | 15 ms / 71 ms / 75 ms |
+| `seq 2000000` | ~0.103 MB/s (~0.098 MiB/s) | 13 ms / 78 ms / 85 ms |
+| `cat` of a 40 MB file | ~1.35 MB/s (~1.29 MiB/s) | ~0 ms / 40 ms / 66 ms |
+
+Re-measure and update these figures when changing the reader loop.
+
+### PtyTerminal lifecycle caveats (documented, not changed)
+
+- If the Curupira host is killed with `SIGKILL`, the widget's `atexit` / `on_unmount`
+  cleanup does not run. A child that ignores `SIGHUP`, and any grandchildren, can
+  survive and be reparented (typically to PID 1).
+- Grandchildren that call `setsid` leave the child's process group; force-shutdown
+  only signals the child's process group, so those session leaders survive until a
+  clean host close or an external kill.
+- `_shutdown_child` (unmount / restart / atexit) may block the event loop for up to
+  about 0.1 s (`_KILL_GRACE_SECONDS`) between `SIGHUP` and `SIGKILL` while polling
+  `waitpid`.
+- Outbound PTY writes buffer on `EAGAIN` and retry via `loop.add_writer` (bounded to
+  1 MiB); older builds discarded the remainder of the buffer on `EAGAIN`.
 
 ## Dependency audits
 
