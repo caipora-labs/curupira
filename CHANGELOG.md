@@ -36,6 +36,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Documentation
 
+- New automations reference page: trigger overview, a minimal TOML example per trigger,
+  first-run commands, a security note and common errors. English only; Spanish and
+  Portuguese will follow.
 - TUI assistant docs: clearer description of the in-panel agent, session start and
   saved-agent behavior.
 - GitHub docs clarify token prerequisites and scopes, `repo` vs `repository`, the

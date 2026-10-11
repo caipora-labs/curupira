@@ -7,7 +7,9 @@ Each automation in the settings TOML watches one source and carries its own prom
 ## Get started
 
 1. [Install Curupira and its requirements](installation.md).
-2. [Configure automations](configuration.md) for issues, pull requests, or cron.
-3. [Validate and run](operations.md) your configuration.
+2. Skim the [automations reference](automations.md) for triggers, minimal TOML, and
+   first-run commands.
+3. [Configure automations](configuration.md) for issues, pull requests, or cron.
+4. [Validate and run](operations.md) your configuration.
 
 See [providers and agents](providers.md) for provider-native options and session resumption.

@@ -3,9 +3,11 @@
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol
+from typing import NamedTuple, Protocol
 
-from curupira.agents import registry
+from curupira.agents import registry as agent_registry
+from curupira.tasks import registry as trigger_registry
+from curupira.tasks.base import Trigger
 
 
 class MacroEnvironment(Protocol):
@@ -13,6 +15,76 @@ class MacroEnvironment(Protocol):
 
     def macro(self, function: Callable[[], str]) -> Callable[[], str]:
         """Register a zero-argument string-producing macro."""
+
+
+class _TriggerGuide(NamedTuple):
+    """Plain-language docs metadata for one built-in trigger type."""
+
+    guide: str
+    prerequisites: str
+    summary: str
+    link_label: str = "Guide"
+
+
+# Built-in trigger docs metadata. Unknown (plugin) types fall back in triggers_table().
+_TRIGGER_GUIDES: dict[str, _TriggerGuide] = {
+    "github-issues": _TriggerGuide(
+        "github.md",
+        "`gh` authenticated (`gh auth login`)",
+        "Finds issues using filters you set in TOML",
+    ),
+    "github-pull-requests": _TriggerGuide(
+        "github.md",
+        "`gh` authenticated (`gh auth login`)",
+        "Finds pull requests using filters you set in TOML",
+    ),
+    "azure-cli-pull-requests": _TriggerGuide(
+        "#azure-devops-pull-requests",
+        "`az` + Azure DevOps extension (`az login`)",
+        "Lists Azure DevOps pull requests with the Azure CLI",
+        "This page",
+    ),
+    "trello-cli-cards": _TriggerGuide(
+        "trello.md",
+        "`trello` CLI (`trello auth login`)",
+        "Finds open cards on a Trello board",
+    ),
+    "monday-items": _TriggerGuide(
+        "monday.md",
+        "`MONDAY_API_TOKEN` (or `token_env`) set",
+        "Finds board items through monday.com's API (read-only)",
+    ),
+    "cron": _TriggerGuide(
+        "#cron",
+        "None (local schedule)",
+        "Runs on a local schedule you set",
+        "This page",
+    ),
+}
+
+_TRIGGER_ORDER: tuple[str, ...] = (
+    "github-issues",
+    "github-pull-requests",
+    "azure-cli-pull-requests",
+    "trello-cli-cards",
+    "monday-items",
+    "cron",
+)
+
+
+def _plugin_trigger_summary(trigger: Trigger) -> str:
+    """Fallback summary for plugin triggers without built-in guide metadata."""
+    doc = (trigger.configuration_model.__doc__ or "").strip()
+    first = doc.splitlines()[0] if doc else trigger.trigger_type
+    return first.replace("``", "`")
+
+
+def _ordered_triggers() -> list[tuple[str, Trigger]]:
+    """Return registered triggers in newcomer-friendly order, then extras."""
+    registered = trigger_registry.registered()
+    ordered = [name for name in _TRIGGER_ORDER if name in registered]
+    extras = sorted(name for name in registered if name not in _TRIGGER_ORDER)
+    return [(name, registered[name]) for name in [*ordered, *extras]]
 
 
 def define_env(env: MacroEnvironment) -> None:
@@ -41,7 +113,7 @@ def define_env(env: MacroEnvironment) -> None:
         lines.append("- Install only the CLIs used by configured profiles:")
         lines.extend(
             f"  - [{adapter.display_name} (`{adapter.executable}`)]({adapter.install_url})"
-            for adapter in registry.registered().values()
+            for adapter in agent_registry.registered().values()
         )
         return "\n".join(lines)
 
@@ -55,6 +127,30 @@ def define_env(env: MacroEnvironment) -> None:
         lines.extend(
             f"| [{adapter.display_name}](providers/{provider}.md) | `{adapter.executable}` "
             f"| <{adapter.install_url}> |"
-            for provider, adapter in registry.registered().items()
+            for provider, adapter in agent_registry.registered().items()
         )
+        return "\n".join(lines)
+
+    @env.macro
+    def triggers_table() -> str:
+        """Render one row per registered automation trigger."""
+        lines = [
+            "| Trigger type | What it does | Prerequisites | Guide |",
+            "| --- | --- | --- | --- |",
+        ]
+        for trigger_type, trigger in _ordered_triggers():
+            guide_meta = _TRIGGER_GUIDES.get(trigger_type)
+            if guide_meta is None:
+                guide = "plugins.md"
+                prerequisites = "See the plugin documentation"
+                link_label = "Plugins"
+                summary = _plugin_trigger_summary(trigger)
+            else:
+                guide = guide_meta.guide
+                prerequisites = guide_meta.prerequisites
+                link_label = guide_meta.link_label
+                summary = guide_meta.summary
+            lines.append(
+                f"| `{trigger_type}` | {summary} | {prerequisites} | [{link_label}]({guide}) |"
+            )
         return "\n".join(lines)

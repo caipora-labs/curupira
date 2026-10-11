@@ -43,7 +43,10 @@ The project is [caipora-labs/curupira](https://github.com/caipora-labs/curupira)
 ## Documentation
 
 See the [full guide in Portuguese](https://caipora-labs.github.io/curupira/) for
-installation, automation configuration, providers, and operational commands.
+installation, automation configuration, providers, and operational commands. Newcomers
+can start with the
+[automations reference](https://caipora-labs.github.io/curupira/automations/)
+(triggers, minimal TOML examples, first-run commands, and common errors).
 
 ## Configuration
 
@@ -95,6 +98,10 @@ prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 ```
 
 ### Automations
+
+For a newcomer-oriented map of every built-in trigger (minimal TOML, placeholders, and
+first-run commands), see the
+[automations reference](https://caipora-labs.github.io/curupira/automations/).
 
 `[automations.<name>]` is a keyed map; the map key is the automation ID and is carried
 into every task identity. `repository` selects a `[repositories.<alias>]` checkout with a

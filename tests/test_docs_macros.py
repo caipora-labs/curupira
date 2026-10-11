@@ -1,4 +1,4 @@
-"""MkDocs macros render provider data from the coding-agent registry."""
+"""MkDocs macros render provider and trigger data from the registries."""
 
 import tomllib
 from collections.abc import Callable
@@ -7,8 +7,10 @@ from typing import IO
 import pytest
 
 import curupira.agents.registry as agent_registry
+import curupira.tasks.registry as trigger_registry
 import main
 from tests.plugins.echo_agent_plugin import EchoCliAdapter
+from tests.tasks.test_registry import FakeTrigger
 
 STALE_PROFILE_URL = "https://stale.example/optional-profile"
 
@@ -27,7 +29,10 @@ class RecordingMacroEnvironment:
 @pytest.fixture(autouse=True)
 def isolated_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     agent_registry.registered()
+    trigger_registry.registered()
     monkeypatch.setattr(agent_registry, "_ADAPTERS", dict(agent_registry._ADAPTERS))
+    monkeypatch.setattr(trigger_registry, "_TRIGGERS", dict(trigger_registry._TRIGGERS))
+    monkeypatch.setattr(trigger_registry, "_ALIASES", dict(trigger_registry._ALIASES))
 
 
 @pytest.fixture
@@ -65,6 +70,39 @@ def test_providers_table_has_one_row_per_built_in(macros: dict[str, Callable[[],
     ) in rows
 
 
+def test_triggers_table_has_one_row_per_registered_trigger(
+    macros: dict[str, Callable[[], str]],
+) -> None:
+    rows = _table_rows(macros["triggers_table"]())
+    registered = trigger_registry.registered()
+
+    assert len(rows) == len(registered)
+    for trigger_type in registered:
+        assert any(f"| `{trigger_type}` |" in row for row in rows)
+    assert "| `github-issues` |" in rows[0]
+    assert "[Guide](github.md)" in rows[0]
+    assert any("[This page](#cron)" in row for row in rows)
+    assert any("[This page](#azure-devops-pull-requests)" in row for row in rows)
+    assert any("MONDAY_API_TOKEN" in row for row in rows)
+    assert any("Finds issues using filters you set in TOML" in row for row in rows)
+    assert any("Finds board items through monday.com's API (read-only)" in row for row in rows)
+    technical_markers = (
+        "GraphQL",
+        "httpx",
+        "Scale-Flow",
+        "coalesce",
+        "occurrence",
+        "worktree",
+        "forge",
+    )
+    for row in rows:
+        what_it_does = row.split("|")[2]
+        for marker in technical_markers:
+            assert marker not in what_it_does, row
+    for trigger_type in main._TRIGGER_GUIDES:
+        assert trigger_type in registered
+
+
 def test_requirements_list_reads_install_urls_from_registry(
     macros: dict[str, Callable[[], str]],
 ) -> None:
@@ -90,3 +128,12 @@ def test_registered_plugin_adapter_appears_in_both_macros(
     assert "  - [Echo Agent (`echo-agent`)](https://echo.example/)" in (
         macros["requirements_list"]()
     )
+
+
+def test_plugin_trigger_falls_back_to_plugins_guide(
+    macros: dict[str, Callable[[], str]],
+) -> None:
+    trigger_registry.register(FakeTrigger())
+
+    rows = _table_rows(macros["triggers_table"]())
+    assert rows[-1] == ("| `fake` | fake | See the plugin documentation | [Plugins](plugins.md) |")
