@@ -51,8 +51,9 @@ class ProcessResult(ValidatedModel):
         stdout: Captured standard output, truncated when needed.
         stderr: Captured standard error, truncated when needed.
         output_truncated: Whether stdout/stderr were truncated to the capture limit.
-        obsolete: When true, the coding agent never ran because the source snapshot
-            changed or left the queue before start; callers must not persist completion.
+        obsolete: When true, the coding agent never ran because an optional executor
+            pre-start validator reported a changed or departed source snapshot; callers
+            must not persist completion. Production dispatch leaves that hook unset.
     """
 
     returncode: int

@@ -207,18 +207,27 @@ saved session is admitted, Curupira fetches the current issue or pull-request st
 drops closed or merged items, rejects an issue that already has an open closing or
 Development-linked PR (via GraphQL `closedByPullRequestsReferences`, including body forms
 such as `Fixes: #N`), retires its stale issue session, and restarts a PR session when the
-head SHA, draft flag, title, or body no longer matches the saved snapshot. If GitHub reports
-more closing-PR references than one GraphQL page, admission fails closed for that candidate
-(no agent). A transient revalidation error defers that candidate, keeps any saved session,
-and does not stop the scheduler.
+head SHA, draft flag, title, or body no longer matches the saved snapshot. Pull-request
+sessions recovered from a state database written before head SHA was persisted restart once
+when the refreshed snapshot supplies a head. If GitHub reports more closing-PR references
+than one GraphQL page, admission fails closed for that candidate (no agent). A transient
+revalidation error defers that candidate, keeps any saved session, and does not stop the
+scheduler.
+
+One-shot and initial polls call every automation feed together. A `DispatchError` from one
+feed is logged and that feed contributes no tasks; other feeds still return candidates.
+`run` (one-shot) then tries candidates in order and moves to the next when revalidation
+discards one. Continuous `run --watch` / `tui` streams already logged per-feed discovery
+errors the same way.
 
 After a successful agent run (the coding-agent CLI actually executed), Curupira stores the
 completed source fingerprint plus an explicit next action in `state_db_path`. An unchanged
 completed snapshot is skipped across dispatch cycles. Fingerprints use head SHA, draft flag,
-title, and body — not mergeability, merge-state status, check conclusions, or derived
-workflow stage — so check or conflict transitions alone do not re-admit work. A changed
-head, draft flag, title, or body can be admitted again. Snapshots skipped as obsolete before
-the agent starts are not recorded as completed.
+title, and body — not mergeability, merge-state status, or check conclusions — so check or
+conflict transitions alone do not re-admit work. A changed head, draft flag, title, or body
+can be admitted again. If completion verification itself fails, Curupira clears any completed
+record for that item so the next cycle retries verification instead of skipping forever.
+Snapshots skipped as obsolete before the agent starts are not recorded as completed.
 
 Finite `run --size N` drains admit at most `N` tasks after revalidation. Recovered sessions
 count toward `N`; candidates discarded during revalidation do not.

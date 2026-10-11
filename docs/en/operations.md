@@ -12,7 +12,7 @@ curupira tui
 ```
 
 - `validate` checks TOML and references without running an automation, calling external CLIs, or writing state. It exits `0` for valid configuration and `2` for configuration errors.
-- `run` drains currently available automation tasks through the shared scheduler. It exits `1` if an executed task failed, otherwise `0`. Before starting or resuming an agent, GitHub tasks are revalidated against current repository state so closed work, issues with an open linked PR, and stale recovered sessions do not invoke the coding-agent CLI.
+- `run` drains currently available automation tasks through the shared scheduler. It exits `1` if an executed task failed, otherwise `0`. Before admitting a task, GitHub items are revalidated against current repository state so closed work, issues with an open linked PR, and stale recovered sessions do not invoke the coding-agent CLI. One-shot `run` polls every automation feed together (a failed feed is logged; others still contribute) and tries the next candidate when revalidation discards one.
 - `run --size N` limits a finite drain to at most N tasks admitted after revalidation. Recovered sessions count toward N; candidates discarded during revalidation do not.
 - `run --dry-run` previews one selected task without reserving or persisting cron occurrences, checking out a repository, or executing.
 - `run --watch` polls all automations continuously until interrupted. It exits `1` if an executed task failed, otherwise `0`.

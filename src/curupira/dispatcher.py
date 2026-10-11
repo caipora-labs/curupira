@@ -171,11 +171,14 @@ async def _persist_completion(
     try:
         next_action = await revalidate.completion_next_action(task)
     except Exception as error:
-        next_action = (
-            "Retry GitHub state validation before dispatching this completed snapshot "
-            f"(verification error: {type(error).__name__})."
+        await completed_tasks.delete(task)
+        logger.error(
+            "Could not verify completion for %s (%s); completed state cleared "
+            "so verification retries on the next cycle",
+            task.url,
+            type(error).__name__,
         )
-        logger.error("Could not verify completion for %s; next action: %s", task.url, next_action)
+        return
     if next_action is None:
         await completed_tasks.delete(task)
         return

@@ -56,7 +56,6 @@ from curupira.models.tasks import (
     RunningCodingSession,
     Task,
     TaskIdentity,
-    WorkflowStage,
 )
 from curupira.models.templates import common_prompt_context, flatten_for_template
 from curupira.models.trello import TrelloBoard, TrelloCard, TrelloList, TrelloListRequest
@@ -114,7 +113,6 @@ __all__ = [
     "TrelloCardItem",
     "TrelloList",
     "TrelloListRequest",
-    "WorkflowStage",
     "common_prompt_context",
     "flatten_for_template",
 ]

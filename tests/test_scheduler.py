@@ -389,6 +389,33 @@ async def test_completed_pr_with_changed_head_is_re_admitted(tmp_path: Path) -> 
     assert len(adapter.requests) == 2
 
 
+async def test_completion_verification_error_does_not_skip_forever(tmp_path: Path) -> None:
+    adapter = RecordingAdapter()
+    database = tmp_path / "state.sqlite3"
+    configured = ExecutionSettings(state_db_path=database)
+    completed = CompletedTaskRepository(database)
+    task = issue_task(tmp_path)
+
+    async def failing_verifier(_: Task) -> str:
+        raise HttpApiError("503")
+
+    async def run() -> None:
+        await TaskScheduler(
+            configured,
+            executor(tmp_path, adapter),
+            completion_verifier=failing_verifier,
+            completed_tasks=completed,
+        ).run(stream([]), initial_tasks=[task])
+
+    await run()
+    assert len(adapter.requests) == 1
+    assert await completed.get(task) is None
+
+    await run()
+    assert len(adapter.requests) == 2
+    assert await completed.get(task) is None
+
+
 async def test_size_one_initial_batch_launches_only_one_agent(tmp_path: Path) -> None:
     adapter = RecordingAdapter()
     tasks = [issue_task(tmp_path, number) for number in range(1, 4)]
@@ -540,7 +567,46 @@ async def test_check_and_mergeable_transitions_do_not_change_fingerprint(
         pull_request_merge_state_status="DIRTY",
         pull_request_check_conclusions=("SUCCESS",),
     )
-    assert pending.workflow_stage != success.workflow_stage
-    assert success.workflow_stage != conflicting.workflow_stage
     assert pending.state_fingerprint == success.state_fingerprint == conflicting.state_fingerprint
     assert pending.dispatch_key == success.dispatch_key == conflicting.dispatch_key
+
+
+async def test_recovered_pr_without_head_sha_restarts_once(tmp_path: Path) -> None:
+    stale = with_pull_request_item(
+        pull_request_task(tmp_path, 12),
+        pull_request_is_draft=False,
+        pull_request_head_sha=None,
+    )
+    session = RunningCodingSession(task=stale, session_id="pre-upgrade", message="old prompt")
+    database = tmp_path / "state.sqlite3"
+    sessions = RunningSessionRepository(database)
+    await sessions.save(session)
+    adapter = RecordingAdapter()
+    github = FakeGitHub(
+        pulls=[
+            GhPullRequest(
+                number=12,
+                title=stale.title,
+                body="",
+                url=stale.url,
+                state="OPEN",
+                isDraft=False,
+                headRefOid="post-upgrade-head",
+            )
+        ]
+    )
+    worker = TaskExecutor(
+        ExecutionSettings(state_db_path=database),
+        FakeVersionControl(),
+        sessions,
+        CronScheduleRepository(database),
+        adapter_factory=lambda _: adapter,
+    )
+    scheduler = TaskScheduler(
+        ExecutionSettings(), worker, task_validator=GitHubTaskRevalidator(github)
+    )
+
+    await scheduler.run(stream([]), resume_sessions=[session])
+
+    assert len(adapter.requests) == 1
+    assert adapter.requests[0].session_id is None

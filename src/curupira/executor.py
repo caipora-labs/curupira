@@ -66,6 +66,14 @@ class TaskExecutor:
         runner: AsyncProcessRunner | None = None,
         pre_start_validator: Callable[[Task], Awaitable[Task | None]] | None = None,
     ) -> None:
+        """Build an executor.
+
+        ``pre_start_validator`` is an optional extension point for a last-look
+        source check immediately before the coding-agent CLI starts. Production
+        ``run`` / ``dispatch_next_task`` paths leave it unset and revalidate once
+        at admission time instead; tests may pass a validator to exercise
+        ``ProcessResult.obsolete`` skip semantics.
+        """
         self._settings = settings
         self._runner = runner or AsyncProcessRunner()
         self._default_version_control = version_control or NativeGitVersionControl(self._runner)

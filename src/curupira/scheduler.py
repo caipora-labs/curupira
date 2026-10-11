@@ -365,16 +365,13 @@ class TaskScheduler:
                     next_action = await self._completion_verifier(selected)
                 except Exception as error:
                     self.failed_tasks += 1
-                    next_action = (
-                        "Retry GitHub state validation before dispatching this completed snapshot "
-                        f"(verification error: {type(error).__name__})."
-                    )
                     if self._completed_tasks is not None:
-                        await self._completed_tasks.save(selected, next_action)
+                        await self._completed_tasks.delete(selected)
                     logger.error(
-                        "Could not verify completion for %s; next action: %s",
+                        "Could not verify completion for %s (%s); completed state cleared "
+                        "so verification retries on the next cycle",
                         selected.url,
-                        next_action,
+                        type(error).__name__,
                     )
                 else:
                     if next_action is None:
