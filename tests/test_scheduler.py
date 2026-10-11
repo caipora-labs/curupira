@@ -9,11 +9,25 @@ from typing_extensions import override
 
 from curupira.agents.base import SessionStartedCallback
 from curupira.executor import TaskExecutor
-from curupira.models import CodingTaskRequest, ExecutionSettings, ProcessResult, Task
+from curupira.models import (
+    CodingTaskRequest,
+    ExecutionSettings,
+    GhIssue,
+    GhPullRequest,
+    ProcessResult,
+    RunningCodingSession,
+    Task,
+)
+from curupira.models.items import PullRequestItem
 from curupira.scheduler import TaskScheduler
-from curupira.storage import CronScheduleRepository, RunningSessionRepository
-from tests.fakes import FakeVersionControl, RecordingAdapter
-from tests.helpers import issue_task, pull_request_task
+from curupira.storage import (
+    CompletedTaskRepository,
+    CronScheduleRepository,
+    RunningSessionRepository,
+)
+from curupira.tasks.revalidation import GitHubTaskRevalidator
+from tests.fakes import FakeGitHub, FakeVersionControl, RecordingAdapter
+from tests.helpers import issue_task, pull_request_task, with_pull_request_item
 
 
 async def stream(tasks: list[Task]) -> AsyncIterator[Task]:
@@ -117,3 +131,273 @@ async def test_nonzero_exits_are_observed_without_stopping_other_tasks(tmp_path:
     scheduler = TaskScheduler(ExecutionSettings(), executor(tmp_path, adapter))
     await scheduler.run(stream([issue_task(tmp_path, 1), issue_task(tmp_path, 2)]))
     assert scheduler.failed_tasks == 2
+
+
+async def test_linked_issue_recovery_is_retired_without_starting_an_agent(
+    tmp_path: Path,
+) -> None:
+    task = issue_task(tmp_path)
+    session = RunningCodingSession(task=task, session_id="stale", message="old prompt")
+    database = tmp_path / "state.sqlite3"
+    sessions = RunningSessionRepository(database)
+    await sessions.save(session)
+    adapter = RecordingAdapter()
+    github = FakeGitHub(
+        issues=[GhIssue(number=42, title="Task 42", url="https://github.com/acme/api/issues/42")],
+        pulls=[
+            GhPullRequest(
+                number=12,
+                title="Implements #42",
+                body="Closes #42",
+                url="https://github.com/acme/api/pull/12",
+            )
+        ],
+    )
+    worker = TaskExecutor(
+        ExecutionSettings(state_db_path=database),
+        FakeVersionControl(),
+        sessions,
+        CronScheduleRepository(database),
+        adapter_factory=lambda _: adapter,
+    )
+    scheduler = TaskScheduler(
+        ExecutionSettings(), worker, task_validator=GitHubTaskRevalidator(github)
+    )
+
+    await scheduler.run(stream([]), resume_sessions=[session])
+
+    assert adapter.requests == []
+    assert await sessions.list_all() == []
+
+
+async def test_recovered_pr_with_new_head_drops_stale_session_and_starts_fresh(
+    tmp_path: Path,
+) -> None:
+    stale = with_pull_request_item(
+        pull_request_task(tmp_path, 12),
+        pull_request_is_draft=False,
+        pull_request_head_sha="old-head",
+    )
+    session = RunningCodingSession(task=stale, session_id="old-session", message="old review")
+    database = tmp_path / "state.sqlite3"
+    sessions = RunningSessionRepository(database)
+    await sessions.save(session)
+    adapter = RecordingAdapter()
+    github = FakeGitHub(
+        pulls=[
+            GhPullRequest(
+                number=12,
+                title="Review",
+                url="https://github.com/acme/api/pull/12",
+                state="OPEN",
+                isDraft=False,
+                headRefOid="new-head",
+            )
+        ]
+    )
+    worker = TaskExecutor(
+        ExecutionSettings(state_db_path=database),
+        FakeVersionControl(),
+        sessions,
+        CronScheduleRepository(database),
+        adapter_factory=lambda _: adapter,
+    )
+    scheduler = TaskScheduler(
+        ExecutionSettings(), worker, task_validator=GitHubTaskRevalidator(github)
+    )
+
+    await scheduler.run(stream([]), resume_sessions=[session])
+
+    assert len(adapter.requests) == 1
+    assert adapter.requests[0].session_id is None
+    assert adapter.requests[0].message != "old review"
+    assert await sessions.list_all() == []
+
+
+async def test_recovered_pr_that_moved_stage_starts_a_fresh_task(tmp_path: Path) -> None:
+    stale = with_pull_request_item(
+        pull_request_task(tmp_path, 12),
+        pull_request_is_draft=False,
+        pull_request_head_sha="same-head",
+        pull_request_mergeable="UNKNOWN",
+        pull_request_merge_state_status="UNKNOWN",
+    )
+    session = RunningCodingSession(task=stale, session_id="old-review", message="stale prompt")
+    database = tmp_path / "state.sqlite3"
+    sessions = RunningSessionRepository(database)
+    await sessions.save(session)
+    adapter = RecordingAdapter()
+    github = FakeGitHub(
+        pulls=[
+            GhPullRequest(
+                number=12,
+                title="Review",
+                url="https://github.com/acme/api/pull/12",
+                state="OPEN",
+                isDraft=False,
+                headRefOid="same-head",
+                mergeable="MERGEABLE",
+                mergeStateStatus="CLEAN",
+                statusCheckRollup=[{"conclusion": "SUCCESS"}],
+            )
+        ]
+    )
+    worker = TaskExecutor(
+        ExecutionSettings(state_db_path=database),
+        FakeVersionControl(),
+        sessions,
+        CronScheduleRepository(database),
+        adapter_factory=lambda _: adapter,
+    )
+    scheduler = TaskScheduler(
+        ExecutionSettings(), worker, task_validator=GitHubTaskRevalidator(github)
+    )
+
+    await scheduler.run(stream([]), resume_sessions=[session])
+
+    assert len(adapter.requests) == 1
+    assert adapter.requests[0].session_id is None
+    assert adapter.requests[0].message != "stale prompt"
+    assert await sessions.list_all() == []
+
+
+async def test_closed_issue_recovery_is_retired_without_starting_an_agent(
+    tmp_path: Path,
+) -> None:
+    task = issue_task(tmp_path)
+    session = RunningCodingSession(task=task, session_id="closed", message="old prompt")
+    database = tmp_path / "state.sqlite3"
+    sessions = RunningSessionRepository(database)
+    await sessions.save(session)
+    adapter = RecordingAdapter()
+    github = FakeGitHub(
+        issues=[
+            GhIssue(
+                number=42,
+                title="Task 42",
+                url="https://github.com/acme/api/issues/42",
+                state="CLOSED",
+            )
+        ]
+    )
+    worker = TaskExecutor(
+        ExecutionSettings(state_db_path=database),
+        FakeVersionControl(),
+        sessions,
+        CronScheduleRepository(database),
+        adapter_factory=lambda _: adapter,
+    )
+    scheduler = TaskScheduler(
+        ExecutionSettings(), worker, task_validator=GitHubTaskRevalidator(github)
+    )
+
+    await scheduler.run(stream([]), resume_sessions=[session])
+
+    assert adapter.requests == []
+    assert await sessions.list_all() == []
+
+
+async def test_merged_pull_request_recovery_is_retired(tmp_path: Path) -> None:
+    task = pull_request_task(tmp_path, 12)
+    session = RunningCodingSession(task=task, session_id="merged", message="old review")
+    database = tmp_path / "state.sqlite3"
+    sessions = RunningSessionRepository(database)
+    await sessions.save(session)
+    adapter = RecordingAdapter()
+    github = FakeGitHub(
+        pulls=[
+            GhPullRequest(
+                number=12,
+                title="Review",
+                url="https://github.com/acme/api/pull/12",
+                state="CLOSED",
+                mergedAt="2026-10-10T12:00:00Z",
+            )
+        ]
+    )
+    worker = TaskExecutor(
+        ExecutionSettings(state_db_path=database),
+        FakeVersionControl(),
+        sessions,
+        CronScheduleRepository(database),
+        adapter_factory=lambda _: adapter,
+    )
+    scheduler = TaskScheduler(
+        ExecutionSettings(), worker, task_validator=GitHubTaskRevalidator(github)
+    )
+
+    await scheduler.run(stream([]), resume_sessions=[session])
+
+    assert adapter.requests == []
+    assert await sessions.list_all() == []
+
+
+async def test_completed_issue_is_not_repeated_until_its_source_snapshot_changes(
+    tmp_path: Path,
+) -> None:
+    adapter = RecordingAdapter()
+    database = tmp_path / "state.sqlite3"
+    configured = ExecutionSettings(state_db_path=database)
+    completed = CompletedTaskRepository(database)
+    task = issue_task(tmp_path)
+
+    async def next_action(_: Task) -> str:
+        return "Create one draft pull request with a closing reference."
+
+    async def run(selected: Task) -> None:
+        await TaskScheduler(
+            configured,
+            executor(tmp_path, adapter),
+            completion_verifier=next_action,
+            completed_tasks=completed,
+        ).run(stream([]), initial_tasks=[selected])
+
+    await run(task)
+    state = await completed.get(task)
+    assert state is not None
+    assert state.next_action == "Create one draft pull request with a closing reference."
+
+    await run(task)
+    assert len(adapter.requests) == 1
+
+    await run(task.model_copy(update={"title": "Updated issue"}))
+    assert len(adapter.requests) == 2
+
+
+async def test_completed_pr_with_changed_head_is_re_admitted(tmp_path: Path) -> None:
+    adapter = RecordingAdapter()
+    database = tmp_path / "state.sqlite3"
+    configured = ExecutionSettings(state_db_path=database)
+    completed = CompletedTaskRepository(database)
+    first = with_pull_request_item(pull_request_task(tmp_path, 12), pull_request_head_sha="head-1")
+    changed = with_pull_request_item(first, pull_request_head_sha="head-2")
+
+    async def next_action(_: Task) -> str:
+        return "Recheck the current PR head and remote checks."
+
+    for task in (first, changed):
+        await TaskScheduler(
+            configured,
+            executor(tmp_path, adapter),
+            completion_verifier=next_action,
+            completed_tasks=completed,
+        ).run(stream([]), initial_tasks=[task])
+
+    assert len(adapter.requests) == 2
+
+
+async def test_size_one_initial_batch_launches_only_one_agent(tmp_path: Path) -> None:
+    adapter = RecordingAdapter()
+    tasks = [issue_task(tmp_path, number) for number in range(1, 4)]
+    scheduler = TaskScheduler(ExecutionSettings(max_active_tasks=3), executor(tmp_path, adapter))
+
+    await scheduler.run(stream([]), initial_tasks=tasks[:1])
+
+    assert len(adapter.requests) == 1
+
+
+async def test_pull_request_item_head_sha_changes_dispatch_key(tmp_path: Path) -> None:
+    first = with_pull_request_item(pull_request_task(tmp_path, 12), pull_request_head_sha="a")
+    second = with_pull_request_item(first, pull_request_head_sha="b")
+    assert isinstance(first.item, PullRequestItem)
+    assert first.dispatch_key != second.dispatch_key

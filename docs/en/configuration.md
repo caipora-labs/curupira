@@ -146,7 +146,11 @@ set the automation's GitHub `repo` to `owner/name`.
 `trigger_type` selects the source:
 
 - `github-issues` discovers GitHub issues through GraphQL Search using typed filters
-  (`labels`, `exclude_labels`, `assignee`, `linked_pull_request`, `sort`, …).
+  (`labels`, `exclude_labels`, `assignee`, `linked_pull_request`, `sort`, …). Set
+  `linked_pull_request = false` so discovery compiles `-linked:pr` and skips issues that
+  already have a linked pull request. That filter is configuration-time discovery only;
+  see [Scheduling and state](#scheduling-and-state) for scheduler revalidation of recovered
+  sessions.
 - `github-pull-requests` discovers GitHub pull requests the same way, with PR filters such
   as `draft`, `review`, `ci_status`, plus post-filters `mergeable` / `merge_state`.
 - `azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
@@ -193,6 +197,21 @@ create worktrees, or run setup.
 Polls fetch up to `batch_size` items (default 100, maximum 1000). Empty poll cycles back off
 from `poll_interval_seconds` (default 30 seconds) up to five minutes; discovery resets the
 wait. Automations deduplicate independently.
+
+Discovery filters such as `linked_pull_request = false` (`-linked:pr`) only affect what
+GitHub Search returns for new work. They do not protect recovered sessions that were saved
+before an issue gained a linked PR. Scheduler enforcement is separate: before a new task or
+saved session starts an agent, Curupira fetches the current issue or pull-request state,
+drops closed or merged items, rejects an issue that already has an open closing-reference
+PR (and retires its stale issue session), and restarts a PR session when the head SHA or
+workflow stage no longer matches the saved snapshot.
+
+After a successful agent run, Curupira stores the completed source fingerprint plus an
+explicit next action in `state_db_path`. An unchanged completed snapshot is skipped across
+dispatch cycles; a changed head, stage, title, or body can be admitted again.
+
+Finite `run --size N` drains admit at most `N` tasks, including tasks found in the initial
+poll as well as later batches.
 
 `max_active_tasks` bounds concurrent agents. Checkouts using the same path run sequentially.
 Cron automations coalesce overdue ticks into one pending occurrence and never run themselves

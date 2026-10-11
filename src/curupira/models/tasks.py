@@ -1,13 +1,27 @@
 """Task identities, resolved execution snapshots, and persistence contracts."""
 
+import hashlib
 import json
+from enum import IntEnum
 from pathlib import Path
 
 from pydantic import AwareDatetime, BaseModel, SerializeAsAny, model_validator
 
 from curupira.models.base import Identifier, NonEmptyString, ValidatedModel
 from curupira.models.configuration import AutomationConfiguration
+from curupira.models.items import PullRequestItem
 from curupira.models.profiles import CliProfile
+
+
+class WorkflowStage(IntEnum):
+    """Relative workflow position used for snapshot comparison and re-admission."""
+
+    READY_PULL_REQUEST = 0
+    CONFLICTING_PULL_REQUEST = 1
+    ACTIVE_PULL_REQUEST = 2
+    DRAFT_PULL_REQUEST = 3
+    ISSUE = 4
+    OTHER = 5
 
 
 class TaskIdentity(ValidatedModel):
@@ -59,6 +73,72 @@ class Task(ValidatedModel):
     item: SerializeAsAny[ValidatedModel]
     scheduled_for: AwareDatetime | None = None
 
+    @property
+    def workflow_stage(self) -> WorkflowStage:
+        """Return the current workflow stage for snapshot comparison."""
+        if self.identity.task_type == "github-pull-requests" and isinstance(
+            self.item, PullRequestItem
+        ):
+            if self.item.pull_request_is_draft:
+                return WorkflowStage.DRAFT_PULL_REQUEST
+            if (
+                self.item.pull_request_merge_state_status == "DIRTY"
+                or self.item.pull_request_mergeable == "CONFLICTING"
+            ):
+                return WorkflowStage.CONFLICTING_PULL_REQUEST
+            checks_pass = bool(self.item.pull_request_check_conclusions) and all(
+                conclusion == "SUCCESS" for conclusion in self.item.pull_request_check_conclusions
+            )
+            if (
+                self.item.pull_request_mergeable == "MERGEABLE"
+                and self.item.pull_request_merge_state_status == "CLEAN"
+                and checks_pass
+            ):
+                return WorkflowStage.READY_PULL_REQUEST
+            return WorkflowStage.ACTIVE_PULL_REQUEST
+        if self.identity.task_type == "github-issues":
+            return WorkflowStage.ISSUE
+        return WorkflowStage.OTHER
+
+    @property
+    def dispatch_key(self) -> str:
+        """Return the in-memory admission key, including PR head and stage revisions."""
+        if self.identity.task_type == "github-pull-requests" and isinstance(
+            self.item, PullRequestItem
+        ):
+            return json.dumps(
+                [
+                    self.identity.key,
+                    self.item.pull_request_head_sha,
+                    int(self.workflow_stage),
+                    self.state_fingerprint,
+                ],
+                separators=(",", ":"),
+            )
+        return self.identity.key
+
+    @property
+    def state_key(self) -> str:
+        """Return the durable completion key for one automation-scoped source item."""
+        return self.identity.key
+
+    @property
+    def state_fingerprint(self) -> str:
+        """Return a stable fingerprint of source state relevant to repeating work."""
+        pull = self.item if isinstance(self.item, PullRequestItem) else None
+        state = json.dumps(
+            {
+                "title": self.title,
+                "url": self.url,
+                "item": self.item.model_dump(mode="json"),
+                "head_sha": None if pull is None else pull.pull_request_head_sha,
+                "workflow_stage": int(self.workflow_stage),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(state.encode()).hexdigest()
+
     @model_validator(mode="before")
     @classmethod
     def parse_typed_item(cls, data: object) -> object:
@@ -105,6 +185,13 @@ class RunningCodingSession(ValidatedModel):
     task: Task
     session_id: NonEmptyString
     message: NonEmptyString
+
+
+class CompletedTaskState(ValidatedModel):
+    """A completed source snapshot and the next external action, if any."""
+
+    fingerprint: NonEmptyString
+    next_action: NonEmptyString
 
 
 class CronRunState(ValidatedModel):

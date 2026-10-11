@@ -10,14 +10,21 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from curupira.agents import CliAdapterFactory, create_cli_adapter
+from curupira.clients.github_graphql import GitHubGraphQLClient
+from curupira.clients.process import AsyncProcessRunner
 from curupira.config import ApplicationSettings, load_settings
 from curupira.dispatcher import create_task_feeds
 from curupira.errors import DispatchError
 from curupira.executor import TaskExecutor
 from curupira.models import Task
 from curupira.scheduler import TaskScheduler
-from curupira.storage import CronScheduleRepository, RunningSessionRepository
-from curupira.tasks.feed import merge_task_streams
+from curupira.storage import (
+    CompletedTaskRepository,
+    CronScheduleRepository,
+    RunningSessionRepository,
+)
+from curupira.tasks.feed import merge_task_streams, poll_task_feeds
+from curupira.tasks.revalidation import GitHubTaskRevalidator
 from curupira.telemetry import TaskTelemetry
 from curupira.vcs.base import VersionControl
 
@@ -91,7 +98,11 @@ async def run_continuous_dispatch(
         sessions = RunningSessionRepository(current.settings.state_db_path)
         recovered = await sessions.list_all()
         cron = CronScheduleRepository(current.settings.state_db_path)
-        feeds = create_task_feeds(current, cron)
+        completed_tasks = CompletedTaskRepository(current.settings.state_db_path)
+        runner = AsyncProcessRunner()
+        feeds = create_task_feeds(current, cron, runner=runner)
+        initial_tasks = await poll_task_feeds(feeds)
+        revalidate = GitHubTaskRevalidator(GitHubGraphQLClient(runner))
         executor = TaskExecutor(
             current.settings,
             version_control,
@@ -99,11 +110,16 @@ async def run_continuous_dispatch(
             cron,
             adapter_factory=adapter_factory,
             telemetry=telemetry,
+            runner=runner,
+            pre_start_validator=revalidate,
         )
         scheduler = TaskScheduler(
             current.settings,
             executor,
             on_active_tasks_changed=on_active_tasks_changed,
+            task_validator=revalidate,
+            completion_verifier=revalidate.completion_next_action,
+            completed_tasks=completed_tasks,
         )
         if on_scheduler_ready is not None:
             on_scheduler_ready(scheduler)
@@ -123,7 +139,9 @@ async def run_continuous_dispatch(
             name="curupira-config-reload-watch",
         )
         try:
-            await scheduler.run(tasks, resume_sessions=recovered)
+            await scheduler.run(
+                tasks, resume_sessions=recovered, initial_tasks=initial_tasks
+            )
         finally:
             watcher.cancel()
             await asyncio.gather(watcher, return_exceptions=True)

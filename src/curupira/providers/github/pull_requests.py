@@ -57,6 +57,9 @@ class GitHubPullRequestSource(TaskSource):
                     pull_request_is_draft=item.is_draft,
                     pull_request_head_ref=item.head_ref_name,
                     pull_request_base_ref=item.base_ref_name,
+                    pull_request_head_sha=item.head_ref_oid,
+                    pull_request_mergeable=item.mergeable,
+                    pull_request_merge_state_status=item.merge_state_status,
                 ),
             )
             for item in items

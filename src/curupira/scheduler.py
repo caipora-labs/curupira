@@ -3,11 +3,13 @@
 import asyncio
 import logging
 from collections import deque
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Sequence
 from pathlib import Path
 
 from curupira.executor import TaskExecutor
 from curupira.models import ExecutionSettings, ProcessResult, RunningCodingSession, Task
+from curupira.storage import CompletedTaskRepository
+from curupira.tasks.revalidation import TaskValidator
 
 logger = logging.getLogger(__name__)
 WorkItem = tuple[Task, RunningCodingSession | None]
@@ -24,10 +26,16 @@ class TaskScheduler:
         executor: TaskExecutor,
         *,
         on_active_tasks_changed: Callable[[Sequence[Task]], None] | None = None,
+        task_validator: TaskValidator | None = None,
+        completion_verifier: Callable[[Task], Awaitable[str | None]] | None = None,
+        completed_tasks: CompletedTaskRepository | None = None,
     ) -> None:
         self._settings = settings
         self._executor = executor
         self._on_active_tasks_changed = on_active_tasks_changed
+        self._task_validator = task_validator
+        self._completion_verifier = completion_verifier
+        self._completed_tasks = completed_tasks
         self._admit = asyncio.Event()
         self._admit.set()
         self._reload_requested = False
@@ -59,18 +67,24 @@ class TaskScheduler:
         return self._reload_requested
 
     async def run(
-        self, tasks: AsyncIterator[Task], *, resume_sessions: Sequence[RunningCodingSession] = ()
+        self,
+        tasks: AsyncIterator[Task],
+        *,
+        resume_sessions: Sequence[RunningCodingSession] = (),
+        initial_tasks: Sequence[Task] = (),
     ) -> None:
-        """Consume bounded pending work while observing running tasks and discovery."""
+        """Consume bounded work while validating recovered and discovered snapshots."""
         pending: deque[WorkItem] = deque()
+        for session in resume_sessions:
+            pending.append((session.task, session))
+        for task in initial_tasks:
+            pending.append((task, None))
         active: ActiveTasks = {}
         seen: set[str] = set()
         reader: ReaderTask | None = None
 
         async def incoming() -> AsyncGenerator[WorkItem, None]:
             try:
-                for session in resume_sessions:
-                    yield session.task, session
                 async for selected in tasks:
                     yield selected, None
             finally:
@@ -86,7 +100,7 @@ class TaskScheduler:
                     pending.clear()
                     break
                 reader, exhausted = await self._advance_admission(
-                    reader, exhausted, pending, active, source
+                    reader, exhausted, pending, active, source, seen
                 )
                 waiting = self._waiting_tasks(active, reader)
                 if not waiting:
@@ -95,7 +109,7 @@ class TaskScheduler:
                     break
                 finished, _ = await asyncio.wait(waiting, return_when=asyncio.FIRST_COMPLETED)
                 reader, exhausted = self._collect_reader(reader, finished, pending, seen, exhausted)
-                self._reap_finished(active, finished, seen)
+                await self._reap_finished(active, finished, seen)
                 self._notify_active_tasks(active)
         finally:
             await self._cancel_all(reader, active, source)
@@ -111,10 +125,11 @@ class TaskScheduler:
         pending: deque[WorkItem],
         active: ActiveTasks,
         source: AsyncGenerator[WorkItem, None],
+        seen: set[str],
     ) -> tuple[ReaderTask | None, bool]:
         """Launch work or cancel discovery while a reload drain is in progress."""
         if self._admit.is_set():
-            self._launch_available(pending, active)
+            await self._launch_available(pending, active, seen)
             return self._ensure_reader(reader, exhausted, pending, source), exhausted
         if self._reload_requested and reader is not None:
             await self._cancel_reader(reader)
@@ -151,23 +166,79 @@ class TaskScheduler:
             return None, exhausted
         return None, self._consume_reader(reader, pending, seen)
 
-    def _launch_available(self, pending: deque[WorkItem], active: ActiveTasks) -> None:
+    async def _launch_available(
+        self, pending: deque[WorkItem], active: ActiveTasks, seen: set[str]
+    ) -> None:
         """Start pending tasks while concurrency and checkout exclusivity allow it."""
         occupied: set[Path] = {item.automation.workspace_path for item in active.values()}
-        for _ in range(len(pending)):
-            selected, resumed = pending.popleft()
+        validated = await self._validate_pending(pending, seen)
+        for selected, resumed in validated:
             path = selected.automation.workspace_path
             if selected.automation.configuration.checkout == "worktree":
                 path = path.with_name(f"{path.name}.worktrees") / selected.identity.key
             if len(active) >= self._settings.max_active_tasks or path in occupied:
                 pending.append((selected, resumed))
                 continue
+            seen.add(selected.dispatch_key)
             worker = asyncio.create_task(
                 self._executor.execute(selected, resumed), name=selected.identity.key
             )
             active[worker] = selected
             occupied.add(path)
             self._notify_active_tasks(active)
+
+    async def _validate_pending(self, pending: deque[WorkItem], seen: set[str]) -> list[WorkItem]:
+        """Revalidate, retire stale sessions, and prepare one pending admission round."""
+        candidates = list(pending)
+        pending.clear()
+        validated: list[WorkItem] = []
+        for item in candidates:
+            refreshed = await self._validate_candidate(item, seen)
+            if refreshed is None:
+                continue
+            selected, resumed = refreshed
+            key = selected.dispatch_key
+            if key in seen:
+                if resumed is not None:
+                    await self._executor.discard_session(resumed.task)
+                continue
+            validated.append(refreshed)
+        return validated
+
+    async def _validate_candidate(self, item: WorkItem, seen: set[str]) -> WorkItem | None:
+        """Refresh one candidate and retire any session or result for an outdated snapshot."""
+        selected, resumed = item
+        original = selected
+        if self._task_validator is not None:
+            selected = await self._task_validator(selected)
+            if selected is None:
+                if resumed is not None:
+                    await self._executor.discard_session(resumed.task)
+                if self._completed_tasks is not None:
+                    await self._completed_tasks.delete(original)
+                seen.add(original.dispatch_key)
+                return None
+        if resumed is not None:
+            if resumed.task.state_fingerprint != selected.state_fingerprint:
+                await self._executor.discard_session(resumed.task)
+                resumed = None
+            else:
+                selected = resumed.task
+        if self._completed_tasks is not None:
+            completed = await self._completed_tasks.get(selected)
+            if completed is not None:
+                if completed.fingerprint == selected.state_fingerprint:
+                    if resumed is not None:
+                        await self._executor.discard_session(resumed.task)
+                    logger.info(
+                        "Skipping unchanged completed task %s; next action: %s",
+                        selected.url,
+                        completed.next_action,
+                    )
+                    seen.add(selected.dispatch_key)
+                    return None
+                await self._completed_tasks.delete(selected)
+        return selected, resumed
 
     def _notify_active_tasks(self, active: ActiveTasks) -> None:
         """Publish active task snapshots for terminal status rendering."""
@@ -192,13 +263,12 @@ class TaskScheduler:
         item = reader.result()
         if item is None:
             return True
-        key = item[0].identity.key
+        key = item[0].dispatch_key
         if key not in seen:
-            seen.add(key)
             pending.append(item)
         return False
 
-    def _reap_finished(
+    async def _reap_finished(
         self, active: ActiveTasks, finished: set[asyncio.Task[object]], seen: set[str]
     ) -> None:
         """Account for completed workers and release cron keys for re-scheduling."""
@@ -206,11 +276,43 @@ class TaskScheduler:
             if worker not in finished:
                 continue
             selected = active.pop(worker)
-            self._record_outcome(selected, worker)
+            result = self._record_outcome(selected, worker)
+            if (
+                result is not None
+                and result.returncode == 0
+                and self._completion_verifier is not None
+            ):
+                try:
+                    next_action = await self._completion_verifier(selected)
+                except Exception as error:
+                    self.failed_tasks += 1
+                    next_action = (
+                        "Retry GitHub state validation before dispatching this completed snapshot "
+                        f"(verification error: {type(error).__name__})."
+                    )
+                    if self._completed_tasks is not None:
+                        await self._completed_tasks.save(selected, next_action)
+                    logger.error(
+                        "Could not verify completion for %s; next action: %s",
+                        selected.url,
+                        next_action,
+                    )
+                else:
+                    if next_action is None:
+                        if self._completed_tasks is not None:
+                            await self._completed_tasks.delete(selected)
+                    else:
+                        if self._completed_tasks is not None:
+                            await self._completed_tasks.save(selected, next_action)
+                        logger.info(
+                            "Task %s remains incomplete; next action: %s", selected.url, next_action
+                        )
             if selected.identity.task_type == "cron":
-                seen.discard(selected.identity.key)
+                seen.discard(selected.dispatch_key)
 
-    def _record_outcome(self, selected: Task, worker: asyncio.Task[ProcessResult]) -> None:
+    def _record_outcome(
+        self, selected: Task, worker: asyncio.Task[ProcessResult]
+    ) -> ProcessResult | None:
         """Count and log a completed task that exited unsuccessfully."""
         try:
             result = worker.result()
@@ -219,9 +321,11 @@ class TaskScheduler:
                 logger.error(
                     "Task %s failed with exit %s", selected.identity.key, result.returncode
                 )
+            return result
         except Exception:
             self.failed_tasks += 1
             logger.exception("Task %s failed", selected.identity.key)
+            return None
 
     @staticmethod
     async def _cancel_reader(reader: ReaderTask) -> None:

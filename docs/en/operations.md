@@ -12,8 +12,8 @@ curupira tui
 ```
 
 - `validate` checks TOML and references without running an automation, calling external CLIs, or writing state. It exits `0` for valid configuration and `2` for configuration errors.
-- `run` drains currently available automation tasks through the shared scheduler. It exits `1` if an executed task failed, otherwise `0`.
-- `run --size N` limits a finite drain to at most N tasks.
+- `run` drains currently available automation tasks through the shared scheduler. It exits `1` if an executed task failed, otherwise `0`. Before starting or resuming an agent, GitHub tasks are revalidated against current repository state so closed work, issues with an open linked PR, and stale recovered sessions do not invoke the coding-agent CLI.
+- `run --size N` limits a finite drain to at most N tasks, counting the initial poll and later batches together.
 - `run --dry-run` previews one selected task without reserving or persisting cron occurrences, checking out a repository, or executing.
 - `run --watch` polls all automations continuously until interrupted. It exits `1` if an executed task failed, otherwise `0`.
 - `tui` runs the same continuous scheduler as `run --watch` inside an interactive Textual dashboard (metrics, active agents, and logs). Shortcuts: `Ctrl+G` open/close the [embedded assistant](assistant.md) side panel, `F6` toggle focus between the assistant and the main dashboard (panel stays open), `F1` help, `F2` pause/resume admissions, `F3` config summary, `F5` refresh metrics, `Ctrl+C` quit from the main TUI (or interrupt the agent when the assistant PTY has focus).

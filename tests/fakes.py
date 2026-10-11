@@ -15,6 +15,7 @@ from curupira.models import (
     CommandRequest,
     GhIssue,
     GhPullRequest,
+    GhTaskViewRequest,
     GitHubSearchRequest,
     ProcessResult,
 )
@@ -133,17 +134,40 @@ class FakeGitHub(GitHubGraphQLClient):
         self.requests.append(request)
         return self.pulls
 
+    @override
+    async def view_issue(self, request: GhTaskViewRequest) -> GhIssue:
+        issue = next((item for item in self.issues if item.number == request.number), None)
+        if issue is None:
+            raise AssertionError(f"unexpected issue lookup: {request.repo}#{request.number}")
+        return issue.model_copy(update={"state": issue.state or "OPEN"})
+
+    @override
+    async def view_pull_request(self, request: GhTaskViewRequest) -> GhPullRequest:
+        pull = next((item for item in self.pulls if item.number == request.number), None)
+        if pull is None:
+            raise AssertionError(f"unexpected pull-request lookup: {request.repo}#{request.number}")
+        return pull.model_copy(update={"state": pull.state or "OPEN"})
+
+    @override
+    async def list_pull_requests_for_issue(
+        self, repo: str, issue_number: int
+    ) -> list[GhPullRequest]:
+        del repo, issue_number
+        return self.pulls
+
 
 def use_fake_github(monkeypatch: pytest.MonkeyPatch, fake: FakeGitHub) -> FakeGitHub:
-    """Install ``fake`` as the GraphQL client constructed by built-in GitHub triggers."""
-    monkeypatch.setattr(
-        "curupira.providers.github.issues.GitHubGraphQLClient",
-        lambda runner=None: fake,
-    )
-    monkeypatch.setattr(
-        "curupira.providers.github.pull_requests.GitHubGraphQLClient",
-        lambda runner=None: fake,
-    )
+    """Install ``fake`` as the GraphQL client constructed by built-in GitHub paths."""
+
+    def factory(runner: AsyncProcessRunner | None = None) -> FakeGitHub:
+        del runner
+        return fake
+
+    monkeypatch.setattr("curupira.providers.github.issues.GitHubGraphQLClient", factory)
+    monkeypatch.setattr("curupira.providers.github.pull_requests.GitHubGraphQLClient", factory)
+    monkeypatch.setattr("curupira.dispatcher.GitHubGraphQLClient", factory)
+    monkeypatch.setattr("curupira.cli.GitHubGraphQLClient", factory)
+    monkeypatch.setattr("curupira.config_reload.GitHubGraphQLClient", factory)
     return fake
 
 
