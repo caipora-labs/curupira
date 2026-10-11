@@ -11,7 +11,7 @@ from typing import ClassVar
 import psutil
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Footer, RichLog, Static
 from typing_extensions import override
@@ -21,6 +21,7 @@ from curupira.config_reload import run_continuous_dispatch
 from curupira.models import Task
 from curupira.scheduler import TaskScheduler
 from curupira.telemetry import TaskTelemetry
+from curupira.tui.assistant_panel import AssistantPanel
 from curupira.tui.logging_handler import TuiLogHandler, attach_rich_log
 from curupira.tui.status import OrchestratorStatus
 from curupira.tui.widgets import AgentsPanel, LogsPanel, MetricsPanel
@@ -54,6 +55,7 @@ class HelpScreen(ModalScreen[None]):
         yield Static(
             "[b]Ajuda — Orquestrador Curupira[/b]\n\n"
             "Ctrl+C  Sair\n"
+            "Ctrl+G  Abrir / fechar assistente (painel lateral)\n"
             "F1      Esta ajuda\n"
             "F2      Pausar / retomar admissão de tarefas\n"
             "F3      Mostrar resumo da configuração\n"
@@ -112,7 +114,11 @@ class OrchestratorApp(App[int]):
         background: #000000;
         color: #e8e8e8;
     }
+    #main-row {
+        height: 1fr;
+    }
     #dashboard {
+        width: 1fr;
         height: 1fr;
         padding: 1;
     }
@@ -123,6 +129,7 @@ class OrchestratorApp(App[int]):
     """
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("ctrl+c", "quit", "Sair", priority=True),
+        Binding("ctrl+g", "toggle_assistant", "Assistente", priority=True),
         Binding("f1", "show_help", "Ajuda"),
         Binding("f2", "toggle_pause", "Pausar"),
         Binding("f3", "show_config", "Config"),
@@ -150,11 +157,17 @@ class OrchestratorApp(App[int]):
 
     @override
     def compose(self) -> ComposeResult:
-        """Assemble the three dashboard panels and footer."""
-        with Vertical(id="dashboard"):
-            yield MetricsPanel(id="metrics-panel")
-            yield AgentsPanel(id="agents-panel")
-            yield LogsPanel(id="logs-panel")
+        """Assemble the dashboard, optional assistant side panel, and footer."""
+        with Horizontal(id="main-row"):
+            with Vertical(id="dashboard"):
+                yield MetricsPanel(id="metrics-panel")
+                yield AgentsPanel(id="agents-panel")
+                yield LogsPanel(id="logs-panel")
+            yield AssistantPanel(
+                self._settings,
+                self._config_path,
+                id="assistant-panel",
+            )
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -208,6 +221,7 @@ class OrchestratorApp(App[int]):
     def _on_settings_reloaded(self, settings: ApplicationSettings) -> None:
         """Refresh dashboard state after a successful configuration reload."""
         self._settings = settings
+        self.query_one("#assistant-panel", AssistantPanel).update_settings(settings)
         self._status.update(self._status.tasks, settings.settings.max_active_tasks)
         self.call_later(self._refresh_agents)
         self.call_later(self._refresh_activity)
@@ -283,9 +297,28 @@ class OrchestratorApp(App[int]):
         """Force an immediate host-metrics refresh."""
         self._refresh_metrics()
 
+    async def action_toggle_assistant(self) -> None:
+        """Open or close the embedded assistant side panel (Ctrl+G)."""
+        panel = self.query_one("#assistant-panel", AssistantPanel)
+        await panel.toggle()
+        if not panel.is_open:
+            self.set_focus(None)
+
+    def on_assistant_panel_agent_chosen(self, message: AssistantPanel.AgentChosen) -> None:
+        """Keep the app settings snapshot aligned after the user picks an agent."""
+        self._settings = message.settings
+
+    def on_assistant_panel_closed(self, message: AssistantPanel.Closed) -> None:
+        """Return keyboard focus to the main dashboard after the panel closes."""
+        del message
+        self.set_focus(None)
+
     @override
     async def action_quit(self) -> None:
         """Exit the dashboard, cancelling the scheduler via unmount."""
+        panel = self.query_one("#assistant-panel", AssistantPanel)
+        if panel.is_open:
+            await panel.close_panel()
         self.exit(self._exit_code)
 
 
