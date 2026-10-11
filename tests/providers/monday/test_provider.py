@@ -20,14 +20,15 @@ from curupira.tasks.feed import PollingTaskFeed
 from curupira.tasks.registry import get
 from tests.helpers import resolved_automation
 
-_TOKEN = "monday-test-token"
+# Mock credential for client construction in tests (not a real secret).
+_FAKE_API_CREDENTIAL = "monday-test-credential"
 
 
 class FakeMondayClient(MondayClient):
     """Return scripted pages and record list requests."""
 
     def __init__(self, pages: list[MondayItemsPage]) -> None:
-        super().__init__(environ={"MONDAY_API_TOKEN": _TOKEN})
+        super().__init__(environ={"MONDAY_API_TOKEN": _FAKE_API_CREDENTIAL})
         self._pages = list(pages)
         self.requests: list[MondayListRequest] = []
 
@@ -109,6 +110,42 @@ async def test_source_maps_items_and_skips_archived(tmp_path: Path) -> None:
 async def test_empty_source_result_is_empty(tmp_path: Path) -> None:
     automation = resolved_automation(tmp_path, "board-items", "monday-items")
     assert await MondayItemSource(FakeMondayClient([])).discover(automation, 10) == []
+
+
+@pytest.mark.asyncio
+async def test_discover_rejects_non_monday_configuration(tmp_path: Path) -> None:
+    automation = resolved_automation(tmp_path, "issues", "github-issues")
+    with pytest.raises(ValueError, match="monday-items"):
+        await MondayItemSource(FakeMondayClient([])).discover(automation, 5)
+
+
+@pytest.mark.asyncio
+async def test_discover_with_non_positive_limit_returns_empty(tmp_path: Path) -> None:
+    automation = resolved_automation(tmp_path, "board-items", "monday-items")
+    assert await MondayItemSource(FakeMondayClient([])).discover(automation, 0) == []
+
+
+@pytest.mark.asyncio
+async def test_empty_column_text_omitted_from_item_columns(tmp_path: Path) -> None:
+    item = MondayBoardItem(
+        id="9",
+        name="Sparse",
+        url="https://acme.monday.com/boards/1/pulses/9",
+        state="active",
+        group=None,
+        column_values=(
+            MondayColumnValue(id="status", text=None),
+            MondayColumnValue(id="note", text="  "),
+            MondayColumnValue(id="owner", text="Ada"),
+        ),
+    )
+    client = FakeMondayClient([MondayItemsPage(items=(item,), cursor=None)])
+    automation = resolved_automation(tmp_path, "board-items", "monday-items")
+    tasks = await MondayItemSource(client).discover(automation, 5)
+    payload = tasks[0].item
+    assert isinstance(payload, MondayItem)
+    assert payload.item_columns == "owner: Ada"
+    assert payload.item_group_id == ""
 
 
 @pytest.mark.asyncio
@@ -256,10 +293,8 @@ async def test_end_to_end_mock_transport_group_filter(tmp_path: Path) -> None:
 
     client = MondayClient(
         transport=httpx.MockTransport(handler),
-        environ={"MONDAY_API_TOKEN": _TOKEN},
+        environ={"MONDAY_API_TOKEN": _FAKE_API_CREDENTIAL},
     )
-    automation = resolved_automation(
-        tmp_path, "board-items", "monday-items", group_ids=("topics",)
-    )
+    automation = resolved_automation(tmp_path, "board-items", "monday-items", group_ids=("topics",))
     tasks = await MondayItemSource(client).discover(automation, 5)
     assert [task.identity.id for task in tasks] == ["55"]

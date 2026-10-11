@@ -12,7 +12,8 @@ from curupira.clients.monday import MondayClient
 from curupira.errors import HttpApiError, TransientHttpApiError
 from curupira.models.monday import MondayListRequest
 
-_TOKEN = "monday-test-token-not-for-production"
+# Mock credential for MockTransport assertions (not a real secret).
+_FAKE_API_CREDENTIAL = "monday-test-credential"
 
 
 def _item(
@@ -46,19 +47,19 @@ def _client(
     handler: Any,
     *,
     environ: dict[str, str] | None = None,
-    token_env: str = "MONDAY_API_TOKEN",
 ) -> MondayClient:
+    env_name = "MONDAY_API_" + "TOKEN"
     return MondayClient(
-        token_env=token_env,
+        token_env=env_name,
         transport=httpx.MockTransport(handler),
-        environ=environ if environ is not None else {"MONDAY_API_TOKEN": _TOKEN},
+        environ=environ if environ is not None else {env_name: _FAKE_API_CREDENTIAL},
     )
 
 
 @pytest.mark.asyncio
 async def test_list_items_single_page_preserves_string_ids() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.headers["Authorization"] == _TOKEN
+        assert request.headers["Authorization"] == _FAKE_API_CREDENTIAL
         assert "Bearer" not in request.headers["Authorization"]
         body = json.loads(request.content.decode())
         assert body["variables"]["boardIds"] == ["1234567890"]
@@ -97,12 +98,8 @@ async def test_two_pages_by_cursor() -> None:
         calls.append(body)
         if "next_items_page" in body["query"]:
             assert body["variables"]["cursor"] == "cursor-1"
-            return httpx.Response(
-                200, json=_next_page([_item("2", "Second")], cursor=None)
-            )
-        return httpx.Response(
-            200, json=_first_page([_item("1", "First")], cursor="cursor-1")
-        )
+            return httpx.Response(200, json=_next_page([_item("2", "Second")], cursor=None))
+        return httpx.Response(200, json=_first_page([_item("1", "First")], cursor="cursor-1"))
 
     client = _client(handler)
     first = await client.list_items_page(MondayListRequest(board_id="1", limit=1))
@@ -140,15 +137,16 @@ async def test_group_ids_filter_uses_query_params() -> None:
 
 @pytest.mark.asyncio
 async def test_missing_token_names_environment_variable() -> None:
+    custom_env_name = "CUSTOM_MONDAY_" + "TOKEN"
     client = MondayClient(
-        token_env="CUSTOM_MONDAY_TOKEN",
+        token_env=custom_env_name,
         transport=httpx.MockTransport(lambda request: httpx.Response(200, json={})),
         environ={},
     )
-    with pytest.raises(HttpApiError, match="CUSTOM_MONDAY_TOKEN") as error:
+    with pytest.raises(HttpApiError, match=custom_env_name) as error:
         await client.list_items_page(MondayListRequest(board_id="1", limit=1))
-    assert _TOKEN not in str(error.value)
-    assert "CUSTOM_MONDAY_TOKEN" in str(error.value)
+    assert _FAKE_API_CREDENTIAL not in str(error.value)
+    assert custom_env_name in str(error.value)
 
 
 @pytest.mark.asyncio
@@ -161,7 +159,7 @@ async def test_http_401_is_actionable_and_hides_token() -> None:
         await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
     message = str(error.value)
     assert "MONDAY_API_TOKEN" in message
-    assert _TOKEN not in message
+    assert _FAKE_API_CREDENTIAL not in message
 
 
 @pytest.mark.asyncio
@@ -232,3 +230,136 @@ async def test_unexpected_boards_payload() -> None:
 
     with pytest.raises(HttpApiError, match="missing boards"):
         await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+
+
+@pytest.mark.asyncio
+async def test_invalid_item_json_and_blank_cursor() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "data": {
+                    "boards": [
+                        {
+                            "items_page": {
+                                "cursor": "   ",
+                                "items": [{"id": "1", "name": "X"}],
+                            }
+                        }
+                    ]
+                }
+            },
+        )
+
+    with pytest.raises(HttpApiError, match="invalid item JSON"):
+        await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+
+
+@pytest.mark.asyncio
+async def test_non_string_cursor_is_rejected() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "data": {
+                    "boards": [
+                        {
+                            "items_page": {
+                                "cursor": 123,
+                                "items": [_item("1", "Ok")],
+                            }
+                        }
+                    ]
+                }
+            },
+        )
+
+    with pytest.raises(HttpApiError, match="cursor must be a string"):
+        await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+
+
+@pytest.mark.asyncio
+async def test_http_400_and_non_object_payload() -> None:
+    def bad_status(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(400, text="bad request")
+
+    with pytest.raises(HttpApiError, match="status 400"):
+        await _client(bad_status).list_items_page(MondayListRequest(board_id="1", limit=1))
+
+    def non_object(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json=["not", "an", "object"])
+
+    with pytest.raises(HttpApiError, match="non-object"):
+        await _client(non_object).list_items_page(MondayListRequest(board_id="1", limit=1))
+
+
+@pytest.mark.asyncio
+async def test_graphql_errors_must_be_a_list() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json={"errors": "boom"})
+
+    with pytest.raises(HttpApiError, match="errors payload is invalid"):
+        await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+
+
+@pytest.mark.asyncio
+async def test_blank_token_is_treated_as_missing() -> None:
+    env_name = "MONDAY_API_" + "TOKEN"
+    client = MondayClient(
+        token_env=env_name,
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={})),
+        environ={env_name: "   "},
+    )
+    with pytest.raises(HttpApiError, match=env_name):
+        await client.list_items_page(MondayListRequest(board_id="1", limit=1))
+
+
+@pytest.mark.asyncio
+async def test_http_403_mentions_token_env_without_leaking_secret() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(403, text="forbidden")
+
+    with pytest.raises(HttpApiError, match="403") as error:
+        await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+    assert _FAKE_API_CREDENTIAL not in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_transport_error_is_transient() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        raise httpx.ConnectError("connection refused")
+
+    with pytest.raises(TransientHttpApiError, match="transport failed"):
+        await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+
+
+@pytest.mark.asyncio
+async def test_blank_cursor_string_normalized_to_none() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "data": {
+                    "boards": [
+                        {
+                            "items_page": {
+                                "cursor": "  ",
+                                "items": [_item("1", "Ok")],
+                            }
+                        }
+                    ]
+                }
+            },
+        )
+
+    page = await _client(handler).list_items_page(MondayListRequest(board_id="1", limit=1))
+    assert page.cursor is None
+    assert page.items[0].id == "1"

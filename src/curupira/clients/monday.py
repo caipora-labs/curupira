@@ -14,8 +14,8 @@ from curupira.errors import HttpApiError, TransientHttpApiError
 from curupira.models.monday import MondayBoardItem, MondayItemsPage, MondayListRequest
 
 _MONDAY_GRAPHQL_URL = "https://api.monday.com/v2"
-_DEFAULT_TOKEN_ENV = "MONDAY_API_TOKEN"
-_MAX_PAGE_SIZE = 500
+# Environment variable *name* for the personal API token (not a secret value).
+_DEFAULT_TOKEN_ENV = "MONDAY_API_TOKEN"  # noqa: S105
 
 _FIRST_PAGE_QUERY = """
 query CurupiraMondayItems($boardIds: [ID!]!, $limit: Int!, $queryParams: ItemsQuery) {
@@ -82,8 +82,6 @@ class MondayClient:
 
     async def list_items_page(self, request: MondayListRequest) -> MondayItemsPage:
         """Return one page of board items, optionally filtered by group IDs."""
-        if request.limit < 1 or request.limit > _MAX_PAGE_SIZE:
-            raise ValueError(f"limit must be between 1 and {_MAX_PAGE_SIZE}")
         token = self._require_token()
         if request.cursor:
             body: dict[str, Any] = {
@@ -123,13 +121,13 @@ class MondayClient:
     def _require_token(self) -> str:
         """Read the API token from the configured environment variable."""
         token = self._environ.get(self._token_env)
-        if token is None or not str(token).strip():
+        if token is None or not token.strip():
             raise HttpApiError(
                 f"monday.com API token is missing; set the {self._token_env} environment "
                 "variable to a personal monday.com API token "
                 "(Developer Center → API token)"
             )
-        return str(token).strip()
+        return token.strip()
 
     @resilient(
         retry=RetryConfig(
@@ -165,9 +163,7 @@ class MondayClient:
                 "personal API token with boards:read access"
             )
         if response.status_code >= 400:
-            raise HttpApiError(
-                f"monday.com GraphQL failed with status {response.status_code}"
-            )
+            raise HttpApiError(f"monday.com GraphQL failed with status {response.status_code}")
         try:
             document = response.json()
         except ValueError as error:
