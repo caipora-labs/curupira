@@ -97,7 +97,8 @@ caller-chosen session ID, it sets `assigns_session_id = True` and passes
 `render_output` already understands, it overrides `render_output`. Adapters never start
 processes or handle timeouts and output limits themselves; `run_task` and
 `AsyncProcessRunner` own headless runs, and the TUI assistant mounts `interactive_launch`
-specs inside `PtyTerminal`. A built-in coding-agent adapter lives in its own package under
+specs inside `PtyTerminal` with `cwd=Path.cwd()` (where `curu tui` was started) and the
+allowlisted environment from `default_pty_env` (no provider API keys). A built-in coding-agent adapter lives in its own package under
 `providers/<name>/` (or shares a package with related triggers), is listed in
 `manager.py`, and is discovered through Pluggy so `create_cli_adapter` and profile
 validation find it through the registry; it belongs in its own issue/PR after
