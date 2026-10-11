@@ -39,6 +39,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Packaging guard (`scripts/check_packaged_readme.py`) that builds the sdist and
+  wheel, fails when the packaged README or metadata long description contains
+  `opscli` (case-insensitive; retired OpsCli branding must not ship on PyPI), and
+  runs `twine check`. CI's build/smoke job and the local one-command check use it.
 - Hot-reload for `run --watch` and `tui`: when the configuration file changes, new
   admissions pause until in-flight tasks finish, then settings and feeds reload from
   disk so subsequent work uses the latest configuration without interrupting running

@@ -31,7 +31,7 @@ uv run --no-sync ruff check .                              # lint (add --fix for
 uv run --no-sync ruff format --check .                     # formatting
 uv run --no-sync pyrefly check                             # strict type check
 uv run --no-sync curupira --config curupira.example.toml validate
-uv build && uv run --no-sync twine check dist/*            # packaging
+uv run --no-sync python scripts/check_packaged_readme.py   # build, OpsCli branding guard, twine
 ```
 
 Git hooks are managed by [`prek`](https://prek.j178.dev/) via `.pre-commit-config.yaml`.
