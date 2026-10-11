@@ -110,8 +110,11 @@ the interactive configuration assistant and which model that CLI should use:
 - `agent`: a provider name from the agent registry (the same identifiers used in profile
   `provider` values). Leave unset until you choose one.
 - `model`: a concrete model id, or omit it to prefer the provider's native automatic
-  selection when the adapter declares `auto_model` (Cursor documents `--model auto`).
-  The literal `auto` is rejected for providers without that capability.
+  selection when the adapter declares `auto_model`. Cursor's changelog says new installs
+  default to Auto and you can switch anytime with `/model` or `--model`; the Cursor
+  adapter therefore sets `auto_model = "auto"`. The literal `auto` is rejected for
+  providers without that capability. Capability checks run only once `agent` is set: a
+  model value with no agent is accepted and checked later when an agent is chosen.
 
 Existing TOML files without `[assistant]` keep the unset defaults.
 

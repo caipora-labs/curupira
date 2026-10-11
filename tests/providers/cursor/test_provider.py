@@ -6,6 +6,7 @@ from pathlib import Path
 from typing_extensions import override
 
 from curupira.agents import create_cli_adapter
+from curupira.agents.assistant import resolve_assistant_model
 from curupira.clients.process import AsyncProcessRunner
 from curupira.models import (
     CodingTaskRequest,
@@ -91,3 +92,20 @@ def test_cursor_prompt_is_passed_as_literal_task_data(tmp_path: Path) -> None:
     arguments = create_cli_adapter("cursor").build_arguments(request)
 
     assert arguments[-2:] == ("--", "--help; literal task data")
+
+
+def test_resolve_assistant_model_none_yields_model_auto_in_arguments(tmp_path: Path) -> None:
+    resolved = resolve_assistant_model(CursorCliAdapter, None)
+    assert resolved.model == "auto"
+    assert resolved.notice is None
+
+    arguments = create_cli_adapter("cursor").build_arguments(
+        CodingTaskRequest(
+            cwd=tmp_path,
+            profile=CursorCliProfile(model=resolved.model),
+            message="Configure",
+        )
+    )
+
+    assert "--model" in arguments
+    assert arguments[arguments.index("--model") + 1] == "auto"

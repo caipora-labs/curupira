@@ -7,11 +7,13 @@ import pytest
 from pydantic import ValidationError
 from typing_extensions import override
 
+import curupira.agents.registry as agent_registry
 from curupira.agents.assistant import ResolvedModel, resolve_assistant_model
 from curupira.agents.base import CodingAgentCliAdapter
 from curupira.config import ApplicationSettings, load_settings
 from curupira.models import CodingTaskRequest
 from curupira.models.profiles import OpenCodeCliProfile
+from curupira.providers.claude import ClaudeCodeCliAdapter
 from curupira.providers.cursor import CursorCliAdapter
 from curupira.providers.opencode import OpenCodeCliAdapter
 from tests.helpers import settings_dict
@@ -219,3 +221,36 @@ def test_settings_accept_auto_for_cursor() -> None:
     assert settings.assistant.model == "auto"
     assert CursorCliAdapter.auto_model == "auto"
     assert OpenCodeCliAdapter.auto_model is None
+
+
+def test_resolve_against_registered_cursor_and_claude() -> None:
+    cursor = agent_registry.get("cursor")
+    claude = agent_registry.get("claude")
+
+    assert cursor is CursorCliAdapter
+    assert claude is ClaudeCodeCliAdapter
+    assert resolve_assistant_model(cursor, None) == ResolvedModel(model="auto", notice=None)
+    resolved = resolve_assistant_model(claude, None)
+    assert resolved.model is None
+    assert resolved.notice is not None
+    assert "claude" in resolved.notice
+    with pytest.raises(ValueError, match="no native automatic model"):
+        resolve_assistant_model(claude, "auto")
+
+
+def test_assistant_model_without_agent_is_deferred() -> None:
+    settings = ApplicationSettings.model_validate(
+        settings_dict(
+            {
+                "daily": {
+                    "trigger_type": "github-issues",
+                    "repo": "acme/api",
+                    "prompt": "Handle ${task_title}",
+                }
+            },
+            assistant={"model": "auto"},
+        )
+    )
+
+    assert settings.assistant.agent is None
+    assert settings.assistant.model == "auto"

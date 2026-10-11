@@ -456,7 +456,8 @@ class AssistantSettings(ValidatedModel):
             "Model identifier passed to the assistant's CLI. Defaults to unset, which "
             "selects the provider's native automatic model when the adapter declares "
             "``auto_model``, otherwise omits the model flag so the CLI uses its own "
-            "default. The literal ``auto`` is allowed only for providers with native auto."
+            "default. The literal ``auto`` is allowed only for providers with native auto. "
+            "Capability checks run only once ``agent`` is set; a model alone is kept as-is."
         ),
     )
 

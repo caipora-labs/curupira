@@ -15,10 +15,10 @@ class CursorCliAdapter(CodingAgentCliAdapter):
     profile_model = CursorCliProfile
     display_name = "Cursor"
     install_url = "https://docs.cursor.com/en/cli/overview"
-    # Cursor's CLI accepts ``--model <model>`` (passed below) and documents Auto as a
-    # selectable model via ``--model`` / ``/model``; see
-    # https://cursor.com/docs/cli/reference/parameters and
-    # https://cursor.com/docs/cli/changelog ("switch anytime with `/model` or `--model`").
+    # Cursor changelog: new installs default to Auto; switch anytime with ``/model`` or
+    # ``--model`` (https://cursor.com/docs/cli/changelog). The adapter passes the model
+    # via ``--model`` below; confirm the literal id ``auto`` with ``agent models`` on a
+    # real install.
     auto_model = "auto"
 
     def build_arguments(self, request: CodingTaskRequest) -> tuple[str, ...]:
