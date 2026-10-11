@@ -108,41 +108,140 @@ def validate_git_remote(value: str) -> str:
 
 
 class PollingSettings(ValidatedModel):
-    """Global discovery intervals and fetch batch size.
+    """Global discovery intervals and fetch batch size under ``[settings.polling]``."""
 
-    Attributes:
-        poll_interval_seconds: Delay between discovery polls, in seconds.
-        batch_size: Maximum number of forge items fetched by one poll.
-        cron_poll_interval_seconds: Maximum delay between cron schedule checks.
-    """
-
-    poll_interval_seconds: PositiveSeconds = 30.0
-    batch_size: Annotated[int, Field(strict=True, ge=1, le=1000)] = 100
-    cron_poll_interval_seconds: Annotated[PositiveSeconds, Field(le=60)] = 1.0
+    poll_interval_seconds: Annotated[
+        PositiveSeconds,
+        Field(
+            description=(
+                "Base delay in seconds between forge discovery polls when a cycle finds "
+                "nothing or fails. Defaults to 30. Must be greater than zero. Empty or "
+                "error cycles double this wait up to five minutes (300 seconds); any "
+                "discovered task resets the wait to this base (also capped at 300 seconds)."
+            )
+        ),
+    ] = 30.0
+    batch_size: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=1,
+            le=1000,
+            description=(
+                "Maximum number of forge items one discovery poll may fetch. Defaults to "
+                "100. Must be an integer from 1 through 1000 inclusive. Passed to each "
+                "task source's discover call; per-automation deduplication still applies "
+                "after the fetch."
+            ),
+        ),
+    ] = 100
+    cron_poll_interval_seconds: Annotated[
+        PositiveSeconds,
+        Field(
+            le=60,
+            description=(
+                "Delay in seconds between cron schedule checks while streaming "
+                "occurrences. Defaults to 1. Must be greater than zero and at most 60. "
+                "Cron feeds sleep this long after each poll cycle rather than using the "
+                "forge poll backoff."
+            ),
+        ),
+    ] = 1.0
 
 
 class ExecutionSettings(ValidatedModel):
-    """Shared scheduling, workspace, persistence, and process limits.
+    """Shared scheduling, workspace, persistence, and process limits under ``[settings]``."""
 
-    Attributes:
-        max_active_tasks: Maximum number of coding-agent tasks running concurrently.
-        max_pending_tasks: Maximum number of discovered tasks waiting to run.
-        workspace_dir: Default directory for repository checkouts and worktrees.
-        state_db_path: SQLite database path for durable task and schedule state.
-        otlp_endpoint: Optional OTLP/HTTP endpoint for task trace export.
-        task_timeout_minutes: Time limit for one coding-agent task, in minutes.
-        max_output_bytes: Maximum captured output per subprocess stream.
-        polling: Discovery polling intervals and fetch limits.
-    """
-
-    max_active_tasks: Annotated[int, Field(strict=True, ge=1, le=1000)] = 1
-    max_pending_tasks: Annotated[int, Field(strict=True, ge=1, le=10000)] = 100
-    workspace_dir: Path = Field(default_factory=lambda: Path("~/.curupira/workspaces"))
-    state_db_path: Path = Field(default_factory=lambda: Path("~/.curupira/state.sqlite3"))
-    otlp_endpoint: AnyHttpUrl | None = None
-    task_timeout_minutes: PositiveMinutes = 20
-    max_output_bytes: Annotated[int, Field(strict=True, ge=1024, le=100_000_000)] = 1_000_000
-    polling: PollingSettings = Field(default_factory=PollingSettings)
+    max_active_tasks: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=1,
+            le=1000,
+            description=(
+                "Maximum number of coding-agent tasks Curupira runs concurrently. Defaults "
+                "to 1. Must be an integer from 1 through 1000 inclusive. The scheduler "
+                "also keeps checkouts that share a workspace path from overlapping, so "
+                "shared ``checkout = \"main\"`` work still runs one at a time per path."
+            ),
+        ),
+    ] = 1
+    max_pending_tasks: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=1,
+            le=10000,
+            description=(
+                "Maximum number of discovered tasks waiting to run. Defaults to 100. Must "
+                "be an integer from 1 through 10000 inclusive. The scheduler stops reading "
+                "new feed items while the pending queue is at this limit, and merged task "
+                "streams use the same bound as their buffer size."
+            ),
+        ),
+    ] = 100
+    workspace_dir: Path = Field(
+        default_factory=lambda: Path("~/.curupira/workspaces"),
+        description=(
+            "Default directory for repository checkouts when a repository alias omits "
+            "``path``. Defaults to ``~/.curupira/workspaces``. ``~`` is expanded; when "
+            "loaded from TOML, relative paths resolve against the configuration file "
+            "directory. Each automation then uses ``workspace_dir/<repository-alias>`` "
+            "unless the alias sets its own ``path``."
+        ),
+    )
+    state_db_path: Path = Field(
+        default_factory=lambda: Path("~/.curupira/state.sqlite3"),
+        description=(
+            "SQLite database path for durable running-session and cron schedule state. "
+            "Defaults to ``~/.curupira/state.sqlite3``. ``~`` is expanded; when loaded "
+            "from TOML, relative paths resolve against the configuration file directory. "
+            "An incompatible existing database raises an error instead of being deleted."
+        ),
+    )
+    otlp_endpoint: AnyHttpUrl | None = Field(
+        default=None,
+        description=(
+            "Optional OTLP/HTTP endpoint URL for exporting per-task OpenTelemetry spans. "
+            "Defaults to unset, which disables export and uses a no-op tracer. When set, "
+            "must be an HTTP or HTTPS URL passed to the OTLP/HTTP span exporter "
+            "(for example ``http://localhost:4318/v1/traces``)."
+        ),
+    )
+    task_timeout_minutes: Annotated[
+        PositiveMinutes,
+        Field(
+            description=(
+                "Time limit in minutes for one coding-agent run and its optional setup "
+                "script. Defaults to 20. Must be a positive integer. Curupira converts "
+                "this value to seconds for subprocess timeouts; exceeding it raises a CLI "
+                "timeout for that process."
+            )
+        ),
+    ] = 20
+    max_output_bytes: Annotated[
+        int,
+        Field(
+            strict=True,
+            ge=1024,
+            le=100_000_000,
+            description=(
+                "Maximum captured bytes retained per subprocess stdout or stderr stream. "
+                "Defaults to 1000000 (1 MiB). Must be an integer from 1024 through "
+                "100000000 inclusive. Applies to coding-agent runs and setup scripts; "
+                "output beyond the limit keeps only the trailing bytes and marks the "
+                "result as truncated."
+            ),
+        ),
+    ] = 1_000_000
+    polling: PollingSettings = Field(
+        default_factory=PollingSettings,
+        description=(
+            "Nested discovery polling intervals and fetch limits from "
+            "``[settings.polling]``. Defaults to ``PollingSettings`` values when the "
+            "table is omitted."
+        ),
+    )
 
     @property
     def task_timeout_seconds(self) -> float:
@@ -157,17 +256,39 @@ class ExecutionSettings(ValidatedModel):
 
 
 class RepositoryConfiguration(ValidatedModel):
-    """Local Git checkout identity shared by one or more automations.
+    """Local Git checkout identity under ``[repositories.<alias>]``, shared by automations."""
 
-    Attributes:
-        remote: Full Git remote URL used for ``git clone``.
-        path: Optional base checkout path; relative paths resolve from the TOML file.
-        setup_script: Optional repository-relative script run after a fresh clone.
-    """
-
-    remote: NonEmptyString
-    path: Path | None = None
-    setup_script: str | None = None
+    remote: Annotated[
+        NonEmptyString,
+        Field(
+            description=(
+                "Full Git remote URL used for ``git clone``. Required. Accepts "
+                "``http://``, ``https://``, ``ssh://``, ``git://``, ``file://``, or "
+                "``user@host:path`` forms, without whitespace. Forge discovery identity "
+                "(``repo`` on GitHub/Azure automations) is independent of this clone URL."
+            )
+        ),
+    ]
+    path: Path | None = Field(
+        default=None,
+        description=(
+            "Optional base checkout path for this repository alias. Defaults to unset, in "
+            "which case Curupira uses ``settings.workspace_dir/<alias>``. ``~`` is "
+            "expanded; when loaded from TOML, relative paths resolve against the "
+            "configuration file directory. Different repository aliases cannot share one "
+            "resolved workspace path."
+        ),
+    )
+    setup_script: str | None = Field(
+        default=None,
+        description=(
+            "Optional repository-relative executable run only after a fresh base clone. "
+            "Defaults to unset (no setup). Must be a non-empty relative path without "
+            "``..`` or absolute/drive roots; validation checks syntax only, not existence. "
+            "It runs with the checkout root as cwd, not inside a task worktree; a nonzero "
+            "exit prevents the agent from starting and removes the newly cloned checkout."
+        ),
+    )
 
     @field_validator("remote")
     @classmethod

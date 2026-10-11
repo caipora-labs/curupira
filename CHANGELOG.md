@@ -94,6 +94,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Documentation
 
+- `ExecutionSettings`, `PollingSettings`, and `RepositoryConfiguration` expose
+  `Field(description=...)` on every field (and keep a short class docstring naming the
+  TOML table) so generated CLI/config help can read descriptions from the Pydantic
+  schema without duplicating an `Attributes:` block.
 - Removed the README "Trello listener" section, which described a `trello-cli` trigger
   that Curupira does not ship; the README now points to trigger plugins instead.
 - Each coding-agent provider has its own page under "Providers and agents". The provider
