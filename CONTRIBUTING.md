@@ -21,8 +21,9 @@ map, and security boundaries. Install the documentation tools with
 
 **Maturin** builds the Rust binary (`packages/curupira-core`) into the platform wheel of
 `packages/curupira-python` (`bindings = "bin"`). That wheel has no Python package
-dependencies. The SDK and the official plugins are separate pure-Python wheels, exposed
-as optional extras on `curupira` (`github`, `azure`, `trello`, `monday`, `extensions`).
+dependencies. Official triggers are one pure-Python wheel (`curupira-plugins`, depends on
+`curupira-sdk`), exposed as optional extras on `curupira` (`extensions`, or forge-named
+aliases `github` / `azure` / `trello` / `monday` that install the same package).
 A release is one `uv build` over all workspace members.
 Console scripts `curupira` and `curu` point at the binary. Build and smoke-test with:
 
