@@ -77,10 +77,16 @@ jobs:
       - run: uv run --no-sync cargo test --manifest-path packages/curupira-core/Cargo.toml
       - name: Validate example configuration
         run: |
+          # example.toml uses uvx --from curupira-plugins for end users; rewrite to
+          # the checkout path so CI does not need the package on PyPI yet.
+          plugins_path="$(cd packages/curupira-python-plugins && pwd)"
+          tmp_config="$(mktemp)"
+          sed "s|--from\", \"curupira-plugins\"|--from\", \"${plugins_path}\"|" \
+            packages/curupira-core/curupira.example.toml > "$tmp_config"
           CURUPIRA_EXTENSIONS_PATH=packages/curupira-python-plugins \
             CURUPIRA_PYTHONPATH="$(ls -d packages/curupira-python-sdk/src packages/curupira-python-plugins/src | paste -sd: -)" \
             uv run --no-sync cargo run --manifest-path packages/curupira-core/Cargo.toml --bin curupira -- \
-            --config packages/curupira-core/curupira.example.toml validate
+            --config "$tmp_config" validate
 
   python-sdk:
     name: Python SDK tests (Python ${{ matrix.python-version }})
