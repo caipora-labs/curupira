@@ -43,25 +43,9 @@ impl ExtensionHost {
             command.current_dir(&installed.dir);
         }
         // Ensure official in-tree modules resolve when developing from a checkout.
-        if let Ok(extra) = std::env::var("CURUPIRA_PYTHONPATH") {
-            let mut merged = extra;
-            if let Ok(existing) = std::env::var("PYTHONPATH") {
-                if !existing.is_empty() {
-                    merged = format!("{merged}:{existing}");
-                }
-            }
-            command.env("PYTHONPATH", merged);
-        } else if let Ok(cwd) = std::env::current_dir() {
-            let candidate = cwd.join("python");
-            if candidate.is_dir() {
-                let mut merged = candidate.display().to_string();
-                if let Ok(existing) = std::env::var("PYTHONPATH") {
-                    if !existing.is_empty() {
-                        merged = format!("{merged}:{existing}");
-                    }
-                }
-                command.env("PYTHONPATH", merged);
-            }
+        // Paths must be absolute: children often run with cwd = the extension directory.
+        if let Some(pythonpath) = resolve_extension_pythonpath() {
+            command.env("PYTHONPATH", pythonpath);
         }
         let mut child = command.spawn().map_err(|e| {
             CurupiraError::Plugin(format!(
@@ -264,6 +248,51 @@ impl Drop for ExtensionHost {
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+    }
+}
+
+/// Build an absolute `PYTHONPATH` for extension children.
+fn resolve_extension_pythonpath() -> Option<String> {
+    let mut entries: Vec<String> = Vec::new();
+    if let Ok(extra) = std::env::var("CURUPIRA_PYTHONPATH") {
+        for part in extra.split([':', ';']) {
+            if part.is_empty() {
+                continue;
+            }
+            entries.push(absolutize_path_entry(part));
+        }
+    } else if let Ok(cwd) = std::env::current_dir() {
+        let candidate = cwd.join("python");
+        if candidate.is_dir() {
+            entries.push(candidate.display().to_string());
+        }
+    }
+    if let Ok(existing) = std::env::var("PYTHONPATH") {
+        for part in existing.split([':', ';']) {
+            if part.is_empty() {
+                continue;
+            }
+            let abs = absolutize_path_entry(part);
+            if !entries.iter().any(|e| e == &abs) {
+                entries.push(abs);
+            }
+        }
+    }
+    if entries.is_empty() {
+        None
+    } else {
+        Some(entries.join(":"))
+    }
+}
+
+fn absolutize_path_entry(raw: &str) -> String {
+    let path = std::path::PathBuf::from(raw);
+    if path.is_absolute() {
+        return path.display().to_string();
+    }
+    match std::env::current_dir() {
+        Ok(cwd) => cwd.join(path).display().to_string(),
+        Err(_) => raw.to_string(),
     }
 }
 

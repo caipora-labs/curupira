@@ -105,9 +105,7 @@ def serve_stdio(server: ExtensionServer) -> None:
             _write_error(stdout, req_id, -32002, f"execution error: {exc}")
 
 
-def _write_error(
-    stdout: Any, req_id: Any, code: int, message: str, data: Any = None
-) -> None:
+def _write_error(stdout: Any, req_id: Any, code: int, message: str, data: Any = None) -> None:
     error: dict[str, Any] = {"code": code, "message": message}
     if data is not None:
         error["data"] = data

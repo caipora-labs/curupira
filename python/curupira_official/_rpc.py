@@ -96,9 +96,7 @@ def serve(
             continue
         try:
             result = handler(params)
-            write_frame(
-                json.dumps({"jsonrpc": "2.0", "id": req_id, "result": result}).encode()
-            )
+            write_frame(json.dumps({"jsonrpc": "2.0", "id": req_id, "result": result}).encode())
             if method == "shutdown":
                 return
         except RpcError as exc:
