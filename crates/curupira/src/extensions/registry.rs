@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use curupira_protocol::{ExtensionManifest, MANIFEST_FILE_NAME};
 
+use crate::agents::{known_providers, AgentProvider};
 use crate::error::CurupiraError;
 use crate::runtime::extensions_dir;
 use crate::version::VERSION;
@@ -23,7 +24,6 @@ pub struct InstalledExtension {
 pub struct ExtensionRegistry {
     by_name: BTreeMap<String, InstalledExtension>,
     trigger_index: BTreeMap<String, String>,
-    agent_index: BTreeMap<String, String>,
 }
 
 impl ExtensionRegistry {
@@ -50,10 +50,6 @@ impl ExtensionRegistry {
                 .trigger_types
                 .iter()
                 .any(|t| reg.trigger_index.contains_key(t))
-                || manifest
-                    .agent_providers
-                    .iter()
-                    .any(|a| reg.agent_index.contains_key(a))
             {
                 continue;
             }
@@ -82,21 +78,9 @@ impl ExtensionRegistry {
                 )));
             }
         }
-        for agent in &installed.manifest.agent_providers {
-            if let Some(other) = self.agent_index.get(agent) {
-                return Err(CurupiraError::Plugin(format!(
-                    "agent provider {agent:?} claimed by both {other:?} and {:?}",
-                    installed.name
-                )));
-            }
-        }
         for trigger in &installed.manifest.trigger_types {
             self.trigger_index
                 .insert(trigger.clone(), installed.name.clone());
-        }
-        for agent in &installed.manifest.agent_providers {
-            self.agent_index
-                .insert(agent.clone(), installed.name.clone());
         }
         self.by_name.insert(installed.name.clone(), installed);
         Ok(())
@@ -110,11 +94,6 @@ impl ExtensionRegistry {
     #[must_use]
     pub fn extension_for_trigger(&self, trigger_type: &str) -> Option<&str> {
         self.trigger_index.get(trigger_type).map(String::as_str)
-    }
-
-    #[must_use]
-    pub fn extension_for_agent(&self, provider: &str) -> Option<&str> {
-        self.agent_index.get(provider).map(String::as_str)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &InstalledExtension> {
@@ -177,22 +156,26 @@ fn load_from_dir(reg: &mut ExtensionRegistry, root: &Path) -> Result<(), Curupir
             fs::read_to_string(&manifest_path).map_err(|e| CurupiraError::Plugin(e.to_string()))?;
         let manifest = ExtensionManifest::from_toml_str(&text)
             .map_err(|e| CurupiraError::Plugin(format!("{}: {e}", manifest_path.display())))?;
-        manifest
-            .validate()
-            .map_err(|e| CurupiraError::Plugin(format!("{}: {e}", manifest.name)))?;
+        // Skip obsolete coding-agent manifests left on disk from older installs.
+        if let Err(err) = manifest.validate() {
+            if err.contains("coding-agent") {
+                tracing::warn!(
+                    "ignoring obsolete extension manifest {}: {err}",
+                    manifest.name
+                );
+                continue;
+            }
+            return Err(CurupiraError::Plugin(format!("{}: {err}", manifest.name)));
+        }
         if reg.by_name.contains_key(&manifest.name) {
             // Managed installs win over bundled copies with the same name.
             continue;
         }
-        // Skip duplicate trigger/agent claims from later roots.
+        // Skip duplicate trigger claims from later roots.
         if manifest
             .trigger_types
             .iter()
             .any(|t| reg.trigger_index.contains_key(t))
-            || manifest
-                .agent_providers
-                .iter()
-                .any(|a| reg.agent_index.contains_key(a))
         {
             continue;
         }
@@ -212,16 +195,19 @@ pub fn describe_installed(registry: &ExtensionRegistry) -> Result<Vec<String>, C
     lines.push(format!(
         "cron\tcurupira {VERSION} (built-in)\tprompt fields: -"
     ));
+    for provider_name in known_providers() {
+        let provider = AgentProvider::parse(provider_name).expect("known provider");
+        lines.push(format!(
+            "agent:{}\tcurupira {VERSION} (built-in)\texecutable: {}",
+            provider.as_str(),
+            provider.executable()
+        ));
+    }
     for ext in registry.iter() {
         let origin = format!("{} {}", ext.manifest.name, ext.manifest.version);
         for trigger in &ext.manifest.trigger_types {
             lines.push(format!(
                 "{trigger}\t{origin}\tprompt fields: (see extension)"
-            ));
-        }
-        for agent in &ext.manifest.agent_providers {
-            lines.push(format!(
-                "agent:{agent}\t{origin}\texecutable: (see extension)"
             ));
         }
     }

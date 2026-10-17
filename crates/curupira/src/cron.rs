@@ -110,6 +110,9 @@ pub fn poll_cron(
         profile_name: automation.profile_name.clone(),
         provider: automation.profile.provider.clone(),
         repository_remote: automation.repository.remote.clone(),
+        repository_alias: automation.repository_alias.clone(),
+        repository_path: automation.repository.path.clone(),
+        setup_script: automation.repository.setup_script.clone(),
         checkout: automation.checkout.clone(),
         workspace_dir: expand_user(workspace_dir).to_string_lossy().into_owned(),
     }])

@@ -114,7 +114,7 @@ pub fn install_extension(source: &ExtensionSource) -> Result<ExtensionManifest, 
                 version: version.clone().unwrap_or_else(|| "*".into()),
                 protocol_version: 1,
                 runtime: ExtensionRuntime::Python,
-                kind: ExtensionKind::Both,
+                kind: ExtensionKind::Trigger,
                 launch: LaunchSpec::Uvx {
                     package: package.clone(),
                     version: version.clone(),
@@ -127,7 +127,7 @@ pub fn install_extension(source: &ExtensionSource) -> Result<ExtensionManifest, 
                     version: version.clone(),
                 }),
                 capabilities: Default::default(),
-                trigger_types: vec![],
+                trigger_types: vec!["*".into()],
                 agent_providers: vec![],
             };
             // Pre-fetch with uvx once so install fails closed without leaving a half registry entry.

@@ -15,7 +15,10 @@ pub enum ExtensionRuntime {
     Executable,
 }
 
-/// Whether the extension contributes triggers, agents, or both.
+/// Whether the extension contributes triggers (task sources).
+///
+/// Coding agents are built into the Rust core; `agent` / `both` remain only so
+/// older on-disk manifests deserialize and can be rejected cleanly.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ExtensionKind {
@@ -51,10 +54,11 @@ pub struct ExtensionManifest {
     pub package: Option<PackageRef>,
     #[serde(default)]
     pub capabilities: ExtensionCapability,
-    /// Trigger types contributed (`github-issues`, …). Empty for agent-only.
+    /// Trigger types contributed (`github-issues`, …).
     #[serde(default)]
     pub trigger_types: Vec<String>,
-    /// Agent provider ids contributed (`claude`, …). Empty for trigger-only.
+    /// Deprecated: coding agents are built into the core. Ignored when non-empty
+    /// except that agent-only manifests fail validation.
     #[serde(default)]
     pub agent_providers: Vec<String>,
 }
@@ -124,8 +128,17 @@ impl ExtensionManifest {
         {
             return Err("invalid extension name".into());
         }
-        if self.trigger_types.is_empty() && self.agent_providers.is_empty() {
-            return Err("manifest must declare trigger_types and/or agent_providers".into());
+        if self.trigger_types.is_empty() {
+            return Err(
+                "manifest must declare trigger_types (coding agents are built into Curupira)"
+                    .into(),
+            );
+        }
+        if matches!(self.kind, ExtensionKind::Agent) || !self.agent_providers.is_empty() {
+            return Err(
+                "coding-agent extensions are no longer supported; agents are built into the Rust core"
+                    .into(),
+            );
         }
         Ok(())
     }

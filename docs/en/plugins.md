@@ -1,7 +1,10 @@
 # Plugins (legacy)
 
 In-process Pluggy hooks and `curupira.triggers` / `curupira.agents` entry points have been
-**removed**. New integrations must use process extensions.
+**removed**.
 
-See [Process extensions](extensions.md) and the
-[protocol specification](https://github.com/caipora-labs/curupira/blob/main/protocol/PROTOCOL.md).
+- **Task sources** use process extensions (JSON-RPC). See
+  [Process extensions](extensions.md) and the
+  [protocol specification](https://github.com/caipora-labs/curupira/blob/main/protocol/PROTOCOL.md).
+- **Coding agents** are built into the Rust CLI. Configure them with
+  `[agents.profiles.*]` and the provider docs under [Providers](providers.md).

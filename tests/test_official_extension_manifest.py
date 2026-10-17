@@ -20,7 +20,6 @@ PYTHON = ROOT / "python"
         "curupira_official.azure_ext",
         "curupira_official.trello_ext",
         "curupira_official.monday_ext",
-        "curupira_official.agents_ext",
     ],
 )
 def test_print_manifest(module: str) -> None:

@@ -4,14 +4,12 @@ use std::io::{BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use curupira_protocol::{
-    negotiate, read_frame, write_frame, AgentBuildArgumentsParams, AgentBuildArgumentsResult,
-    AgentInteractiveLaunchParams, AgentInteractiveLaunchResult, ClientInfo, DescribeResult,
-    ErrorCode, InitializeParams, InitializeResult, Request, Response, TriggerLifecycleParams,
-    TriggerPollParams, TriggerPollResult, TriggerSchemaParams, TriggerSchemaResult,
-    TriggerValidateParams, TriggerValidateResult, CURRENT_PROTOCOL_VERSION,
-    DEFAULT_MAX_FRAME_BYTES, METHOD_AGENT_BUILD_ARGUMENTS, METHOD_AGENT_INTERACTIVE_LAUNCH,
-    METHOD_DESCRIBE, METHOD_INITIALIZE, METHOD_SHUTDOWN, METHOD_TRIGGER_ON_FINISHED,
-    METHOD_TRIGGER_ON_STARTED, METHOD_TRIGGER_POLL, METHOD_TRIGGER_SCHEMA, METHOD_TRIGGER_VALIDATE,
+    negotiate, read_frame, write_frame, ClientInfo, DescribeResult, ErrorCode, InitializeParams,
+    InitializeResult, Request, Response, TriggerLifecycleParams, TriggerPollParams,
+    TriggerPollResult, TriggerSchemaParams, TriggerSchemaResult, TriggerValidateParams,
+    TriggerValidateResult, CURRENT_PROTOCOL_VERSION, DEFAULT_MAX_FRAME_BYTES, METHOD_DESCRIBE,
+    METHOD_INITIALIZE, METHOD_SHUTDOWN, METHOD_TRIGGER_ON_FINISHED, METHOD_TRIGGER_ON_STARTED,
+    METHOD_TRIGGER_POLL, METHOD_TRIGGER_SCHEMA, METHOD_TRIGGER_VALIDATE,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -158,38 +156,6 @@ impl ExtensionHost {
             },
         )?;
         Ok(())
-    }
-
-    pub fn build_arguments(
-        &mut self,
-        provider: &str,
-        profile: &serde_json::Value,
-        request: &serde_json::Value,
-    ) -> Result<AgentBuildArgumentsResult, CurupiraError> {
-        self.call(
-            METHOD_AGENT_BUILD_ARGUMENTS,
-            AgentBuildArgumentsParams {
-                provider: provider.into(),
-                profile: profile.clone(),
-                request: request.clone(),
-            },
-        )
-    }
-
-    pub fn interactive_launch(
-        &mut self,
-        provider: &str,
-        profile: &serde_json::Value,
-        model: Option<String>,
-    ) -> Result<AgentInteractiveLaunchResult, CurupiraError> {
-        self.call(
-            METHOD_AGENT_INTERACTIVE_LAUNCH,
-            AgentInteractiveLaunchParams {
-                provider: provider.into(),
-                profile: profile.clone(),
-                model,
-            },
-        )
     }
 
     pub fn shutdown(&mut self) -> Result<(), CurupiraError> {
