@@ -19,14 +19,21 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - run: uv sync --frozen --all-packages --dev
       - run: cargo fmt --manifest-path packages/curupira-core/Cargo.toml --all -- --check
       - run: cargo clippy --manifest-path packages/curupira-core/Cargo.toml -- -D warnings
-      - run: cargo test --manifest-path packages/curupira-core/Cargo.toml
+      # Extensions are launched with `python3` from PATH, so run under the workspace environment
+      # where curupira_sdk and the plugins' dependencies (pydantic) are installed.
+      - run: uv run --no-sync cargo test --manifest-path packages/curupira-core/Cargo.toml
       - name: Validate example configuration
         run: |
           CURUPIRA_EXTENSIONS_PATH=packages/plugins \
             CURUPIRA_PYTHONPATH="$(ls -d packages/curupira-python-sdk/src packages/plugins/*/src | paste -sd: -)" \
-            cargo run --manifest-path packages/curupira-core/Cargo.toml --bin curupira -- \
+            uv run --no-sync cargo run --manifest-path packages/curupira-core/Cargo.toml --bin curupira -- \
             --config packages/curupira-core/curupira.example.toml validate
 
   python:
@@ -38,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
@@ -53,7 +60,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
         with:
           python-version: "3.11"
           enable-cache: true

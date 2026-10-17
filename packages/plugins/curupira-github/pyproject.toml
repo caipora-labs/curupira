@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Official Curupira github trigger extension (JSON-RPC process)"
 requires-python = ">=3.11"
 license = "MIT"
-dependencies = ["curupira-sdk==0.2.0"]
+dependencies = ["curupira-sdk[pydantic]==0.2.0"]
 
 [project.urls]
 Homepage = "https://github.com/caipora-labs/curupira"

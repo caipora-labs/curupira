@@ -5,6 +5,28 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`max_active_tasks` runs agents in parallel.** The dispatcher used to run each admitted batch
+  one task at a time. It now keeps up to `max_active_tasks` workers running, refills a freed slot
+  from a fresh poll immediately, and shares one version-control lock table across workers so
+  concurrent tasks serialize their checkout and worktree setup. A task that fails is not re-run
+  within the same invocation.
+- **Agents run isolated from the caller's checkout.** An agent process now starts with `PWD` set
+  to its task worktree and without the Git variables that bind a process to a repository
+  (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, and similar). OpenCode runs get `--dir` pointing
+  at the worktree and their own `OPENCODE_DB` next to it (`<worktree>.opencode.db`), so sessions
+  and project entries never resolve to another clone of the same repository.
+- **GitHub trigger discovery is implemented again.** `curupira_github` queries GitHub Search
+  through GraphQL with the token from `gh auth token` (cached for five minutes), pages through
+  results lazily, and yields each match once per poll cycle. Previously both triggers returned
+  no tasks.
+- **GitHub pull-request items expose the documented placeholders** (`${pull_request_number}`,
+  `${pull_request_head_ref}`, `${pull_request_head_sha}`, and the rest), plus `${repo}`.
+- **GitHub filters are validated with Pydantic models** (`curupira-sdk[pydantic]`). Unknown
+  states, sort orders, and merge states are rejected during `validate` with the field name.
+- `curupira_sdk` tests no longer skip the Pydantic-model case when Pydantic is installed.
+
 ### Changed
 
 - **Repository is a uv workspace under `packages/`:** `packages/curupira-core` (Rust crate; the

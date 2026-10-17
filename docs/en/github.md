@@ -105,6 +105,36 @@ Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
 """
 ```
 
+## Dependabot pull-request automation
+
+Filter to one author with `author = "app/dependabot"` and require `mergeable = true` so
+conflicting pull requests are left alone. The prompt below only uses placeholders listed above,
+and `${repo}` carries the `owner/name` used for every `gh` command. The agent profile needs
+`auto_approve = true` so unattended `gh` writes (push, `gh pr merge`) do not stop for approval.
+
+```toml
+[automations.merge-dependabot-pull-requests]
+trigger_type = "github_pull_requests"
+repository = "curupira"
+repo = "caipora-labs/curupira"
+author = "app/dependabot"
+state = "open"
+draft = false
+mergeable = true
+sort = "created-asc"
+prompt = """
+Analyze Dependabot pull request #${pull_request_number} (${pull_request_title}) in ${repo}.
+Fix what the update breaks, wait for the checks, then squash-merge it with
+`gh pr merge ${pull_request_number} --repo ${repo} --squash`.
+"""
+```
+
+Run it until the open Dependabot pull requests are handled:
+
+```sh
+curupira --config path/to/settings.toml run --watch --size 12
+```
+
 ## First run
 
 1. Install and authenticate the coding-agent CLI named by your profile (`opencode` in the
@@ -224,16 +254,16 @@ minutes (`300` seconds). Any successful discovery resets the interval.
 Placeholders use `${name}` syntax and are validated when the configuration loads. Unknown
 placeholders are rejected.
 
-**Common fields:** `${repo}`, `${repository}`, `${automation_id}`, `${task_type}`,
-`${task_number}`, `${task_title}`, `${task_body}`, `${task_url}`. `${repo}` is the forge
-identity; `${repository}` is the checkout alias. `${task_body}` is filled from the item's
-body field.
+**Common fields:** `${repo}` (the `owner/name` searched), `${id}`, `${title}`, and `${url}`.
 
-**Issues:** `${issue_number}`, `${issue_title}`, `${issue_body}`, `${issue_url}`.
+**Issues:** `${issue_number}`, `${issue_title}`, `${issue_body}`, `${issue_url}`,
+`${issue_state}`, `${issue_author}`, `${issue_labels}`.
 
 **Pull requests:** `${pull_request_number}`, `${pull_request_title}`,
 `${pull_request_body}`, `${pull_request_url}`, `${pull_request_is_draft}`,
-`${pull_request_head_ref}`, `${pull_request_base_ref}`.
+`${pull_request_head_ref}`, `${pull_request_base_ref}`, `${pull_request_head_sha}`,
+`${pull_request_author}`, `${pull_request_labels}`, `${pull_request_mergeable}`, and
+`${pull_request_merge_state_status}`. List-valued fields render as JSON arrays.
 
 Booleans render as `true` / `false`; missing optional values render as empty strings.
 
@@ -264,6 +294,15 @@ GitHub triggers use the default native Git version control.
 
 Optional `setup_script` on the repository alias runs only after a fresh clone of the base
 checkout, not inside the worktree.
+
+### Agent isolation
+
+The agent process runs with its working directory and `PWD` set to the worktree, and without
+the `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_INDEX_FILE` variables that would point Git at another
+repository. Your own checkout is never switched by an automation. For OpenCode, Curupira also
+passes `--dir <worktree>` and gives each task its own `OPENCODE_DB` at `<worktree>.opencode.db`,
+so OpenCode sessions and project entries stay with that task. Other agent-wide state, such as
+the global OpenCode configuration and credentials, is still shared.
 
 ## Common errors
 

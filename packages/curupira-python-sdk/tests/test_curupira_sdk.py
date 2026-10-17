@@ -195,6 +195,8 @@ def test_pydantic_optional_dependency() -> None:
     def t(repo: str) -> Model | None:
         return None
 
+    # The module uses postponed annotations, so the local `Model` cannot be resolved from a string.
+    t.__annotations__ = {"repo": str, "return": Model | None}
     spec = build_trigger_spec(t)
     assert "id" in spec.prompt_fields
     env = serialize_trigger_result(Model(id="1", title="x"), Model | None, trigger_name="t")
