@@ -5,6 +5,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Architectural rewrite:** the CLI host (command parsing, configuration, dispatch,
+  scheduling, execution, storage, and process supervision) is implemented in **Rust** and
+  distributed on PyPI via **maturin** wheels. `pip install curupira` / `uv tool install
+  curupira` still provides the `curupira` and `curu` console commands.
+- **Pluggy and in-process Python plugins are removed.** Extensions are separate processes
+  speaking JSON-RPC 2.0 over length-prefixed stdin/stdout (see `protocol/PROTOCOL.md`).
+  Official integrations live under `plugins/` / `python/curupira_official/`. **cron** remains
+  built into the Rust binary. New commands: `plugins install|uninstall|info` (plus existing
+  `plugins list`).
+- The supported Python import surface remains `curupira.__version__` only. Third-party
+  packages must implement the process protocol instead of `curupira.triggers` /
+  `curupira.agents` entry points.
+- The interactive `tui` command currently runs continuous dispatch with status lines
+  (ratatui dashboard parity is follow-up work). Official trigger `poll` implementations
+  return empty task lists until forge discovery is fully reattached to the process
+  protocol; configuration validation and agent argv building are live.
+
 ### Added
 
 - Global `[settings].log_level` (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`; default

@@ -22,9 +22,11 @@ jobs:
         with:
           python-version: "3.11"
           enable-cache: true
+      - uses: dtolnay/rust-toolchain@stable
       - run: uv sync --frozen --dev
-      - run: uv run --no-sync pytest
-      - run: uv build
+      - run: cargo test -p curupira -p curupira-protocol
+      - run: PYTHONPATH=python uv run --no-sync pytest tests
+      - run: uv run --no-sync maturin build --release --sdist --out dist -m crates/curupira/Cargo.toml
       - run: uv run --no-sync twine check dist/*
       - name: Upload distributions
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

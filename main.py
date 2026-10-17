@@ -1,13 +1,11 @@
 """MkDocs macros for rendering versioned documentation data."""
 
+from __future__ import annotations
+
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
-from typing import NamedTuple, Protocol
-
-from curupira.agents import registry as agent_registry
-from curupira.tasks import registry as trigger_registry
-from curupira.tasks.base import Trigger
+from typing import Protocol
 
 
 class MacroEnvironment(Protocol):
@@ -17,140 +15,82 @@ class MacroEnvironment(Protocol):
         """Register a zero-argument string-producing macro."""
 
 
-class _TriggerGuide(NamedTuple):
-    """Plain-language docs metadata for one built-in trigger type."""
-
-    guide: str
-    prerequisites: str
-    summary: str
-    link_label: str = "Guide"
-
-
-# Built-in trigger docs metadata. Unknown (plugin) types fall back in triggers_table().
-_TRIGGER_GUIDES: dict[str, _TriggerGuide] = {
-    "github-issues": _TriggerGuide(
+_TRIGGER_ROWS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "github-issues",
         "github.md",
         "`gh` authenticated (`gh auth login`)",
         "Finds issues using filters you set in TOML",
     ),
-    "github-pull-requests": _TriggerGuide(
+    (
+        "github-pull-requests",
         "github.md",
         "`gh` authenticated (`gh auth login`)",
         "Finds pull requests using filters you set in TOML",
     ),
-    "azure-cli-pull-requests": _TriggerGuide(
+    (
+        "azure-cli-pull-requests",
         "#azure-devops-pull-requests",
         "`az` + Azure DevOps extension (`az login`)",
         "Lists Azure DevOps pull requests with the Azure CLI",
-        "This page",
     ),
-    "trello-cli-cards": _TriggerGuide(
+    (
+        "trello-cli-cards",
         "trello.md",
         "`trello` CLI (`trello auth login`)",
         "Finds open cards on a Trello board",
     ),
-    "monday-items": _TriggerGuide(
+    (
+        "monday-items",
         "monday.md",
         "`MONDAY_API_TOKEN` (or `token_env`) set",
         "Finds board items through monday.com's API (read-only)",
     ),
-    "cron": _TriggerGuide(
+    (
+        "cron",
         "#cron",
         "None (local schedule)",
-        "Runs on a local schedule you set",
-        "This page",
+        "Runs on a local schedule you set (built into the Rust CLI)",
     ),
-}
+)
 
-_TRIGGER_ORDER: tuple[str, ...] = (
-    "github-issues",
-    "github-pull-requests",
-    "azure-cli-pull-requests",
-    "trello-cli-cards",
-    "monday-items",
-    "cron",
+_AGENT_ROWS: tuple[tuple[str, str, str], ...] = (
+    ("claude", "claude", "providers/claude.md"),
+    ("codex", "codex", "providers/codex.md"),
+    ("cursor", "agent", "providers/cursor.md"),
+    ("gemini", "gemini", "providers/gemini.md"),
+    ("copilot", "copilot", "providers/copilot.md"),
+    ("kilo", "kilo", "providers/kilo.md"),
+    ("opencode", "opencode", "providers/opencode.md"),
+    ("pi", "pi", "providers/pi.md"),
+    ("qwen", "qwen", "providers/qwen.md"),
 )
 
 
-def _plugin_trigger_summary(trigger: Trigger) -> str:
-    """Fallback summary for plugin triggers without built-in guide metadata."""
-    doc = (trigger.configuration_model.__doc__ or "").strip()
-    first = doc.splitlines()[0] if doc else trigger.trigger_type
-    return first.replace("``", "`")
-
-
-def _ordered_triggers() -> list[tuple[str, Trigger]]:
-    """Return registered triggers in newcomer-friendly order, then extras."""
-    registered = trigger_registry.registered()
-    ordered = [name for name in _TRIGGER_ORDER if name in registered]
-    extras = sorted(name for name in registered if name not in _TRIGGER_ORDER)
-    return [(name, registered[name]) for name in [*ordered, *extras]]
-
-
 def define_env(env: MacroEnvironment) -> None:
-    """Register macros used by the documentation pages."""
-    requirements_path = Path(__file__).parent / "docs" / "data" / "requirements.toml"
-    with requirements_path.open("rb") as requirements_file:
-        requirements = tomllib.load(requirements_file)
+    """Register macros used by the English docs."""
 
     @env.macro
-    def requirements_list() -> str:
-        """Render the installation requirements from the TOML source and agent registry."""
-        python = requirements["python"]
-        lines = [
-            f"- Python {python['range']} ({python['platforms']}).",
-        ]
-        lines.extend(
-            f"- [{tool['name']}]({tool['url']}) — {tool['detail']}"
-            for tool in requirements["required_tools"]
-        )
-        optional_tools = requirements.get("optional_tools", [])
-        if optional_tools:
-            lines.append("- Optional forge CLIs, only when their triggers are configured:")
-            lines.extend(
-                f"  - [{tool['name']}]({tool['url']}) — {tool['detail']}" for tool in optional_tools
-            )
-        lines.append("- Install only the CLIs used by configured profiles:")
-        lines.extend(
-            f"  - [{adapter.display_name} (`{adapter.executable}`)]({adapter.install_url})"
-            for adapter in agent_registry.registered().values()
-        )
-        return "\n".join(lines)
-
-    @env.macro
-    def providers_table() -> str:
-        """Render one row per registered coding-agent provider."""
-        lines = [
-            "| Provider | Executable | Install |",
-            "| --- | --- | --- |",
-        ]
-        lines.extend(
-            f"| [{adapter.display_name}](providers/{provider}.md) | `{adapter.executable}` "
-            f"| <{adapter.install_url}> |"
-            for provider, adapter in agent_registry.registered().items()
-        )
-        return "\n".join(lines)
+    def project_version() -> str:
+        data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+        return str(data["project"]["version"])
 
     @env.macro
     def triggers_table() -> str:
-        """Render one row per registered automation trigger."""
         lines = [
-            "| Trigger type | What it does | Prerequisites | Guide |",
+            "| Trigger | Guide | Prerequisites | Summary |",
             "| --- | --- | --- | --- |",
         ]
-        for trigger_type, trigger in _ordered_triggers():
-            guide_meta = _TRIGGER_GUIDES.get(trigger_type)
-            if guide_meta is None:
-                guide = "plugins.md"
-                prerequisites = "See the plugin documentation"
-                link_label = "Plugins"
-                summary = _plugin_trigger_summary(trigger)
-            else:
-                guide = guide_meta.guide
-                prerequisites = guide_meta.prerequisites
-                link_label = guide_meta.link_label
-                summary = guide_meta.summary
-            lines.append(
-                f"| `{trigger_type}` | {summary} | {prerequisites} | [{link_label}]({guide}) |"
-            )
+        for trigger, guide, prereq, summary in _TRIGGER_ROWS:
+            lines.append(f"| `{trigger}` | [{guide}]({guide}) | {prereq} | {summary} |")
+        return "\n".join(lines)
+
+    @env.macro
+    def agents_table() -> str:
+        lines = [
+            "| Provider | Executable | Guide |",
+            "| --- | --- | --- |",
+        ]
+        for provider, executable, guide in _AGENT_ROWS:
+            lines.append(f"| `{provider}` | `{executable}` | [{guide}]({guide}) |")
         return "\n".join(lines)

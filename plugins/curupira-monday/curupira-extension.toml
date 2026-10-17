@@ -1,0 +1,12 @@
+manifest_version = 1
+name = "curupira-monday"
+version = "0.2.0"
+protocol_version = 1
+runtime = "python"
+kind = "trigger"
+trigger_types = ["monday-items"]
+
+[launch]
+type = "executable"
+program = "python3"
+args = ["-m", "curupira_official.monday_ext"]

@@ -10,12 +10,11 @@ import urllib.request
 # Keep in sync with the job `name:` values in .github/workflows/ci.yml.
 REQUIRED_CHECKS = frozenset(
     {
-        "Ruff lint and format",
-        "Strict type check",
-        "Tests (Python 3.11)",
-        "Tests (Python 3.12)",
-        "Tests (Python 3.13)",
-        "Tests (Python 3.14)",
+        "Rust test and lint",
+        "Python packaging tests (Python 3.11)",
+        "Python packaging tests (Python 3.12)",
+        "Python packaging tests (Python 3.13)",
+        "Python packaging tests (Python 3.14)",
         "Build and smoke-test distributions",
     }
 )

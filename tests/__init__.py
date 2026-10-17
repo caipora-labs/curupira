@@ -1,1 +1,0 @@
-"""Behavioral verification for Curupira."""

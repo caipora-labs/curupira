@@ -1,0 +1,12 @@
+manifest_version = 1
+name = "python-test-ext"
+version = "0.0.1"
+protocol_version = 1
+runtime = "python"
+kind = "trigger"
+trigger_types = ["python-test"]
+
+[launch]
+type = "executable"
+program = "python3"
+args = ["plugin.py"]
