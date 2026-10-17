@@ -238,6 +238,14 @@ class TaskScheduler:
                 pending.append((selected, resumed))
                 continue
             seen.add(selected.dispatch_key)
+            logger.debug(
+                "Admitting task %s resumed=%s active=%s pending=%s admitted=%s",
+                selected.identity.key,
+                resumed is not None,
+                len(active),
+                len(pending),
+                self._admitted + 1,
+            )
             worker = asyncio.create_task(
                 self._executor.execute(selected, resumed), name=selected.identity.key
             )

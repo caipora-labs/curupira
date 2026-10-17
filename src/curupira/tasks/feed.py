@@ -115,6 +115,12 @@ async def poll_task_feeds(feeds: Sequence[TaskFeed], *, preview: bool = False) -
             continue
         if isinstance(batch, BaseException):
             raise batch
+        logger.debug(
+            "Feed %s returned %s task(s) preview=%s",
+            _automation_name(feed),
+            len(batch),
+            preview,
+        )
         discovered.extend(batch)
     return discovered
 

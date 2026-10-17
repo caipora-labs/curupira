@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Global `[settings].log_level` (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`; default
+  `INFO`) and the process-wide CLI flag `--log-level` control console, file, and TUI
+  verbosity. More internal debug logs cover feed construction, discovery batches,
+  admission, checkout, and subprocess starts. Uncaught crashes persist detailed reports
+  under `~/.curupira/logs/crashes/` (version, platform, traceback, command context) and
+  enable `faulthandler` dumps in `~/.curupira/logs/faulthandler.log`, independent of the
+  configured log level.
 - GitHub dispatch revalidates current issue and pull-request state before admitting a
   candidate (once per admission; not again immediately before agent start). Closed or
   merged items leave the queue, issues with an open closing or Development-linked pull

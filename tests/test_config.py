@@ -461,6 +461,32 @@ def test_otlp_endpoint_rejects_non_http_urls() -> None:
         ApplicationSettings.model_validate(data)
 
 
+async def test_log_level_defaults_to_info_and_loads_from_toml(tmp_path: Path) -> None:
+    config = tmp_path / "settings.toml"
+    config.write_text(
+        '[settings]\nlog_level="DEBUG"\n'
+        '[repositories.api]\nremote="https://github.com/acme/api.git"\n'
+        '[agents.defaults]\nprofile="opencode"\n'
+        '[agents.profiles.opencode]\nprovider="opencode"\n'
+        '[automations.daily]\ntrigger_type="cron"\nrepository="api"\n'
+        'schedule="0 9 * * *"\nprompt="Maintain ${repository}"\n',
+        encoding="utf-8",
+    )
+
+    settings = await load_settings(config)
+
+    assert settings.settings.log_level == "DEBUG"
+    assert configuration().settings.log_level == "INFO"
+
+
+def test_log_level_rejects_unknown_values() -> None:
+    data = configuration().model_dump()
+    data["settings"]["log_level"] = "VERBOSE"
+
+    with pytest.raises(ValidationError, match="log_level"):
+        ApplicationSettings.model_validate(data)
+
+
 def test_shared_workspaces_require_the_same_repository_alias(tmp_path: Path) -> None:
     data = settings_dict(
         {

@@ -19,7 +19,14 @@ from typing_extensions import override
 
 from curupira.config import ApplicationSettings
 from curupira.config_reload import run_continuous_dispatch
+from curupira.logging_setup import (
+    apply_log_level,
+    logging_level_value,
+    persist_crash_report,
+    resolve_log_level,
+)
 from curupira.models import Task
+from curupira.models.configuration import LogLevel
 from curupira.scheduler import TaskScheduler
 from curupira.telemetry import TaskTelemetry
 from curupira.tui.assistant_panel import AssistantPanel
@@ -146,18 +153,25 @@ class OrchestratorApp(App[int]):
         config_path: Path,
         version_control: VersionControl | None,
         telemetry: TaskTelemetry,
+        *,
+        cli_log_level: LogLevel | None = None,
     ) -> None:
         super().__init__()
         self._settings = settings
         self._config_path = config_path
         self._version_control = version_control
         self._telemetry = telemetry
+        self._cli_log_level = cli_log_level
         self._status = OrchestratorStatus()
         self._scheduler: TaskScheduler | None = None
         self._scheduler_task: asyncio.Task[None] | None = None
         self._log_handler: TuiLogHandler | None = None
         self._exit_code = 0
         self._paused = False
+
+    def _effective_log_level(self) -> LogLevel:
+        """Resolve the active log level, preferring a process CLI override."""
+        return resolve_log_level(self._settings.settings.log_level, self._cli_log_level)
 
     @override
     def compose(self) -> ComposeResult:
@@ -176,8 +190,10 @@ class OrchestratorApp(App[int]):
 
     async def on_mount(self) -> None:
         """Wire logging, start the scheduler, and begin metric sampling."""
+        level = self._effective_log_level()
+        apply_log_level(level)
         log = self.query_one("#orchestrator-log", RichLog)
-        self._log_handler = attach_rich_log(log)
+        self._log_handler = attach_rich_log(log, level=logging_level_value(level))
         self._status.update((), self._settings.settings.max_active_tasks)
         self._refresh_agents()
         self._refresh_metrics()
@@ -210,8 +226,18 @@ class OrchestratorApp(App[int]):
             )
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as error:
             logging.getLogger(__name__).exception("Orchestrator scheduler failed")
+            persist_crash_report(
+                type(error),
+                error,
+                error.__traceback__,
+                context={
+                    "command": "tui",
+                    "config": str(self._config_path),
+                    "log_level": self._effective_log_level(),
+                },
+            )
             self._exit_code = 1
         finally:
             self.call_later(self.exit, self._exit_code)
@@ -225,6 +251,10 @@ class OrchestratorApp(App[int]):
     def _on_settings_reloaded(self, settings: ApplicationSettings) -> None:
         """Refresh dashboard state after a successful configuration reload."""
         self._settings = settings
+        level = self._effective_log_level()
+        apply_log_level(level)
+        if self._log_handler is not None:
+            self._log_handler.setLevel(logging_level_value(level))
         self.query_one("#assistant-panel", AssistantPanel).update_settings(settings)
         self._status.update(self._status.tasks, settings.settings.max_active_tasks)
         self.call_later(self._refresh_agents)
@@ -272,6 +302,7 @@ class OrchestratorApp(App[int]):
             f"Automações: {automations}\n"
             f"Máx. atividades: {settings.max_active_tasks}\n"
             f"Máx. pendentes: {settings.max_pending_tasks}\n"
+            f"Log level: {self._effective_log_level()}\n"
             f"Workspace: {settings.workspace_dir}\n"
             f"Estado: {settings.state_db_path}\n"
             f"Pausado: {paused}\n\n"
@@ -370,8 +401,16 @@ async def run_orchestrator_tui(
     config_path: Path,
     version_control: VersionControl | None,
     telemetry: TaskTelemetry,
+    *,
+    cli_log_level: LogLevel | None = None,
 ) -> int:
     """Run the Textual orchestrator app and return its exit code."""
-    app = OrchestratorApp(settings, config_path, version_control, telemetry)
+    app = OrchestratorApp(
+        settings,
+        config_path,
+        version_control,
+        telemetry,
+        cli_log_level=cli_log_level,
+    )
     result = await app.run_async()
     return 0 if result is None else result

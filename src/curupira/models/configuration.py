@@ -61,6 +61,7 @@ GitHubMergeStateStatus = Literal[
     "UNKNOWN",
     "UNSTABLE",
 ]
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 def validate_timezone(value: str) -> str:
@@ -209,6 +210,20 @@ class ExecutionSettings(ValidatedModel):
             "(for example ``http://localhost:4318/v1/traces``)."
         ),
     )
+    log_level: Annotated[
+        LogLevel,
+        Field(
+            description=(
+                "Root logging verbosity for Curupira. Defaults to ``INFO``. Accepted "
+                "values are ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, and "
+                "``CRITICAL``. Applies to console output (when used), the append-only "
+                "``~/.curupira/logs/curupira.log`` file, and the TUI log panel. The "
+                "global CLI flag ``--log-level`` overrides this value for one process. "
+                "Uncaught crashes always write a separate detailed report under "
+                "``~/.curupira/logs/crashes/`` regardless of this setting."
+            )
+        ),
+    ] = "INFO"
     task_timeout_minutes: Annotated[
         PositiveMinutes,
         Field(

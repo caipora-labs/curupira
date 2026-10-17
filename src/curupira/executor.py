@@ -93,6 +93,13 @@ class TaskExecutor:
         context = (identity.repo, identity.task_type, identity.id)
         action = "Resuming" if resumed is not None else "Starting"
         logger.info("%s task repo=%s type=%s id=%s", action, *context)
+        logger.debug(
+            "Task execution detail key=%s provider=%s checkout=%s workspace=%s",
+            identity.key,
+            task.automation.profile.provider,
+            task.automation.configuration.checkout,
+            task.automation.workspace_path,
+        )
         try:
             with self._telemetry.task_span(task) as span:
                 result = await self._execute_task(task, resumed)
@@ -138,6 +145,12 @@ class TaskExecutor:
                 remote=task.automation.remote,
                 destination=task.automation.workspace_path,
             )
+        )
+        logger.debug(
+            "Checkout ready path=%s cloned=%s remote=%s",
+            checkout.path,
+            checkout.cloned,
+            task.automation.remote,
         )
         setup_script = task.automation.setup_script
         if checkout.cloned and setup_script is not None:

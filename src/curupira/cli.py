@@ -20,6 +20,16 @@ from curupira.errors import DispatchError
 from curupira.executor import TaskExecutor
 from curupira.models import Task
 from curupira.models.base import ValidatedModel
+from curupira.logging_setup import (
+    apply_log_level,
+    configure_process_logging,
+    install_crash_handlers,
+    parse_log_level,
+    persist_crash_report,
+    resolve_log_level,
+    uninstall_crash_handlers,
+)
+from curupira.models.configuration import LogLevel
 from curupira.runtime import (
     DispatchInstanceLock,
     InstanceAlreadyRunningError,
@@ -51,6 +61,7 @@ class CliOptions(ValidatedModel):
         dry_run: When true, preview one task without reserving or executing.
         watch: When true, poll continuously instead of draining available work.
         size: Optional admission cap for a finite ``run`` drain.
+        log_level: Optional override for ``[settings].log_level``.
     """
 
     command: Literal["validate", "run", "tui"]
@@ -58,6 +69,7 @@ class CliOptions(ValidatedModel):
     dry_run: bool = False
     watch: bool = False
     size: int | None = None
+    log_level: LogLevel | None = None
 
 
 _CONSOLE_SCRIPTS = frozenset({"curupira", "curu"})
@@ -108,6 +120,16 @@ app = typer.Typer(
 )
 
 
+def _log_level_option(value: str | None) -> LogLevel | None:
+    """Validate ``--log-level`` with a Typer-friendly error message."""
+    if value is None:
+        return None
+    try:
+        return parse_log_level(value)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+
+
 @app.callback()
 def _root(
     ctx: typer.Context,
@@ -116,6 +138,18 @@ def _root(
         typer.Option(
             "--config",
             help="TOML configuration file (default: ~/.curupira/settings.toml)",
+            show_default=False,
+        ),
+    ] = None,
+    log_level: Annotated[
+        str | None,
+        typer.Option(
+            "--log-level",
+            help=(
+                "Override [settings].log_level for this process "
+                "(DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+            ),
+            callback=_log_level_option,
             show_default=False,
         ),
     ] = None,
@@ -133,6 +167,7 @@ def _root(
     del version
     ctx.ensure_object(dict)
     ctx.obj["config"] = config if config is not None else default_config_path()
+    ctx.obj["log_level"] = log_level
 
 
 def _exit_with(options: CliOptions) -> None:
@@ -146,12 +181,22 @@ def _run(options: CliOptions) -> int:
         return asyncio.run(async_main(options))
     except KeyboardInterrupt:
         return 130
+    except Exception as error:
+        persist_crash_report(type(error), error, error.__traceback__)
+        print(f"Unhandled error: {error}", file=sys.stderr)
+        return 1
 
 
 @app.command("validate")
 def validate_command(ctx: typer.Context) -> None:
     """Validate configuration without calling external CLIs or writing state."""
-    _exit_with(CliOptions(command="validate", config=ctx.obj["config"]))
+    _exit_with(
+        CliOptions(
+            command="validate",
+            config=ctx.obj["config"],
+            log_level=ctx.obj["log_level"],
+        )
+    )
 
 
 @app.command("run")
@@ -194,6 +239,7 @@ def run_command(
             dry_run=dry_run,
             watch=watch,
             size=size,
+            log_level=ctx.obj["log_level"],
         )
     )
 
@@ -201,7 +247,13 @@ def run_command(
 @app.command("tui")
 def tui_command(ctx: typer.Context) -> None:
     """Run the orchestrator with an interactive terminal dashboard."""
-    _exit_with(CliOptions(command="tui", config=ctx.obj["config"]))
+    _exit_with(
+        CliOptions(
+            command="tui",
+            config=ctx.obj["config"],
+            log_level=ctx.obj["log_level"],
+        )
+    )
 
 
 plugins_app = typer.Typer(
@@ -311,6 +363,7 @@ async def _execute_command(options: CliOptions) -> int:
         limit = settings.settings.max_active_tasks
         print(f"Configuration is valid ({count} automations; max active tasks: {limit}).")
         return 0
+    level = resolve_log_level(settings.settings.log_level, options.log_level)
     telemetry = TaskTelemetry(
         str(settings.settings.otlp_endpoint)
         if settings.settings.otlp_endpoint is not None
@@ -318,21 +371,40 @@ async def _execute_command(options: CliOptions) -> int:
     )
     log_handler: logging.FileHandler | None = None
     root_logger = logging.getLogger()
+    crash_handlers = False
     try:
-        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+        configure_process_logging(level)
         if options.command == "tui" or not options.dry_run:
-            log_handler = create_execution_log_handler()
-            root_logger.setLevel(logging.INFO)
+            install_crash_handlers()
+            crash_handlers = True
+            log_handler = create_execution_log_handler(level)
             root_logger.addHandler(log_handler)
+            apply_level = logging.getLogger(__name__)
+            apply_level.info("Logging configured at %s", level)
         if options.command == "run" and options.dry_run:
             return await _execute_dry_run(settings, telemetry)
         if options.command == "tui":
             from curupira.tui.app import run_orchestrator_tui
 
-            return await run_orchestrator_tui(settings, options.config, None, telemetry)
+            return await run_orchestrator_tui(
+                settings, options.config, None, telemetry, cli_log_level=options.log_level
+            )
         return await _execute_scheduled_command(settings, None, telemetry, options)
     except (DispatchError, OSError, ValidationError) as error:
         print(f"Dispatch error: {error}", file=sys.stderr)
+        return 1
+    except Exception as error:
+        persist_crash_report(
+            type(error),
+            error,
+            error.__traceback__,
+            context={
+                "command": options.command,
+                "config": str(options.config),
+                "log_level": level,
+            },
+        )
+        print(f"Unhandled error: {error}", file=sys.stderr)
         return 1
     finally:
         try:
@@ -341,6 +413,8 @@ async def _execute_command(options: CliOptions) -> int:
             if log_handler is not None:
                 root_logger.removeHandler(log_handler)
                 log_handler.close()
+            if crash_handlers:
+                uninstall_crash_handlers()
 
 
 async def _execute_dry_run(
@@ -387,6 +461,7 @@ async def _execute_scheduled_command(
     def on_settings_reloaded(reloaded: ApplicationSettings) -> None:
         nonlocal active_limit
         active_limit = reloaded.settings.max_active_tasks
+        apply_log_level(resolve_log_level(reloaded.settings.log_level, options.log_level))
 
     try:
         if options.watch:

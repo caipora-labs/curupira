@@ -161,9 +161,15 @@ async def run_continuous_dispatch(
         if on_settings_reloaded is not None:
             on_settings_reloaded(current)
         logger.info(
-            "Configuration reloaded (%s automations; max active tasks: %s)",
+            "Configuration reloaded (%s automations; max active tasks: %s; log_level=%s)",
             len(current.automations),
             current.settings.max_active_tasks,
+            current.settings.log_level,
+        )
+        logger.debug(
+            "Reloaded settings detail workspace_dir=%s state_db_path=%s",
+            current.settings.workspace_dir,
+            current.settings.state_db_path,
         )
 
 

@@ -9,6 +9,7 @@ curupira run --dry-run
 curupira run --size N
 curupira run --watch
 curupira tui
+curupira --log-level DEBUG run --watch
 ```
 
 - `validate` checks TOML and references without running an automation, calling external CLIs, or writing state. It exits `0` for valid configuration and `2` for configuration errors.
@@ -25,11 +26,22 @@ curupira tui
 
 While `run --watch` or `tui` is running, editing the configuration file hot-reloads settings without restarting the process. New work stops being admitted as soon as the file changes; tasks that are already running keep their resolved snapshots and finish. After every in-flight task completes, Curupira reloads the TOML, rebuilds discovery feeds, and resumes polling with the latest configuration. If the updated file is invalid, admission stays paused until a valid configuration is saved.
 
-Select another TOML by placing the option before the command:
+Select another TOML or override the log level by placing global options before the command:
 
 ```bash
 curupira --config ./settings-dev.toml validate
 curupira --config ./settings-dev.toml run --watch
+curupira --log-level DEBUG run --watch
 ```
 
-`run` and `run --watch` append task records to `~/.curupira/logs/curupira.log`. Sessions interrupted by process restarts are stored in the state database; `run --watch` resumes saved sessions after restart. Transient `gh` failures retry with backoff. Authentication, configuration, output-format, and agent-task failures are not automatically retried.
+`[settings].log_level` (default `INFO`) controls console, file, and TUI verbosity
+(`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). The global `--log-level` flag overrides
+that value for one process and wins over hot-reloaded TOML changes.
+
+`run` and `run --watch` append task records to `~/.curupira/logs/curupira.log`. Uncaught
+crashes also write a detailed report under `~/.curupira/logs/crashes/` (version, platform,
+traceback, and command context) and enable `faulthandler` dumps in
+`~/.curupira/logs/faulthandler.log`, regardless of `log_level`. Sessions interrupted by
+process restarts are stored in the state database; `run --watch` resumes saved sessions
+after restart. Transient `gh` failures retry with backoff. Authentication, configuration,
+output-format, and agent-task failures are not automatically retried.

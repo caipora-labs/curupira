@@ -70,9 +70,17 @@ def test_cli_supports_source_independent_commands(tmp_path: Path) -> None:
     run_help = runner.invoke(app, ["run", "--help"]).output
     assert "--watch" in run_help
     assert "--size" in run_help
-    assert "tui" in runner.invoke(app, ["--help"]).output
+    root_help = runner.invoke(app, ["--help"]).output
+    assert "--log-level" in root_help
+    assert "tui" in root_help
     assert runner.invoke(app, ["watch", "--help"]).exit_code != 0
     assert runner.invoke(app, ["batch", "--help"]).exit_code != 0
+
+
+def test_cli_rejects_invalid_log_level() -> None:
+    result = runner.invoke(app, ["--log-level", "verbose", "validate"])
+    assert result.exit_code != 0
+    assert "log level" in result.output.lower() or "invalid" in result.output.lower()
 
 
 @pytest.mark.parametrize("value", ["0", "-1", "nope"])
