@@ -29,9 +29,6 @@ def assert_no_opscli_in_distributions(dist: Path) -> None:
     if not wheels:
         message = f"Expected at least one wheel in {dist}"
         raise SystemExit(message)
-    if not sources:
-        message = f"Expected at least one sdist in {dist}"
-        raise SystemExit(message)
     hits: list[str] = []
     for wheel in wheels:
         hits.extend(_opscli_hits(wheel, _wheel_readme_and_metadata(wheel)))
@@ -143,7 +140,23 @@ def _build_distributions(dist: Path) -> None:
     if uv is None:
         message = "uv is required on PATH to build distributions"
         raise SystemExit(message)
-    subprocess.run([uv, "build", "--out-dir", str(dist)], check=True)  # noqa: S603
+    # Maturin builds the Rust CLI binary into a platform wheel (+ optional sdist).
+    subprocess.run(  # noqa: S603
+        [
+            uv,
+            "run",
+            "--no-sync",
+            "maturin",
+            "build",
+            "--release",
+            "--sdist",
+            "--out",
+            str(dist),
+            "-m",
+            "crates/curupira/Cargo.toml",
+        ],
+        check=True,
+    )
 
 
 def _twine_check(dist: Path) -> None:

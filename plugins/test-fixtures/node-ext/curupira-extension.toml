@@ -1,0 +1,12 @@
+manifest_version = 1
+name = "node-test-ext"
+version = "0.0.1"
+protocol_version = 1
+runtime = "node"
+kind = "trigger"
+trigger_types = ["node-test"]
+
+[launch]
+type = "executable"
+program = "node"
+args = ["plugin.js"]

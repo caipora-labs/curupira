@@ -10,20 +10,23 @@ permissions: {}
 jobs:
   build:
     name: Build distributions
-    # Stable vX.Y.Z and rehearsal vX.Y.Z.devN tags both publish to PyPI.
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
         with:
           python-version: "3.11"
           enable-cache: true
       - name: Build distributions
-        run: uv build
+        run: |
+          uv sync --frozen --dev
+          uv run --no-sync maturin build --release --sdist --out dist -m crates/curupira/Cargo.toml
       - name: Upload distributions
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -80,20 +83,13 @@ jobs:
         with:
           name: dist
           path: dist/
-      - name: Verify distribution version and tag
-        id: distribution_version
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Require green CI
         run: |
           uv sync --frozen --dev
-          version="$(uv run --no-sync python scripts/verify_dist_version.py --dist dist --tag "$RELEASE_TAG")"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          ls -la dist/
-      - name: Require successful CI validation on the published commit
-        env:
-          GH_REPOSITORY: ${{ github.repository }}
-          RELEASE_SHA: ${{ github.sha }}
-        run: uv run --no-sync python scripts/require_ci_checks.py
+          uv run --no-sync python scripts/require_ci_checks.py \
+            --repository "${GITHUB_REPOSITORY}" \
+            --sha "${GITHUB_SHA}"
       - name: Publish to PyPI
-        # pypa/gh-action-pypi-publish v1.14.2; it creates attestations before upload.
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

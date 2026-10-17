@@ -25,10 +25,12 @@ jobs:
         with:
           python-version: "3.11"
           enable-cache: true
+      - uses: dtolnay/rust-toolchain@stable
       - name: Build distributions
         run: |
           rm -rf dist
-          uv build
+          uv sync --frozen --dev
+          uv run --no-sync maturin build --release --sdist --out dist -m crates/curupira/Cargo.toml
       - name: Upload distributions
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

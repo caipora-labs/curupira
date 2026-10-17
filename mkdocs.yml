@@ -22,7 +22,8 @@ plugins:
             - Configuração: configuration.md
             - Operação: operations.md
             - Providers e agentes: providers.md
-            - Plugins: plugins.md
+            - Extensions: extensions.md
+            - Plugins (legacy): plugins.md
         - locale: es
           name: Español
           nav:
@@ -31,23 +32,10 @@ plugins:
             - Configuración: configuration.md
             - Operaciones: operations.md
             - Proveedores y agentes: providers.md
-            - Plugins: plugins.md
+            - Extensions: extensions.md
+            - Plugins (legacy): plugins.md
   - macros:
       module_name: main
-  - mkdocstrings:
-      handlers:
-        python:
-          paths: [src]
-          options:
-            extensions:
-              - griffe_pydantic:
-                  schema: true
-            docstring_style: google
-            inherited_members: true
-            members_order: source
-            show_if_no_docstring: true
-            show_root_heading: true
-            show_source: false
 theme:
   name: material
   language: en
@@ -95,4 +83,5 @@ nav:
       - OpenCode: providers/opencode.md
       - pi: providers/pi.md
       - Qwen Code: providers/qwen.md
-  - Plugins: plugins.md
+  - Extensions: extensions.md
+  - Plugins (legacy notes): plugins.md

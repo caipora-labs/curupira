@@ -1,0 +1,12 @@
+manifest_version = 1
+name = "ts-test-ext"
+version = "0.0.1"
+protocol_version = 1
+runtime = "node"
+kind = "trigger"
+trigger_types = ["ts-test"]
+
+[launch]
+type = "executable"
+program = "npx"
+args = ["--yes", "tsx", "plugin.ts"]
