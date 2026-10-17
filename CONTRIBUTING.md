@@ -15,7 +15,7 @@ cargo test --manifest-path packages/curupira-core/Cargo.toml
 
 [AGENTS.md](AGENTS.md) is the single source for verification commands, the repository
 map, and security boundaries. Install the documentation tools with
-`uv sync --group docs`, then preview the site with `uv run mkdocs serve`.
+`uv sync --group docs`, then preview the site with `uv run --group docs mkdocs serve -f docs/mkdocs.yml`.
 
 ## Packaging
 
@@ -53,7 +53,7 @@ Built-in adapters live in `packages/curupira-core/src/agents/`. To add a provide
 1. Add a module under `packages/curupira-core/src/agents/` and register it on `AgentProvider`.
 2. Map only documented native CLI flags; omit unset optional fields.
 3. Add unit tests for argv presence/absence and a page under `docs/en/providers/`.
-4. Update the README provider list and `mkdocs.yml` nav alphabetically by display name.
+4. Update the README provider list and `docs/mkdocs.yml` nav alphabetically by display name.
 
 Do not reintroduce coding agents as process extensions or Pluggy entry points.
 

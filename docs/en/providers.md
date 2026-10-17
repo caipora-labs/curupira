@@ -2,7 +2,7 @@
 
 Curupira invokes each tool through its non-interactive native CLI and saves session identifiers to resume interrupted tasks. `model`, `effort`, and `agent` are optional; unset options are omitted.
 
-{{ providers_table() }}
+{{ agents_table() }}
 
 Each provider page describes how its profile options map to native CLI arguments.
 
