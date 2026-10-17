@@ -53,7 +53,7 @@ def build_trigger_spec(func: Any) -> TriggerSpec:
     signature = inspect.signature(func)
     try:
         hints = get_type_hints(func, include_extras=True)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise RegistrationError(f"trigger {name!r}: cannot resolve type hints: {exc}") from exc
 
     parameters: list[ParameterSpec] = []
@@ -125,11 +125,12 @@ def _parameters_schema(trigger_name: str, parameters: list[ParameterSpec]) -> di
         context = f"trigger {trigger_name!r} parameter {param.name!r}"
         prop = type_to_json_schema(param.annotation, context=context)
         if param.has_default:
+            from .errors import SerializationError
             from .types import dump_value
 
             try:
                 prop = {**prop, "default": dump_value(param.default)}
-            except Exception:  # noqa: BLE001
+            except SerializationError:
                 pass
         properties[param.name] = prop
         if param.required:
@@ -148,9 +149,7 @@ def bind_arguments(spec: TriggerSpec, configuration: dict[str, Any]) -> dict[str
     """Extract and coerce function kwargs from an automation configuration."""
     param_names = {p.name for p in spec.parameters}
     extras = sorted(
-        key
-        for key in configuration
-        if key not in CORE_CONFIG_KEYS and key not in param_names
+        key for key in configuration if key not in CORE_CONFIG_KEYS and key not in param_names
     )
     if extras:
         raise ValidationError(f"trigger {spec.name!r}: unknown parameters {extras}")

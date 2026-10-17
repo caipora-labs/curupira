@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from typing import Any, TypedDict
 
 import pytest
-
 from curupira_sdk import Curupira, RegistrationError, SerializationError
 from curupira_sdk.serialize import serialize_trigger_result
 from curupira_sdk.signature import bind_arguments, build_trigger_spec, normalize_configuration
@@ -39,7 +38,7 @@ def test_duplicate_trigger_name_raises() -> None:
     with pytest.raises(RegistrationError, match="duplicate"):
 
         @app.trigger
-        def dup(repo: str) -> None:  # noqa: F811
+        def dup(repo: str) -> None:
             return None
 
 
@@ -285,7 +284,7 @@ def test_signature_preserved() -> None:
     @app.trigger
     def named(repo: str, limit: int = 1) -> None:
         """doc"""
-        return None
+        return
 
     assert named.__name__ == "named"
     assert named.__doc__ == "doc"

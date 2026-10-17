@@ -75,11 +75,9 @@ def _is_multi_value(value: Any) -> bool:
         return True
     if isinstance(value, types.GeneratorType):
         return True
-    if isinstance(value, collections.abc.Iterator) and not isinstance(
+    return isinstance(value, collections.abc.Iterator) and not isinstance(
         value, (str, bytes, dict, collections.abc.Mapping)
-    ):
-        return True
-    return False
+    )
 
 
 def _validate_against_annotation(value: Any, annotation: Any, *, trigger_name: str) -> None:

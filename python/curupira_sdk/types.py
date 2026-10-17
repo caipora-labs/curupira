@@ -50,7 +50,10 @@ def unwrap_optional(annotation: Any) -> tuple[Any, bool]:
         if len(non_none) == 1:
             return non_none[0], allows_none
         if allows_none:
-            return typing.Union[tuple(non_none)], True  # type: ignore[return-value]
+            combined = non_none[0]
+            for option in non_none[1:]:
+                combined |= option
+            return combined, True
         return annotation, False
     return annotation, False
 
@@ -128,12 +131,9 @@ def _dataclass_schema(cls: type, *, context: str) -> dict[str, Any]:
     hints = _dataclass_field_types(cls)
     for field in dataclasses.fields(cls):
         annotation = hints.get(field.name, field.type)
-        properties[field.name] = type_to_json_schema(
-            annotation, context=f"{context}.{field.name}"
-        )
+        properties[field.name] = type_to_json_schema(annotation, context=f"{context}.{field.name}")
         if (
-            field.default is dataclasses.MISSING
-            and field.default_factory is dataclasses.MISSING  # type: ignore[comparison-overlap]
+            field.default is dataclasses.MISSING and field.default_factory is dataclasses.MISSING  # type: ignore[comparison-overlap]
         ):
             required.append(field.name)
         elif field.default is not dataclasses.MISSING:
@@ -199,7 +199,9 @@ def _coerce_concrete(annotation: Any, value: Any, *, context: str) -> Any:
     if origin is list:
         if not isinstance(value, list):
             raise ValidationError(f"{context}: expected array")
-        return [coerce_value(args[0], item, context=f"{context}[{i}]") for i, item in enumerate(value)]
+        return [
+            coerce_value(args[0], item, context=f"{context}[{i}]") for i, item in enumerate(value)
+        ]
 
     if origin is dict:
         if not isinstance(value, dict):
@@ -218,7 +220,9 @@ def _coerce_concrete(annotation: Any, value: Any, *, context: str) -> Any:
                 return coerce_value(option, value, context=context)
             except (ValidationError, RegistrationError) as exc:
                 errors.append(str(exc))
-        raise ValidationError(f"{context}: value matched none of the union variants ({'; '.join(errors)})")
+        raise ValidationError(
+            f"{context}: value matched none of the union variants ({'; '.join(errors)})"
+        )
 
     if dataclasses.is_dataclass(annotation) and isinstance(annotation, type):
         if not isinstance(value, dict):
@@ -261,7 +265,7 @@ def _coerce_concrete(annotation: Any, value: Any, *, context: str) -> Any:
         _require_pydantic(context)
         try:
             return annotation.model_validate(value)  # type: ignore[no-any-return]
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ValidationError(f"{context}: {exc}") from exc
 
     raise ValidationError(f"{context}: unsupported type {annotation!r}")
@@ -311,8 +315,11 @@ def is_collection_type(annotation: Any) -> bool:
         return False
     inner, _ = unwrap_optional(annotation)
     origin = get_origin(inner) or inner
-    if origin in {list, tuple, set, frozenset, typing.List, typing.Tuple, typing.Set}:
+    if origin in {list, tuple, set, frozenset}:
         return True
-    if origin in {typing.Iterable, typing.Iterator, typing.Generator, typing.AsyncGenerator}:
-        return True
-    return False
+    return origin in {
+        typing.Iterable,
+        typing.Iterator,
+        typing.Generator,
+        typing.AsyncGenerator,
+    }

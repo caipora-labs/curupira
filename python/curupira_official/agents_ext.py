@@ -5,8 +5,9 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from curupira_official import __version__
 from curupira_sdk import Curupira, RpcError
+
+from curupira_official import __version__
 
 _AGENTS = [
     {"provider": "opencode", "executable": "opencode"},

@@ -136,14 +136,12 @@ class Curupira:
             kwargs = bind_arguments(spec, automation)
             self._run_param_check(spec.name, kwargs)
             result = invoke(spec.func, kwargs, is_async=spec.is_async)
-            task = serialize_trigger_result(
-                result, spec.return_annotation, trigger_name=spec.name
-            )
+            task = serialize_trigger_result(result, spec.return_annotation, trigger_name=spec.name)
         except RpcError:
             raise
         except (ValidationError, SerializationError, RegistrationError) as exc:
             raise RpcError(-32002, str(exc)) from exc
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise RpcError(-32002, f"execution error: {exc}") from exc
         return {"task": task}
 

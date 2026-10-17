@@ -5,8 +5,9 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 
-from curupira_official import __version__
 from curupira_sdk import Curupira
+
+from curupira_official import __version__
 
 app = Curupira(name="curupira-monday", version=__version__)
 

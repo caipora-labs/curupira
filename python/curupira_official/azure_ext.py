@@ -6,8 +6,9 @@ import re
 import sys
 from dataclasses import dataclass
 
-from curupira_official import __version__
 from curupira_sdk import Curupira, RpcError
+
+from curupira_official import __version__
 
 _REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
