@@ -1,4 +1,4 @@
-"""Install a wheel from dist/ and smoke-test the CLI entry points."""
+"""Install one project's wheel from dist/ and smoke-test it outside the repository."""
 
 from __future__ import annotations
 
@@ -11,25 +11,35 @@ import tempfile
 import venv
 from pathlib import Path
 
+from packaging.utils import canonicalize_name, parse_wheel_filename
+from packaging.version import Version
+
 
 def main(argv: list[str] | None = None) -> None:
-    """Install the matching wheel into a temporary venv and run smoke checks."""
+    """Install the project's wheel into a temporary venv and run smoke checks."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dist", type=Path, default=Path("dist"))
     parser.add_argument(
+        "--project",
+        default="curupira",
+        help="Distribution to install from dist/; CLI and config checks run only for curupira",
+    )
+    parser.add_argument(
         "--config",
         type=Path,
-        help="Run `curupira --config PATH validate` after installation",
+        help="Run `curupira --config PATH validate` after installation (curupira only)",
     )
     parser.add_argument(
         "--expected-version",
         default="",
-        help="Require curupira.__version__ and CLI --version to match this string",
+        help="Require the module __version__ and CLI --version to equal this PEP 440 version",
     )
     args = parser.parse_args(argv)
 
     dist = args.dist.resolve()
-    wheel = select_wheel(dist)
+    wheel = select_wheel(dist, args.project)
+    module = args.project.replace("-", "_")
+    is_cli = canonicalize_name(args.project) == "curupira"
     config = args.config.resolve() if args.config is not None else None
     if config is not None and not config.is_file():
         message = f"Configuration file not found: {config}"
@@ -41,15 +51,18 @@ def main(argv: list[str] | None = None) -> None:
         venv.create(venv_dir, with_pip=True, clear=True)
         pip = _venv_executable(venv_dir, "pip")
         python = _venv_executable(venv_dir, "python")
-        curupira = _venv_executable(venv_dir, "curupira")
-        curu = _venv_executable(venv_dir, "curu")
 
         _run([str(pip), "install", "--only-binary=:all:", "--find-links", str(dist), str(wheel)])
-        _assert_import(python, args.expected_version or None)
-        _assert_optional_extensions_absent(python)
-        _assert_cli(curupira, "curupira", args.expected_version or None)
-        _assert_cli(curu, "curu", args.expected_version or None)
-        if config is not None:
+        found = _import_version(python, module)
+        if args.expected_version:
+            _require_same_version(f"{module}.__version__", found, args.expected_version)
+        if is_cli:
+            _assert_optional_extensions_absent(python)
+            curupira = _venv_executable(venv_dir, "curupira")
+            curu = _venv_executable(venv_dir, "curu")
+            _assert_cli(curupira, "curupira", args.expected_version or None)
+            _assert_cli(curu, "curu", args.expected_version or None)
+        if is_cli and config is not None:
             # Example configs launch via `uvx --from curupira-plugins`; expose dist/
             # so uvx can resolve the wheel without hitting the network.
             env = _cli_env()
@@ -68,8 +81,8 @@ def main(argv: list[str] | None = None) -> None:
         shutil.rmtree(work, ignore_errors=True)
 
 
-def select_wheel(dist: Path) -> Path:
-    """Return the best wheel in ``dist`` that is installable on this interpreter."""
+def select_wheel(dist: Path, project: str) -> Path:
+    """Return the best wheel for ``project`` in ``dist`` that installs on this interpreter."""
     wheels = sorted(dist.glob("*.whl"))
     if not wheels:
         message = f"No wheels found in {dist}"
@@ -77,22 +90,24 @@ def select_wheel(dist: Path) -> Path:
 
     try:
         from packaging.tags import sys_tags
-        from packaging.utils import parse_wheel_filename
     except ImportError as exc:
         message = "packaging is required to select a platform wheel"
         raise SystemExit(message) from exc
 
+    name = canonicalize_name(project)
     supported = list(sys_tags())
     ranked: list[tuple[int, Path]] = []
     for wheel in wheels:
-        _name, _version, _build, tags = parse_wheel_filename(wheel.name)
+        distribution, _version, _build, tags = parse_wheel_filename(wheel.name)
+        if distribution != name:
+            continue
         for index, tag in enumerate(supported):
             if tag in tags:
                 ranked.append((index, wheel))
                 break
     if not ranked:
         names = ", ".join(wheel.name for wheel in wheels)
-        message = f"No wheel in {dist} matches this platform; found: {names}"
+        message = f"No {project} wheel in {dist} matches this platform; found: {names}"
         raise SystemExit(message)
     ranked.sort(key=lambda item: item[0])
     return ranked[0][1]
@@ -116,26 +131,24 @@ def _run_env(command: list[str], *, env: dict[str, str]) -> None:
     subprocess.run(command, check=True, cwd=tempfile.gettempdir(), env=env)
 
 
-def _assert_import(python: Path, expected_version: str | None) -> None:
-    script = """
-import os
-import curupira
-
-expected = os.environ.get("CURUPIRA_EXPECTED_VERSION", "")
-if expected and curupira.__version__ != expected:
-    raise SystemExit(f"installed version {curupira.__version__!r} != {expected!r}")
-print(curupira.__version__)
-"""
-    env = os.environ.copy()
-    env.pop("PYTHONPATH", None)
-    if expected_version:
-        env["CURUPIRA_EXPECTED_VERSION"] = expected_version
-    subprocess.run(
-        [str(python), "-c", script],
+def _import_version(python: Path, module: str) -> str:
+    """Import ``module`` from the venv and return its ``__version__`` string."""
+    result = subprocess.run(
+        [str(python), "-c", f"import {module}\nprint({module}.__version__)"],
         check=True,
         cwd=tempfile.gettempdir(),
-        env=env,
+        capture_output=True,
+        text=True,
+        env=_cli_env(),
     )
+    return result.stdout.strip()
+
+
+def _require_same_version(label: str, found: str, expected: str) -> None:
+    """Compare PEP 440 versions so ``0.1.0.dev0`` and ``0.1.0dev0`` are equal."""
+    if Version(found) != Version(expected):
+        message = f"{label} {found!r} != {expected!r}"
+        raise SystemExit(message)
 
 
 def _assert_optional_extensions_absent(python: Path) -> None:
@@ -180,15 +193,16 @@ def _assert_cli(executable: Path, program: str, expected_version: str | None) ->
         text=True,
         env=_cli_env(),
     ).stdout.strip()
-    if expected_version is None:
-        if not version_text.startswith(f"{program} "):
-            message = f"unexpected {program} --version: {version_text!r}"
-            raise SystemExit(message)
-        return
-    expected = f"{program} {expected_version}"
-    if version_text != expected:
-        message = f"{program} --version {version_text!r} != {expected!r}"
+    prefix = f"{program} "
+    if not version_text.startswith(prefix):
+        message = f"unexpected {program} --version: {version_text!r}"
         raise SystemExit(message)
+    if expected_version is None:
+        return
+    # The Rust binary reports its SemVer (0.3.0-dev0); compare it as PEP 440 like the wheel.
+    _require_same_version(
+        f"{program} --version", version_text.removeprefix(prefix), expected_version
+    )
 
 
 def _cli_env() -> dict[str, str]:

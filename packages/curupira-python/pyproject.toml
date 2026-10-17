@@ -1,6 +1,6 @@
 [project]
 name = "curupira"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Dispatch GitHub and cron tasks to local AI coding agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,11 +26,11 @@ dependencies = []
 
 [project.optional-dependencies]
 # Per-forge extras all install the consolidated package (one process, all triggers).
-github = ["curupira-plugins==0.2.0"]
-azure = ["curupira-plugins==0.2.0"]
-trello = ["curupira-plugins==0.2.0"]
-monday = ["curupira-plugins==0.2.0"]
-extensions = ["curupira-plugins==0.2.0"]
+github = ["curupira-plugins>=0.1.0.dev0"]
+azure = ["curupira-plugins>=0.1.0.dev0"]
+trello = ["curupira-plugins>=0.1.0.dev0"]
+monday = ["curupira-plugins>=0.1.0.dev0"]
+extensions = ["curupira-plugins>=0.1.0.dev0"]
 
 [project.urls]
 Homepage = "https://github.com/caipora-labs/curupira"

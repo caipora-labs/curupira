@@ -1,64 +1,57 @@
-"""Check that built wheels and sdists share the tag's PEP 440 version."""
+"""Check that the built distributions of one package carry the release version."""
 
 from __future__ import annotations
 
 import argparse
-import re
+import shutil
 import tarfile
 import zipfile
 from email.parser import Parser
 from pathlib import Path
 
-DEV_TAG = re.compile(r"v\d+\.\d+\.\d+\.dev\d+")
+from packaging.utils import canonicalize_name, parse_sdist_filename, parse_wheel_filename
+from packaging.version import Version
 
 
-def verify_distribution_version(
-    dist: Path,
-    tag: str | None = None,
-    *,
-    require_dev: bool = False,
-    require_sdist: bool = True,
-) -> str:
-    """Return the shared dist version, optionally matching a Git tag.
+def verify_distribution_version(dist: Path, project: str, version: str) -> list[Path]:
+    """Return the wheel and sdist of ``project`` in ``dist`` after checking their version.
 
-    A development rehearsal tag must be the canonical ``vX.Y.Z.devN`` form. The
-    package version is that tag without the leading ``v``.
+    Other packages in ``dist`` are ignored: each package is released on its own version.
+    Versions compare as PEP 440, so ``0.1.0dev0`` matches the built ``0.1.0.dev0``.
     """
-    versions = _distribution_versions(dist, require_sdist=require_sdist)
-    if len(set(versions)) != 1:
-        message = f"Distributions do not share one version: {versions}"
+    expected = Version(version)
+    paths = _project_distributions(dist, project)
+    wheels = [path for path in paths if path.suffix == ".whl"]
+    sdists = [path for path in paths if path.name.endswith(".tar.gz")]
+    if not wheels or not sdists:
+        found = [path.name for path in paths]
+        message = f"Expected a wheel and an sdist for {project} in {dist}, found {found}"
         raise SystemExit(message)
-    version = versions[0]
-    if tag is None:
-        if require_dev:
-            message = "A development rehearsal tag is required"
+    for path in paths:
+        built = Version(_metadata_version(path))
+        if built != expected:
+            message = f"{path.name} is version {built}, expected {expected}"
             raise SystemExit(message)
-        return version
-
-    if require_dev and DEV_TAG.fullmatch(tag) is None:
-        message = f"Expected a PEP 440 development tag vX.Y.Z.devN, got {tag!r}"
-        raise SystemExit(message)
-    expected = tag.removeprefix("v")
-    if version != expected:
-        message = f"Tag version {expected!r} does not match distributions: {versions}"
-        raise SystemExit(message)
-    return version
+    return paths
 
 
-def _distribution_versions(dist: Path, *, require_sdist: bool = True) -> list[str]:
-    wheels = sorted(dist.glob("*.whl"))
-    sources = sorted(dist.glob("*.tar.gz"))
-    if not wheels:
-        message = f"Expected at least one wheel in {dist}"
-        raise SystemExit(message)
-    if not sources:
-        if require_sdist:
-            message = f"Expected at least one sdist in {dist}"
-            raise SystemExit(message)
-        return [_wheel_version(wheel) for wheel in wheels]
-    wheel_versions = [_wheel_version(wheel) for wheel in wheels]
-    source_versions = [_sdist_version(source) for source in sources]
-    return wheel_versions + source_versions
+def _project_distributions(dist: Path, project: str) -> list[Path]:
+    name = canonicalize_name(project)
+    matches: list[Path] = []
+    for path in sorted([*dist.glob("*.whl"), *dist.glob("*.tar.gz")]):
+        if path.suffix == ".whl":
+            distribution, *_ = parse_wheel_filename(path.name)
+        else:
+            distribution, _ = parse_sdist_filename(path.name)
+        if distribution == name:
+            matches.append(path)
+    return matches
+
+
+def _metadata_version(path: Path) -> str:
+    if path.suffix == ".whl":
+        return _wheel_version(path)
+    return _sdist_version(path)
 
 
 def _wheel_version(wheel: Path) -> str:
@@ -99,30 +92,23 @@ def _require_version(version: str | None, path: Path) -> str:
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Print the verified distribution version."""
+    """Verify the project's distributions and optionally copy them for upload."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dist", type=Path, default=Path("dist"))
-    parser.add_argument("--tag", default="")
+    parser.add_argument("--project", required=True, help="Distribution name, e.g. curupira-sdk")
+    parser.add_argument("--version", required=True, help="Release version from the tag")
     parser.add_argument(
-        "--require-dev",
-        action="store_true",
-        help="Require tag vX.Y.Z.devN and an equal distribution version",
-    )
-    parser.add_argument(
-        "--allow-wheels-only",
-        action="store_true",
-        help="Allow a platform artifact directory that contains wheels but no sdist",
+        "--copy-to",
+        type=Path,
+        help="Copy the verified wheel and sdist into this directory",
     )
     args = parser.parse_args(argv)
-    tag = args.tag or None
-    print(
-        verify_distribution_version(
-            args.dist,
-            tag,
-            require_dev=args.require_dev,
-            require_sdist=not args.allow_wheels_only,
-        )
-    )
+    paths = verify_distribution_version(args.dist, args.project, args.version)
+    if args.copy_to is not None:
+        args.copy_to.mkdir(parents=True, exist_ok=True)
+        for path in paths:
+            shutil.copy2(path, args.copy_to / path.name)
+    print(f"verified {len(paths)} distributions for {args.project} {args.version}")
 
 
 if __name__ == "__main__":

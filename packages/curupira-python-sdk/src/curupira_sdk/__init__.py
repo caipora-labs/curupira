@@ -19,4 +19,7 @@ __all__ = [
     "write_frame",
 ]
 
-__version__ = "0.2.0"
+from importlib.metadata import version
+
+# Read from the installed distribution, whose version comes from the release tag.
+__version__ = version("curupira-sdk")
