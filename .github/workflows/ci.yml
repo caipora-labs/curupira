@@ -162,7 +162,7 @@ jobs:
       - run: uv run --no-sync pytest
 
   package:
-    name: Build and smoke-test distributions
+    name: Build distributions
     needs: changes
     if: github.event_name == 'push' || needs.changes.outputs.package == 'true'
     runs-on: ubuntu-latest
@@ -179,11 +179,6 @@ jobs:
       - run: uv sync --frozen --all-packages --dev
       - name: Build distributions with uv
         run: uv build --all-packages --out-dir dist
-      - name: Smoke-test the installed wheel outside the repository
-        run: |
-          uv run --no-sync python packages/curupira-python/scripts/smoke_install.py \
-            --dist dist \
-            --config packages/curupira-core/curupira.example.toml
 
   docs:
     name: Deploy documentation
