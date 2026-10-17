@@ -228,7 +228,10 @@ Snapshots skipped as obsolete before the agent starts are not recorded as comple
 Finite `run --size N` drains admit at most `N` tasks after revalidation. Recovered sessions
 count toward `N`; candidates discarded during revalidation do not.
 
-`max_active_tasks` bounds concurrent agents. Checkouts using the same path run sequentially.
+`max_active_tasks` bounds concurrent agents (worker slots). When a task finishes, its slot is
+refilled by the next poll right away. Tasks that share a base checkout serialize their clone
+and worktree setup, but their agents run in parallel. A task that fails is not retried within
+the same `run` invocation; it is picked up again by the next one.
 Cron automations coalesce overdue ticks into one pending occurrence and never run themselves
 concurrently. `schedule` uses five cron fields; `timezone` is an IANA zone (default UTC),
 and optional `start_date`/`end_date` define an inclusive window. Without `start_date`, the
