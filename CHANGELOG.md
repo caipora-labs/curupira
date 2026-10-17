@@ -19,6 +19,10 @@ All notable changes to this project are documented here. The format follows
 - The supported Python import surface remains `curupira.__version__` only. Third-party
   packages must implement the process protocol instead of `curupira.triggers` /
   `curupira.agents` entry points.
+- The interactive `tui` command currently runs continuous dispatch with status lines
+  (ratatui dashboard parity is follow-up work). Official trigger `poll` implementations
+  return empty task lists until forge discovery is fully reattached to the process
+  protocol; configuration validation and agent argv building are live.
 
 ### Added
 
