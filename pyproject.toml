@@ -1,32 +1,14 @@
-[project]
-name = "curupira"
-version = "0.2.0"
-description = "Dispatch GitHub and cron tasks to local AI coding agents"
-readme = "README.md"
-requires-python = ">=3.11"
-license = "MIT"
-authors = [{ name = "Mario Taddeucci" }]
-keywords = ["github", "automation", "coding-agents", "cli", "cron"]
-classifiers = [
-  "Development Status :: 3 - Alpha",
-  "Environment :: Console",
-  "Intended Audience :: Developers",
-  "Operating System :: OS Independent",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
-  "Programming Language :: Python :: 3.14",
-  "Programming Language :: Rust",
-  "Typing :: Typed",
+# Virtual uv workspace root: no distribution is built from here.
+# Member packages live under packages/ (see AGENTS.md for the layout).
+[tool.uv.workspace]
+members = [
+  "packages/curupira-python",
+  "packages/curupira-python-sdk",
+  "packages/plugins/curupira-azure",
+  "packages/plugins/curupira-github",
+  "packages/plugins/curupira-monday",
+  "packages/plugins/curupira-trello",
 ]
-# The CLI is the Rust binary. Official process extensions use the stdlib only.
-dependencies = []
-
-[project.urls]
-Homepage = "https://github.com/caipora-labs/curupira"
-Repository = "https://github.com/caipora-labs/curupira"
-Issues = "https://github.com/caipora-labs/curupira/issues"
-Changelog = "https://github.com/caipora-labs/curupira/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
@@ -43,25 +25,19 @@ docs = [
   "mkdocs-static-i18n>=1.3,<2",
 ]
 
-[build-system]
-requires = ["maturin>=1.10,<2"]
-build-backend = "maturin"
-
-[tool.maturin]
-manifest-path = "crates/curupira/Cargo.toml"
-bindings = "bin"
-python-source = "python"
-include = [
-  "plugins/**/*",
-  "protocol/**/*",
-  "python/curupira_official/**/*",
-  "python/curupira_sdk/**/*",
-]
-
-[tool.pytest.ini_options]
-filterwarnings = ["error"]
-testpaths = ["tests"]
-
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# The Rust crate only holds Python protocol fixtures, which are not packages.
+extend-exclude = ["packages/curupira-core"]
+force-exclude = true
+
+[tool.pytest.ini_options]
+# Each package owns its tests; importlib mode lets same-named test files coexist.
+testpaths = [
+  "packages/curupira-python/tests",
+  "packages/curupira-python-sdk/tests",
+  "packages/plugins",
+]
+addopts = ["--import-mode=importlib"]
+filterwarnings = ["error"]

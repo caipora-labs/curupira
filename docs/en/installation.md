@@ -31,7 +31,7 @@ Curupira reads `~/.curupira/settings.toml` by default. Download the example conf
 
 ```bash
 mkdir -p ~/.curupira
-curl -fsSL https://raw.githubusercontent.com/caipora-labs/curupira/main/curupira.example.toml \
+curl -fsSL https://raw.githubusercontent.com/caipora-labs/curupira/main/packages/curupira-core/curupira.example.toml \
   -o ~/.curupira/settings.toml
 ```
 
@@ -40,7 +40,7 @@ On Windows PowerShell:
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\.curupira"
 Invoke-WebRequest `
-  -Uri https://raw.githubusercontent.com/caipora-labs/curupira/main/curupira.example.toml `
+  -Uri https://raw.githubusercontent.com/caipora-labs/curupira/main/packages/curupira-core/curupira.example.toml `
   -OutFile "$HOME\.curupira\settings.toml"
 ```
 

@@ -63,5 +63,5 @@ tables outside that section are left as-is.
 
 See [`[assistant]`](configuration.md#assistant) for `agent` and `model` fields.
 Coding-agent adapters (including interactive launch recipes) are built into the Rust
-core under `crates/curupira/src/agents/`; see [Process extensions](extensions.md) for the
+core under `packages/curupira-core/src/agents/`; see [Process extensions](extensions.md) for the
 task-source boundary.

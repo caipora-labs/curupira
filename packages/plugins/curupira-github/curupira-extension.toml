@@ -1,0 +1,12 @@
+manifest_version = 1
+name = "curupira-github"
+version = "0.2.0"
+protocol_version = 1
+runtime = "python"
+kind = "trigger"
+trigger_types = ["github_issues", "github_pull_requests"]
+
+[launch]
+type = "executable"
+program = "python3"
+args = ["-m", "curupira_github"]

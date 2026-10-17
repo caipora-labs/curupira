@@ -19,13 +19,15 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy -p curupira -p curupira-protocol -- -D warnings
-      - run: cargo test -p curupira -p curupira-protocol
+      - run: cargo fmt --manifest-path packages/curupira-core/Cargo.toml --all -- --check
+      - run: cargo clippy --manifest-path packages/curupira-core/Cargo.toml -- -D warnings
+      - run: cargo test --manifest-path packages/curupira-core/Cargo.toml
       - name: Validate example configuration
         run: |
-          CURUPIRA_EXTENSIONS_PATH=plugins CURUPIRA_PYTHONPATH=python \
-            cargo run -p curupira --bin curupira -- --config curupira.example.toml validate
+          CURUPIRA_EXTENSIONS_PATH=packages/plugins \
+            CURUPIRA_PYTHONPATH="$(ls -d packages/curupira-python-sdk/src packages/plugins/*/src | paste -sd: -)" \
+            cargo run --manifest-path packages/curupira-core/Cargo.toml --bin curupira -- \
+            --config packages/curupira-core/curupira.example.toml validate
 
   python:
     name: Python packaging tests (Python ${{ matrix.python-version }})
@@ -40,9 +42,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
-      - run: uv sync --frozen --dev
-      - run: uv run --no-sync ruff check python tests plugins/sdk-python
-      - run: PYTHONPATH=python uv run --no-sync pytest tests
+      - run: uv sync --frozen --all-packages --dev
+      - run: uv run --no-sync ruff check packages
+      - run: uv run --no-sync pytest
 
   package:
     name: Build and smoke-test distributions
@@ -55,11 +57,11 @@ jobs:
         with:
           python-version: "3.11"
           enable-cache: true
-      - run: uv sync --frozen --dev
-      - name: Build wheel with maturin
-        run: uv run --no-sync maturin build --release --out dist -m crates/curupira/Cargo.toml
+      - run: uv sync --frozen --all-packages --dev
+      - name: Build distributions with uv
+        run: uv build --all-packages --out-dir dist
       - name: Smoke-test the installed wheel outside the repository
         run: |
-          uv run --no-sync python scripts/smoke_install.py \
+          uv run --no-sync python packages/curupira-python/scripts/smoke_install.py \
             --dist dist \
-            --config curupira.example.toml
+            --config packages/curupira-core/curupira.example.toml

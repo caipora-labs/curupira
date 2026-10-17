@@ -1,0 +1,52 @@
+[project]
+name = "curupira"
+version = "0.2.0"
+description = "Dispatch GitHub and cron tasks to local AI coding agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Mario Taddeucci" }]
+keywords = ["github", "automation", "coding-agents", "cli", "cron"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Rust",
+  "Typing :: Typed",
+]
+# The CLI is the Rust binary. The official trigger extensions run as processes
+# and need the SDK, so they ship as dependencies of this distribution.
+dependencies = [
+  "curupira-sdk==0.2.0",
+  "curupira-azure==0.2.0",
+  "curupira-github==0.2.0",
+  "curupira-monday==0.2.0",
+  "curupira-trello==0.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/caipora-labs/curupira"
+Repository = "https://github.com/caipora-labs/curupira"
+Issues = "https://github.com/caipora-labs/curupira/issues"
+Changelog = "https://github.com/caipora-labs/curupira/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["maturin>=1.10,<2"]
+build-backend = "maturin"
+
+[tool.uv.sources]
+curupira-sdk = { workspace = true }
+curupira-azure = { workspace = true }
+curupira-github = { workspace = true }
+curupira-monday = { workspace = true }
+curupira-trello = { workspace = true }
+
+[tool.maturin]
+manifest-path = "../curupira-core/Cargo.toml"
+bindings = "bin"
+python-source = "src"

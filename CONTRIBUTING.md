@@ -4,13 +4,13 @@
 
 ## Environment setup
 
-Requirements: a Rust toolchain (see `rust-toolchain.toml`), Python 3.11+, and
+Requirements: a Rust toolchain (see `packages/curupira-core/rust-toolchain.toml`), Python 3.11+, and
 [`uv`](https://docs.astral.sh/uv/). `gh` is needed only for live GitHub discovery.
 Tests use fixtures and must not call real forge or coding-agent CLIs.
 
 ```bash
-uv sync --dev
-cargo test -p curupira -p curupira-protocol
+uv sync --all-packages --dev
+cargo test --manifest-path packages/curupira-core/Cargo.toml
 ```
 
 [AGENTS.md](AGENTS.md) is the single source for verification commands, the repository
@@ -19,13 +19,15 @@ map, and security boundaries. Install the documentation tools with
 
 ## Packaging
 
-**Maturin** builds the Rust binary into a platform wheel (`bindings = "bin"`) and includes
-`plugins/`, `protocol/`, and `python/curupira_official/`. Console scripts `curupira` and
-`curu` point at that binary. Build and smoke-test with:
+**Maturin** builds the Rust binary (`packages/curupira-core`) into the platform wheel of
+`packages/curupira-python` (`bindings = "bin"`). The SDK and the official plugins are pure-Python
+wheels that the `curupira` wheel depends on, so a release is one `uv build` over all members.
+Console scripts `curupira` and `curu` point at the binary. Build and smoke-test with:
 
 ```bash
-uv run --no-sync maturin build --release --out dist -m crates/curupira/Cargo.toml
-uv run --no-sync python scripts/smoke_install.py --dist dist --config curupira.example.toml
+uv build --all-packages --out-dir dist
+uv run --no-sync python packages/curupira-python/scripts/smoke_install.py --dist dist \
+  --config packages/curupira-core/curupira.example.toml
 ```
 
 ## Extending Curupira
@@ -35,17 +37,17 @@ provider CLIs and the user's environment do.
 
 ### Task sources (process extensions)
 
-Official triggers live under `plugins/` + `python/curupira_official/`. Third-party task
-sources speak the [extension protocol](protocol/PROTOCOL.md) as a separate process
+Official triggers live under `packages/plugins/curupira-<name>/`, one uv package each. Third-party
+task sources speak the [extension protocol](packages/curupira-core/PROTOCOL.md) as a separate process
 (`kind = "trigger"`). They discover tasks, validate configuration, and receive lifecycle
 events. They must **not** build coding-agent argv, clone repositories, or manage
 worktrees. See [Process extensions](docs/en/extensions.md).
 
 ### Coding agents (Rust core)
 
-Built-in adapters live in `crates/curupira/src/agents/`. To add a provider:
+Built-in adapters live in `packages/curupira-core/src/agents/`. To add a provider:
 
-1. Add a module under `crates/curupira/src/agents/` and register it on `AgentProvider`.
+1. Add a module under `packages/curupira-core/src/agents/` and register it on `AgentProvider`.
 2. Map only documented native CLI flags; omit unset optional fields.
 3. Add unit tests for argv presence/absence and a page under `docs/en/providers/`.
 4. Update the README provider list and `mkdocs.yml` nav alphabetically by display name.
@@ -55,7 +57,7 @@ Do not reintroduce coding agents as process extensions or Pluggy entry points.
 ### Git / worktrees
 
 Clone, shared checkout, deterministic worktrees, and `setup_script` are implemented in
-`crates/curupira/src/vcs.rs`. Extensions never perform Git operations.
+`packages/curupira-core/src/vcs.rs`. Extensions never perform Git operations.
 
 ## Documentation translations
 
@@ -176,8 +178,7 @@ permanent ignore.
 
 ## Releases
 
-Versioning is `MAJOR.MINOR.PATCH`. The single version source is
-`src/curupira/_version.py`; the build backend reads it, and the CLI reports it.
+Versioning is `MAJOR.MINOR.PATCH`. The version is kept in lockstep across every package; [AGENTS.md](AGENTS.md#versions) lists each place.
 Built wheels and sdists use that string as-is, so the Git tag and the file match
 character for character after the tag's leading `v`.
 
@@ -188,14 +189,14 @@ Run this checklist before tagging either a `.devN` rehearsal or a stable cut.
 so the checklist must pass before any tag is pushed. A maintainer decides when to tag;
 do not tag, publish, or release from automation that skips these steps.
 
-1. Set `__version__` in `src/curupira/_version.py` and move `CHANGELOG.md` entries as
+1. Bump the version as listed in [AGENTS.md](AGENTS.md#versions) and move `CHANGELOG.md` entries as
    appropriate for the cut.
 2. Run the full verification suite from [AGENTS.md](AGENTS.md) (`pytest`, Ruff, Pyrefly,
    example-config validate, and docs build when docs changed).
 3. Build and gate packaging metadata:
 
 ```bash
-uv run --no-sync python scripts/check_packaged_readme.py
+uv run --no-sync python packages/curupira-python/scripts/check_packaged_readme.py
 ```
 
 4. Inspect the packaged long description that PyPI will render (for example
@@ -207,11 +208,11 @@ uv run --no-sync python scripts/check_packaged_readme.py
 ### PyPI development rehearsal
 
 Tag `vX.Y.Z.devN` publishes package `X.Y.Z.devN` (PEP 440) to PyPI. Bump the version
-in `src/curupira/_version.py`, commit that change, and tag the same commit. Tag
+in every package (see [AGENTS.md](AGENTS.md#versions)), commit that change, and tag the same commit. Tag
 `v0.1.0.dev0` already exists and must not be reused. The next rehearsal is
 `0.1.0.dev1` with tag `v0.1.0.dev1`.
 
-1. Set `__version__` to the next unused `X.Y.Z.devN` and commit.
+1. Bump the version to the next unused `X.Y.Z.devN` (see [AGENTS.md](AGENTS.md#versions)) and commit.
 2. Wait until CI is green on that commit. The tag workflow publishes only after the
    Ubuntu CI checks (lint, type check, Python test matrix, and distribution smoke
    tests) have succeeded for the tagged SHA.
@@ -222,8 +223,8 @@ git tag v0.1.0.dev1
 git push origin v0.1.0.dev1
 ```
 
-`publish.yml` builds a pure-Python wheel and sdist once, then install-smoke-tests that
-wheel on `ubuntu-latest` with `curupira --config curupira.example.toml validate`. The
+`publish.yml` builds the wheels and sdists of every workspace package once, then install-smoke-tests that
+wheel on `ubuntu-latest` with `curupira --config packages/curupira-core/curupira.example.toml validate`. The
 publish job checks that the distribution version equals the tag without its leading
 `v` and uploads with Trusted Publishing (`id-token: write`, environment `pypi`). Use
 the canonical dotted form `vX.Y.Z.devN`. PyPI keeps an uploaded file, so each
@@ -240,9 +241,9 @@ from a commit whose `__version__` is `0.1.0`.
 To cut a release:
 
 1. Move the `Unreleased` entries in `CHANGELOG.md` into a new version section.
-2. Bump `__version__` in `src/curupira/_version.py` to the stable `X.Y.Z` version.
+2. Bump the version in every package to the stable `X.Y.Z` version (see [AGENTS.md](AGENTS.md#versions)).
 3. Complete the [release-candidate checklist](#release-candidate-checklist) (verification
-   suite, `scripts/check_packaged_readme.py`, inspect packaged README).
+   suite, `packages/curupira-python/scripts/check_packaged_readme.py`, inspect packaged README).
 4. Rehearse with a `vX.Y.Z.devN` tag on PyPI (see above) before the first production
    publication.
 5. Tag the validated commit as `vX.Y.Z` and push the tag. The `publish.yml` workflow
@@ -258,4 +259,4 @@ that same publisher. `testpypi.yml` remains a separate workflow with environment
 `https://test.pypi.org/legacy/` and smoke-tests that installation. The publish
 workflow checks that the Ubuntu CI checks (lint, type check, Python test matrix,
 and distribution smoke tests) succeeded for the commit
-(`scripts/require_ci_checks.py`).
+(`.github/scripts/require_ci_checks.py`).
