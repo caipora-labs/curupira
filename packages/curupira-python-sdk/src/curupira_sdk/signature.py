@@ -42,48 +42,82 @@ class TriggerSpec:
     schema: dict[str, Any]
 
 
-def build_trigger_spec(func: Any) -> TriggerSpec:
-    """Introspect a trigger function without calling it."""
+def to_kebab_case(name: str) -> str:
+    """Convert a Python identifier to kebab-case (``github_issues`` → ``github-issues``)."""
+    if not name:
+        raise RegistrationError("trigger name must not be empty")
+    parts = [part for part in name.replace("-", "_").split("_") if part]
+    if not parts:
+        raise RegistrationError(f"trigger name {name!r} is not a valid identifier")
+    return "-".join(part.lower() for part in parts)
+
+
+def validate_trigger_local_name(name: str) -> str:
+    """Accept a kebab-case local trigger name (no slash; used inside an extension)."""
+    if not name:
+        raise RegistrationError("trigger name must not be empty")
+    if "/" in name:
+        raise RegistrationError(
+            f"trigger name {name!r} must not contain '/'; "
+            "the host prefixes the [plugins.<alias>] registration name"
+        )
+    if name.startswith("-") or name.endswith("-") or "--" in name:
+        raise RegistrationError(f"trigger name {name!r} is not valid kebab-case")
+    if not all(c.isalnum() or c == "-" for c in name):
+        raise RegistrationError(f"trigger name {name!r} is not valid kebab-case")
+    if not any(c.isalpha() for c in name):
+        raise RegistrationError(f"trigger name {name!r} is not valid kebab-case")
+    return name
+
+
+def build_trigger_spec(func: Any, *, name: str | None = None) -> TriggerSpec:
+    """Introspect a trigger function without calling it.
+
+    When ``name`` is omitted, the local trigger name is the kebab-case form of
+    ``func.__name__``. Pass ``name`` (or ``@app.trigger(alias=...)``) to override.
+    """
     if not callable(func):
         raise RegistrationError("trigger must be a callable")
-    name = func.__name__
-    if not name.isidentifier():
-        raise RegistrationError(f"trigger name {name!r} is not a valid identifier")
+    func_name = func.__name__
+    if not func_name.isidentifier():
+        raise RegistrationError(f"trigger function {func_name!r} is not a valid identifier")
+    local_name = validate_trigger_local_name(name if name is not None else to_kebab_case(func_name))
 
     signature = inspect.signature(func)
     try:
         hints = get_type_hints(func, include_extras=True)
     except Exception as exc:
-        raise RegistrationError(f"trigger {name!r}: cannot resolve type hints: {exc}") from exc
+        raise RegistrationError(f"trigger {local_name!r}: cannot resolve type hints: {exc}") from exc
 
     parameters: list[ParameterSpec] = []
     for param_name, param in signature.parameters.items():
         if param.kind is inspect.Parameter.VAR_POSITIONAL:
-            raise RegistrationError(f"trigger {name!r}: *args is not supported")
+            raise RegistrationError(f"trigger {local_name!r}: *args is not supported")
         if param.kind is inspect.Parameter.VAR_KEYWORD:
-            raise RegistrationError(f"trigger {name!r}: **kwargs is not supported")
+            raise RegistrationError(f"trigger {local_name!r}: **kwargs is not supported")
         if param.kind is inspect.Parameter.POSITIONAL_ONLY:
             raise RegistrationError(
-                f"trigger {name!r}: positional-only parameter {param_name!r} is not supported"
+                f"trigger {local_name!r}: positional-only parameter {param_name!r} "
+                "is not supported"
             )
         if param.kind not in (
             inspect.Parameter.POSITIONAL_OR_KEYWORD,
             inspect.Parameter.KEYWORD_ONLY,
         ):
             raise RegistrationError(
-                f"trigger {name!r}: unsupported parameter kind for {param_name!r}"
+                f"trigger {local_name!r}: unsupported parameter kind for {param_name!r}"
             )
         if param_name in CORE_CONFIG_KEYS:
             raise RegistrationError(
-                f"trigger {name!r}: parameter {param_name!r} conflicts with a core "
+                f"trigger {local_name!r}: parameter {param_name!r} conflicts with a core "
                 "automation field; use a different name (for example `repo`)"
             )
         if param.annotation is inspect.Parameter.empty:
             raise RegistrationError(
-                f"trigger {name!r}: parameter {param_name!r} requires a type annotation"
+                f"trigger {local_name!r}: parameter {param_name!r} requires a type annotation"
             )
         annotation = hints.get(param_name, param.annotation)
-        context = f"trigger {name!r} parameter {param_name!r}"
+        context = f"trigger {local_name!r} parameter {param_name!r}"
         # Ensure the type is representable (raises RegistrationError if not).
         type_to_json_schema(annotation, context=context)
         has_default = param.default is not inspect.Parameter.empty
@@ -102,13 +136,14 @@ def build_trigger_spec(func: Any) -> TriggerSpec:
         return_annotation = typing.Any
     if is_collection_type(return_annotation):
         raise RegistrationError(
-            f"trigger {name!r}: return type must be a single item or None, not a collection"
+            f"trigger {local_name!r}: return type must be a single item or None, "
+            "not a collection"
         )
 
-    schema = _parameters_schema(name, parameters)
+    schema = _parameters_schema(local_name, parameters)
     prompt_fields = tuple(prompt_fields_for_return(return_annotation))
     return TriggerSpec(
-        name=name,
+        name=local_name,
         func=func,
         is_async=inspect.iscoroutinefunction(func),
         parameters=tuple(parameters),

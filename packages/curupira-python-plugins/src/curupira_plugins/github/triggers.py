@@ -1,41 +1,22 @@
-"""Official GitHub issues / pull-requests trigger extension.
+"""Official GitHub issues / pull-requests triggers.
 
 Discovery authenticates through `gh auth token`; no GitHub credentials are stored here.
 """
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 from curupira_sdk import Curupira, RpcError
 from pydantic import ValidationError
 
-from curupira_github import __version__
-from curupira_github.client import Discovery, GitHubClient, GitHubCliToken, parse_nodes
-from curupira_github.filters import IssueFilters, PullRequestFilters
-from curupira_github.models import IssueItem, IssueNode, PullRequestItem, PullRequestNode
-
-app = Curupira(name="curupira-github", version=__version__)
+from curupira_plugins.github.client import Discovery, GitHubClient, GitHubCliToken, parse_nodes
+from curupira_plugins.github.filters import IssueFilters, PullRequestFilters
+from curupira_plugins.github.models import IssueItem, IssueNode, PullRequestItem, PullRequestNode
 
 _CLIENT = GitHubClient(GitHubCliToken())
 # One discovery feed per distinct filter set, kept for the lifetime of this process.
 _FEEDS: dict[str, Discovery[Any, Any]] = {}
-
-MANIFEST = """
-manifest_version = 1
-name = "curupira-github"
-version = "{version}"
-protocol_version = 1
-runtime = "python"
-kind = "trigger"
-trigger_types = ["github_issues", "github_pull_requests"]
-
-[launch]
-type = "executable"
-program = "{python}"
-args = ["-m", "curupira_github"]
-""".strip()
 
 
 def _validation_message(exc: ValidationError) -> str:
@@ -130,7 +111,6 @@ def _pull_request_feed(
     return feed
 
 
-@app.trigger
 def github_issues(
     repo: str,
     labels: list[str] | None = None,
@@ -159,7 +139,6 @@ def github_issues(
     return _issue_feed(filters).next_item()
 
 
-@app.trigger
 def github_pull_requests(
     repo: str,
     labels: list[str] | None = None,
@@ -202,16 +181,9 @@ def github_pull_requests(
     return _pull_request_feed(filters).next_item()
 
 
-app.param_check("github_issues", _check_issue_filters)
-app.param_check("github_pull_requests", _check_pull_request_filters)
-
-
-def main() -> None:
-    if "--curupira-print-manifest" in sys.argv:
-        app.print_manifest(MANIFEST)
-        return
-    app.run()
-
-
-if __name__ == "__main__":
-    main()
+def register(app: Curupira) -> None:
+    """Register GitHub triggers on ``app``."""
+    app.trigger(github_issues)
+    app.trigger(github_pull_requests)
+    app.param_check("github-issues", _check_issue_filters)
+    app.param_check("github-pull-requests", _check_pull_request_filters)

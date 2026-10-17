@@ -60,7 +60,7 @@ class SearchFilters(BaseModel):
 
 
 class IssueFilters(SearchFilters):
-    """Filters for `github_issues` automations."""
+    """Filters for `github-issues` automations."""
 
     linked_pull_request: bool | None = None
 
@@ -72,7 +72,7 @@ class IssueFilters(SearchFilters):
 
 
 class PullRequestFilters(SearchFilters):
-    """Filters for `github_pull_requests` automations."""
+    """Filters for `github-pull-requests` automations."""
 
     draft: bool | None = None
     base: str | None = None

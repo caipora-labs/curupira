@@ -1,7 +1,7 @@
 [project]
-name = "curupira-github"
+name = "curupira-plugins"
 version = "0.2.0"
-description = "Official Curupira github trigger extension (JSON-RPC process)"
+description = "Official Curupira trigger extensions (GitHub, Azure, Trello, monday.com)"
 requires-python = ">=3.11"
 license = "MIT"
 dependencies = ["curupira-sdk[pydantic]==0.2.0"]
@@ -18,4 +18,4 @@ build-backend = "hatchling.build"
 curupira-sdk = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/curupira_github"]
+packages = ["src/curupira_plugins"]

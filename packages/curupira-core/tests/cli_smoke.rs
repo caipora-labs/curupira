@@ -12,10 +12,10 @@ fn packages_root() -> PathBuf {
 
 /// `PYTHONPATH` entries for the official Python packages, so extensions import from the checkout.
 fn python_path() -> std::ffi::OsString {
-    let mut dirs = vec![packages_root().join("curupira-python-sdk/src")];
-    for name in ["github", "azure", "trello", "monday"] {
-        dirs.push(packages_root().join(format!("plugins/curupira-{name}/src")));
-    }
+    let dirs = [
+        packages_root().join("curupira-python-sdk/src"),
+        packages_root().join("curupira-python-plugins/src"),
+    ];
     std::env::join_paths(dirs).expect("valid PYTHONPATH entries")
 }
 
@@ -41,7 +41,10 @@ fn curu_version_uses_alias_name() {
 fn validate_example_config() {
     cargo_bin_cmd!("curupira")
         .current_dir(core_root())
-        .env("CURUPIRA_EXTENSIONS_PATH", packages_root().join("plugins"))
+        .env(
+            "CURUPIRA_EXTENSIONS_PATH",
+            packages_root().join("curupira-python-plugins"),
+        )
         .env("CURUPIRA_PYTHONPATH", python_path())
         .args(["--config", "curupira.example.toml", "validate"])
         .assert()
@@ -53,7 +56,10 @@ fn validate_example_config() {
 fn plugins_list_includes_builtin_cron_without_spawning_network() {
     cargo_bin_cmd!("curupira")
         .current_dir(core_root())
-        .env("CURUPIRA_EXTENSIONS_PATH", packages_root().join("plugins"))
+        .env(
+            "CURUPIRA_EXTENSIONS_PATH",
+            packages_root().join("curupira-python-plugins"),
+        )
         .arg("plugins")
         .arg("list")
         .assert()
@@ -61,7 +67,7 @@ fn plugins_list_includes_builtin_cron_without_spawning_network() {
         .stdout(predicate::str::contains("cron\tcurupira"))
         .stdout(predicate::str::contains("agent:opencode\tcurupira"))
         .stdout(predicate::str::contains("(built-in)"))
-        .stdout(predicate::str::contains("github_issues"));
+        .stdout(predicate::str::contains("github-issues"));
 }
 
 #[test]

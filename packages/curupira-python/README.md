@@ -97,7 +97,7 @@ timezone = "UTC"
 provider = "opencode"
 
 [automations.resolve-ready-issues]
-trigger_type = "github_issues"
+trigger_type = "plugins-py/github-issues"
 repository = "api"
 repo = "acme/api"
 labels = ["agent-ready"]
@@ -116,7 +116,7 @@ into every task identity. `repository` selects a `[repositories.<alias>]` checko
 full Git `remote` URL (and optional `path` / `setup_script`). `trigger_type` selects the
 source:
 
-- `"github_issues"` / `"github_pull_requests"` — discover matching GitHub issues and pull
+- `"plugins-py/github-issues"` / `"plugins-py/github-pull-requests"` — discover matching GitHub issues and pull
   requests; see the
   [GitHub task source guide](https://caipora-labs.github.io/curupira/github/)
 - `"azure_cli_pull_requests"` — lists Azure DevOps pull requests with `az repos pr list`

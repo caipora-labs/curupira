@@ -8,86 +8,30 @@ use crate::version::VERSION;
 #[must_use]
 pub fn official_manifests() -> Vec<ExtensionManifest> {
     let py = "python3".to_string();
-    vec![
-        ExtensionManifest {
-            manifest_version: 1,
-            name: "curupira-github".into(),
-            version: VERSION.into(),
-            protocol_version: 1,
-            runtime: ExtensionRuntime::Python,
-            kind: ExtensionKind::Trigger,
-            launch: LaunchSpec::Executable {
-                program: py.clone(),
-                args: vec!["-m".into(), "curupira_github".into()],
-            },
-            package: Some(PackageRef {
-                source: "bundled".into(),
-                name: "curupira-github".into(),
-                version: Some(VERSION.into()),
-            }),
-            capabilities: Default::default(),
-            trigger_types: vec!["github_issues".into(), "github_pull_requests".into()],
-            agent_providers: vec![],
+    vec![ExtensionManifest {
+        manifest_version: 1,
+        name: "curupira-plugins".into(),
+        version: VERSION.into(),
+        protocol_version: 1,
+        runtime: ExtensionRuntime::Python,
+        kind: ExtensionKind::Trigger,
+        launch: LaunchSpec::Executable {
+            program: py,
+            args: vec!["-m".into(), "curupira_plugins".into()],
         },
-        ExtensionManifest {
-            manifest_version: 1,
-            name: "curupira-azure".into(),
-            version: VERSION.into(),
-            protocol_version: 1,
-            runtime: ExtensionRuntime::Python,
-            kind: ExtensionKind::Trigger,
-            launch: LaunchSpec::Executable {
-                program: py.clone(),
-                args: vec!["-m".into(), "curupira_azure".into()],
-            },
-            package: Some(PackageRef {
-                source: "bundled".into(),
-                name: "curupira-azure".into(),
-                version: Some(VERSION.into()),
-            }),
-            capabilities: Default::default(),
-            trigger_types: vec!["azure_cli_pull_requests".into()],
-            agent_providers: vec![],
-        },
-        ExtensionManifest {
-            manifest_version: 1,
-            name: "curupira-trello".into(),
-            version: VERSION.into(),
-            protocol_version: 1,
-            runtime: ExtensionRuntime::Python,
-            kind: ExtensionKind::Trigger,
-            launch: LaunchSpec::Executable {
-                program: py.clone(),
-                args: vec!["-m".into(), "curupira_trello".into()],
-            },
-            package: Some(PackageRef {
-                source: "bundled".into(),
-                name: "curupira-trello".into(),
-                version: Some(VERSION.into()),
-            }),
-            capabilities: Default::default(),
-            trigger_types: vec!["trello_cli_cards".into()],
-            agent_providers: vec![],
-        },
-        ExtensionManifest {
-            manifest_version: 1,
-            name: "curupira-monday".into(),
-            version: VERSION.into(),
-            protocol_version: 1,
-            runtime: ExtensionRuntime::Python,
-            kind: ExtensionKind::Trigger,
-            launch: LaunchSpec::Executable {
-                program: py,
-                args: vec!["-m".into(), "curupira_monday".into()],
-            },
-            package: Some(PackageRef {
-                source: "bundled".into(),
-                name: "curupira-monday".into(),
-                version: Some(VERSION.into()),
-            }),
-            capabilities: Default::default(),
-            trigger_types: vec!["monday_items".into()],
-            agent_providers: vec![],
-        },
-    ]
+        package: Some(PackageRef {
+            source: "bundled".into(),
+            name: "curupira-plugins".into(),
+            version: Some(VERSION.into()),
+        }),
+        capabilities: Default::default(),
+        trigger_types: vec![
+            "github-issues".into(),
+            "github-pull-requests".into(),
+            "azure-cli-pull-requests".into(),
+            "trello-cli-cards".into(),
+            "monday-items".into(),
+        ],
+        agent_providers: vec![],
+    }]
 }

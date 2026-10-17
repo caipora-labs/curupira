@@ -54,7 +54,8 @@ pub struct ExtensionManifest {
     pub package: Option<PackageRef>,
     #[serde(default)]
     pub capabilities: ExtensionCapability,
-    /// Trigger types contributed (`github_issues`, …).
+    /// Local trigger types contributed (`github-issues`, …).
+    /// Settings address them as `<plugins-alias>/<local>` after `[plugins.<alias>]`.
     #[serde(default)]
     pub trigger_types: Vec<String>,
     /// Deprecated: coding agents are built into the core. Ignored when non-empty
@@ -152,19 +153,20 @@ mod tests {
     fn parse_minimal() {
         let text = r#"
 manifest_version = 1
-name = "curupira-github"
+name = "curupira-plugins"
 version = "0.2.0"
 protocol_version = 1
 runtime = "python"
 kind = "trigger"
-trigger_types = ["github_issues", "github_pull_requests"]
+trigger_types = ["github-issues", "github-pull-requests"]
 
 [launch]
 type = "executable"
-program = "curupira-github-ext"
+program = "python3"
+args = ["-m", "curupira_plugins"]
 "#;
         let m = ExtensionManifest::from_toml_str(text).unwrap();
         m.validate().unwrap();
-        assert_eq!(m.name, "curupira-github");
+        assert_eq!(m.name, "curupira-plugins");
     }
 }

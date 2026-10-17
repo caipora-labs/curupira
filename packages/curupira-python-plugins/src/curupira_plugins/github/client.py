@@ -14,7 +14,7 @@ from typing import Any, Generic, TypeVar
 from curupira_sdk import RpcError
 from pydantic import ValidationError
 
-from curupira_github.models import IssueNode, SearchConnection, SearchResponse
+from curupira_plugins.github.models import IssueNode, SearchConnection, SearchResponse
 
 GRAPHQL_URL = "https://api.github.com/graphql"
 TOKEN_CACHE_SECONDS = 300.0
@@ -133,7 +133,7 @@ class GitHubClient:
                     "Authorization": f"Bearer {self._tokens.token()}",
                     "Content-Type": "application/json",
                     "Accept": "application/json",
-                    "User-Agent": "curupira-github",
+                    "User-Agent": "curupira-plugins",
                 },
             )
             try:

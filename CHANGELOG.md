@@ -5,6 +5,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Official triggers ship as one package.** `packages/curupira-python-plugins/` publishes
+  PyPI `curupira-plugins` (import `curupira_plugins`) and depends on `curupira-sdk`. The
+  `curupira` wheel depends on `curupira-plugins` instead of the former
+  `curupira-github` / `curupira-azure` / `curupira-trello` / `curupira-monday` distributions.
+- **Plugin registration aliases.** Settings use `[plugins.<alias>]` with a `package` field
+  (for example `[plugins.plugins-py]` / `package = "curupira-plugins"`). Automations address
+  triggers as `<alias>/<local-trigger>` (for example `plugins-py/github-issues`).
+- **Trigger local names are kebab-case.** The SDK derives the local name from
+  `function.__name__` (`github_issues` → `github-issues`). Use `@app.trigger(alias="…")` to
+  override. Manifests declare local names only; the host prefixes the TOML alias.
+- **CI path filters.** Pull requests run Rust, SDK, plugins, packaging, and wheel smoke
+  jobs only when matching paths change. Pushes to `main` still run the full suite.
+
 ### Fixed
 
 - **`max_active_tasks` runs agents in parallel.** The dispatcher used to run each admitted batch

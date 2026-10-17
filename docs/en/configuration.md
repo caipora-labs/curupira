@@ -86,8 +86,11 @@ timezone = "UTC"
 [agents.profiles.opencode-default]
 provider = "opencode"
 
+[plugins.plugins-py]
+package = "curupira-plugins"
+
 [automations.resolve-ready-issues]
-trigger_type = "github_issues"
+trigger_type = "plugins-py/github-issues"
 repository = "api"
 repo = "acme/api"
 labels = ["agent-ready"]
@@ -95,9 +98,11 @@ linked_pull_request = false
 prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 ```
 
-Save this as `~/.curupira/settings.toml`. The keys under `repositories`, `profiles`, and
-`automations` are user-chosen identifiers; `repository` connects an automation to a
-checkout alias, and `profile` connects it to a coding-agent profile.
+Save this as `~/.curupira/settings.toml`. The keys under `repositories`, `profiles`,
+`plugins`, and `automations` are user-chosen identifiers; `repository` connects an
+automation to a checkout alias, `profile` connects it to a coding-agent profile, and
+`[plugins.<alias>]` registers an installed trigger package so automations can use
+`<alias>/<local-trigger>` (for example `plugins-py/github-issues`).
 
 Each profile's `provider` selects a **built-in** coding agent: `claude`, `codex`, `copilot`,
 `cursor`, `gemini`, `kilo`, `opencode`, `pi`, or `qwen`. Coding agents are part of the Rust
@@ -121,6 +126,16 @@ Existing TOML files without `[assistant]` keep the unset defaults.
 panel is follow-up work. Interactive launch recipes for each built-in provider are still
 implemented in the Rust core for that future surface.
 
+## Plugins
+
+`[plugins.<alias>]` registers an installed trigger package under a settings alias:
+
+- `package` (required): PyPI / manifest package name (for example `curupira-plugins`).
+
+Automations then set `trigger_type = "<alias>/<local-trigger>"`. Local trigger names are
+kebab-case names declared by the extension (for example `github-issues`). The official
+`curupira-plugins` distribution is usually registered as `plugins-py`.
+
 ## Repositories
 
 `[repositories.<alias>]` owns Git checkout settings shared by one or more automations:
@@ -137,18 +152,18 @@ set the automation's GitHub `repo` to `owner/name`.
 
 `trigger_type` selects the source:
 
-- `github_issues` discovers GitHub issues through GraphQL Search using typed filters
+- `plugins-py/github-issues` discovers GitHub issues through GraphQL Search using typed filters
   (`labels`, `exclude_labels`, `assignee`, `linked_pull_request`, `sort`, …). Set
   `linked_pull_request = false` so discovery compiles `-linked:pr` and skips issues that
   already have a linked pull request. That filter is configuration-time discovery only;
   see [Scheduling and state](#scheduling-and-state) for scheduler revalidation of recovered
   sessions.
-- `github_pull_requests` discovers GitHub pull requests the same way, with PR filters such
+- `plugins-py/github-pull-requests` discovers GitHub pull requests the same way, with PR filters such
   as `draft`, `review`, `ci_status`, plus post-filters `mergeable` / `merge_state`.
-- `azure_cli_pull_requests` lists Azure DevOps pull requests through `az repos pr list`.
-- `trello_cli_cards` discovers Trello cards through Scale-Flow's `trello-cli` for a
+- `plugins-py/azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
+- `plugins-py/trello-cli-cards` discovers Trello cards through Scale-Flow's `trello-cli` for a
   configured `board_id`, optionally restricted to `list_ids`.
-- `monday_items` discovers monday.com board items through the GraphQL API for a
+- `plugins-py/monday-items` discovers monday.com board items through the GraphQL API for a
   configured `board_id`, optionally restricted to `group_ids` (token from `token_env`,
   default `MONDAY_API_TOKEN`). See the [monday.com task source guide](monday.md).
 - `cron` produces occurrences from a five-field `schedule` instead of querying a forge.

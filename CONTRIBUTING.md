@@ -37,7 +37,7 @@ provider CLIs and the user's environment do.
 
 ### Task sources (process extensions)
 
-Official triggers live under `packages/plugins/curupira-<name>/`, one uv package each. Third-party
+Official triggers live under `packages/curupira-python-plugins/` (PyPI `curupira-plugins`). Third-party
 task sources speak the [extension protocol](packages/curupira-core/PROTOCOL.md) as a separate process
 (`kind = "trigger"`). They discover tasks, validate configuration, and receive lifecycle
 events. They must **not** build coding-agent argv, clone repositories, or manage

@@ -19,7 +19,7 @@ uv tool install curupira
 
 `curupira` and `curu` are the same binary. Python is used only to distribute that
 binary, the declarative SDK (`curupira_sdk`), and the official **trigger** extension
-packages (`curupira-github`, `curupira-azure`, `curupira-trello`, `curupira-monday`), which
+packages (`curupira-plugins`), which
 the `curupira` wheel depends on. Node.js is required only when you install a Node-based
 third-party trigger extension.
 
@@ -27,15 +27,15 @@ third-party trigger extension.
 
 ```bash
 curupira plugins list
-curupira plugins info curupira-github
-curupira plugins install --yes path:./packages/plugins/curupira-github
+curupira plugins info curupira-plugins
+curupira plugins install --yes path:./packages/curupira-python-plugins
 curupira plugins install --yes pip:some-extension==1.2.3
 curupira plugins install --yes npm:@acme/curupira-ext@1.2.3
 curupira plugins uninstall some-extension
 ```
 
 Discovery reads `curupira-extension.toml` manifests from
-`~/.curupira/extensions/`, `CURUPIRA_EXTENSIONS_PATH`, and bundled `packages/plugins/`.
+`~/.curupira/extensions/`, `CURUPIRA_EXTENSIONS_PATH`, and bundled `packages/curupira-python-plugins/`.
 **Listing never executes extension code.**
 
 `plugins list` also shows built-in cron and the built-in coding-agent providers
@@ -52,15 +52,22 @@ Discovery reads `curupira-extension.toml` manifests from
 
 ## Official extensions
 
-Bundled under `packages/plugins/` and implemented one package per extension, for example
-`packages/plugins/curupira-github/src/curupira_github/`:
+Bundled as one PyPI package `curupira-plugins`
+(`packages/curupira-python-plugins/`, import `curupira_plugins`). Register it in settings
+under a TOML alias; automations then use `<alias>/<local-trigger>`:
 
-| Extension | Contributes |
+```toml
+[plugins.plugins-py]
+package = "curupira-plugins"
+```
+
+| Local trigger (in the package) | Example automation `trigger_type` |
 | --- | --- |
-| `curupira-github` | `github_issues`, `github_pull_requests` |
-| `curupira-azure` | `azure_cli_pull_requests` |
-| `curupira-trello` | `trello_cli_cards` |
-| `curupira-monday` | `monday_items` |
+| `github-issues` | `plugins-py/github-issues` |
+| `github-pull-requests` | `plugins-py/github-pull-requests` |
+| `azure-cli-pull-requests` | `plugins-py/azure-cli-pull-requests` |
+| `trello-cli-cards` | `plugins-py/trello-cli-cards` |
+| `monday-items` | `plugins-py/monday-items` |
 
 **cron** and all coding-agent adapters remain inside the Rust CLI (not extensions).
 
@@ -120,8 +127,11 @@ if __name__ == "__main__":
 
 Rules:
 
-- Use `@app.trigger` with **no parentheses**. The trigger name is exactly
-  `function.__name__` (underscores are kept; nothing is rewritten to hyphens).
+- Use `@app.trigger` with no parentheses to derive the **local** trigger name from
+  `function.__name__` in kebab-case (`github_issues` → `github-issues`).
+- Use `@app.trigger(alias="issues")` to override the local name.
+- Register the package under `[plugins.<alias>]` in settings. Automations address
+  the trigger as `<alias>/<local-name>` (for example `plugins-py/github-issues`).
 - Function parameters are the source of truth for TOML extras. Required /
   optional / defaults / `None` come from the signature and type hints.
 - Return **one** object or `None`. Lists, tuples, and iterators are rejected.
@@ -133,11 +143,15 @@ Rules:
 
 ### Matching TOML
 
-Core automation fields stay on the table; trigger arguments are siblings:
+Register the package, then keep core automation fields on the table with trigger
+arguments as siblings:
 
 ```toml
+[plugins.plugins-py]
+package = "curupira-plugins"
+
 [automations.resolve-ready-issues]
-trigger_type = "github_issues"
+trigger_type = "plugins-py/github-issues"
 repository = "api"          # checkout alias (core)
 repo = "acme/api"           # function parameter
 labels = ["bug"]
@@ -164,8 +178,8 @@ declare them as function parameters (use `repo` or another name for forge ids).
 
 Ship a `curupira-extension.toml` and support `--curupira-print-manifest` on
 stdout for `plugins install pip:…`. See `packages/curupira-core/tests/fixtures/python-ext/`
-for a minimal protocol fixture, and `packages/plugins/curupira-github/src/curupira_github/__main__.py`
-for a full SDK example.
+for a minimal protocol fixture, and
+`packages/curupira-python-plugins/src/curupira_plugins/__main__.py` for a full SDK example.
 
 Extensions discover and normalize tasks, validate their configuration, and receive
 lifecycle events. They must not select coding agents, build agent argv, clone

@@ -12,21 +12,23 @@ import urllib.error
 from typing import Any
 
 import pytest
-from curupira_github import client as client_module
-from curupira_github.__main__ import (
+from curupira_plugins import __main__ as plugins_main
+from curupira_plugins.github import client as client_module
+from curupira_plugins.github.triggers import (
     _check_pull_request_filters,
     _pull_request_feed,
     _pull_request_item,
-    app,
 )
-from curupira_github.client import (
+
+app = plugins_main.app
+from curupira_plugins.github.client import (
     Discovery,
     GitHubClient,
     GitHubCliToken,
     parse_nodes,
 )
-from curupira_github.filters import IssueFilters, PullRequestFilters
-from curupira_github.models import (
+from curupira_plugins.github.filters import IssueFilters, PullRequestFilters
+from curupira_plugins.github.models import (
     PullRequestItem,
     PullRequestNode,
     SearchConnection,
@@ -256,12 +258,12 @@ def test_trigger_returns_next_item_and_reuses_feed(monkeypatch: pytest.MonkeyPat
         return connection
 
     monkeypatch.setattr(
-        "curupira_github.__main__._CLIENT",
+        "curupira_plugins.github.triggers._CLIENT",
         type("Fake", (), {"search": staticmethod(fake_search)})(),
     )
-    monkeypatch.setattr("curupira_github.__main__._FEEDS", {})
+    monkeypatch.setattr("curupira_plugins.github.triggers._FEEDS", {})
 
-    from curupira_github.__main__ import github_pull_requests
+    from curupira_plugins.github.triggers import github_pull_requests
 
     first = github_pull_requests(repo="acme/api", author="app/dependabot")
     second = github_pull_requests(repo="acme/api", author="app/dependabot")
@@ -276,7 +278,7 @@ def test_trigger_returns_next_item_and_reuses_feed(monkeypatch: pytest.MonkeyPat
 def test_validate_rpc_rejects_unknown_parameters() -> None:
     result = app._handle_validate(
         {
-            "trigger_type": "github_pull_requests",
+            "trigger_type": "github-pull-requests",
             "configuration": {"repo": "acme/api", "unknown_key": True},
         }
     )

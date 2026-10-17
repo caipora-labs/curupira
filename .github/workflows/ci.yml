@@ -10,8 +10,56 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect changed packages
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      python: ${{ steps.filter.outputs.python }}
+      sdk: ${{ steps.filter.outputs.sdk }}
+      plugins: ${{ steps.filter.outputs.plugins }}
+      package: ${{ steps.filter.outputs.package }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'packages/curupira-core/**'
+              - '.github/workflows/ci.yml'
+              - '.github/scripts/**'
+              - 'uv.lock'
+            sdk:
+              - 'packages/curupira-python-sdk/**'
+              - '.github/workflows/ci.yml'
+              - 'uv.lock'
+              - 'pyproject.toml'
+            plugins:
+              - 'packages/curupira-python-plugins/**'
+              - 'packages/curupira-python-sdk/**'
+              - '.github/workflows/ci.yml'
+              - 'uv.lock'
+              - 'pyproject.toml'
+            python:
+              - 'packages/curupira-python/**'
+              - 'packages/curupira-python-sdk/**'
+              - 'packages/curupira-python-plugins/**'
+              - 'packages/curupira-core/**'
+              - '.github/workflows/ci.yml'
+              - 'uv.lock'
+              - 'pyproject.toml'
+            package:
+              - 'packages/**'
+              - 'uv.lock'
+              - 'pyproject.toml'
+              - '.github/workflows/ci.yml'
+              - '.github/scripts/**'
+
   rust:
     name: Rust test and lint
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -26,18 +74,56 @@ jobs:
       - run: uv sync --frozen --all-packages --dev
       - run: cargo fmt --manifest-path packages/curupira-core/Cargo.toml --all -- --check
       - run: cargo clippy --manifest-path packages/curupira-core/Cargo.toml -- -D warnings
-      # Extensions are launched with `python3` from PATH, so run under the workspace environment
-      # where curupira_sdk and the plugins' dependencies (pydantic) are installed.
       - run: uv run --no-sync cargo test --manifest-path packages/curupira-core/Cargo.toml
       - name: Validate example configuration
         run: |
-          CURUPIRA_EXTENSIONS_PATH=packages/plugins \
-            CURUPIRA_PYTHONPATH="$(ls -d packages/curupira-python-sdk/src packages/plugins/*/src | paste -sd: -)" \
+          CURUPIRA_EXTENSIONS_PATH=packages/curupira-python-plugins \
+            CURUPIRA_PYTHONPATH="$(ls -d packages/curupira-python-sdk/src packages/curupira-python-plugins/src | paste -sd: -)" \
             uv run --no-sync cargo run --manifest-path packages/curupira-core/Cargo.toml --bin curupira -- \
             --config packages/curupira-core/curupira.example.toml validate
 
-  python:
+  python-sdk:
+    name: Python SDK tests (Python ${{ matrix.python-version }})
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.sdk == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --frozen --all-packages --dev
+      - run: uv run --no-sync ruff check packages/curupira-python-sdk
+      - run: uv run --no-sync pytest packages/curupira-python-sdk/tests
+
+  python-plugins:
+    name: Python plugins tests (Python ${{ matrix.python-version }})
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.plugins == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - run: uv sync --frozen --all-packages --dev
+      - run: uv run --no-sync ruff check packages/curupira-python-plugins
+      - run: uv run --no-sync pytest packages/curupira-python-plugins/tests
+
+  python-packaging:
     name: Python packaging tests (Python ${{ matrix.python-version }})
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.python == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -55,6 +141,8 @@ jobs:
 
   package:
     name: Build and smoke-test distributions
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.package == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

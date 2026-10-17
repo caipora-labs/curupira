@@ -1,4 +1,4 @@
-"""The official github trigger prints its manifest without side effects."""
+"""The official plugins package prints its manifest without side effects."""
 
 from __future__ import annotations
 
@@ -8,10 +8,12 @@ import sys
 
 def test_print_manifest() -> None:
     proc = subprocess.run(
-        [sys.executable, "-m", "curupira_github", "--curupira-print-manifest"],
+        [sys.executable, "-m", "curupira_plugins", "--curupira-print-manifest"],
         check=True,
         capture_output=True,
         text=True,
     )
     assert "manifest_version = 1" in proc.stdout
+    assert 'name = "curupira-plugins"' in proc.stdout
+    assert "github-issues" in proc.stdout
     assert "protocol_version = 1" in proc.stdout

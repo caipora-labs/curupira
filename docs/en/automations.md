@@ -87,7 +87,7 @@ profile = "opencode"
 provider = "opencode"
 
 [automations.resolve-ready-issues]
-trigger_type = "github_issues"
+trigger_type = "plugins-py/github-issues"
 repository = "api"
 repo = "acme/api"
 labels = ["agent-ready"]
@@ -120,7 +120,7 @@ profile = "opencode"
 provider = "opencode"
 
 [automations.review-pull-requests]
-trigger_type = "github_pull_requests"
+trigger_type = "plugins-py/github-pull-requests"
 repository = "api"
 repo = "acme/api"
 labels = ["review-needed"]
@@ -162,7 +162,7 @@ profile = "opencode"
 provider = "opencode"
 
 [automations.review-azure-pull-requests]
-trigger_type = "azure_cli_pull_requests"
+trigger_type = "plugins-py/azure-cli-pull-requests"
 repository = "azure-api"
 repo = "contoso/api-project/api"
 prompt = """
@@ -206,7 +206,7 @@ profile = "opencode"
 provider = "opencode"
 
 [automations.update-board-cards]
-trigger_type = "trello_cli_cards"
+trigger_type = "plugins-py/trello-cli-cards"
 repository = "product"
 board_id = "66f6b55a1a2b3c4d5e6f7788"
 list_ids = ["66f6b55a1a2b3c4d5e6f7790"]
@@ -237,7 +237,7 @@ profile = "opencode"
 provider = "opencode"
 
 [automations.board-items]
-trigger_type = "monday_items"
+trigger_type = "plugins-py/monday-items"
 repository = "product"
 board_id = "1234567890"
 group_ids = ["topics"]

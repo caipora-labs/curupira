@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 
 from .errors import RegistrationError, RpcError, SerializationError, ValidationError
 from .runtime import invoke, shutdown_runtime
@@ -33,16 +33,37 @@ class Curupira:
         self._lifecycle: dict[str, Callable[[Any], Any]] = {}
         self._param_checks: dict[str, Callable[[dict[str, Any]], None]] = {}
 
-    def trigger(self, func: F) -> F:
-        """Register ``func`` as a trigger named ``func.__name__``.
+    @overload
+    def trigger(self, func: F) -> F: ...
 
-        Use as ``@app.trigger`` with no parentheses and no arguments.
+    @overload
+    def trigger(self, *, alias: str) -> Callable[[F], F]: ...
+
+    def trigger(
+        self, func: F | None = None, *, alias: str | None = None
+    ) -> F | Callable[[F], F]:
+        """Register ``func`` as a trigger.
+
+        Use ``@app.trigger`` with no parentheses to derive the local name from
+        ``func.__name__`` in kebab-case (``github_issues`` → ``github-issues``).
+        Use ``@app.trigger(alias="issues")`` to override the local name.
+
+        The host addresses triggers as ``<plugins-alias>/<local-name>`` after the
+        extension is registered under ``[plugins.<alias>]`` in settings TOML.
         """
-        spec = build_trigger_spec(func)
-        if spec.name in self._triggers:
-            raise RegistrationError(f"duplicate trigger name {spec.name!r}")
-        self._triggers[spec.name] = spec
-        return func
+
+        def decorator(fn: F) -> F:
+            spec = build_trigger_spec(fn, name=alias)
+            if spec.name in self._triggers:
+                raise RegistrationError(f"duplicate trigger name {spec.name!r}")
+            self._triggers[spec.name] = spec
+            return fn
+
+        if func is not None:
+            if alias is not None:
+                raise RegistrationError("use @app.trigger(alias=...) as a decorator factory")
+            return decorator(func)
+        return decorator
 
     def param_check(
         self, trigger_name: str, fn: Callable[[dict[str, Any]], None]
@@ -93,7 +114,9 @@ class Curupira:
         print(manifest_template.format(version=self.version, python=sys.executable))
 
     def _get_spec(self, trigger_type: str) -> TriggerSpec:
-        spec = self._triggers.get(trigger_type)
+        # Host may send the namespaced form ``alias/local``; accept either.
+        local = trigger_type.rsplit("/", 1)[-1]
+        spec = self._triggers.get(local) or self._triggers.get(trigger_type)
         if spec is None:
             raise RpcError(-32003, f"unsupported trigger_type {trigger_type!r}")
         return spec

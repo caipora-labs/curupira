@@ -1,18 +1,13 @@
-"""Official Azure DevOps pull-request trigger extension."""
+"""Official Azure DevOps pull-request trigger."""
 
 from __future__ import annotations
 
 import re
-import sys
 from dataclasses import dataclass
 
 from curupira_sdk import Curupira, RpcError
 
-from curupira_azure import __version__
-
 _REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-
-app = Curupira(name="curupira-azure", version=__version__)
 
 
 @dataclass
@@ -44,43 +39,18 @@ def _check_repo(kwargs: dict[str, object]) -> None:
     _validate_repo(repo)
 
 
-@app.trigger
-def azure_cli_pull_requests(
-    repo: str,
-    status: str | None = None,
-    source_branch: str | None = None,
-    target_branch: str | None = None,
-) -> AzurePullRequest | None:
-    """Return the next eligible Azure DevOps pull request, or None."""
-    del repo, status, source_branch, target_branch
-    return None
+def register(app: Curupira) -> None:
+    """Register Azure DevOps triggers on ``app``."""
 
+    @app.trigger
+    def azure_cli_pull_requests(
+        repo: str,
+        status: str | None = None,
+        source_branch: str | None = None,
+        target_branch: str | None = None,
+    ) -> AzurePullRequest | None:
+        """Return the next eligible Azure DevOps pull request, or None."""
+        del repo, status, source_branch, target_branch
+        return None
 
-app.param_check("azure_cli_pull_requests", _check_repo)
-
-
-MANIFEST = """
-manifest_version = 1
-name = "curupira-azure"
-version = "{version}"
-protocol_version = 1
-runtime = "python"
-kind = "trigger"
-trigger_types = ["azure_cli_pull_requests"]
-
-[launch]
-type = "executable"
-program = "{python}"
-args = ["-m", "curupira_azure"]
-""".strip()
-
-
-def main() -> None:
-    if "--curupira-print-manifest" in sys.argv:
-        app.print_manifest(MANIFEST)
-        return
-    app.run()
-
-
-if __name__ == "__main__":
-    main()
+    app.param_check("azure-cli-pull-requests", _check_repo)

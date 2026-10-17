@@ -17,31 +17,31 @@ class MacroEnvironment(Protocol):
 
 _TRIGGER_ROWS: tuple[tuple[str, str, str, str], ...] = (
     (
-        "github_issues",
+        "plugins-py/github-issues",
         "github.md",
         "`gh` authenticated (`gh auth login`)",
         "Finds issues using filters you set in TOML",
     ),
     (
-        "github_pull_requests",
+        "plugins-py/github-pull-requests",
         "github.md",
         "`gh` authenticated (`gh auth login`)",
         "Finds pull requests using filters you set in TOML",
     ),
     (
-        "azure_cli_pull_requests",
+        "plugins-py/azure-cli-pull-requests",
         "#azure-devops-pull-requests",
         "`az` + Azure DevOps extension (`az login`)",
         "Lists Azure DevOps pull requests with the Azure CLI",
     ),
     (
-        "trello_cli_cards",
+        "plugins-py/trello-cli-cards",
         "trello.md",
         "`trello` CLI (`trello auth login`)",
         "Finds open cards on a Trello board",
     ),
     (
-        "monday_items",
+        "plugins-py/monday-items",
         "monday.md",
         "`MONDAY_API_TOKEN` (or `token_env`) set",
         "Finds board items through monday.com's API (read-only)",

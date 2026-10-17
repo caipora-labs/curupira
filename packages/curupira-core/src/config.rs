@@ -44,9 +44,25 @@ pub struct ApplicationSettings {
     pub settings: ExecutionSettings,
     pub repositories: BTreeMap<String, RepositoryConfiguration>,
     pub agents: AgentsSettings,
+    /// Register installed trigger packages under a TOML alias.
+    ///
+    /// Automations address triggers as `<alias>/<local-trigger>`
+    /// (for example `plugins-py/github-issues`).
+    #[serde(default)]
+    pub plugins: BTreeMap<String, PluginConfiguration>,
     pub automations: BTreeMap<String, AutomationTable>,
     #[serde(default)]
     pub assistant: AssistantSettings,
+}
+
+/// One `[plugins.<alias>]` entry linking a settings alias to a distribution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginConfiguration {
+    /// PyPI / manifest package name (for example `curupira-plugins`).
+    pub package: String,
+    /// Optional plugin-level settings forwarded later; reserved for extensions.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -203,7 +219,8 @@ impl AutomationTable {
         if self.extra.contains_key("schedule") {
             "cron"
         } else {
-            "github_issues"
+            // Legacy default: official plugins registered as `plugins-py`.
+            "plugins-py/github-issues"
         }
     }
 }
@@ -294,6 +311,20 @@ fn validate_identifier_keys(settings: &ApplicationSettings) -> Result<(), Curupi
             )));
         }
     }
+    for key in settings.plugins.keys() {
+        if !re_ok(key) {
+            return Err(CurupiraError::Config(format!(
+                "invalid plugins alias {key:?}"
+            )));
+        }
+    }
+    for (alias, plugin) in &settings.plugins {
+        if plugin.package.is_empty() {
+            return Err(CurupiraError::Config(format!(
+                "plugins.{alias}: package is required"
+            )));
+        }
+    }
     for key in settings.automations.keys() {
         if !re_ok(key) {
             return Err(CurupiraError::Config(format!(
@@ -356,6 +387,8 @@ fn validate_agent_providers(settings: &ApplicationSettings) -> Result<(), Curupi
 
 fn validate_automations(settings: &ApplicationSettings) -> Result<(), CurupiraError> {
     let registry = ExtensionRegistry::load().unwrap_or_else(|_| ExtensionRegistry::empty());
+    let namespace =
+        crate::extensions::namespace::PluginNamespaceIndex::build(&settings.plugins, &registry)?;
     let mut host_cache: BTreeMap<String, ExtensionHost> = BTreeMap::new();
 
     for (name, auto) in &settings.automations {
@@ -364,14 +397,15 @@ fn validate_automations(settings: &ApplicationSettings) -> Result<(), CurupiraEr
             crate::cron::validate_automation_table(auto)?;
             continue;
         }
-        let ext_name = registry
-            .extension_for_trigger(&trigger)
-            .ok_or_else(|| {
-                CurupiraError::Config(format!(
-                    "automation {name:?}: no installed extension provides trigger_type {trigger:?}"
-                ))
-            })?
-            .to_string();
+        let binding = namespace.resolve(&trigger).ok_or_else(|| {
+            CurupiraError::Config(format!(
+                "automation {name:?}: no [plugins.<alias>] registration provides \
+                 trigger_type {trigger:?} (register the package under [plugins.<alias>] \
+                 and use <alias>/<trigger>)"
+            ))
+        })?;
+        let ext_name = binding.extension_name.clone();
+        let local_trigger = binding.local_trigger.clone();
         let host = if let Some(h) = host_cache.get_mut(&ext_name) {
             h
         } else {
@@ -383,7 +417,7 @@ fn validate_automations(settings: &ApplicationSettings) -> Result<(), CurupiraEr
             host_cache.get_mut(&ext_name).unwrap()
         };
         let config_value = automation_to_json(auto);
-        let result = host.validate_trigger(&trigger, &config_value)?;
+        let result = host.validate_trigger(&local_trigger, &config_value)?;
         if !result.ok {
             return Err(CurupiraError::Config(format!(
                 "automation {name:?}: {}",
@@ -462,6 +496,8 @@ pub fn resolve_automations(
     settings: &ApplicationSettings,
 ) -> Result<Vec<ResolvedAutomation>, CurupiraError> {
     let registry = ExtensionRegistry::load().unwrap_or_else(|_| ExtensionRegistry::empty());
+    let namespace =
+        crate::extensions::namespace::PluginNamespaceIndex::build(&settings.plugins, &registry)?;
     let mut host_cache: BTreeMap<String, ExtensionHost> = BTreeMap::new();
     let mut out = Vec::new();
     for (name, auto) in &settings.automations {
@@ -493,8 +529,9 @@ pub fn resolve_automations(
                     );
                 }
             }
-        } else if let Some(ext_name) = registry.extension_for_trigger(&trigger_type) {
-            let ext_name = ext_name.to_string();
+        } else if let Some(binding) = namespace.resolve(&trigger_type) {
+            let ext_name = binding.extension_name.clone();
+            let local_trigger = binding.local_trigger.clone();
             let host = if let Some(h) = host_cache.get_mut(&ext_name) {
                 h
             } else {
@@ -505,7 +542,7 @@ pub fn resolve_automations(
                 host_cache.insert(ext_name.clone(), host);
                 host_cache.get_mut(&ext_name).unwrap()
             };
-            let result = host.validate_trigger(&trigger_type, &configuration)?;
+            let result = host.validate_trigger(&local_trigger, &configuration)?;
             if !result.ok {
                 return Err(CurupiraError::Config(format!(
                     "automation {name:?}: {}",

@@ -19,14 +19,10 @@ classifiers = [
   "Programming Language :: Rust",
   "Typing :: Typed",
 ]
-# The CLI is the Rust binary. The official trigger extensions run as processes
-# and need the SDK, so they ship as dependencies of this distribution.
+# The CLI is the Rust binary. Official trigger extensions ship as curupira-plugins
+# (depends on curupira-sdk) and run as a separate process.
 dependencies = [
-  "curupira-sdk==0.2.0",
-  "curupira-azure==0.2.0",
-  "curupira-github==0.2.0",
-  "curupira-monday==0.2.0",
-  "curupira-trello==0.2.0",
+  "curupira-plugins==0.2.0",
 ]
 
 [project.urls]
@@ -40,11 +36,7 @@ requires = ["maturin>=1.10,<2"]
 build-backend = "maturin"
 
 [tool.uv.sources]
-curupira-sdk = { workspace = true }
-curupira-azure = { workspace = true }
-curupira-github = { workspace = true }
-curupira-monday = { workspace = true }
-curupira-trello = { workspace = true }
+curupira-plugins = { workspace = true }
 
 [tool.maturin]
 manifest-path = "../curupira-core/Cargo.toml"

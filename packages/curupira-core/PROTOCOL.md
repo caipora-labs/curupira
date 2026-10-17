@@ -69,7 +69,7 @@ Discovery reads manifests from:
 
 1. `~/.curupira/extensions/<name>/`
 2. `CURUPIRA_EXTENSIONS_PATH` (colon/semicolon-separated directories)
-3. Bundled `packages/plugins/` when running from a checkout
+3. Bundled `packages/curupira-python-plugins/` when running from a checkout
 
 Listing installed extensions **never** executes extension code.
 
