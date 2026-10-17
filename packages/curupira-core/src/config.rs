@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use crate::agents::AgentProvider;
 use crate::error::CurupiraError;
 use crate::extensions::host::ExtensionHost;
-use crate::extensions::registry::ExtensionRegistry;
 
 /// Process log level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,9 +43,97 @@ pub struct ApplicationSettings {
     pub settings: ExecutionSettings,
     pub repositories: BTreeMap<String, RepositoryConfiguration>,
     pub agents: AgentsSettings,
+    /// Register installed trigger packages under a TOML alias.
+    ///
+    /// Automations address triggers as `<alias>/<local-trigger>`
+    /// (for example `plugins-py/github-issues`).
+    #[serde(default)]
+    pub plugins: BTreeMap<String, PluginConfiguration>,
     pub automations: BTreeMap<String, AutomationTable>,
     #[serde(default)]
     pub assistant: AssistantSettings,
+}
+
+/// One `[plugins.<alias>]` entry: launcher (`uvx` / `npx`) plus argv after it.
+///
+/// Trigger types are discovered by spawning the process and calling `describe`,
+/// then filtered by optional [`Self::tools`] globs.
+///
+/// ```toml
+/// [plugins.plugins-py]
+/// type = "uvx"
+/// args = ["--from", "curupira-plugins", "curupira-plugins"]
+/// tools = ["github-*"]
+///
+/// [plugins.acme-node]
+/// type = "npx"
+/// args = ["--yes", "@acme/curupira-ext@1.2.3"]
+/// tools = ["*", "!internal-*"]
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PluginConfiguration {
+    /// How to start the extension process.
+    #[serde(flatten)]
+    pub launcher: PluginLauncher,
+    /// Glob patterns selecting which local trigger names to expose.
+    ///
+    /// Empty (default) keeps every trigger from `describe`. Positive patterns
+    /// (`github-*`, `*`) are includes; patterns starting with `!` (`!monday-*`)
+    /// are excludes.
+    #[serde(default)]
+    pub tools: Vec<String>,
+}
+
+/// Launcher binary and argv for a `[plugins.<alias>]` entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum PluginLauncher {
+    /// Run `uvx` with the given args (never a shell string).
+    Uvx {
+        /// Arguments passed to `uvx`.
+        args: Vec<String>,
+    },
+    /// Run `npx` with the given args (never a shell string).
+    Npx {
+        /// Arguments passed to `npx`.
+        args: Vec<String>,
+    },
+}
+
+impl PluginConfiguration {
+    /// Resolve `uvx`/`npx` on PATH and return `(program, args)` for the child process.
+    pub fn resolve_command(&self) -> Result<(String, Vec<String>), CurupiraError> {
+        match &self.launcher {
+            PluginLauncher::Uvx { args } => {
+                if args.is_empty() {
+                    return Err(CurupiraError::Config(
+                        "plugins entry type = \"uvx\" requires a non-empty args array".into(),
+                    ));
+                }
+                let uvx = which::which("uvx").map_err(|_| {
+                    CurupiraError::Config(
+                        "uvx is required for plugins with type = \"uvx\" but was not found on PATH"
+                            .into(),
+                    )
+                })?;
+                Ok((uvx.to_string_lossy().into_owned(), args.clone()))
+            }
+            PluginLauncher::Npx { args } => {
+                if args.is_empty() {
+                    return Err(CurupiraError::Config(
+                        "plugins entry type = \"npx\" requires a non-empty args array".into(),
+                    ));
+                }
+                let npx = which::which("npx").map_err(|_| {
+                    CurupiraError::Config(
+                        "npx is required for plugins with type = \"npx\" but was not found on PATH"
+                            .into(),
+                    )
+                })?;
+                Ok((npx.to_string_lossy().into_owned(), args.clone()))
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -203,7 +290,8 @@ impl AutomationTable {
         if self.extra.contains_key("schedule") {
             "cron"
         } else {
-            "github_issues"
+            // Legacy default: official plugins registered as `plugins-py`.
+            "plugins-py/github-issues"
         }
     }
 }
@@ -294,6 +382,20 @@ fn validate_identifier_keys(settings: &ApplicationSettings) -> Result<(), Curupi
             )));
         }
     }
+    for key in settings.plugins.keys() {
+        if !re_ok(key) {
+            return Err(CurupiraError::Config(format!(
+                "invalid plugins alias {key:?}"
+            )));
+        }
+    }
+    for (alias, plugin) in &settings.plugins {
+        // Fail closed early if the launcher is missing or args are empty.
+        plugin.resolve_command().map_err(|err| match err {
+            CurupiraError::Config(msg) => CurupiraError::Config(format!("plugins.{alias}: {msg}")),
+            other => other,
+        })?;
+    }
     for key in settings.automations.keys() {
         if !re_ok(key) {
             return Err(CurupiraError::Config(format!(
@@ -355,7 +457,7 @@ fn validate_agent_providers(settings: &ApplicationSettings) -> Result<(), Curupi
 }
 
 fn validate_automations(settings: &ApplicationSettings) -> Result<(), CurupiraError> {
-    let registry = ExtensionRegistry::load().unwrap_or_else(|_| ExtensionRegistry::empty());
+    let namespace = crate::extensions::namespace::PluginNamespaceIndex::build(&settings.plugins)?;
     let mut host_cache: BTreeMap<String, ExtensionHost> = BTreeMap::new();
 
     for (name, auto) in &settings.automations {
@@ -364,26 +466,24 @@ fn validate_automations(settings: &ApplicationSettings) -> Result<(), CurupiraEr
             crate::cron::validate_automation_table(auto)?;
             continue;
         }
-        let ext_name = registry
-            .extension_for_trigger(&trigger)
-            .ok_or_else(|| {
-                CurupiraError::Config(format!(
-                    "automation {name:?}: no installed extension provides trigger_type {trigger:?}"
-                ))
-            })?
-            .to_string();
-        let host = if let Some(h) = host_cache.get_mut(&ext_name) {
+        let binding = namespace.resolve(&trigger).ok_or_else(|| {
+            CurupiraError::Config(format!(
+                "automation {name:?}: no [plugins.<alias>] registration provides \
+                 trigger_type {trigger:?} (register under [plugins.<alias>] with type/args \
+                 and use <alias>/<trigger>)"
+            ))
+        })?;
+        let cache_key = binding.alias.clone();
+        let local_trigger = binding.local_trigger.clone();
+        let host = if let Some(h) = host_cache.get_mut(&cache_key) {
             h
         } else {
-            let installed = registry
-                .get(&ext_name)
-                .ok_or_else(|| CurupiraError::Plugin(format!("missing extension {ext_name}")))?;
-            let host = ExtensionHost::spawn(installed)?;
-            host_cache.insert(ext_name.clone(), host);
-            host_cache.get_mut(&ext_name).unwrap()
+            let host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
+            host_cache.insert(cache_key.clone(), host);
+            host_cache.get_mut(&cache_key).unwrap()
         };
         let config_value = automation_to_json(auto);
-        let result = host.validate_trigger(&trigger, &config_value)?;
+        let result = host.validate_trigger(&local_trigger, &config_value)?;
         if !result.ok {
             return Err(CurupiraError::Config(format!(
                 "automation {name:?}: {}",
@@ -461,7 +561,7 @@ pub fn expand_user(path: &str) -> PathBuf {
 pub fn resolve_automations(
     settings: &ApplicationSettings,
 ) -> Result<Vec<ResolvedAutomation>, CurupiraError> {
-    let registry = ExtensionRegistry::load().unwrap_or_else(|_| ExtensionRegistry::empty());
+    let namespace = crate::extensions::namespace::PluginNamespaceIndex::build(&settings.plugins)?;
     let mut host_cache: BTreeMap<String, ExtensionHost> = BTreeMap::new();
     let mut out = Vec::new();
     for (name, auto) in &settings.automations {
@@ -493,19 +593,17 @@ pub fn resolve_automations(
                     );
                 }
             }
-        } else if let Some(ext_name) = registry.extension_for_trigger(&trigger_type) {
-            let ext_name = ext_name.to_string();
-            let host = if let Some(h) = host_cache.get_mut(&ext_name) {
+        } else if let Some(binding) = namespace.resolve(&trigger_type) {
+            let cache_key = binding.alias.clone();
+            let local_trigger = binding.local_trigger.clone();
+            let host = if let Some(h) = host_cache.get_mut(&cache_key) {
                 h
             } else {
-                let installed = registry.get(&ext_name).ok_or_else(|| {
-                    CurupiraError::Plugin(format!("missing extension {ext_name}"))
-                })?;
-                let host = ExtensionHost::spawn(installed)?;
-                host_cache.insert(ext_name.clone(), host);
-                host_cache.get_mut(&ext_name).unwrap()
+                let host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
+                host_cache.insert(cache_key.clone(), host);
+                host_cache.get_mut(&cache_key).unwrap()
             };
-            let result = host.validate_trigger(&trigger_type, &configuration)?;
+            let result = host.validate_trigger(&local_trigger, &configuration)?;
             if !result.ok {
                 return Err(CurupiraError::Config(format!(
                     "automation {name:?}: {}",

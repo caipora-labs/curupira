@@ -5,11 +5,8 @@ requires-python = ">=3.11"
 [manifest]
 members = [
     "curupira",
-    "curupira-azure",
-    "curupira-github",
-    "curupira-monday",
+    "curupira-plugins",
     "curupira-sdk",
-    "curupira-trello",
 ]
 
 [manifest.dependency-groups]
@@ -375,69 +372,41 @@ source = { editable = "packages/curupira-python" }
 
 [package.optional-dependencies]
 azure = [
-    { name = "curupira-azure" },
+    { name = "curupira-plugins" },
 ]
 extensions = [
-    { name = "curupira-azure" },
-    { name = "curupira-github" },
-    { name = "curupira-monday" },
-    { name = "curupira-trello" },
+    { name = "curupira-plugins" },
 ]
 github = [
-    { name = "curupira-github" },
+    { name = "curupira-plugins" },
 ]
 monday = [
-    { name = "curupira-monday" },
+    { name = "curupira-plugins" },
 ]
 trello = [
-    { name = "curupira-trello" },
+    { name = "curupira-plugins" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "curupira-azure", marker = "extra == 'azure'", editable = "packages/plugins/curupira-azure" },
-    { name = "curupira-azure", marker = "extra == 'extensions'", editable = "packages/plugins/curupira-azure" },
-    { name = "curupira-github", marker = "extra == 'extensions'", editable = "packages/plugins/curupira-github" },
-    { name = "curupira-github", marker = "extra == 'github'", editable = "packages/plugins/curupira-github" },
-    { name = "curupira-monday", marker = "extra == 'extensions'", editable = "packages/plugins/curupira-monday" },
-    { name = "curupira-monday", marker = "extra == 'monday'", editable = "packages/plugins/curupira-monday" },
-    { name = "curupira-trello", marker = "extra == 'extensions'", editable = "packages/plugins/curupira-trello" },
-    { name = "curupira-trello", marker = "extra == 'trello'", editable = "packages/plugins/curupira-trello" },
+    { name = "curupira-plugins", marker = "extra == 'azure'", editable = "packages/curupira-python-plugins" },
+    { name = "curupira-plugins", marker = "extra == 'extensions'", editable = "packages/curupira-python-plugins" },
+    { name = "curupira-plugins", marker = "extra == 'github'", editable = "packages/curupira-python-plugins" },
+    { name = "curupira-plugins", marker = "extra == 'monday'", editable = "packages/curupira-python-plugins" },
+    { name = "curupira-plugins", marker = "extra == 'trello'", editable = "packages/curupira-python-plugins" },
 ]
 provides-extras = ["github", "azure", "trello", "monday", "extensions"]
 
 [[package]]
-name = "curupira-azure"
+name = "curupira-plugins"
 version = "0.2.0"
-source = { editable = "packages/plugins/curupira-azure" }
-dependencies = [
-    { name = "curupira-sdk" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "curupira-sdk", editable = "packages/curupira-python-sdk" }]
-
-[[package]]
-name = "curupira-github"
-version = "0.2.0"
-source = { editable = "packages/plugins/curupira-github" }
+source = { editable = "packages/curupira-python-plugins" }
 dependencies = [
     { name = "curupira-sdk", extra = ["pydantic"] },
 ]
 
 [package.metadata]
 requires-dist = [{ name = "curupira-sdk", extras = ["pydantic"], editable = "packages/curupira-python-sdk" }]
-
-[[package]]
-name = "curupira-monday"
-version = "0.2.0"
-source = { editable = "packages/plugins/curupira-monday" }
-dependencies = [
-    { name = "curupira-sdk" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "curupira-sdk", editable = "packages/curupira-python-sdk" }]
 
 [[package]]
 name = "curupira-sdk"
@@ -452,17 +421,6 @@ pydantic = [
 [package.metadata]
 requires-dist = [{ name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2,<3" }]
 provides-extras = ["pydantic"]
-
-[[package]]
-name = "curupira-trello"
-version = "0.2.0"
-source = { editable = "packages/plugins/curupira-trello" }
-dependencies = [
-    { name = "curupira-sdk" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "curupira-sdk", editable = "packages/curupira-python-sdk" }]
 
 [[package]]
 name = "cyclonedx-python-lib"

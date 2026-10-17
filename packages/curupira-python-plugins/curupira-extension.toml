@@ -1,0 +1,23 @@
+manifest_version = 1
+name = "curupira-plugins"
+version = "0.2.0"
+protocol_version = 1
+runtime = "python"
+kind = "trigger"
+trigger_types = [
+  "github-issues",
+  "github-pull-requests",
+  "azure-cli-pull-requests",
+  "trello-cli-cards",
+  "monday-items",
+]
+
+[launch]
+type = "executable"
+program = "python3"
+args = ["-m", "curupira_plugins"]
+
+[package]
+source = "bundled"
+name = "curupira-plugins"
+version = "0.2.0"

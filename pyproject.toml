@@ -4,10 +4,7 @@
 members = [
   "packages/curupira-python",
   "packages/curupira-python-sdk",
-  "packages/plugins/curupira-azure",
-  "packages/plugins/curupira-github",
-  "packages/plugins/curupira-monday",
-  "packages/plugins/curupira-trello",
+  "packages/curupira-python-plugins",
 ]
 
 [dependency-groups]
@@ -37,7 +34,7 @@ force-exclude = true
 testpaths = [
   "packages/curupira-python/tests",
   "packages/curupira-python-sdk/tests",
-  "packages/plugins",
+  "packages/curupira-python-plugins/tests",
 ]
 addopts = ["--import-mode=importlib"]
 filterwarnings = ["error"]

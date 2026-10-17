@@ -39,7 +39,7 @@ Commands return a JSON envelope (`{"ok":true,"data":...}` on success). Curupira 
 
 ## Configure an automation
 
-Set `trigger_type = "trello_cli_cards"`, provide the Trello `board_id`, and point
+Set `trigger_type = "plugins-py/trello-cli-cards"`, provide the Trello `board_id`, and point
 `repository` at a `[repositories.<alias>]` checkout. `list_ids` is optional; when present,
 only cards in those board lists are scheduled.
 
@@ -48,7 +48,7 @@ only cards in those board lists are scheduled.
 remote = "https://github.com/acme/product.git"
 
 [automations.update-board-cards]
-trigger_type = "trello_cli_cards"
+trigger_type = "plugins-py/trello-cli-cards"
 repository = "product"
 board_id = "66f6b55a1a2b3c4d5e6f7788"
 list_ids = ["66f6b55a1a2b3c4d5e6f7790"]

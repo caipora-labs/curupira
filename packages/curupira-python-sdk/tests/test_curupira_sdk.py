@@ -13,7 +13,7 @@ from curupira_sdk.serialize import serialize_trigger_result
 from curupira_sdk.signature import bind_arguments, build_trigger_spec, normalize_configuration
 
 
-def test_trigger_decorator_without_parens_uses_function_name() -> None:
+def test_trigger_decorator_without_parens_uses_kebab_case() -> None:
     app = Curupira(name="t", version="0")
     called = {"n": 0}
 
@@ -22,10 +22,21 @@ def test_trigger_decorator_without_parens_uses_function_name() -> None:
         called["n"] += 1
         return None
 
-    assert list(app._triggers) == ["my_trigger"]
-    assert app._triggers["my_trigger"].name == "my_trigger"
+    assert list(app._triggers) == ["my-trigger"]
+    assert app._triggers["my-trigger"].name == "my-trigger"
     assert called["n"] == 0
     assert my_trigger.__name__ == "my_trigger"
+
+
+def test_trigger_alias_overrides_kebab_name() -> None:
+    app = Curupira(name="t", version="0")
+
+    @app.trigger(alias="issues")
+    def github_issues(repo: str) -> None:
+        return None
+
+    assert list(app._triggers) == ["issues"]
+    assert app._triggers["issues"].name == "issues"
 
 
 def test_duplicate_trigger_name_raises() -> None:
@@ -53,8 +64,8 @@ def test_sync_and_async_registration() -> None:
     async def async_one(x: str) -> None:
         return None
 
-    assert app._triggers["sync_one"].is_async is False
-    assert app._triggers["async_one"].is_async is True
+    assert app._triggers["sync-one"].is_async is False
+    assert app._triggers["async-one"].is_async is True
 
 
 def test_rejects_varargs_and_positional_only() -> None:
@@ -93,6 +104,7 @@ def test_schema_required_optional_defaults() -> None:
         return None
 
     spec = build_trigger_spec(github_issues)
+    assert spec.name == "github-issues"
     assert spec.schema["required"] == ["repo"]
     assert spec.schema["properties"]["state"]["default"] == "open"
     assert spec.schema["properties"]["limit"]["default"] == 50

@@ -10,12 +10,17 @@ workspace**: every package lives under `packages/`, and there are no symlinks. D
 repo-level config stay at the root.
 
 - **`packages/curupira-core/`** — Rust CLI host (crate `curupira`, binaries `curupira` and `curu`).
-- **`packages/curupira-python/`** — PyPI distribution `curupira` (maturin). Ships the binary and a thin
-  `curupira.__version__` / `python -m curupira` shim.
+- **`packages/curupira-python/`** — PyPI distribution `curupira` (maturin). CLI-only wheel (Rust
+  binary + thin `curupira.__version__` shim). Official triggers are optional extras.
 - **`packages/curupira-python-sdk/`** — PyPI distribution `curupira-sdk` (import `curupira_sdk`).
-- **`packages/plugins/curupira-<name>/`** — official trigger extensions (`curupira_<name>`), one uv package each.
+- **`packages/curupira-python-plugins/`** — PyPI distribution `curupira-plugins` (import
+  `curupira_plugins`). Official trigger extensions in one package; depends on `curupira-sdk`.
+  Install via `curupira[extensions]` (or forge-named extras) / `curupira plugins install`.
 
-Automations are configured in TOML (`~/.curupira/settings.toml`). `validate` checks
+Automations are configured in TOML (`~/.curupira/settings.toml`). Register packages under
+`[plugins.<alias>]` with `type = "uvx"` or `"npx"` and `args` for that launcher (for
+example `[plugins.plugins-py]`); automations address triggers as
+`<alias>/<local-trigger>` (for example `plugins-py/github-issues`). `validate` checks
 configuration; `run` / `run --watch` / `tui` dispatch work. One process holds
 `~/.curupira/dispatch.lock`.
 
@@ -36,10 +41,10 @@ triggers (GitHub, Azure DevOps, Trello, monday.com, and third-party sources) are
 - **Coding agents:** modules under `packages/curupira-core/src/agents/`. The host builds
   native argv and runs the CLI with `process::run_process`. No extension RPC.
 - **Python packages:** thin `curupira.__version__`, declarative `curupira_sdk`, and
-  `curupira_<name>` trigger modules. No Pluggy. No in-process plugin import API.
+  `curupira_plugins` trigger modules. No Pluggy. No in-process plugin import API.
 
 ```
-CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_github, curupira_azure, …)
+CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_plugins)
      |
      +--> built-in cron
      +--> git checkout / worktree / setup_script
@@ -60,18 +65,18 @@ CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_github, curupira_azur
 | `packages/curupira-python/` | PyPI `curupira` package, maturin build, packaging smoke tests |
 | `packages/curupira-python/scripts/` | Packaging scripts (`smoke_install.py`, `verify_dist_version.py`, `check_packaged_readme.py`) |
 | `packages/curupira-python-sdk/` | Declarative extension SDK (`curupira-sdk`) |
-| `packages/plugins/curupira-<name>/` | Official trigger extension: source, `curupira-extension.toml`, own tests |
+| `packages/curupira-python-plugins/` | Official triggers (`curupira-plugins`): source, manifest, tests |
 | `.github/scripts/` | CI gate (`require_ci_checks.py`) |
 | `docs/en/` | Canonical docs |
 
 ## Versions
 
 All packages share one version. Bump them together: `version` in `packages/curupira-core/Cargo.toml`
-and every `pyproject.toml` under `packages/`; the `==` pins on optional plugin extras in
-`packages/curupira-python/pyproject.toml` and on `curupira-sdk` in each plugin
+and every `pyproject.toml` under `packages/`; the `==` pins on optional `curupira-plugins`
+extras in `packages/curupira-python/pyproject.toml` and on `curupira-sdk` in the plugins
 `pyproject.toml`; and `__version__` in `packages/curupira-python/src/curupira/__init__.py`,
-`packages/curupira-python-sdk/src/curupira_sdk/__init__.py`, and each
-`packages/plugins/curupira-<name>/src/curupira_<name>/__init__.py`.
+`packages/curupira-python-sdk/src/curupira_sdk/__init__.py`, and
+`packages/curupira-python-plugins/src/curupira_plugins/__init__.py`.
 
 ## Always
 
@@ -106,5 +111,5 @@ uv run --no-sync python packages/curupira-python/scripts/smoke_install.py --dist
   --config packages/curupira-core/curupira.example.toml
 ```
 
-Each package keeps its own tests (`packages/*/tests/`, `packages/plugins/*/tests/`, Rust tests in
+Each package keeps its own tests (`packages/*/tests/`, Rust tests in
 `packages/curupira-core/tests/`).

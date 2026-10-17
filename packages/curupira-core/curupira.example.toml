@@ -101,8 +101,25 @@ provider = "cursor"
 # exclude_tools = ["bash"]
 # approve = false # explicitly decline project trust for this process
 
+# Register trigger packages under a TOML alias with an independent launcher.
+# type is "uvx" or "npx"; args are passed to that tool (never a shell string).
+# Trigger types are discovered by spawning the process and calling describe,
+# then filtered by optional tools globs (github-*, !monday-*, *).
+# Automations address triggers as <alias>/<local-trigger>
+# (for example plugins-py/github-issues).
+[plugins.plugins-py]
+type = "uvx"
+args = ["--from", "curupira-plugins", "curupira-plugins"]
+tools = ["*"]
+
+# Node example:
+# [plugins.acme-node]
+# type = "npx"
+# args = ["--yes", "@acme/curupira-ext@1.2.3"]
+# tools = ["*", "!internal-*"]
+
 [automations.resolve-ready-issues]
-trigger_type = "github_issues"
+trigger_type = "plugins-py/github-issues"
 repository = "api"
 repo = "acme/api"
 labels = ["agent-ready"]
@@ -120,7 +137,7 @@ URL: ${issue_url}
 """
 
 [automations.review-pull-requests]
-trigger_type = "github_pull_requests"
+trigger_type = "plugins-py/github-pull-requests"
 repository = "api"
 repo = "acme/api"
 labels = ["review-needed"]
@@ -139,7 +156,7 @@ Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
 """
 
 [automations.review-azure-pull-requests]
-trigger_type = "azure_cli_pull_requests"
+trigger_type = "plugins-py/azure-cli-pull-requests"
 repository = "azure-api"
 repo = "contoso/api-project/api"
 # status = "active"
@@ -167,7 +184,7 @@ prompt = "Perform weekly maintenance for ${repository} (occurrence ${task_number
 
 # monday.com GraphQL discovery (read-only). Requires MONDAY_API_TOKEN (or token_env).
 # [automations.board-items]
-# trigger_type = "monday_items"
+# trigger_type = "plugins-py/monday-items"
 # repository = "api"
 # board_id = "1234567890"
 # group_ids = ["topics"]

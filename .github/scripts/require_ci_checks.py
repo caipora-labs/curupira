@@ -8,9 +8,19 @@ import os
 import urllib.request
 
 # Keep in sync with the job `name:` values in .github/workflows/ci.yml.
+# On main pushes every job runs; on PRs path filters may skip some. Publish
+# tags are cut from main, so the full set below is expected for releases.
 REQUIRED_CHECKS = frozenset(
     {
         "Rust test and lint",
+        "Python SDK tests (Python 3.11)",
+        "Python SDK tests (Python 3.12)",
+        "Python SDK tests (Python 3.13)",
+        "Python SDK tests (Python 3.14)",
+        "Python plugins tests (Python 3.11)",
+        "Python plugins tests (Python 3.12)",
+        "Python plugins tests (Python 3.13)",
+        "Python plugins tests (Python 3.14)",
         "Python packaging tests (Python 3.11)",
         "Python packaging tests (Python 3.12)",
         "Python packaging tests (Python 3.13)",

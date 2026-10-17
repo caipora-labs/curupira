@@ -45,7 +45,7 @@ Keep board and group IDs as strings in TOML.
 ## Configure an automation
 
 The following snippet is a complete settings file that passes `curupira validate` (no
-network). Set `trigger_type = "monday_items"`, provide `board_id`, and point `repository`
+network). Set `trigger_type = "plugins-py/monday-items"`, provide `board_id`, and point `repository`
 at a `[repositories.<alias>]` checkout. `group_ids` is optional; when present, only items
 in those groups are scheduled. `token_env` defaults to `MONDAY_API_TOKEN`.
 
@@ -60,7 +60,7 @@ profile = "opencode"
 provider = "opencode"
 
 [automations.board-items]
-trigger_type = "monday_items"
+trigger_type = "plugins-py/monday-items"
 repository = "product"
 board_id = "1234567890"
 group_ids = ["topics"]
@@ -134,5 +134,5 @@ steer the agent (prompt injection). Restrict which groups reach the agent with
 | `temporarily failed with status 429` (or 5xx) | Rate limit or transient outage | Curupira honors `Retry-After` / `retry_in_seconds` and retries a few times; raise `poll_interval_seconds` or lower `batch_size` |
 | No tasks scheduled | Filters match nothing | Widen or drop `group_ids`; confirm the board has active items |
 
-`curu plugins list` shows `monday_items` and its prompt placeholders among built-in
+`curu plugins list` shows `plugins-py/monday-items` and its prompt placeholders among built-in
 triggers.

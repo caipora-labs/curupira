@@ -46,13 +46,6 @@ impl ExtensionRegistry {
             if reg.by_name.contains_key(&manifest.name) {
                 continue;
             }
-            if manifest
-                .trigger_types
-                .iter()
-                .any(|t| reg.trigger_index.contains_key(t))
-            {
-                continue;
-            }
             let dir = extensions_dir().join(&manifest.name);
             reg.insert(InstalledExtension {
                 name: manifest.name.clone(),
@@ -70,15 +63,15 @@ impl ExtensionRegistry {
                 installed.name
             )));
         }
+        // Local trigger names are unique within an extension. Global uniqueness is
+        // enforced later via `[plugins.<alias>]/<local>` in PluginNamespaceIndex.
         for trigger in &installed.manifest.trigger_types {
-            if let Some(other) = self.trigger_index.get(trigger) {
+            if trigger.contains('/') {
                 return Err(CurupiraError::Plugin(format!(
-                    "trigger_type {trigger:?} claimed by both {other:?} and {:?}",
+                    "extension {:?}: trigger_types must be local names without '/'; got {trigger:?}",
                     installed.name
                 )));
             }
-        }
-        for trigger in &installed.manifest.trigger_types {
             self.trigger_index
                 .insert(trigger.clone(), installed.name.clone());
         }
@@ -128,7 +121,7 @@ fn discovery_roots() -> Vec<PathBuf> {
         }
     }
     // Repository-relative default when developing from a checkout.
-    let cwd_plugins = PathBuf::from("packages/plugins");
+    let cwd_plugins = PathBuf::from("packages/curupira-python-plugins");
     if cwd_plugins.is_dir() {
         roots.push(cwd_plugins);
     }
@@ -136,6 +129,9 @@ fn discovery_roots() -> Vec<PathBuf> {
 }
 
 fn load_from_dir(reg: &mut ExtensionRegistry, root: &Path) -> Result<(), CurupiraError> {
+    // Single-package roots (for example packages/curupira-python-plugins/).
+    try_load_manifest(reg, root)?;
+
     let mut entries: Vec<_> = fs::read_dir(root)
         .map_err(|e| CurupiraError::Plugin(e.to_string()))?
         .filter_map(|e| e.ok())
@@ -143,48 +139,44 @@ fn load_from_dir(reg: &mut ExtensionRegistry, root: &Path) -> Result<(), Curupir
     entries.sort_by_key(|e| e.file_name());
     for entry in entries {
         let path = entry.path();
-        // Support both plugins/<name>/curupira-extension.toml and nested package dirs.
-        let candidates = [
-            path.join(MANIFEST_FILE_NAME),
-            path.join("curupira-extension.toml"),
-        ];
-        let manifest_path = candidates.into_iter().find(|p| p.is_file());
-        let Some(manifest_path) = manifest_path else {
-            continue;
-        };
-        let text =
-            fs::read_to_string(&manifest_path).map_err(|e| CurupiraError::Plugin(e.to_string()))?;
-        let manifest = ExtensionManifest::from_toml_str(&text)
-            .map_err(|e| CurupiraError::Plugin(format!("{}: {e}", manifest_path.display())))?;
-        // Skip obsolete coding-agent manifests left on disk from older installs.
-        if let Err(err) = manifest.validate() {
-            if err.contains("coding-agent") {
-                tracing::warn!(
-                    "ignoring obsolete extension manifest {}: {err}",
-                    manifest.name
-                );
-                continue;
-            }
-            return Err(CurupiraError::Plugin(format!("{}: {err}", manifest.name)));
-        }
-        if reg.by_name.contains_key(&manifest.name) {
-            // Managed installs win over bundled copies with the same name.
+        if !path.is_dir() {
             continue;
         }
-        // Skip duplicate trigger claims from later roots.
-        if manifest
-            .trigger_types
-            .iter()
-            .any(|t| reg.trigger_index.contains_key(t))
-        {
-            continue;
-        }
-        reg.insert(InstalledExtension {
-            name: manifest.name.clone(),
-            dir: path,
-            manifest,
-        })?;
+        // Support plugins/<name>/curupira-extension.toml and nested package dirs.
+        try_load_manifest(reg, &path)?;
     }
+    Ok(())
+}
+
+fn try_load_manifest(reg: &mut ExtensionRegistry, dir: &Path) -> Result<(), CurupiraError> {
+    let manifest_path = dir.join(MANIFEST_FILE_NAME);
+    if !manifest_path.is_file() {
+        return Ok(());
+    }
+    let text =
+        fs::read_to_string(&manifest_path).map_err(|e| CurupiraError::Plugin(e.to_string()))?;
+    let manifest = ExtensionManifest::from_toml_str(&text)
+        .map_err(|e| CurupiraError::Plugin(format!("{}: {e}", manifest_path.display())))?;
+    // Skip obsolete coding-agent manifests left on disk from older installs.
+    if let Err(err) = manifest.validate() {
+        if err.contains("coding-agent") {
+            tracing::warn!(
+                "ignoring obsolete extension manifest {}: {err}",
+                manifest.name
+            );
+            return Ok(());
+        }
+        return Err(CurupiraError::Plugin(format!("{}: {err}", manifest.name)));
+    }
+    if reg.by_name.contains_key(&manifest.name) {
+        // Managed installs win over later copies with the same name.
+        return Ok(());
+    }
+    reg.insert(InstalledExtension {
+        name: manifest.name.clone(),
+        dir: dir.to_path_buf(),
+        manifest,
+    })?;
     Ok(())
 }
 
@@ -206,6 +198,8 @@ pub fn describe_installed(registry: &ExtensionRegistry) -> Result<Vec<String>, C
     for ext in registry.iter() {
         let origin = format!("{} {}", ext.manifest.name, ext.manifest.version);
         for trigger in &ext.manifest.trigger_types {
+            // Local trigger name; automations use `<plugins-alias>/{trigger}` after
+            // registering the package under `[plugins.<alias>]`.
             lines.push(format!(
                 "{trigger}\t{origin}\tprompt fields: (see extension)"
             ));

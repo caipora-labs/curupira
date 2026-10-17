@@ -5,6 +5,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Official triggers ship as one optional package.** `packages/curupira-python-plugins/`
+  publishes PyPI `curupira-plugins` (import `curupira_plugins`) and depends on
+  `curupira-sdk`. It replaces the former `curupira-github` / `curupira-azure` /
+  `curupira-trello` / `curupira-monday` distributions. The `curupira` wheel stays
+  CLI-only; install triggers with extras (`curupira[extensions]`, or the forge-named
+  extras that install the same package) or `curupira plugins install`.
+- **Plugin registration aliases.** Settings use `[plugins.<alias>]` with `type` (`uvx` or
+  `npx`) and `args` passed to that launcher (for example `[plugins.plugins-py]` /
+  `type = "uvx"` / `args = ["--from", "curupira-plugins", "curupira-plugins"]`). There is
+  no separate `package` field — put the distribution in `args`. Optional `tools` is a
+  glob list (`github-*`, `!monday-*`, `*`) that filters local trigger names after
+  `describe`. The host discovers trigger types by spawning the process and calling
+  `describe`. Automations address triggers as `<alias>/<local-trigger>` (for example
+  `plugins-py/github-issues`).
+- **`curupira-plugins` console script.** The official plugins wheel exposes
+  `curupira-plugins` so `uvx --from curupira-plugins curupira-plugins` runs the extension
+  without `python -m`.
+- **Trigger local names are kebab-case.** The SDK derives the local name from
+  `function.__name__` (`github_issues` → `github-issues`). Use `@app.trigger(alias="…")` to
+  override. Manifests declare local names only; the host prefixes the TOML alias.
+- **CI path filters.** Pull requests run Rust, SDK, plugins, packaging, and wheel smoke
+  jobs only when matching paths change. Pushes to `main` still run the full suite.
+
 ### Fixed
 
 - **`max_active_tasks` runs agents in parallel.** The dispatcher used to run each admitted batch
@@ -29,22 +54,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- **`curupira` installs the Rust CLI only.** The PyPI wheel no longer depends on
-  `curupira-sdk` or the official trigger packages. Install forge sources with optional
-  extras (`curupira[github]`, `curupira[azure]`, `curupira[trello]`, `curupira[monday]`, or
-  `curupira[extensions]` for all of them) or with `curupira plugins install`. Built-in cron
-  needs no extra package. `curupira-sdk` remains a separate distribution for extension authors
-  and a transitive dependency of the official triggers.
+- **`curupira` installs the Rust CLI only.** The PyPI wheel does not depend on
+  `curupira-sdk` or `curupira-plugins`. Install forge sources with optional extras
+  (`curupira[extensions]` or forge-named extras) or with `curupira plugins install`.
+  Built-in cron needs no extra package. `curupira-sdk` remains a separate distribution for
+  extension authors and a transitive dependency of `curupira-plugins`.
 - **Repository is a uv workspace under `packages/`:** `packages/curupira-core` (Rust crate; the
   protocol crate is now the `protocol` module of the core), `packages/curupira-python` (PyPI
-  `curupira`), `packages/curupira-python-sdk` (`curupira-sdk`), and one package per official
-  trigger under `packages/plugins/`. Each package owns its tests. No symlinks remain. Build all
-  distributions with `uv build --all-packages --out-dir dist`.
-- **Official trigger modules are renamed** from `curupira_official.<name>_ext` to
-  `curupira_<name>` (`curupira_github`, `curupira_azure`, `curupira_trello`, `curupira_monday`).
-  Each is published as its own `curupira-<name>` distribution; the `curupira` wheel exposes
-  them as optional extras rather than hard dependencies. Extension manifests installed before
-  this change still launch `curupira_official.*`; reinstall them with `curupira plugins install`.
+  `curupira`), `packages/curupira-python-sdk` (`curupira-sdk`), and
+  `packages/curupira-python-plugins` (`curupira-plugins`). Each package owns its tests. No
+  symlinks remain. Build all distributions with `uv build --all-packages --out-dir dist`.
 - The `curupira` wheel no longer embeds Python plugin code, and the Rust host no longer falls back
   to a `python/` directory in the working tree for `PYTHONPATH`.
 - **Architectural rewrite:** the CLI host (command parsing, configuration, dispatch,

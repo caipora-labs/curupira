@@ -50,7 +50,18 @@ def main(argv: list[str] | None = None) -> None:
         _assert_cli(curupira, "curupira", args.expected_version or None)
         _assert_cli(curu, "curu", args.expected_version or None)
         if config is not None:
-            _run([str(curupira), "--config", str(config), "validate"])
+            # Example configs launch via `uvx --from curupira-plugins`; expose dist/
+            # so uvx can resolve the wheel without hitting the network.
+            env = _cli_env()
+            env["UV_FIND_LINKS"] = str(dist)
+            path = env.get("PATH", "")
+            local_bin = Path.home() / ".local" / "bin"
+            if local_bin.is_dir():
+                env["PATH"] = f"{local_bin}{os.pathsep}{path}"
+            _run_env(
+                [str(curupira), "--config", str(config), "validate"],
+                env=env,
+            )
             print(f"validated configuration {config}")
         print(f"smoke-tested {wheel.name}")
     finally:
@@ -98,9 +109,10 @@ def _venv_executable(venv_dir: Path, name: str) -> Path:
 
 
 def _run(command: list[str]) -> None:
-    env = os.environ.copy()
-    # Avoid importing the repository checkout ahead of the installed package.
-    env.pop("PYTHONPATH", None)
+    _run_env(command, env=_cli_env())
+
+
+def _run_env(command: list[str], *, env: dict[str, str]) -> None:
     subprocess.run(command, check=True, cwd=tempfile.gettempdir(), env=env)
 
 
@@ -127,17 +139,11 @@ print(curupira.__version__)
 
 
 def _assert_optional_extensions_absent(python: Path) -> None:
-    """Base wheel must not pull in SDK or official trigger packages."""
+    """Base wheel must not pull in SDK or the official trigger package."""
     script = """
 import importlib.util
 
-for name in (
-    "curupira_sdk",
-    "curupira_github",
-    "curupira_azure",
-    "curupira_trello",
-    "curupira_monday",
-):
+for name in ("curupira_sdk", "curupira_plugins"):
     if importlib.util.find_spec(name) is not None:
         raise SystemExit(f"unexpected dependency installed: {name}")
 print("optional extensions absent")

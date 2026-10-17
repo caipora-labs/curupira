@@ -1,0 +1,24 @@
+[project]
+name = "curupira-plugins"
+version = "0.2.0"
+description = "Official Curupira trigger extensions (GitHub, Azure, Trello, monday.com)"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["curupira-sdk[pydantic]==0.2.0"]
+
+[project.scripts]
+curupira-plugins = "curupira_plugins.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/caipora-labs/curupira"
+Repository = "https://github.com/caipora-labs/curupira"
+
+[build-system]
+requires = ["hatchling>=1.32.4,<2"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+curupira-sdk = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/curupira_plugins"]

@@ -172,6 +172,10 @@ async fn clone_repo(remote: &str, dest: &Path) -> Result<(), CurupiraError> {
     Ok(())
 }
 
+fn sanitize_path_component(value: &str) -> String {
+    value.replace('/', "-")
+}
+
 async fn ensure_worktree(
     base: &Path,
     automation_id: &str,
@@ -179,6 +183,7 @@ async fn ensure_worktree(
     task_id: &str,
 ) -> Result<WorktreeHandle, CurupiraError> {
     let safe_task_id = hex_encode(Sha256::digest(task_id.as_bytes()));
+    let safe_task_type = sanitize_path_component(task_type);
     let base_name = base
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())
@@ -186,8 +191,8 @@ async fn ensure_worktree(
     let target = base
         .with_file_name(format!("{base_name}.worktrees"))
         .join(automation_id)
-        .join(format!("{task_type}-{safe_task_id}"));
-    let branch = format!("curupira/{automation_id}/{task_type}-{safe_task_id}");
+        .join(format!("{safe_task_type}-{safe_task_id}"));
+    let branch = format!("curupira/{automation_id}/{safe_task_type}-{safe_task_id}");
 
     if target.is_dir() {
         return Ok(WorktreeHandle {
@@ -361,6 +366,7 @@ mod tests {
                     },
                 )]),
             },
+            plugins: BTreeMap::new(),
             automations: BTreeMap::new(),
             assistant: Default::default(),
         }

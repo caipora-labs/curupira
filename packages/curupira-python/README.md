@@ -39,11 +39,12 @@ uv tool install curupira
 pip install curupira
 ```
 
-Official trigger extensions and `curupira-sdk` are optional. Install the ones you need:
+Official triggers (`curupira-plugins`) and `curupira-sdk` are optional. Install them when
+you need forge task sources:
 
 ```bash
-pip install 'curupira[github]'
-pip install 'curupira[extensions]'  # github, azure, trello, monday
+pip install 'curupira[extensions]'  # installs curupira-plugins (+ curupira-sdk)
+pip install 'curupira[github]'      # same package; forge-named extras are aliases
 ```
 
 To pin a specific version, use `uv tool install "curupira==X.Y.Z"`.
@@ -104,7 +105,7 @@ timezone = "UTC"
 provider = "opencode"
 
 [automations.resolve-ready-issues]
-trigger_type = "github_issues"
+trigger_type = "plugins-py/github-issues"
 repository = "api"
 repo = "acme/api"
 labels = ["agent-ready"]
@@ -123,7 +124,7 @@ into every task identity. `repository` selects a `[repositories.<alias>]` checko
 full Git `remote` URL (and optional `path` / `setup_script`). `trigger_type` selects the
 source:
 
-- `"github_issues"` / `"github_pull_requests"` — discover matching GitHub issues and pull
+- `"plugins-py/github-issues"` / `"plugins-py/github-pull-requests"` — discover matching GitHub issues and pull
   requests; see the
   [GitHub task source guide](https://caipora-labs.github.io/curupira/github/)
 - `"azure_cli_pull_requests"` — lists Azure DevOps pull requests with `az repos pr list`

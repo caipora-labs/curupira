@@ -18,12 +18,13 @@ uv tool install curupira
 ```
 
 That installs the Rust CLI only. Built-in cron works out of the box. For forge task
-sources, add an optional extra (or use `curupira plugins install`):
+sources, add an optional extra (or use `curupira plugins install`). Extras install the
+consolidated `curupira-plugins` package:
 
 ```bash
-uv tool install 'curupira[github]'
-# or every official trigger:
 uv tool install 'curupira[extensions]'
+# forge-named extras (github/azure/trello/monday) install the same package
+uv tool install 'curupira[github]'
 ```
 
 To pin a specific version, use `uv tool install "curupira==X.Y.Z"`.
