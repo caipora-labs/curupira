@@ -95,7 +95,11 @@ pub fn opt_u64(profile: &AgentProfile, key: &str) -> Result<Option<u64>, Curupir
 }
 
 /// Reject unsupported keys that older docs map to hard errors.
-pub fn reject_keys(profile: &AgentProfile, keys: &[&str], reason: &str) -> Result<(), CurupiraError> {
+pub fn reject_keys(
+    profile: &AgentProfile,
+    keys: &[&str],
+    reason: &str,
+) -> Result<(), CurupiraError> {
     for key in keys {
         if profile.extra.contains_key(*key) {
             return Err(CurupiraError::Config(format!(

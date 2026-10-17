@@ -76,9 +76,7 @@ pub(crate) fn build_interactive(
     if let Some(prompt) = prompt {
         args.push("--".into());
         args.push(prompt.into());
-        notes.push(
-            "initial prompt uses the -- terminator, which requires pi >= 1.x".into(),
-        );
+        notes.push("initial prompt uses the -- terminator, which requires pi >= 1.x".into());
     }
     Ok(InteractiveLaunch {
         program: "pi".into(),

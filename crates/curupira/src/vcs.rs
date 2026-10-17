@@ -438,7 +438,13 @@ mod tests {
             .success());
         // Ensure origin/HEAD exists for symbolic-ref
         assert!(Command::new("git")
-            .args(["-C", origin.to_str().unwrap(), "symbolic-ref", "HEAD", "refs/heads/main"])
+            .args([
+                "-C",
+                origin.to_str().unwrap(),
+                "symbolic-ref",
+                "HEAD",
+                "refs/heads/main"
+            ])
             .status()
             .unwrap()
             .success());

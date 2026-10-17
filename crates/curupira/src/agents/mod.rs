@@ -267,10 +267,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(launch.program, "opencode");
-        assert_eq!(
-            launch.args,
-            vec!["run", "--format", "json", "--", "hello"]
-        );
+        assert_eq!(launch.args, vec!["run", "--format", "json", "--", "hello"]);
     }
 
     #[test]
@@ -337,12 +334,8 @@ mod tests {
     fn cursor_rejects_effort() {
         let mut extra = serde_json::Map::new();
         extra.insert("effort".into(), json!("high"));
-        let err = build_headless(
-            AgentProvider::Cursor,
-            &profile("cursor", extra),
-            &req("x"),
-        )
-        .unwrap_err();
+        let err = build_headless(AgentProvider::Cursor, &profile("cursor", extra), &req("x"))
+            .unwrap_err();
         assert!(err.to_string().contains("effort"));
     }
 
@@ -371,10 +364,7 @@ mod tests {
         )
         .unwrap();
         assert!(launch.args.iter().any(|a| a == "--no-ask-user"));
-        assert!(launch
-            .args
-            .iter()
-            .any(|a| a == "--session-id=uuid-1"));
+        assert!(launch.args.iter().any(|a| a == "--session-id=uuid-1"));
         assert!(launch.args.iter().any(|a| a == "--prompt=-dash"));
     }
 
@@ -382,8 +372,7 @@ mod tests {
     fn pi_approve_tri_state() {
         let mut extra = serde_json::Map::new();
         extra.insert("approve".into(), json!(false));
-        let launch =
-            build_headless(AgentProvider::Pi, &profile("pi", extra), &req("m")).unwrap();
+        let launch = build_headless(AgentProvider::Pi, &profile("pi", extra), &req("m")).unwrap();
         assert!(launch.args.iter().any(|a| a == "--no-approve"));
         assert!(!launch.args.iter().any(|a| a == "--approve"));
     }

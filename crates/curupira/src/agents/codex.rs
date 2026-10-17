@@ -16,9 +16,12 @@ pub(crate) fn build_headless(
     push_pair(&mut args, "--model", opt_str(profile, "model")?);
     push_pair(&mut args, "--profile", opt_str(profile, "agent")?);
     if let Some(effort) = opt_str(profile, "effort")? {
-        let encoded = serde_json::to_string(&effort)
-            .map_err(|e| CurupiraError::Dispatch(e.to_string()))?;
-        args.extend(["--config".into(), format!("model_reasoning_effort={encoded}")]);
+        let encoded =
+            serde_json::to_string(&effort).map_err(|e| CurupiraError::Dispatch(e.to_string()))?;
+        args.extend([
+            "--config".into(),
+            format!("model_reasoning_effort={encoded}"),
+        ]);
     }
     push_pair(&mut args, "--sandbox", opt_str(profile, "sandbox")?);
     if bool_extra(profile, "auto_review", false)? {
@@ -45,9 +48,12 @@ pub(crate) fn build_interactive(
     }
     push_pair(&mut args, "--profile", opt_str(profile, "agent")?);
     if let Some(effort) = opt_str(profile, "effort")? {
-        let encoded = serde_json::to_string(&effort)
-            .map_err(|e| CurupiraError::Dispatch(e.to_string()))?;
-        args.extend(["--config".into(), format!("model_reasoning_effort={encoded}")]);
+        let encoded =
+            serde_json::to_string(&effort).map_err(|e| CurupiraError::Dispatch(e.to_string()))?;
+        args.extend([
+            "--config".into(),
+            format!("model_reasoning_effort={encoded}"),
+        ]);
         notes.push(
             "model_reasoning_effort is passed via --config; the Codex reference documents --config but not this key name"
                 .into(),

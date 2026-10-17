@@ -344,14 +344,12 @@ fn validate_cross_references(settings: &ApplicationSettings) -> Result<(), Curup
 
 fn validate_agent_providers(settings: &ApplicationSettings) -> Result<(), CurupiraError> {
     for (name, profile) in &settings.agents.profiles {
-        AgentProvider::parse(&profile.provider).map_err(|err| {
-            CurupiraError::Config(format!("agents.profiles.{name}: {err}"))
-        })?;
+        AgentProvider::parse(&profile.provider)
+            .map_err(|err| CurupiraError::Config(format!("agents.profiles.{name}: {err}")))?;
     }
     if let Some(agent) = &settings.assistant.agent {
-        AgentProvider::parse(agent).map_err(|err| {
-            CurupiraError::Config(format!("assistant.agent: {err}"))
-        })?;
+        AgentProvider::parse(agent)
+            .map_err(|err| CurupiraError::Config(format!("assistant.agent: {err}")))?;
     }
     Ok(())
 }
