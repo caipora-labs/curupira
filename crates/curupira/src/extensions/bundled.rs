@@ -6,7 +6,7 @@ use curupira_protocol::{
 
 use crate::version::VERSION;
 
-/// Return manifests for official extensions shipped with the wheel.
+/// Return manifests for official trigger extensions shipped with the wheel.
 #[must_use]
 pub fn official_manifests() -> Vec<ExtensionManifest> {
     let py = "python3".to_string();
@@ -79,7 +79,7 @@ pub fn official_manifests() -> Vec<ExtensionManifest> {
             runtime: ExtensionRuntime::Python,
             kind: ExtensionKind::Trigger,
             launch: LaunchSpec::Executable {
-                program: py.clone(),
+                program: py,
                 args: vec!["-m".into(), "curupira_official.monday_ext".into()],
             },
             package: Some(PackageRef {
@@ -90,36 +90,6 @@ pub fn official_manifests() -> Vec<ExtensionManifest> {
             capabilities: Default::default(),
             trigger_types: vec!["monday_items".into()],
             agent_providers: vec![],
-        },
-        ExtensionManifest {
-            manifest_version: 1,
-            name: "curupira-agents".into(),
-            version: VERSION.into(),
-            protocol_version: 1,
-            runtime: ExtensionRuntime::Python,
-            kind: ExtensionKind::Agent,
-            launch: LaunchSpec::Executable {
-                program: py,
-                args: vec!["-m".into(), "curupira_official.agents_ext".into()],
-            },
-            package: Some(PackageRef {
-                source: "bundled".into(),
-                name: "curupira".into(),
-                version: Some(VERSION.into()),
-            }),
-            capabilities: Default::default(),
-            trigger_types: vec![],
-            agent_providers: vec![
-                "opencode".into(),
-                "claude".into(),
-                "codex".into(),
-                "cursor".into(),
-                "gemini".into(),
-                "copilot".into(),
-                "kilo".into(),
-                "pi".into(),
-                "qwen".into(),
-            ],
         },
     ]
 }

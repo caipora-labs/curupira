@@ -48,6 +48,8 @@ fn plugins_list_includes_builtin_cron_without_spawning_network() {
         .assert()
         .success()
         .stdout(predicate::str::contains("cron\tcurupira"))
+        .stdout(predicate::str::contains("agent:opencode\tcurupira"))
+        .stdout(predicate::str::contains("(built-in)"))
         .stdout(predicate::str::contains("github_issues"));
 }
 

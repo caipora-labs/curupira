@@ -11,15 +11,23 @@ All notable changes to this project are documented here. The format follows
   scheduling, execution, storage, and process supervision) is implemented in **Rust** and
   distributed on PyPI via **maturin** wheels. `pip install curupira` / `uv tool install
   curupira` still provides the `curupira` and `curu` console commands.
+- **Coding agents are built into the Rust core** (`crates/curupira/src/agents/`). The host
+  builds native argv for OpenCode, Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot
+  CLI, Kilo, pi, and Qwen Code, then runs them with `process::run_process`. The
+  `curupira-agents` process extension and the `agent/buildArguments` /
+  `agent/interactiveLaunch` RPCs are removed. Extensions are **task sources only**.
+- **Git checkout and worktrees are owned by the Rust core** (`crates/curupira/src/vcs.rs`):
+  shared base checkouts, deterministic per-task worktrees from `origin`'s default branch,
+  `checkout = "main"` without fetch/switch, and `setup_script` after a fresh clone only.
 - **Pluggy and in-process Python plugins are removed.** Extensions are separate processes
   speaking JSON-RPC 2.0 over length-prefixed stdin/stdout (see `protocol/PROTOCOL.md`).
-  Official integrations live under `plugins/` / `python/curupira_official/`. **cron** remains
-  built into the Rust binary. New commands: `plugins install|uninstall|info` (plus existing
-  `plugins list`).
+  Official trigger integrations live under `plugins/` / `python/curupira_official/`.
+  **cron** remains built into the Rust binary. New commands: `plugins install|uninstall|info`
+  (plus existing `plugins list`).
 - The supported Python import surface remains `curupira.__version__` only (plus the
   shipped `curupira_sdk` / `curupira_official` modules). Third-party packages must
-  implement the process protocol instead of `curupira.triggers` / `curupira.agents`
-  entry points.
+  implement the process protocol for triggers instead of `curupira.triggers` /
+  `curupira.agents` entry points.
 - **`trigger/poll` returns a single task:** `{ "task": <object|null> }` instead of
   `{ "tasks": [...] }`. The host calls poll repeatedly until `null` or
   `settings.polling.batch_size`. `null` ends the current round and is not an error.
@@ -32,7 +40,7 @@ All notable changes to this project are documented here. The format follows
 - The interactive `tui` command currently runs continuous dispatch with status lines
   (ratatui dashboard parity is follow-up work). Official trigger `poll` implementations
   return `task: null` until forge discovery is fully reattached to the process
-  protocol; configuration validation and agent argv building are live.
+  protocol; configuration validation and in-core agent argv building are live.
 
 ### Added
 

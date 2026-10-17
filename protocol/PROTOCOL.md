@@ -3,6 +3,9 @@
 Version **1**. Transport: **JSON-RPC 2.0** over **stdin/stdout** with
 **length-prefixed frames** (never newline-delimited JSON).
 
+Extensions contribute **task sources** (triggers) only. Coding-agent adapters are
+built into the Rust CLI and are not launched through this protocol.
+
 ## Framing
 
 Each message is:
@@ -31,14 +34,12 @@ Current version: `1`. Compatible range for this host: `1..=1`.
 | Method | Direction | Purpose |
 | --- | --- | --- |
 | `initialize` | host → ext | Negotiate version; identify peers |
-| `describe` | host → ext | List triggers and agents |
+| `describe` | host → ext | List triggers (and an empty `agents` array for wire compatibility) |
 | `trigger/schema` | host → ext | JSON Schema + prompt fields |
 | `trigger/validate` | host → ext | Validate an automation table |
 | `trigger/poll` | host → ext | Discover the next available task (`task` object or JSON `null`). `null` ends the round; never return a task array. |
 | `trigger/onStarted` | host → ext | Lifecycle before coding agent |
 | `trigger/onFinished` | host → ext | Lifecycle after coding agent |
-| `agent/buildArguments` | host → ext | Build argv for a coding-agent CLI |
-| `agent/interactiveLaunch` | host → ext | Optional TUI assistant launch |
 | `shutdown` | host → ext | Graceful exit |
 
 ### Error codes
@@ -59,6 +60,10 @@ Current version: `1`. Compatible range for this host: `1..=1`.
 ## Manifest
 
 File name: `curupira-extension.toml` (manifest format version `1`).
+
+Manifests must declare at least one `trigger_types` entry and `kind = "trigger"`.
+Coding-agent-only manifests (`kind = "agent"` or non-empty `agent_providers`) are
+rejected; agents are built into the core.
 
 Discovery reads manifests from:
 

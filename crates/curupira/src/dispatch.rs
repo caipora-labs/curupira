@@ -1,13 +1,14 @@
 //! Task discovery, scheduling admission, and coding-agent execution.
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use chrono::Utc;
 use serde_json::json;
+use uuid::Uuid;
 
+use crate::agents::{self, AgentProvider, AgentRequest};
 use crate::config::{
     expand_user, resolve_automations, ApplicationSettings, ResolvedAutomation, Task,
 };
@@ -16,7 +17,11 @@ use crate::error::CurupiraError;
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::registry::ExtensionRegistry;
 use crate::process::run_process;
-use crate::storage::{open_db, CompletedTaskRepository, CronScheduleRepository};
+use crate::storage::{
+    open_db, CompletedTaskRepository, CronScheduleRepository, RunningCodingSession,
+    RunningSessionRepository,
+};
+use crate::vcs::VersionControl;
 
 /// Run `run` / watch / dry-run after settings are loaded.
 pub async fn run_command(
@@ -229,6 +234,9 @@ fn task_from_extension_value(
         profile_name: automation.profile_name.clone(),
         provider: automation.profile.provider.clone(),
         repository_remote: automation.repository.remote.clone(),
+        repository_alias: automation.repository_alias.clone(),
+        repository_path: automation.repository.path.clone(),
+        setup_script: automation.repository.setup_script.clone(),
         checkout: automation.checkout.clone(),
         workspace_dir: expand_user(&settings.settings.workspace_dir)
             .to_string_lossy()
@@ -263,7 +271,8 @@ async fn execute_task(
     conn: &rusqlite::Connection,
     registry: &ExtensionRegistry,
 ) -> Result<(), CurupiraError> {
-    let work_dir = checkout_workspace(settings, task).await?;
+    let vcs = VersionControl::new();
+    let prepared = vcs.prepare(settings, task).await?;
 
     if task.trigger_type == "cron" {
         let repo = CronScheduleRepository::new(conn);
@@ -277,7 +286,7 @@ async fn execute_task(
         host.shutdown()?;
     }
 
-    let result = run_agent(settings, task, &work_dir, registry).await;
+    let result = run_agent(settings, task, &prepared.cwd, conn).await;
 
     if task.trigger_type == "cron" {
         let repo = CronScheduleRepository::new(conn);
@@ -291,110 +300,103 @@ async fn execute_task(
         let _ = host.shutdown();
     }
 
+    if let Err(err) = vcs.cleanup(&prepared).await {
+        tracing::warn!("worktree cleanup failed: {err}");
+    }
+
+    if result.is_ok() {
+        let sessions = RunningSessionRepository::new(conn);
+        let _ = sessions.delete(&task.identity.key());
+    }
+
     result
 }
 
-async fn checkout_workspace(
-    settings: &ApplicationSettings,
-    task: &Task,
-) -> Result<PathBuf, CurupiraError> {
-    let root = expand_user(&settings.settings.workspace_dir);
-    std::fs::create_dir_all(&root).map_err(|e| CurupiraError::Dispatch(e.to_string()))?;
-    let dest = root.join(format!(
-        "{}-{}",
-        task.automation_id,
-        &task.identity.id[..task.identity.id.len().min(12)]
-    ));
-    if task.checkout == "main" {
-        // Shared checkout: reuse a stable directory per repo identity.
-        let shared = root.join(task.identity.repo.replace('/', "_"));
-        if !shared.join(".git").exists() {
-            clone_repo(&task.repository_remote, &shared).await?;
-        }
-        return Ok(shared);
-    }
-    if dest.exists() {
-        let _ = std::fs::remove_dir_all(&dest);
-    }
-    clone_repo(&task.repository_remote, &dest).await?;
-    Ok(dest)
-}
-
-async fn clone_repo(remote: &str, dest: &Path) -> Result<(), CurupiraError> {
-    let args = vec![
-        "clone".into(),
-        "--depth".into(),
-        "1".into(),
-        remote.into(),
-        dest.to_string_lossy().into_owned(),
-    ];
-    let result = run_process("git", &args, None, &[], Duration::from_secs(300), 1_000_000)
-        .await
-        .map_err(CurupiraError::Dispatch)?;
-    if result.exit_code != 0 {
-        return Err(CurupiraError::Dispatch(format!(
-            "git clone failed: {}",
-            String::from_utf8_lossy(&result.stderr)
-        )));
-    }
-    Ok(())
-}
+const RESUME_SESSION_PROMPT: &str =
+    "Continue the previous coding task for this work item. Use the repository state and prior session context.";
 
 async fn run_agent(
     settings: &ApplicationSettings,
     task: &Task,
-    work_dir: &Path,
-    registry: &ExtensionRegistry,
+    work_dir: &std::path::Path,
+    conn: &rusqlite::Connection,
 ) -> Result<(), CurupiraError> {
     let profile = settings
         .agents
         .profiles
         .get(&task.profile_name)
         .ok_or_else(|| CurupiraError::Dispatch(format!("missing profile {}", task.profile_name)))?;
+    let provider = AgentProvider::parse(&profile.provider)?;
 
-    let mut profile_json =
-        serde_json::to_value(profile).map_err(|e| CurupiraError::Dispatch(e.to_string()))?;
-    if let Some(obj) = profile_json.as_object_mut() {
-        obj.insert("provider".into(), json!(profile.provider));
+    let sessions = RunningSessionRepository::new(conn);
+    let existing = sessions.get(&task.identity.key())?;
+    let (message, session_id, new_session_id) = if let Some(existing) = &existing {
+        (
+            RESUME_SESSION_PROMPT.to_string(),
+            Some(existing.session_id.clone()),
+            None,
+        )
+    } else if provider.assigns_session_id() {
+        let id = Uuid::new_v4().to_string();
+        sessions.save(
+            &task.identity.key(),
+            &RunningCodingSession {
+                session_id: id.clone(),
+                provider: provider.as_str().into(),
+                original_prompt: task.prompt.clone(),
+            },
+        )?;
+        (task.prompt.clone(), None, Some(id))
+    } else {
+        (task.prompt.clone(), None, None)
+    };
+
+    let request = AgentRequest {
+        message,
+        cwd: work_dir.to_path_buf(),
+        session_id,
+        new_session_id,
+    };
+    let launch = agents::build_headless(provider, profile, &request)?;
+
+    if which::which(&launch.program).is_err() {
+        return Err(CurupiraError::Dispatch(format!(
+            "coding-agent executable {:?} not found on PATH (provider {})",
+            launch.program,
+            provider.as_str()
+        )));
     }
 
-    let request = json!({
-        "prompt": task.prompt,
-        "cwd": work_dir,
-        "task": task,
-    });
-
-    let ext_name = registry
-        .extension_for_agent(&task.provider)
-        .ok_or_else(|| {
-            CurupiraError::Plugin(format!(
-                "no installed extension provides coding-agent provider {:?}",
-                task.provider
-            ))
-        })?;
-    let installed = registry
-        .get(ext_name)
-        .ok_or_else(|| CurupiraError::Plugin(format!("missing extension {ext_name}")))?;
-    let mut host = ExtensionHost::spawn(installed)?;
-    let built = host.build_arguments(&task.provider, &profile_json, &request)?;
-    host.shutdown()?;
-
-    if built.argv.is_empty() {
-        return Err(CurupiraError::Plugin("agent returned empty argv".into()));
-    }
-    let program = built.argv[0].clone();
-    let args = built.argv[1..].to_vec();
     let timeout = Duration::from_secs(u64::from(settings.settings.task_timeout_minutes) * 60);
     let result = run_process(
-        &program,
-        &args,
+        &launch.program,
+        &launch.args,
         Some(work_dir),
-        &built.env,
+        &launch.env,
         timeout,
         settings.settings.max_output_bytes as usize,
     )
     .await
     .map_err(CurupiraError::Dispatch)?;
+
+    // Persist the first native session id announced on stdout (when not caller-assigned).
+    if !provider.assigns_session_id() && existing.is_none() {
+        let stdout = String::from_utf8_lossy(&result.stdout);
+        for line in stdout.lines() {
+            if let Some(id) = agents::session_id_from_line(provider, line) {
+                let _ = sessions.save(
+                    &task.identity.key(),
+                    &RunningCodingSession {
+                        session_id: id,
+                        provider: provider.as_str().into(),
+                        original_prompt: task.prompt.clone(),
+                    },
+                );
+                break;
+            }
+        }
+    }
+
     if result.exit_code != 0 {
         return Err(CurupiraError::Dispatch(format!(
             "agent exited {}: {}",

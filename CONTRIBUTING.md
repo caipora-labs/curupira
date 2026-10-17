@@ -4,126 +4,58 @@
 
 ## Environment setup
 
-Requirements: Python 3.11+, [`uv`](https://docs.astral.sh/uv/), and `gh` for live
-discovery (tests use fakes and need no authentication). The package is pure Python;
-building a wheel needs no compiler toolchain.
+Requirements: a Rust toolchain (see `rust-toolchain.toml`), Python 3.11+, and
+[`uv`](https://docs.astral.sh/uv/). `gh` is needed only for live GitHub discovery.
+Tests use fixtures and must not call real forge or coding-agent CLIs.
 
 ```bash
 uv sync --dev
-uv run --no-sync prek install
+cargo test -p curupira -p curupira-protocol
 ```
 
-`uv sync` installs the Python package and the `curupira` and `curu` console scripts.
-[`prek`](https://prek.j178.dev/) replaces `pre-commit` for Git hooks: after `prek install`,
-each commit runs the hooks in [`.pre-commit-config.yaml`](.pre-commit-config.yaml). Ruff and
-Pyrefly hooks call `uv run --no-sync`, so they use the same locked versions and project
-environment as the commands in [AGENTS.md](AGENTS.md). Run every hook on demand with
-`uv run --no-sync prek run --all-files`.
-
-[AGENTS.md](AGENTS.md) is the single source for the verification commands, repository
-map, code style, testing rules, and security boundaries. It is written for coding agents
-and humans alike; every command listed there must pass before opening a pull request, and
-CI runs the same steps. Install the documentation tools with `uv sync --group docs`, then
-preview the site with `uv run mkdocs serve`.
+[AGENTS.md](AGENTS.md) is the single source for verification commands, the repository
+map, and security boundaries. Install the documentation tools with
+`uv sync --group docs`, then preview the site with `uv run mkdocs serve`.
 
 ## Packaging
 
-Hatchling is the PEP 517 backend. It reads the version from `src/curupira/_version.py`
-and keeps the `curupira` and `curu` script entry points. `uv build` produces a
-pure-Python `py3-none-any` wheel and an sdist. CLI wrappers (`gh`, coding-agent
-CLIs, and Azure CLI) are invoked through `AsyncProcessRunner` using
-`asyncio.create_subprocess_exec` with bounded capture, timeouts, and process-group
-cleanup on POSIX.
-
-Build the distributions, reject retired OpsCli branding in the packaged README and
-metadata long description (case-insensitive `opscli`), and run `twine check` with one
-command:
+**Maturin** builds the Rust binary into a platform wheel (`bindings = "bin"`) and includes
+`plugins/`, `protocol/`, and `python/curupira_official/`. Console scripts `curupira` and
+`curu` point at that binary. Build and smoke-test with:
 
 ```bash
-uv run --no-sync python scripts/check_packaged_readme.py
+uv run --no-sync maturin build --release --out dist -m crates/curupira/Cargo.toml
+uv run --no-sync python scripts/smoke_install.py --dist dist --config curupira.example.toml
 ```
-
-CI's "Build and smoke-test distributions" job runs the same script before the install
-smoke test. Use `--no-build` to check an existing `dist/` directory, or `--no-twine` to
-skip the Twine step.
-
-## Built-in GitHub triggers
-
-GitHub issue and pull-request discovery lives under
-`src/curupira/providers/github/` (`issues.py`, `pull_requests.py`). Compatibility
-re-exports keep `curupira.tasks.github_issues` and
-`curupira.tasks.github_pull_requests` import paths working. Typed filter models are
-`IssueAutomationConfiguration` and `PullRequestAutomationConfiguration` in
-`src/curupira/models/configuration.py`. Search qualifiers are compiled in
-`src/curupira/clients/github_search.py`; GraphQL Search runs over `httpx` in
-`github_graphql.py`. Feeds use `PollingTaskFeed` with `[settings.polling]`
-(`PollingSettings`). Prompt placeholders come from `COMMON_PROMPT_FIELDS` plus
-`IssueItem` / `PullRequestItem` fields in `models/items.py`.
 
 ## Extending Curupira
 
-Curupira separates task discovery (`tasks/`), repository version control (`vcs/`), and
-coding-agent CLI invocation (`agents/`) into layers whose contracts live in each
-`base.py`; see the repository map in [AGENTS.md](AGENTS.md). Curupira does not manage
-authentication: provider CLIs and the user's environment provide their own.
+See the repository map in [AGENTS.md](AGENTS.md). Curupira does not manage authentication:
+provider CLIs and the user's environment do.
 
-To add a task source, implement `TaskSource` and a `Trigger` that declares its
-`trigger_type` and Pydantic `configuration_model`. Sources specific to one service or
-company belong in a separate distribution that registers the trigger under the
-`curupira.triggers` entry-point group and imports only `curupira.plugins`; see the
-[plugin guide](docs/en/plugins.md). A built-in trigger lives in a provider package under
-`providers/<name>/`, contributes itself through the Pluggy hook `curupira_triggers`, and
-is listed in `manager.py`. One provider may contribute multiple triggers (for example
-GitHub issues and pull requests) and may also contribute coding-agent adapters. A new
-version-control provider implements `VersionControl.clone` and belongs in its own
-issue/PR after `vcs/base.py`. A new coding-agent adapter implements
-`CodingAgentCliAdapter.build_arguments`, declares its `provider`, `profile_model`,
-`display_name`, and `install_url`, and contributes itself through the Pluggy hook
-`curupira_coding_agent_adapters` in its provider module. Set `auto_model` only when the
-CLI's official docs confirm a native automatic model value (otherwise leave the default
-`None`). The TUI assistant (`Ctrl+G` in `curu tui`) calls `resolve_assistant_model` and
-then `interactive_launch`: when `auto_model` is unset it omits the model flag and shows a
-short notice that the CLI default applies—do not invent a `--model auto` (or similar) in
-`interactive_launch`. Override `interactive_launch` only when official CLI docs confirm an
-interactive TUI invocation (cite the URL in a code comment); return a pure-data
-`InteractiveLaunchSpec` (`argv`, extra `env`, `cwd`, `notes`) and omit headless-only
-flags. Leave the default (`None`) when interactive mode is unverified—the panel reports
-that explicitly and must never invent flags. The new method has a default, so
-`PLUGIN_API_VERSION` does not bump and existing plugins keep working. When its CLI reports
-the session in a shape other than a `sessionID`, `session_id`, or `thread_id` JSON field,
-the adapter overrides `session_id_from_line`; when the CLI instead accepts a
-caller-chosen session ID, it sets `assigns_session_id = True` and passes
-`request.new_session_id` to the CLI. When the final answer is not a shape the shared
-`render_output` already understands, it overrides `render_output`. Adapters never start
-processes or handle timeouts and output limits themselves; `run_task` and
-`AsyncProcessRunner` own headless runs, and the TUI assistant mounts `interactive_launch`
-specs inside `PtyTerminal` with `cwd=Path.cwd()` (where `curu tui` was started) and the
-allowlisted environment from `default_pty_env` (no provider API keys). A built-in coding-agent adapter lives in its own package under
-`providers/<name>/` (or shares a package with related triggers), is listed in
-`manager.py`, and is discovered through Pluggy so `create_cli_adapter` and profile
-validation find it through the registry; it belongs in its own issue/PR after
-`agents/base.py`. Providers that need extra Python packages should declare an optional
-dependency extra and use lazy imports so the default install stays lean; providers that
-only wrap an external CLI stay in the default install. Third-party adapters register under
-the `curupira.agents` entry-point group instead. A trigger can supply its own clone
-mechanism through `Trigger.create_version_control`. Azure DevOps pull-request listing is
-supported via `azure-cli-pull-requests`; cloning still uses the GitHub CLI version-control
-adapter unless `path` points at an existing checkout. Trello card discovery is built in
-through Scale-Flow's `trello-cli`; other services such as Monday fit a plugin.
-Configuration accepts only the trigger types and agent providers registered by built-ins
-and installed plugins.
+### Task sources (process extensions)
 
-When adding a coding-agent provider, add its package under
-`src/curupira/providers/<provider>/`, a matching test package under
-`tests/providers/<provider>/`, a page at `docs/en/providers/<provider>.md`, and one line
-under "Providers and agents" in the `mkdocs.yml` nav. Keep that nav line and the
-provider's entry in the README "Providers and native options" list in alphabetical order
-by display name. The provider table on `docs/en/providers.md` and the coding-agent CLIs in
-the installation requirements are generated from the agent registry (`display_name`,
-`executable`, and `install_url`) during the MkDocs build, so they update automatically.
-Other tools, such as forge CLIs, are listed by hand in `docs/data/requirements.toml`.
-Trigger-only providers need the package, `manager.py` entry, and tests, but not a
-coding-agent docs page.
+Official triggers live under `plugins/` + `python/curupira_official/`. Third-party task
+sources speak the [extension protocol](protocol/PROTOCOL.md) as a separate process
+(`kind = "trigger"`). They discover tasks, validate configuration, and receive lifecycle
+events. They must **not** build coding-agent argv, clone repositories, or manage
+worktrees. See [Process extensions](docs/en/extensions.md).
+
+### Coding agents (Rust core)
+
+Built-in adapters live in `crates/curupira/src/agents/`. To add a provider:
+
+1. Add a module under `crates/curupira/src/agents/` and register it on `AgentProvider`.
+2. Map only documented native CLI flags; omit unset optional fields.
+3. Add unit tests for argv presence/absence and a page under `docs/en/providers/`.
+4. Update the README provider list and `mkdocs.yml` nav alphabetically by display name.
+
+Do not reintroduce coding agents as process extensions or Pluggy entry points.
+
+### Git / worktrees
+
+Clone, shared checkout, deterministic worktrees, and `setup_script` are implemented in
+`crates/curupira/src/vcs.rs`. Extensions never perform Git operations.
 
 ## Documentation translations
 

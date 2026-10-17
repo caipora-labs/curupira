@@ -99,37 +99,27 @@ Save this as `~/.curupira/settings.toml`. The keys under `repositories`, `profil
 `automations` are user-chosen identifiers; `repository` connects an automation to a
 checkout alias, and `profile` connects it to a coding-agent profile.
 
-Each profile's `provider` selects a registered coding agent: `claude`, `codex`, `copilot`,
-`cursor`, `gemini`, `opencode`, `pi`, or `qwen`, plus any provider added by an installed
-[agent plugin](plugins.md#agent-plugins). `curu plugins list` shows every available
-provider and its executable.
+Each profile's `provider` selects a **built-in** coding agent: `claude`, `codex`, `copilot`,
+`cursor`, `gemini`, `kilo`, `opencode`, `pi`, or `qwen`. Coding agents are part of the Rust
+CLI (not process extensions). `curu plugins list` shows those providers as
+`agent:<name>` with origin `built-in`, alongside trigger extensions.
 
 ## Assistant
 
-`[assistant]` is optional. It records which registered coding-agent provider should run
+`[assistant]` is optional. It records which built-in coding-agent provider should run
 the interactive configuration assistant and which model that CLI should use:
 
-- `agent`: a provider name from the agent registry (the same identifiers used in profile
-  `provider` values). Leave unset until you choose one.
+- `agent`: a built-in provider name (the same identifiers used in profile `provider`
+  values). Leave unset until you choose one.
 - `model`: a concrete model id, or omit it to prefer the provider's native automatic
-  selection when the adapter declares `auto_model`. Cursor, Gemini CLI, and GitHub
-  Copilot CLI document a native `auto` model id and set `auto_model = "auto"`. The
-  literal `auto` is rejected for providers without that capability. Capability checks
-  run only once `agent` is set: a model value with no agent is accepted and checked
-  later when an agent is chosen.
+  selection when the adapter documents one (`auto` for Cursor, Gemini CLI, and GitHub
+  Copilot CLI). The literal `auto` is rejected for providers without that capability.
 
 Existing TOML files without `[assistant]` keep the unset defaults.
 
-`curu tui` consumes these settings for the [embedded assistant panel](assistant.md)
-(`Ctrl+G`). The panel builds each adapter's optional `interactive_launch` recipe (a
-pure-data `InteractiveLaunchSpec` with `argv`, extra `env`, `cwd`, and `notes`) after
-resolving `model` with `resolve_assistant_model`. Adapters that have no verified
-interactive CLI mode return `None`; Curupira reports that to the user and does not invent
-flags. `default_pty_env` only allowlists `PATH`/`HOME`/`LANG`/`USER`/`SHELL` (plus
-`TERM` and `COLORTERM`) and does not forward provider API keys—use CLI login or pass keys
-via `InteractiveLaunchSpec.env` / `extra`. See the
-[agent plugin contract](plugins.md#agent-contract) for when adapter authors should
-override `interactive_launch` (and return `None` when interactive mode is unverified).
+`curu tui` currently runs continuous dispatch with status lines; a full embedded assistant
+panel is follow-up work. Interactive launch recipes for each built-in provider are still
+implemented in the Rust core for that future surface.
 
 ## Repositories
 
@@ -162,8 +152,8 @@ set the automation's GitHub `repo` to `owner/name`.
   configured `board_id`, optionally restricted to `group_ids` (token from `token_env`,
   default `MONDAY_API_TOKEN`). See the [monday.com task source guide](monday.md).
 - `cron` produces occurrences from a five-field `schedule` instead of querying a forge.
-- Installed [plugins](plugins.md) add their own trigger types; `curu plugins list` shows
-  every available type and its prompt placeholders.
+- Installed [trigger extensions](extensions.md) add their own trigger types;
+  `curu plugins list` shows every available type.
 
 Each automation requires `repository` (alias) and `prompt`. GitHub and Azure triggers also
 require forge `repo` identity (`owner/name` or `organization/project/repository`). Cron

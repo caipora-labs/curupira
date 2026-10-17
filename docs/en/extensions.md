@@ -1,9 +1,13 @@
 # Process extensions
 
-Curupira's CLI is a Rust binary. Triggers (except built-in **cron**) and coding
-agents run as **separate processes** that speak the
+Curupira's CLI is a Rust binary. **Task sources** (except built-in **cron**) run as
+**separate processes** that speak the
 [extension protocol](https://github.com/caipora-labs/curupira/blob/main/protocol/PROTOCOL.md)
 (JSON-RPC 2.0 over length-prefixed stdin/stdout).
+
+**Coding agents** (OpenCode, Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot CLI,
+Kilo, pi, Qwen Code) are **built into the Rust core**. They are not process extensions
+and do not use the extension protocol.
 
 ## Install the CLI
 
@@ -14,8 +18,9 @@ uv tool install curupira
 ```
 
 `curupira` and `curu` are the same binary. Python is used only to distribute that
-binary, the declarative SDK (`curupira_sdk`), and the official extension modules
-shipped in the wheel.
+binary, the declarative SDK (`curupira_sdk`), and the official **trigger** extension
+modules shipped in the wheel. Node.js is required only when you install a Node-based
+third-party trigger extension.
 
 ## Manage extensions
 
@@ -32,14 +37,17 @@ Discovery reads `curupira-extension.toml` manifests from
 `~/.curupira/extensions/`, `CURUPIRA_EXTENSIONS_PATH`, and bundled `plugins/`.
 **Listing never executes extension code.**
 
+`plugins list` also shows built-in cron and the built-in coding-agent providers
+(labeled `agent:<name>` with origin `built-in`).
+
 ### Runtime requirements
 
 | Source | Needs on PATH |
 | --- | --- |
-| Official Python extensions (shipped) | `python3` |
+| Official Python trigger extensions (shipped) | `python3` |
 | `pip:` installs | `uvx` (from [uv](https://docs.astral.sh/uv/)) |
 | `npm:` installs | `npx` (Node.js) |
-| Built-in cron | nothing extra |
+| Built-in cron and coding agents | the agent CLIs you configure (plus `git`) |
 
 ## Official extensions
 
@@ -51,9 +59,8 @@ Bundled under `plugins/` and implemented in `python/curupira_official/`:
 | `curupira-azure` | `azure_cli_pull_requests` |
 | `curupira-trello` | `trello_cli_cards` |
 | `curupira-monday` | `monday_items` |
-| `curupira-agents` | `opencode`, `claude`, `codex`, `cursor`, `gemini`, `copilot`, `kilo`, `pi`, `qwen` |
 
-**cron** remains inside the Rust CLI (not an extension).
+**cron** and all coding-agent adapters remain inside the Rust CLI (not extensions).
 
 ## Write a Python extension with curupira-sdk
 
@@ -157,6 +164,10 @@ Ship a `curupira-extension.toml` and support `--curupira-print-manifest` on
 stdout for `plugins install pip:…`. See `plugins/test-fixtures/python-ext/` for
 a minimal protocol fixture, and `python/curupira_official/github_ext.py` for a
 full SDK example.
+
+Extensions discover and normalize tasks, validate their configuration, and receive
+lifecycle events. They must not select coding agents, build agent argv, clone
+repositories, or manage worktrees — the Rust host owns those steps.
 
 ## Write a JavaScript / TypeScript extension
 

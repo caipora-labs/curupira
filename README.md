@@ -12,7 +12,7 @@ scheduling, and execution pipeline: `run` drains currently available tasks, whil
 ## Requirements
 
 - A supported platform wheel from PyPI (the CLI is a Rust binary; Python 3.11+ is
-  used for packaging and official process extensions)
+  used for packaging and official trigger extensions)
 - [`gh`](https://cli.github.com/) installed and authenticated (`gh auth login`) when
   using GitHub automations
 - Only the CLIs used by the configured profiles need to be installed:
@@ -43,8 +43,9 @@ To pin a specific version, use `uv tool install "curupira==X.Y.Z"`.
 
 The project is [caipora-labs/curupira](https://github.com/caipora-labs/curupira).
 `curupira --version` and the short alias `curu --version` report the installed version.
-Extensions (triggers and coding agents, except built-in cron) are separate processes;
-see [Process extensions](https://caipora-labs.github.io/curupira/extensions/).
+Task-source extensions (except built-in cron) are separate processes; coding agents are
+built into the Rust CLI. See
+[Process extensions](https://caipora-labs.github.io/curupira/extensions/).
 
 ## Documentation
 

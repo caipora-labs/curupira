@@ -61,6 +61,7 @@ tables outside that section are left as-is.
 
 ## Related configuration
 
-See [`[assistant]`](configuration.md#assistant) for `agent` and `model` fields, and the
-[agent plugin contract](plugins.md#agent-contract) for `interactive_launch` and
-`auto_model` when extending Curupira with a new coding-agent adapter.
+See [`[assistant]`](configuration.md#assistant) for `agent` and `model` fields.
+Coding-agent adapters (including interactive launch recipes) are built into the Rust
+core under `crates/curupira/src/agents/`; see [Process extensions](extensions.md) for the
+task-source boundary.
