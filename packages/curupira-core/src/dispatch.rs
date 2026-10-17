@@ -1,10 +1,11 @@
 //! Task discovery, scheduling admission, and coding-agent execution.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use chrono::Utc;
+use futures::stream::{FuturesUnordered, StreamExt};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -51,74 +52,83 @@ pub async fn run_command(
         return Ok(());
     }
 
-    let mut failed = 0_u32;
+    // One VersionControl for the whole run: its per-checkout locks must be shared by every worker.
+    let vcs = VersionControl::new();
+    let completed = CompletedTaskRepository::new(&conn);
+    let poll_interval = Duration::from_secs(settings.settings.polling.poll_interval_seconds.max(1));
+    let workers = settings.settings.max_active_tasks.max(1) as usize;
+
+    let mut running = FuturesUnordered::new();
+    let mut in_flight: HashSet<String> = HashSet::new();
+    // Every task admitted in this run, so a failed task is not re-run in a loop.
+    let mut attempted: HashSet<String> = HashSet::new();
     let mut admitted = 0_u32;
-    let max_active = settings.settings.max_active_tasks.max(1);
+    let mut failed = 0_u32;
 
     loop {
-        if interrupted.load(Ordering::SeqCst) {
-            break;
+        // Fill free workers from a fresh poll; tasks already running or attempted are skipped.
+        let mut exhausted = false;
+        while !exhausted
+            && running.len() < workers
+            && !interrupted.load(Ordering::SeqCst)
+            && size.is_none_or(|n| admitted < n)
+        {
+            let tasks = poll_all(settings, &automations, &conn, &registry, false).await?;
+            if tasks.is_empty() {
+                exhausted = true;
+            }
+            for task in tasks {
+                if running.len() >= workers || size.is_some_and(|n| admitted >= n) {
+                    break;
+                }
+                let key = task.identity.key();
+                if in_flight.contains(&key)
+                    || attempted.contains(&key)
+                    || completed.contains(&key)?
+                {
+                    continue;
+                }
+                admitted += 1;
+                in_flight.insert(key.clone());
+                attempted.insert(key);
+                running.push(run_task(settings, task, &conn, &vcs, &registry));
+            }
+            if running.len() < workers {
+                exhausted = true;
+            }
         }
-        let tasks = poll_all(settings, &automations, &conn, &registry, false).await?;
-        if tasks.is_empty() {
-            if !watch {
+
+        if running.is_empty() {
+            let stop =
+                !watch || interrupted.load(Ordering::SeqCst) || size.is_some_and(|n| admitted >= n);
+            if stop {
                 break;
             }
-            tokio::time::sleep(Duration::from_secs(
-                settings.settings.polling.poll_interval_seconds.max(1),
-            ))
-            .await;
+            tokio::time::sleep(poll_interval).await;
             continue;
         }
 
-        let completed = CompletedTaskRepository::new(&conn);
-        let mut batch = Vec::new();
-        for task in tasks {
-            if size.is_some_and(|n| admitted >= n) {
-                break;
+        // Wait for a worker to finish. In watch mode, wake up periodically to poll for new tasks.
+        let next = if watch {
+            tokio::time::timeout(poll_interval, running.next())
+                .await
+                .ok()
+                .flatten()
+        } else {
+            running.next().await
+        };
+        let Some(outcome) = next else { continue };
+        let TaskOutcome { key, title, result } = outcome;
+        in_flight.remove(&key);
+        match result {
+            Ok(()) => {
+                completed.mark(&key, Utc::now())?;
+                println!("ok\t{key}\t{title}");
             }
-            if completed.contains(&task.identity.key())? {
-                continue;
+            Err(err) => {
+                failed += 1;
+                eprintln!("fail\t{key}\t{err}");
             }
-            batch.push(task);
-            if batch.len() as u32 >= max_active {
-                break;
-            }
-        }
-
-        if batch.is_empty() {
-            if !watch {
-                break;
-            }
-            tokio::time::sleep(Duration::from_secs(
-                settings.settings.polling.poll_interval_seconds.max(1),
-            ))
-            .await;
-            continue;
-        }
-
-        for task in batch {
-            if interrupted.load(Ordering::SeqCst) {
-                break;
-            }
-            admitted += 1;
-            match execute_task(settings, &task, &conn, &registry).await {
-                Ok(()) => {
-                    completed.mark(&task.identity.key(), Utc::now())?;
-                    println!("ok\t{}\t{}", task.identity.key(), task.title);
-                }
-                Err(err) => {
-                    failed += 1;
-                    eprintln!("fail\t{}\t{err}", task.identity.key());
-                }
-            }
-            if size.is_some_and(|n| admitted >= n) {
-                break;
-            }
-        }
-
-        if !watch || size.is_some_and(|n| admitted >= n) {
-            break;
         }
     }
 
@@ -126,6 +136,26 @@ pub async fn run_command(
         return Err(CurupiraError::Dispatch(format!("{failed} task(s) failed")));
     }
     Ok(())
+}
+
+/// Result of one worker, returned to the dispatch loop when it finishes.
+struct TaskOutcome {
+    key: String,
+    title: String,
+    result: Result<(), CurupiraError>,
+}
+
+async fn run_task(
+    settings: &ApplicationSettings,
+    task: Task,
+    conn: &rusqlite::Connection,
+    vcs: &VersionControl,
+    registry: &ExtensionRegistry,
+) -> TaskOutcome {
+    let key = task.identity.key();
+    let title = task.title.clone();
+    let result = execute_task(settings, &task, conn, vcs, registry).await;
+    TaskOutcome { key, title, result }
 }
 
 async fn poll_all(
@@ -269,9 +299,9 @@ async fn execute_task(
     settings: &ApplicationSettings,
     task: &Task,
     conn: &rusqlite::Connection,
+    vcs: &VersionControl,
     registry: &ExtensionRegistry,
 ) -> Result<(), CurupiraError> {
-    let vcs = VersionControl::new();
     let prepared = vcs.prepare(settings, task).await?;
 
     if task.trigger_type == "cron" {
