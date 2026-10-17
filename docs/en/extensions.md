@@ -17,11 +17,21 @@ pip install curupira
 uv tool install curupira
 ```
 
-`curupira` and `curu` are the same binary. Python is used only to distribute that
-binary, the declarative SDK (`curupira_sdk`), and the official **trigger** extension
-packages (`curupira-github`, `curupira-azure`, `curupira-trello`, `curupira-monday`), which
-the `curupira` wheel depends on. Node.js is required only when you install a Node-based
-third-party trigger extension.
+`curupira` and `curu` are the same binary. The base wheel ships only that Rust CLI
+(plus a thin `curupira.__version__` shim). Official **trigger** extension packages
+(`curupira-github`, `curupira-azure`, `curupira-trello`, `curupira-monday`) and the
+declarative SDK (`curupira-sdk`) are optional: install them with extras or
+`curupira plugins install`. Built-in **cron** needs no extension package. Node.js is
+required only when you install a Node-based third-party trigger extension.
+
+```bash
+# one official trigger (pulls curupira-sdk transitively)
+pip install 'curupira[github]'
+# or every official trigger
+pip install 'curupira[extensions]'
+# or manage a package with the CLI (uses uvx)
+curupira plugins install --yes pip:curupira-github
+```
 
 ## Manage extensions
 
@@ -45,37 +55,37 @@ Discovery reads `curupira-extension.toml` manifests from
 
 | Source | Needs on PATH |
 | --- | --- |
-| Official Python trigger extensions (shipped) | `python3` |
+| Official Python trigger extras / managed installs | `python3` (or `uvx` for `pip:` installs) |
 | `pip:` installs | `uvx` (from [uv](https://docs.astral.sh/uv/)) |
 | `npm:` installs | `npx` (Node.js) |
 | Built-in cron and coding agents | the agent CLIs you configure (plus `git`) |
 
 ## Official extensions
 
-Bundled under `packages/plugins/` and implemented one package per extension, for example
-`packages/plugins/curupira-github/src/curupira_github/`:
+Implemented under `packages/plugins/`, one package per extension (for example
+`packages/plugins/curupira-github/src/curupira_github/`). They are **not** required to
+install the CLI. Matching PyPI extras on `curupira` install the same distributions:
 
-| Extension | Contributes |
-| --- | --- |
-| `curupira-github` | `github_issues`, `github_pull_requests` |
-| `curupira-azure` | `azure_cli_pull_requests` |
-| `curupira-trello` | `trello_cli_cards` |
-| `curupira-monday` | `monday_items` |
+| Extension | Extra | Contributes |
+| --- | --- | --- |
+| `curupira-github` | `github` | `github_issues`, `github_pull_requests` |
+| `curupira-azure` | `azure` | `azure_cli_pull_requests` |
+| `curupira-trello` | `trello` | `trello_cli_cards` |
+| `curupira-monday` | `monday` | `monday_items` |
+| (all of the above) | `extensions` | every official trigger |
 
 **cron** and all coding-agent adapters remain inside the Rust CLI (not extensions).
 
 ## Write a Python extension with curupira-sdk
 
-Install the SDK (stdlib-only by default; Pydantic is optional):
+Install the SDK separately (stdlib-only by default; Pydantic is optional). Official
+trigger packages depend on it; third-party packages should declare it explicitly:
 
 ```bash
 pip install curupira-sdk
 # optional structured models:
 pip install 'curupira-sdk[pydantic]'
 ```
-
-The `curupira` wheel already depends on `curupira-sdk` through the official extensions.
-Third-party packages should depend on `curupira-sdk` explicitly.
 
 ### Minimal trigger
 
