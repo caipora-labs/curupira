@@ -55,14 +55,80 @@ pub struct ApplicationSettings {
     pub assistant: AssistantSettings,
 }
 
-/// One `[plugins.<alias>]` entry linking a settings alias to a distribution.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PluginConfiguration {
-    /// PyPI / manifest package name (for example `curupira-plugins`).
-    pub package: String,
-    /// Optional plugin-level settings forwarded later; reserved for extensions.
-    #[serde(flatten)]
-    pub extra: serde_json::Map<String, serde_json::Value>,
+/// One `[plugins.<alias>]` entry: launcher (`uvx` / `npx`) plus argv after it.
+///
+/// ```toml
+/// [plugins.plugins-py]
+/// type = "uvx"
+/// package = "curupira-plugins"
+/// args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
+///
+/// [plugins.acme-node]
+/// type = "npx"
+/// package = "@acme/curupira-ext"
+/// args = ["--yes", "@acme/curupira-ext@1.2.3"]
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum PluginConfiguration {
+    /// Run `uvx` with the given args (never a shell string).
+    Uvx {
+        /// Package identity used to match `trigger_types` from installed/bundled manifests.
+        package: String,
+        /// Arguments passed to `uvx`.
+        args: Vec<String>,
+    },
+    /// Run `npx` with the given args (never a shell string).
+    Npx {
+        /// Package identity used to match `trigger_types` from installed/bundled manifests.
+        package: String,
+        /// Arguments passed to `npx`.
+        args: Vec<String>,
+    },
+}
+
+impl PluginConfiguration {
+    /// Distribution / manifest package name used for trigger discovery.
+    #[must_use]
+    pub fn package(&self) -> &str {
+        match self {
+            Self::Uvx { package, .. } | Self::Npx { package, .. } => package.as_str(),
+        }
+    }
+
+    /// Resolve `uvx`/`npx` on PATH and return `(program, args)` for the child process.
+    pub fn resolve_command(&self) -> Result<(String, Vec<String>), CurupiraError> {
+        match self {
+            Self::Uvx { args, .. } => {
+                if args.is_empty() {
+                    return Err(CurupiraError::Config(
+                        "plugins entry type = \"uvx\" requires a non-empty args array".into(),
+                    ));
+                }
+                let uvx = which::which("uvx").map_err(|_| {
+                    CurupiraError::Config(
+                        "uvx is required for plugins with type = \"uvx\" but was not found on PATH"
+                            .into(),
+                    )
+                })?;
+                Ok((uvx.to_string_lossy().into_owned(), args.clone()))
+            }
+            Self::Npx { args, .. } => {
+                if args.is_empty() {
+                    return Err(CurupiraError::Config(
+                        "plugins entry type = \"npx\" requires a non-empty args array".into(),
+                    ));
+                }
+                let npx = which::which("npx").map_err(|_| {
+                    CurupiraError::Config(
+                        "npx is required for plugins with type = \"npx\" but was not found on PATH"
+                            .into(),
+                    )
+                })?;
+                Ok((npx.to_string_lossy().into_owned(), args.clone()))
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -319,11 +385,16 @@ fn validate_identifier_keys(settings: &ApplicationSettings) -> Result<(), Curupi
         }
     }
     for (alias, plugin) in &settings.plugins {
-        if plugin.package.is_empty() {
+        if plugin.package().is_empty() {
             return Err(CurupiraError::Config(format!(
                 "plugins.{alias}: package is required"
             )));
         }
+        // Fail closed early if the launcher is missing or args are empty.
+        plugin.resolve_command().map_err(|err| match err {
+            CurupiraError::Config(msg) => CurupiraError::Config(format!("plugins.{alias}: {msg}")),
+            other => other,
+        })?;
     }
     for key in settings.automations.keys() {
         if !re_ok(key) {
@@ -404,17 +475,17 @@ fn validate_automations(settings: &ApplicationSettings) -> Result<(), CurupiraEr
                  and use <alias>/<trigger>)"
             ))
         })?;
-        let ext_name = binding.extension_name.clone();
+        let cache_key = binding.alias.clone();
         let local_trigger = binding.local_trigger.clone();
-        let host = if let Some(h) = host_cache.get_mut(&ext_name) {
+        let host = if let Some(h) = host_cache.get_mut(&cache_key) {
             h
         } else {
-            let installed = registry
-                .get(&ext_name)
-                .ok_or_else(|| CurupiraError::Plugin(format!("missing extension {ext_name}")))?;
-            let host = ExtensionHost::spawn(installed)?;
-            host_cache.insert(ext_name.clone(), host);
-            host_cache.get_mut(&ext_name).unwrap()
+            let installed = registry.get(&binding.extension_name).ok_or_else(|| {
+                CurupiraError::Plugin(format!("missing extension {}", binding.extension_name))
+            })?;
+            let host = ExtensionHost::spawn_with_plugin_launch(installed, &binding.launch)?;
+            host_cache.insert(cache_key.clone(), host);
+            host_cache.get_mut(&cache_key).unwrap()
         };
         let config_value = automation_to_json(auto);
         let result = host.validate_trigger(&local_trigger, &config_value)?;
@@ -530,17 +601,17 @@ pub fn resolve_automations(
                 }
             }
         } else if let Some(binding) = namespace.resolve(&trigger_type) {
-            let ext_name = binding.extension_name.clone();
+            let cache_key = binding.alias.clone();
             let local_trigger = binding.local_trigger.clone();
-            let host = if let Some(h) = host_cache.get_mut(&ext_name) {
+            let host = if let Some(h) = host_cache.get_mut(&cache_key) {
                 h
             } else {
-                let installed = registry.get(&ext_name).ok_or_else(|| {
-                    CurupiraError::Plugin(format!("missing extension {ext_name}"))
+                let installed = registry.get(&binding.extension_name).ok_or_else(|| {
+                    CurupiraError::Plugin(format!("missing extension {}", binding.extension_name))
                 })?;
-                let host = ExtensionHost::spawn(installed)?;
-                host_cache.insert(ext_name.clone(), host);
-                host_cache.get_mut(&ext_name).unwrap()
+                let host = ExtensionHost::spawn_with_plugin_launch(installed, &binding.launch)?;
+                host_cache.insert(cache_key.clone(), host);
+                host_cache.get_mut(&cache_key).unwrap()
             };
             let result = host.validate_trigger(&local_trigger, &configuration)?;
             if !result.ok {

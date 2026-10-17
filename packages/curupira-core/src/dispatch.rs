@@ -193,17 +193,17 @@ async fn poll_all(
                 automation.trigger_type
             ))
         })?;
-        let ext_name = binding.extension_name.clone();
+        let cache_key = binding.alias.clone();
         let local_trigger = binding.local_trigger.clone();
-        let host = if let Some(h) = hosts.get_mut(&ext_name) {
+        let host = if let Some(h) = hosts.get_mut(&cache_key) {
             h
         } else {
-            let installed = registry
-                .get(&ext_name)
-                .ok_or_else(|| CurupiraError::Plugin(format!("missing extension {ext_name}")))?;
-            let host = ExtensionHost::spawn(installed)?;
-            hosts.insert(ext_name.clone(), host);
-            hosts.get_mut(&ext_name).unwrap()
+            let installed = registry.get(&binding.extension_name).ok_or_else(|| {
+                CurupiraError::Plugin(format!("missing extension {}", binding.extension_name))
+            })?;
+            let host = ExtensionHost::spawn_with_plugin_launch(installed, &binding.launch)?;
+            hosts.insert(cache_key.clone(), host);
+            hosts.get_mut(&cache_key).unwrap()
         };
 
         let batch_size = settings.settings.polling.batch_size.max(1);
@@ -314,7 +314,7 @@ async fn execute_task(
         cron::on_task_started(&repo, task)?;
     } else if let Some(binding) = namespace.resolve(&task.trigger_type) {
         let installed = registry.get(&binding.extension_name).unwrap();
-        let mut host = ExtensionHost::spawn(installed)?;
+        let mut host = ExtensionHost::spawn_with_plugin_launch(installed, &binding.launch)?;
         let task_json =
             serde_json::to_value(task).map_err(|e| CurupiraError::Plugin(e.to_string()))?;
         host.on_started(&binding.local_trigger, &task_json)?;
@@ -328,7 +328,7 @@ async fn execute_task(
         cron::on_task_finished(&repo, task)?;
     } else if let Some(binding) = namespace.resolve(&task.trigger_type) {
         let installed = registry.get(&binding.extension_name).unwrap();
-        let mut host = ExtensionHost::spawn(installed)?;
+        let mut host = ExtensionHost::spawn_with_plugin_launch(installed, &binding.launch)?;
         let task_json =
             serde_json::to_value(task).map_err(|e| CurupiraError::Plugin(e.to_string()))?;
         let _ = host.on_finished(&binding.local_trigger, &task_json);

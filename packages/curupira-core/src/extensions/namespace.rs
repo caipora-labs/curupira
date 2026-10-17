@@ -17,6 +17,8 @@ pub struct TriggerBinding {
     pub full_trigger: String,
     /// Extension registry name (`curupira-plugins`).
     pub extension_name: String,
+    /// Launch settings from `[plugins.<alias>]` (`uvx` / `npx` + args).
+    pub launch: PluginConfiguration,
 }
 
 /// Index of `alias/local` trigger types built from settings + installed manifests.
@@ -33,20 +35,20 @@ impl PluginNamespaceIndex {
     ) -> Result<Self, CurupiraError> {
         let mut by_full: BTreeMap<String, TriggerBinding> = BTreeMap::new();
         for (alias, config) in plugins {
+            let package = config.package();
             let extension = registry
                 .iter()
                 .find(|ext| {
-                    ext.name == config.package
+                    ext.name == package
                         || ext
                             .manifest
                             .package
                             .as_ref()
-                            .is_some_and(|pkg| pkg.name == config.package)
+                            .is_some_and(|pkg| pkg.name == package)
                 })
                 .ok_or_else(|| {
                     CurupiraError::Config(format!(
-                        "plugins.{alias}: no installed extension matches package {:?}",
-                        config.package
+                        "plugins.{alias}: no installed extension matches package {package:?}"
                     ))
                 })?;
             for local in &extension.manifest.trigger_types {
@@ -70,6 +72,7 @@ impl PluginNamespaceIndex {
                         local_trigger: local.clone(),
                         full_trigger: full,
                         extension_name: extension.name.clone(),
+                        launch: config.clone(),
                     },
                 );
             }

@@ -64,12 +64,15 @@ Discovery reads `curupira-extension.toml` manifests from
 Bundled as one PyPI package `curupira-plugins`
 (`packages/curupira-python-plugins/`, import `curupira_plugins`). It is **not** required
 to install the CLI. PyPI extras `github` / `azure` / `trello` / `monday` / `extensions`
-all install that same distribution. Register it in settings under a TOML alias;
-automations then use `<alias>/<local-trigger>`:
+all install that same distribution. Register it in settings under a TOML alias with an
+independent launcher (`uvx` or `npx`) and args; automations then use
+`<alias>/<local-trigger>`:
 
 ```toml
 [plugins.plugins-py]
+type = "uvx"
 package = "curupira-plugins"
+args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
 ```
 
 | Local trigger (in the package) | Example automation `trigger_type` |

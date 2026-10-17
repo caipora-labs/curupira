@@ -31,9 +31,26 @@ impl ExtensionHost {
     /// Spawn from a registry entry and complete `initialize`.
     pub fn spawn(installed: &InstalledExtension) -> Result<Self, CurupiraError> {
         let (program, args) = resolve_launch(&installed.manifest.launch)?;
-        let mut command = Command::new(&program);
+        Self::spawn_command(installed, &program, &args)
+    }
+
+    /// Spawn using a `[plugins.<alias>]` launcher (`uvx` / `npx` + args).
+    pub fn spawn_with_plugin_launch(
+        installed: &InstalledExtension,
+        launch: &crate::config::PluginConfiguration,
+    ) -> Result<Self, CurupiraError> {
+        let (program, args) = launch.resolve_command()?;
+        Self::spawn_command(installed, &program, &args)
+    }
+
+    fn spawn_command(
+        installed: &InstalledExtension,
+        program: &str,
+        args: &[String],
+    ) -> Result<Self, CurupiraError> {
+        let mut command = Command::new(program);
         command
-            .args(&args)
+            .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());

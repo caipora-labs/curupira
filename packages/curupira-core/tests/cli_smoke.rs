@@ -10,6 +10,10 @@ fn packages_root() -> PathBuf {
     core_root().join("..")
 }
 
+fn workspace_root() -> PathBuf {
+    packages_root().join("..")
+}
+
 /// `PYTHONPATH` entries for the official Python packages, so extensions import from the checkout.
 fn python_path() -> std::ffi::OsString {
     let dirs = [
@@ -39,14 +43,44 @@ fn curu_version_uses_alias_name() {
 
 #[test]
 fn validate_example_config() {
+    // Example.toml uses `uvx --from curupira-plugins` for end users. Offline CI
+    // validates the same file with a path-based --from against the checkout.
+    let example = std::fs::read_to_string(core_root().join("curupira.example.toml"))
+        .expect("read example.toml");
+    let plugins_path = packages_root()
+        .join("curupira-python-plugins")
+        .canonicalize()
+        .expect("plugins package path")
+        .to_string_lossy()
+        .into_owned();
+    let rewritten = example.replace(
+        "args = [\"--from\", \"curupira-plugins\", \"python\", \"-m\", \"curupira_plugins\"]",
+        &format!(
+            "args = [\"--from\", \"{plugins_path}\", \"python\", \"-m\", \"curupira_plugins\"]"
+        ),
+    );
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config_path = dir.path().join("settings.toml");
+    std::fs::write(&config_path, rewritten).expect("write temp settings");
+
     cargo_bin_cmd!("curupira")
-        .current_dir(core_root())
+        .current_dir(workspace_root())
         .env(
             "CURUPIRA_EXTENSIONS_PATH",
             packages_root().join("curupira-python-plugins"),
         )
         .env("CURUPIRA_PYTHONPATH", python_path())
-        .args(["--config", "curupira.example.toml", "validate"])
+        .env(
+            "PATH",
+            format!(
+                "{}:{}",
+                std::env::var("HOME")
+                    .map(|h| format!("{h}/.local/bin"))
+                    .unwrap_or_default(),
+                std::env::var("PATH").unwrap_or_default()
+            ),
+        )
+        .args(["--config", config_path.to_str().unwrap(), "validate"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Configuration is valid"));

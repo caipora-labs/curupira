@@ -101,10 +101,20 @@ provider = "cursor"
 # exclude_tools = ["bash"]
 # approve = false # explicitly decline project trust for this process
 
-# Register installed trigger packages under a TOML alias. Automations address
-# triggers as <alias>/<local-trigger> (for example plugins-py/github-issues).
+# Register trigger packages under a TOML alias with an independent launcher.
+# type is "uvx" or "npx"; args are passed to that tool (never a shell string).
+# Automations address triggers as <alias>/<local-trigger>
+# (for example plugins-py/github-issues).
 [plugins.plugins-py]
+type = "uvx"
 package = "curupira-plugins"
+args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
+
+# Node example:
+# [plugins.acme-node]
+# type = "npx"
+# package = "@acme/curupira-ext"
+# args = ["--yes", "@acme/curupira-ext@1.2.3"]
 
 [automations.resolve-ready-issues]
 trigger_type = "plugins-py/github-issues"

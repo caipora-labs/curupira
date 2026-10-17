@@ -87,7 +87,9 @@ timezone = "UTC"
 provider = "opencode"
 
 [plugins.plugins-py]
+type = "uvx"
 package = "curupira-plugins"
+args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
 
 [automations.resolve-ready-issues]
 trigger_type = "plugins-py/github-issues"
@@ -128,13 +130,30 @@ implemented in the Rust core for that future surface.
 
 ## Plugins
 
-`[plugins.<alias>]` registers an installed trigger package under a settings alias:
+`[plugins.<alias>]` registers a trigger package under a settings alias and declares how
+to launch it. `uvx` and `npx` are independent launchers; `args` are passed to that tool
+as argv (never a shell string):
 
-- `package` (required): PyPI / manifest package name (for example `curupira-plugins`).
+```toml
+[plugins.plugins-py]
+type = "uvx"
+package = "curupira-plugins"
+args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
+
+[plugins.acme-node]
+type = "npx"
+package = "@acme/curupira-ext"
+args = ["--yes", "@acme/curupira-ext@1.2.3"]
+```
+
+- `type` (required): `uvx` or `npx`.
+- `package` (required): distribution / manifest package name used to match declared
+  `trigger_types` from installed or bundled manifests.
+- `args` (required, non-empty): arguments after the launcher binary.
 
 Automations then set `trigger_type = "<alias>/<local-trigger>"`. Local trigger names are
 kebab-case names declared by the extension (for example `github-issues`). The official
-`curupira-plugins` distribution is usually registered as `plugins-py`.
+`curupira-plugins` distribution is usually registered as `plugins-py` with `type = "uvx"`.
 
 ## Repositories
 

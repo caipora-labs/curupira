@@ -18,7 +18,8 @@ repo-level config stay at the root.
   Install via `curupira[extensions]` (or forge-named extras) / `curupira plugins install`.
 
 Automations are configured in TOML (`~/.curupira/settings.toml`). Register packages under
-`[plugins.<alias>]` (for example `[plugins.plugins-py]`); automations address triggers as
+`[plugins.<alias>]` with `type = "uvx"` or `"npx"` and `args` for that launcher (for
+example `[plugins.plugins-py]`); automations address triggers as
 `<alias>/<local-trigger>` (for example `plugins-py/github-issues`). `validate` checks
 configuration; `run` / `run --watch` / `tui` dispatch work. One process holds
 `~/.curupira/dispatch.lock`.
