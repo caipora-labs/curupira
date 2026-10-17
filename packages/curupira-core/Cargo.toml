@@ -26,7 +26,7 @@ chrono = { version = "0.4", features = ["clock", "serde"] }
 chrono-tz = "0.10"
 clap = { version = "4", features = ["derive", "env"] }
 ctrlc = "3"
-cron = "0.15"
+cron = "0.17"
 dirs = "6"
 fs2 = "0.4"
 futures = "0.3"
