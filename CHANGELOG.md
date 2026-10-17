@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Agents run isolated from the caller's checkout.** An agent process now starts with `PWD` set
+  to its task worktree and without the Git variables that bind a process to a repository
+  (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, and similar). OpenCode runs get `--dir` pointing
+  at the worktree and their own `OPENCODE_DB` next to it (`<worktree>.opencode.db`), so sessions
+  and project entries never resolve to another clone of the same repository.
 - **GitHub trigger discovery is implemented again.** `curupira_github` queries GitHub Search
   through GraphQL with the token from `gh auth token` (cached for five minutes), pages through
   results lazily, and yields each match once per poll cycle. Previously both triggers returned

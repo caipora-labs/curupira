@@ -7,6 +7,18 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use tokio::time::timeout;
 
+/// Git variables that bind a process to one repository or index; cleared for task worktrees.
+const REPOSITORY_BINDING_ENV: &[&str] = &[
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+];
+
 /// Bounded process result.
 #[derive(Debug, Clone)]
 pub struct ProcessResult {
@@ -32,6 +44,13 @@ pub async fn run_process(
         .kill_on_drop(true);
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
+        // Tools read PWD (and Git reads GIT_*) instead of the kernel cwd. Without this, an
+        // agent started in a task worktree inherits the caller's PWD and repository binding
+        // and can act on the caller's checkout.
+        cmd.env("PWD", dir).env_remove("OLDPWD");
+        for var in REPOSITORY_BINDING_ENV {
+            cmd.env_remove(var);
+        }
     }
     for (k, v) in env {
         cmd.env(k, v);
@@ -117,4 +136,30 @@ pub async fn write_all_close<W: AsyncWriteExt + Unpin>(
     writer.write_all(data).await.map_err(|e| e.to_string())?;
     writer.shutdown().await.map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn child_pwd_follows_its_working_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let expected = dir.path().canonicalize().unwrap();
+
+        let result = run_process(
+            "sh",
+            &["-c".into(), "printf %s \"$PWD\"".into()],
+            Some(dir.path()),
+            &[],
+            Duration::from_secs(10),
+            1024,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(result.exit_code, 0);
+        let pwd = String::from_utf8(result.stdout).unwrap();
+        assert_eq!(std::path::Path::new(&pwd).canonicalize().unwrap(), expected);
+    }
 }

@@ -295,6 +295,15 @@ GitHub triggers use the default native Git version control.
 Optional `setup_script` on the repository alias runs only after a fresh clone of the base
 checkout, not inside the worktree.
 
+### Agent isolation
+
+The agent process runs with its working directory and `PWD` set to the worktree, and without
+the `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_INDEX_FILE` variables that would point Git at another
+repository. Your own checkout is never switched by an automation. For OpenCode, Curupira also
+passes `--dir <worktree>` and gives each task its own `OPENCODE_DB` at `<worktree>.opencode.db`,
+so OpenCode sessions and project entries stay with that task. Other agent-wide state, such as
+the global OpenCode configuration and credentials, is still shared.
+
 ## Common errors
 
 | Symptom | Likely cause | Fix |

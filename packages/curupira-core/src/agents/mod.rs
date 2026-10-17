@@ -172,10 +172,14 @@ pub fn build_headless(
         AgentProvider::Pi => pi::build_headless(profile, request)?,
         AgentProvider::Qwen => qwen::build_headless(profile, request)?,
     };
+    let env = match provider {
+        AgentProvider::OpenCode => opencode::headless_env(request),
+        _ => Vec::new(),
+    };
     Ok(HeadlessLaunch {
         program: provider.executable().into(),
         args,
-        env: vec![],
+        env,
     })
 }
 
@@ -267,7 +271,20 @@ mod tests {
         )
         .unwrap();
         assert_eq!(launch.program, "opencode");
-        assert_eq!(launch.args, vec!["run", "--format", "json", "--", "hello"]);
+        assert_eq!(
+            launch.args,
+            vec![
+                "run",
+                "--format",
+                "json",
+                "--dir",
+                "/tmp/work",
+                "--",
+                "hello"
+            ]
+        );
+        assert_eq!(launch.env[0].0, "OPENCODE_DB");
+        assert_eq!(launch.env[0].1, "/tmp/work.opencode.db");
     }
 
     #[test]
@@ -294,6 +311,8 @@ mod tests {
                 "run",
                 "--format",
                 "json",
+                "--dir",
+                ".",
                 "--session",
                 "s1",
                 "--model",
