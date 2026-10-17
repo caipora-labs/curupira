@@ -17,6 +17,15 @@ toolchain on any supported platform.
 uv tool install curupira
 ```
 
+That installs the Rust CLI only. Built-in cron works out of the box. For forge task
+sources, add an optional extra (or use `curupira plugins install`):
+
+```bash
+uv tool install 'curupira[github]'
+# or every official trigger:
+uv tool install 'curupira[extensions]'
+```
+
 To pin a specific version, use `uv tool install "curupira==X.Y.Z"`.
 
 Confirm the command is available with `curupira --version`. The short alias `curu --version` runs the same program. Validate a configuration without calling agent CLIs:

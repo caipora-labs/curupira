@@ -67,10 +67,11 @@ CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_github, curupira_azur
 ## Versions
 
 All packages share one version. Bump them together: `version` in `packages/curupira-core/Cargo.toml`
-and every `pyproject.toml` under `packages/`; the `==` pins on `curupira-sdk` and the plugins in
-`packages/curupira-python/pyproject.toml` and the plugin `pyproject.toml` files; and `__version__`
-in `packages/curupira-python/src/curupira/__init__.py`, `packages/curupira-python-sdk/src/curupira_sdk/__init__.py`,
-and each `packages/plugins/curupira-<name>/src/curupira_<name>/__init__.py`.
+and every `pyproject.toml` under `packages/`; the `==` pins on optional plugin extras in
+`packages/curupira-python/pyproject.toml` and on `curupira-sdk` in each plugin
+`pyproject.toml`; and `__version__` in `packages/curupira-python/src/curupira/__init__.py`,
+`packages/curupira-python-sdk/src/curupira_sdk/__init__.py`, and each
+`packages/plugins/curupira-<name>/src/curupira_<name>/__init__.py`.
 
 ## Always
 

@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [manifest]
@@ -372,22 +372,39 @@ wheels = [
 name = "curupira"
 version = "0.2.0"
 source = { editable = "packages/curupira-python" }
-dependencies = [
+
+[package.optional-dependencies]
+azure = [
+    { name = "curupira-azure" },
+]
+extensions = [
     { name = "curupira-azure" },
     { name = "curupira-github" },
     { name = "curupira-monday" },
-    { name = "curupira-sdk" },
+    { name = "curupira-trello" },
+]
+github = [
+    { name = "curupira-github" },
+]
+monday = [
+    { name = "curupira-monday" },
+]
+trello = [
     { name = "curupira-trello" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "curupira-azure", editable = "packages/plugins/curupira-azure" },
-    { name = "curupira-github", editable = "packages/plugins/curupira-github" },
-    { name = "curupira-monday", editable = "packages/plugins/curupira-monday" },
-    { name = "curupira-sdk", editable = "packages/curupira-python-sdk" },
-    { name = "curupira-trello", editable = "packages/plugins/curupira-trello" },
+    { name = "curupira-azure", marker = "extra == 'azure'", editable = "packages/plugins/curupira-azure" },
+    { name = "curupira-azure", marker = "extra == 'extensions'", editable = "packages/plugins/curupira-azure" },
+    { name = "curupira-github", marker = "extra == 'extensions'", editable = "packages/plugins/curupira-github" },
+    { name = "curupira-github", marker = "extra == 'github'", editable = "packages/plugins/curupira-github" },
+    { name = "curupira-monday", marker = "extra == 'extensions'", editable = "packages/plugins/curupira-monday" },
+    { name = "curupira-monday", marker = "extra == 'monday'", editable = "packages/plugins/curupira-monday" },
+    { name = "curupira-trello", marker = "extra == 'extensions'", editable = "packages/plugins/curupira-trello" },
+    { name = "curupira-trello", marker = "extra == 'trello'", editable = "packages/plugins/curupira-trello" },
 ]
+provides-extras = ["github", "azure", "trello", "monday", "extensions"]
 
 [[package]]
 name = "curupira-azure"
