@@ -11,7 +11,7 @@ Homepage = "https://github.com/caipora-labs/curupira"
 Repository = "https://github.com/caipora-labs/curupira"
 
 [build-system]
-requires = ["hatchling>=1.27,<2"]
+requires = ["hatchling>=1.32.4,<2"]
 build-backend = "hatchling.build"
 
 [tool.uv.sources]
