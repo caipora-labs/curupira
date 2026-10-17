@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11"
 
 [manifest]
@@ -367,7 +367,6 @@ wheels = [
 
 [[package]]
 name = "curupira"
-version = "0.2.0"
 source = { editable = "packages/curupira-python" }
 
 [package.optional-dependencies]
@@ -395,11 +394,10 @@ requires-dist = [
     { name = "curupira-plugins", marker = "extra == 'monday'", editable = "packages/curupira-python-plugins" },
     { name = "curupira-plugins", marker = "extra == 'trello'", editable = "packages/curupira-python-plugins" },
 ]
-provides-extras = ["github", "azure", "trello", "monday", "extensions"]
+provides-extras = ["azure", "extensions", "github", "monday", "trello"]
 
 [[package]]
 name = "curupira-plugins"
-version = "0.2.0"
 source = { editable = "packages/curupira-python-plugins" }
 dependencies = [
     { name = "curupira-sdk", extra = ["pydantic"] },
@@ -410,7 +408,6 @@ requires-dist = [{ name = "curupira-sdk", extras = ["pydantic"], editable = "pac
 
 [[package]]
 name = "curupira-sdk"
-version = "0.2.0"
 source = { editable = "packages/curupira-python-sdk" }
 
 [package.optional-dependencies]

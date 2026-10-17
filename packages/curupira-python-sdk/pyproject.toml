@@ -1,6 +1,6 @@
 [project]
 name = "curupira-sdk"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Declarative SDK for Curupira JSON-RPC process extensions"
 requires-python = ">=3.11"
 dependencies = []
@@ -9,8 +9,14 @@ dependencies = []
 pydantic = ["pydantic>=2,<3"]
 
 [build-system]
-requires = ["hatchling>=1.32.4,<2"]
+requires = ["hatchling>=1.32.4,<2", "hatch-vcs>=0.5,<1"]
 build-backend = "hatchling.build"
+
+# The version is the publish/curupira-sdk/<version> git tag. Untagged builds get a
+# development version derived from the nearest tag of this package only.
+[tool.hatch.version]
+source = "vcs"
+raw-options = { root = "../..", tag_regex = "^publish/curupira-sdk/(?P<version>.+)$", git_describe_command = "git describe --tags --long --match publish/curupira-sdk/*", fallback_version = "0.1.0.dev0" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/curupira_sdk"]

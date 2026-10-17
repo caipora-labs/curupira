@@ -1,10 +1,11 @@
 [project]
 name = "curupira-plugins"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Official Curupira trigger extensions (GitHub, Azure, Trello, monday.com)"
 requires-python = ">=3.11"
 license = "MIT"
-dependencies = ["curupira-sdk[pydantic]==0.2.0"]
+# Pre-releases need an explicit pre-release specifier, or pip ignores them.
+dependencies = ["curupira-sdk[pydantic]>=0.1.0.dev0"]
 
 [project.scripts]
 curupira-plugins = "curupira_plugins.__main__:main"
@@ -14,8 +15,13 @@ Homepage = "https://github.com/caipora-labs/curupira"
 Repository = "https://github.com/caipora-labs/curupira"
 
 [build-system]
-requires = ["hatchling>=1.32.4,<2"]
+requires = ["hatchling>=1.32.4,<2", "hatch-vcs>=0.5,<1"]
 build-backend = "hatchling.build"
+
+# The version is the publish/curupira-plugins/<version> git tag (see curupira-sdk).
+[tool.hatch.version]
+source = "vcs"
+raw-options = { root = "../..", tag_regex = "^publish/curupira-plugins/(?P<version>.+)$", git_describe_command = "git describe --tags --long --match publish/curupira-plugins/*", fallback_version = "0.1.0.dev0" }
 
 [tool.uv.sources]
 curupira-sdk = { workspace = true }

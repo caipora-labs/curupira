@@ -71,12 +71,19 @@ CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_plugins)
 
 ## Versions
 
-All packages share one version. Bump them together: `version` in `packages/curupira-core/Cargo.toml`
-and every `pyproject.toml` under `packages/`; the `==` pins on optional `curupira-plugins`
-extras in `packages/curupira-python/pyproject.toml` and on `curupira-sdk` in the plugins
-`pyproject.toml`; and `__version__` in `packages/curupira-python/src/curupira/__init__.py`,
-`packages/curupira-python-sdk/src/curupira_sdk/__init__.py`, and
-`packages/curupira-python-plugins/src/curupira_plugins/__init__.py`.
+Each package has its own version and is released by its own git tag,
+`publish/<project>/<version>` (see [CONTRIBUTING.md](CONTRIBUTING.md#releases)). The tag is the source:
+
+- `curupira-sdk` and `curupira-plugins`: `dynamic = ["version"]`, read from the tag by hatch-vcs
+  (`[tool.hatch.version]`). Do not write a version into their `pyproject.toml`.
+- `curupira`: `dynamic = ["version"]`, so maturin takes it from `packages/curupira-core/Cargo.toml`.
+  `publish.yml` stamps that from the tag before building (`scripts/stamp_release_version.py`).
+  Its checked-in version is a placeholder; do not bump it by hand for a release.
+- `curupira-extension.toml` version fields are stamped the same way; the checked-in values are placeholders.
+- `__version__` comes from `importlib.metadata`; never hard-code it.
+- The only static versions are the pre-release lower bounds `curupira-sdk[pydantic]>=0.1.0.dev0` in
+  `curupira-plugins` and `curupira-plugins>=0.1.0.dev0` in the `curupira` extras. Raise them when a
+  minimum version changes, because pip ignores pre-releases without an explicit specifier.
 
 ## Always
 
