@@ -18,8 +18,6 @@ from curupira.config_reload import run_continuous_dispatch
 from curupira.dispatcher import create_task_feeds, dispatch_next_task
 from curupira.errors import DispatchError
 from curupira.executor import TaskExecutor
-from curupira.models import Task
-from curupira.models.base import ValidatedModel
 from curupira.logging_setup import (
     apply_log_level,
     configure_process_logging,
@@ -29,6 +27,8 @@ from curupira.logging_setup import (
     resolve_log_level,
     uninstall_crash_handlers,
 )
+from curupira.models import Task
+from curupira.models.base import ValidatedModel
 from curupira.models.configuration import LogLevel
 from curupira.runtime import (
     DispatchInstanceLock,

@@ -36,9 +36,7 @@ def create_execution_log_handler(level: LogLevel = "INFO") -> logging.FileHandle
     log_path = dispatch_home() / "logs" / "curupira.log"
     handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
     handler.setLevel(logging_level_value(level))
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-    )
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     return handler
 
 

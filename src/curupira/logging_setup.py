@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import faulthandler
 import logging
 import os
@@ -125,10 +126,8 @@ def persist_crash_report(
         lines.append("traceback:")
         lines.extend(traceback.format_exception(exc_type, exc, tb))
         path.write_text("\n".join(lines), encoding="utf-8")
-        try:
+        with contextlib.suppress(OSError):
             path.chmod(0o600)
-        except OSError:
-            pass
         logging.getLogger(__name__).critical(
             "Crash report written to %s (%s: %s)",
             path,
@@ -179,10 +178,8 @@ def enable_fault_handler() -> None:
     ensure_runtime_directories()
     fault_path = dispatch_home() / "logs" / "faulthandler.log"
     _fault_file = fault_path.open("a", encoding="utf-8")
-    try:
+    with contextlib.suppress(OSError):
         fault_path.chmod(0o600)
-    except OSError:
-        pass
     faulthandler.enable(file=_fault_file, all_threads=True)
 
 

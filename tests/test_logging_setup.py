@@ -122,7 +122,7 @@ def test_persist_crash_report_writes_diagnostics(
             type(error),
             error,
             error.__traceback__,
-            context={"command": "run", "config": "/tmp/settings.toml"},
+            context={"command": "run", "config": str(tmp_path / "settings.toml")},
         )
     assert path is not None
     assert path.parent == tmp_path / ".curupira" / "logs" / "crashes"
@@ -157,7 +157,8 @@ def test_install_crash_handlers_persist_uncaught_exceptions(
         reports = list((tmp_path / ".curupira" / "logs" / "crashes").glob("crash-*.log"))
         assert len(reports) == 1
         assert "ValueError" in reports[0].read_text(encoding="utf-8")
-        assert calls and calls[0][0] is ValueError
+        assert calls
+        assert calls[0][0] is ValueError
         assert (tmp_path / ".curupira" / "logs" / "faulthandler.log").is_file()
     finally:
         uninstall_crash_handlers()
@@ -179,19 +180,19 @@ def test_crash_handlers_ignore_keyboard_interrupt(
         uninstall_crash_handlers()
 
 
-def test_thread_excepthook_persists_report(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_thread_excepthook_persists_report(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    monkeypatch.setattr("curupira.logging_setup._previous_threading_excepthook", lambda _args: None)
+
+    def _noop_thread_hook(_args: threading.ExceptHookArgs) -> None:
+        return None
+
+    monkeypatch.setattr("curupira.logging_setup._previous_threading_excepthook", _noop_thread_hook)
     uninstall_crash_handlers()
     try:
         install_crash_handlers()
         error = RuntimeError("thread boom")
-        args = threading.ExceptHookArgs(
-            (type(error), error, None, threading.current_thread())
-        )
+        args = threading.ExceptHookArgs((type(error), error, None, threading.current_thread()))
         threading.excepthook(args)
         reports = list((tmp_path / ".curupira" / "logs" / "crashes").glob("crash-*.log"))
         assert len(reports) == 1
