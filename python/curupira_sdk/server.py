@@ -8,6 +8,7 @@ import traceback
 from collections.abc import Callable
 from typing import Any
 
+from .errors import RpcError
 from .framing import log, read_frame, write_frame
 
 PROTOCOL_VERSION = 1
@@ -52,15 +53,6 @@ class ExtensionServer:
 
     def _shutdown(self, _params: Any) -> dict[str, Any]:
         return {}
-
-
-class RpcError(Exception):
-    """JSON-RPC error with code."""
-
-    def __init__(self, code: int, message: str, data: Any = None) -> None:
-        super().__init__(message)
-        self.code = code
-        self.data = data
 
 
 def serve_stdio(server: ExtensionServer) -> None:

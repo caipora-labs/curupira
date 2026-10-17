@@ -87,7 +87,7 @@ timezone = "UTC"
 provider = "opencode"
 
 [automations.resolve-ready-issues]
-trigger_type = "github-issues"
+trigger_type = "github_issues"
 repository = "api"
 repo = "acme/api"
 labels = ["agent-ready"]
@@ -137,18 +137,18 @@ set the automation's GitHub `repo` to `owner/name`.
 
 `trigger_type` selects the source:
 
-- `github-issues` discovers GitHub issues through GraphQL Search using typed filters
+- `github_issues` discovers GitHub issues through GraphQL Search using typed filters
   (`labels`, `exclude_labels`, `assignee`, `linked_pull_request`, `sort`, …). Set
   `linked_pull_request = false` so discovery compiles `-linked:pr` and skips issues that
   already have a linked pull request. That filter is configuration-time discovery only;
   see [Scheduling and state](#scheduling-and-state) for scheduler revalidation of recovered
   sessions.
-- `github-pull-requests` discovers GitHub pull requests the same way, with PR filters such
+- `github_pull_requests` discovers GitHub pull requests the same way, with PR filters such
   as `draft`, `review`, `ci_status`, plus post-filters `mergeable` / `merge_state`.
-- `azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
-- `trello-cli-cards` discovers Trello cards through Scale-Flow's `trello-cli` for a
+- `azure_cli_pull_requests` lists Azure DevOps pull requests through `az repos pr list`.
+- `trello_cli_cards` discovers Trello cards through Scale-Flow's `trello-cli` for a
   configured `board_id`, optionally restricted to `list_ids`.
-- `monday-items` discovers monday.com board items through the GraphQL API for a
+- `monday_items` discovers monday.com board items through the GraphQL API for a
   configured `board_id`, optionally restricted to `group_ids` (token from `token_env`,
   default `MONDAY_API_TOKEN`). See the [monday.com task source guide](monday.md).
 - `cron` produces occurrences from a five-field `schedule` instead of querying a forge.

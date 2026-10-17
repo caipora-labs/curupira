@@ -12,8 +12,8 @@ worktree where that agent runs.
 
 | Trigger type | What it discovers |
 | --- | --- |
-| `github-issues` | Issues in one `owner/repository` |
-| `github-pull-requests` | Pull requests in one `owner/repository` |
+| `github_issues` | Issues in one `owner/repository` |
+| `github_pull_requests` | Pull requests in one `owner/repository` |
 
 ## Prerequisites
 
@@ -61,7 +61,7 @@ timezone = "UTC"
 provider = "opencode"
 
 [automations.resolve-ready-issues]
-trigger_type = "github-issues"
+trigger_type = "github_issues"
 repository = "api"
 repo = "acme/api"
 labels = ["agent-ready"]
@@ -91,7 +91,7 @@ timezone = "UTC"
 provider = "opencode"
 
 [automations.review-pull-requests]
-trigger_type = "github-pull-requests"
+trigger_type = "github_pull_requests"
 repository = "api"
 repo = "acme/api"
 labels = ["review-needed"]
@@ -135,7 +135,7 @@ Models reject unknown keys.
 
 | Field | Default | Notes |
 | --- | --- | --- |
-| `trigger_type` | see notes | Set explicitly to `"github-issues"` or `"github-pull-requests"`. If omitted when parsing TOML, Curupira chooses `"github-issues"` only when the table has no `schedule`; a `schedule` key defaults to `"cron"` instead |
+| `trigger_type` | see notes | Set explicitly to `"github_issues"` or `"github_pull_requests"`. If omitted when parsing TOML, Curupira chooses `"github_issues"` only when the table has no `schedule`; a `schedule` key defaults to `"cron"` instead |
 | `repository` | *(required)* | Alias of a `[repositories.<alias>]` entry |
 | `checkout` | `"worktree"` | `"worktree"` or `"main"` (shared checkout, not a branch name) |
 | `prompt` | *(required)* | Non-empty `string.Template` with `${placeholders}` |

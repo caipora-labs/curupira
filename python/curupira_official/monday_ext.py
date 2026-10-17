@@ -3,36 +3,33 @@
 from __future__ import annotations
 
 import sys
-from typing import Any
+from dataclasses import dataclass
+
+from curupira_sdk import Curupira
 
 from curupira_official import __version__
-from curupira_official._rpc import RpcError, serve
 
-_TRIGGERS = [
-    {
-        "trigger_type": "monday-items",
-        "prompt_fields": ["id", "name", "url", "board_id", "group_title"],
-    }
-]
+app = Curupira(name="curupira-monday", version=__version__)
 
 
-def validate(params: Any) -> dict[str, Any]:
-    config = dict((params or {}).get("configuration") or {})
-    for key in ("board_id", "repository", "prompt"):
-        if key not in config or config[key] in (None, ""):
-            raise RpcError(-32003, f"missing required field {key!r}")
-    return {"ok": True, "configuration": config}
+@dataclass
+class MondayItem:
+    id: str
+    name: str
+    url: str
+    board_id: str = ""
+    group_title: str = ""
 
 
-def schema(_params: Any) -> dict[str, Any]:
-    return {
-        "schema": {"type": "object"},
-        "prompt_fields": _TRIGGERS[0]["prompt_fields"],
-    }
-
-
-def poll(_params: Any) -> dict[str, Any]:
-    return {"tasks": []}
+@app.trigger
+async def monday_items(
+    board_id: str,
+    group_ids: list[str] | None = None,
+    token_env: str | None = None,
+) -> MondayItem | None:
+    """Return the next eligible monday.com item, or None when none are available."""
+    del board_id, group_ids, token_env
+    return None
 
 
 MANIFEST = """
@@ -42,7 +39,7 @@ version = "{version}"
 protocol_version = 1
 runtime = "python"
 kind = "trigger"
-trigger_types = ["monday-items"]
+trigger_types = ["monday_items"]
 
 [launch]
 type = "executable"
@@ -53,21 +50,9 @@ args = ["-m", "curupira_official.monday_ext"]
 
 def main() -> None:
     if "--curupira-print-manifest" in sys.argv:
-        print(MANIFEST.format(version=__version__, python=sys.executable))
+        app.print_manifest(MANIFEST)
         return
-    serve(
-        name="curupira-monday",
-        version=__version__,
-        triggers=_TRIGGERS,
-        agents=[],
-        handlers={
-            "trigger/validate": validate,
-            "trigger/schema": schema,
-            "trigger/poll": poll,
-            "trigger/onStarted": lambda _p: {},
-            "trigger/onFinished": lambda _p: {},
-        },
-    )
+    app.run()
 
 
 if __name__ == "__main__":

@@ -102,7 +102,7 @@ provider = "cursor"
 # approve = false # explicitly decline project trust for this process
 
 [automations.resolve-ready-issues]
-trigger_type = "github-issues"
+trigger_type = "github_issues"
 repository = "api"
 repo = "acme/api"
 labels = ["agent-ready"]
@@ -120,7 +120,7 @@ URL: ${issue_url}
 """
 
 [automations.review-pull-requests]
-trigger_type = "github-pull-requests"
+trigger_type = "github_pull_requests"
 repository = "api"
 repo = "acme/api"
 labels = ["review-needed"]
@@ -139,7 +139,7 @@ Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
 """
 
 [automations.review-azure-pull-requests]
-trigger_type = "azure-cli-pull-requests"
+trigger_type = "azure_cli_pull_requests"
 repository = "azure-api"
 repo = "contoso/api-project/api"
 # status = "active"
@@ -167,7 +167,7 @@ prompt = "Perform weekly maintenance for ${repository} (occurrence ${task_number
 
 # monday.com GraphQL discovery (read-only). Requires MONDAY_API_TOKEN (or token_env).
 # [automations.board-items]
-# trigger_type = "monday-items"
+# trigger_type = "monday_items"
 # repository = "api"
 # board_id = "1234567890"
 # group_ids = ["topics"]

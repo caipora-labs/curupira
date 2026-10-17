@@ -28,7 +28,7 @@ pub fn official_manifests() -> Vec<ExtensionManifest> {
                 version: Some(VERSION.into()),
             }),
             capabilities: Default::default(),
-            trigger_types: vec!["github-issues".into(), "github-pull-requests".into()],
+            trigger_types: vec!["github_issues".into(), "github_pull_requests".into()],
             agent_providers: vec![],
         },
         ExtensionManifest {
@@ -48,7 +48,7 @@ pub fn official_manifests() -> Vec<ExtensionManifest> {
                 version: Some(VERSION.into()),
             }),
             capabilities: Default::default(),
-            trigger_types: vec!["azure-cli-pull-requests".into()],
+            trigger_types: vec!["azure_cli_pull_requests".into()],
             agent_providers: vec![],
         },
         ExtensionManifest {
@@ -68,7 +68,7 @@ pub fn official_manifests() -> Vec<ExtensionManifest> {
                 version: Some(VERSION.into()),
             }),
             capabilities: Default::default(),
-            trigger_types: vec!["trello-cli-cards".into()],
+            trigger_types: vec!["trello_cli_cards".into()],
             agent_providers: vec![],
         },
         ExtensionManifest {
@@ -88,7 +88,7 @@ pub fn official_manifests() -> Vec<ExtensionManifest> {
                 version: Some(VERSION.into()),
             }),
             capabilities: Default::default(),
-            trigger_types: vec!["monday-items".into()],
+            trigger_types: vec!["monday_items".into()],
             agent_providers: vec![],
         },
     ]

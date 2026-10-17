@@ -29,8 +29,8 @@ triggers (GitHub, Azure DevOps, Trello, monday.com, and third-party sources) are
   (executable / `uvx` / `npx`), never a shell string.
 - **Coding agents:** modules under `crates/curupira/src/agents/`. The host builds
   native argv and runs the CLI with `process::run_process`. No extension RPC.
-- **Python package:** thin `curupira.__version__` + `curupira_official.*` trigger
-  modules. No Pluggy. No in-process plugin import API.
+- **Python package:** thin `curupira.__version__`, declarative `curupira_sdk`, and
+  `curupira_official.*` trigger modules. No Pluggy. No in-process plugin import API.
 
 ```
 CLI (Rust) --JSON-RPC/stdio--> trigger extension (Python / Node / …)
@@ -49,8 +49,10 @@ CLI (Rust) --JSON-RPC/stdio--> trigger extension (Python / Node / …)
 | `crates/curupira/src/vcs.rs` | Clone, worktree, setup_script |
 | `crates/curupira-protocol/` | Framing, manifests, JSON-RPC types |
 | `python/curupira/` | Version export / `python -m curupira` shim |
+| `python/curupira_sdk/` | Declarative extension SDK (`curupira-sdk`) |
 | `python/curupira_official/` | Official trigger extension servers |
 | `plugins/` | Official + test-fixture manifests |
+| `plugins/sdk-python/` | Packaged `curupira-sdk` distribution metadata |
 | `protocol/` | Wire protocol docs |
 | `tests/` | Python packaging / manifest tests |
 | `crates/curupira/tests/` | Rust CLI and extension tests |

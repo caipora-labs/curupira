@@ -54,7 +54,7 @@ pub struct ExtensionManifest {
     pub package: Option<PackageRef>,
     #[serde(default)]
     pub capabilities: ExtensionCapability,
-    /// Trigger types contributed (`github-issues`, …).
+    /// Trigger types contributed (`github_issues`, …).
     #[serde(default)]
     pub trigger_types: Vec<String>,
     /// Deprecated: coding agents are built into the core. Ignored when non-empty
@@ -157,7 +157,7 @@ version = "0.2.0"
 protocol_version = 1
 runtime = "python"
 kind = "trigger"
-trigger_types = ["github-issues", "github-pull-requests"]
+trigger_types = ["github_issues", "github_pull_requests"]
 
 [launch]
 type = "executable"
