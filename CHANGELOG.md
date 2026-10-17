@@ -5,6 +5,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **GitHub trigger discovery is implemented again.** `curupira_github` queries GitHub Search
+  through GraphQL with the token from `gh auth token` (cached for five minutes), pages through
+  results lazily, and yields each match once per poll cycle. Previously both triggers returned
+  no tasks.
+- **GitHub pull-request items expose the documented placeholders** (`${pull_request_number}`,
+  `${pull_request_head_ref}`, `${pull_request_head_sha}`, and the rest), plus `${repo}`.
+- **GitHub filters are validated with Pydantic models** (`curupira-sdk[pydantic]`). Unknown
+  states, sort orders, and merge states are rejected during `validate` with the field name.
+- `curupira_sdk` tests no longer skip the Pydantic-model case when Pydantic is installed.
+
 ### Changed
 
 - **Repository is a uv workspace under `packages/`:** `packages/curupira-core` (Rust crate; the

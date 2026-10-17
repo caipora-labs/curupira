@@ -405,11 +405,11 @@ name = "curupira-github"
 version = "0.2.0"
 source = { editable = "packages/plugins/curupira-github" }
 dependencies = [
-    { name = "curupira-sdk" },
+    { name = "curupira-sdk", extra = ["pydantic"] },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "curupira-sdk", editable = "packages/curupira-python-sdk" }]
+requires-dist = [{ name = "curupira-sdk", extras = ["pydantic"], editable = "packages/curupira-python-sdk" }]
 
 [[package]]
 name = "curupira-monday"
