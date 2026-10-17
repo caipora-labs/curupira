@@ -4,7 +4,16 @@ site_description: Run GitHub and cron automations with local coding-agent CLIs.
 repo_name: caipora-labs/curupira
 repo_url: https://github.com/caipora-labs/curupira
 edit_uri: edit/main/docs/
-docs_dir: docs
+# This file lives in docs/, so the docs tree is the config directory and the site is built
+# at the repository root (site/, ignored by git). Build with:
+#   uv run --group docs mkdocs build --strict -f docs/mkdocs.yml
+docs_dir: .
+site_dir: ../site
+exclude_docs: |
+  mkdocs.yml
+  macros.py
+  data/
+  __pycache__/
 plugins:
   - search
   - i18n:
@@ -35,7 +44,7 @@ plugins:
             - Extensions: extensions.md
             - Plugins (legacy): plugins.md
   - macros:
-      module_name: main
+      module_name: macros
 theme:
   name: material
   language: en

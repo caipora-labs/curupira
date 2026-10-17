@@ -1,4 +1,4 @@
-"""MkDocs macros for rendering versioned documentation data."""
+"""MkDocs macros for rendering documentation tables from the project data."""
 
 from __future__ import annotations
 
@@ -67,13 +67,23 @@ _AGENT_ROWS: tuple[tuple[str, str, str], ...] = (
 )
 
 
+_REQUIREMENTS = tomllib.loads(
+    (Path(__file__).parent / "data" / "requirements.toml").read_text(encoding="utf-8")
+)
+
+
 def define_env(env: MacroEnvironment) -> None:
     """Register macros used by the English docs."""
 
     @env.macro
-    def project_version() -> str:
-        data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
-        return str(data["project"]["version"])
+    def requirements_list() -> str:
+        python = _REQUIREMENTS["python"]
+        lines = [f"- Python {python['range']} on {python['platforms']}."]
+        for tool in _REQUIREMENTS["required_tools"]:
+            lines.append(f"- [{tool['name']}]({tool['url']}): {tool['detail']}")
+        for tool in _REQUIREMENTS["optional_tools"]:
+            lines.append(f"- Optional, [{tool['name']}]({tool['url']}): {tool['detail']}")
+        return "\n".join(lines)
 
     @env.macro
     def triggers_table() -> str:
