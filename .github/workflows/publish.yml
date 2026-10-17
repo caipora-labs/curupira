@@ -2,10 +2,19 @@ name: Publish
 
 # One pipeline for every workspace package. A tag names the package and the version to
 # release: publish/<project>/<version>, for example publish/curupira-sdk/0.1.0dev0.
+#
+# workflow_dispatch rehearses a tag from any branch: it builds and installs everything
+# but never publishes or creates a release.
 on:
   push:
     tags:
       - "publish/**"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Publish tag to rehearse, e.g. publish/curupira/0.3.0dev0 (nothing is uploaded)"
+        required: true
+        type: string
 
 permissions: {}
 
@@ -30,10 +39,12 @@ jobs:
           enable-cache: true
       - name: Parse publish tag
         id: tag
-        run: uv run --no-project --with packaging python packages/curupira-python/scripts/publish_tag.py >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: uv run --no-project --with packaging python packages/curupira-python/scripts/publish_tag.py "$TAG" >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build distributions
+    name: Build source and pure distributions
     needs: resolve
     runs-on: ubuntu-latest
     permissions:
@@ -44,8 +55,6 @@ jobs:
         with:
           # hatch-vcs reads the publish tag from history, so the clone needs all of it.
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
       - name: Set up uv
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
         with:
@@ -56,23 +65,102 @@ jobs:
           PROJECT: ${{ needs.resolve.outputs.project }}
           VERSION: ${{ needs.resolve.outputs.version }}
         run: uv run --no-project --with packaging python packages/curupira-python/scripts/stamp_release_version.py --project "$PROJECT" --version "$VERSION"
-      - name: Build distributions
+      - name: Build source distributions and the pure-Python wheels
+        # The curupira wheel is platform-specific and comes from build-curupira.
         run: |
-          uv sync --frozen --all-packages --dev
-          uv build --all-packages --out-dir dist
+          uv build --sdist --all-packages --out-dir dist
+          uv build --wheel --package curupira-sdk --out-dir dist
+          uv build --wheel --package curupira-plugins --out-dir dist
       - name: Upload distributions
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: dist
+          name: dist-python
           path: dist/
           if-no-files-found: error
 
-  install-test:
-    name: Install and validate
-    needs: [resolve, build]
-    runs-on: ubuntu-latest
+  build-curupira:
+    name: Build curupira wheel (${{ matrix.name }})
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64
+            manylinux: auto
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
+            target: aarch64
+            manylinux: auto
+          - name: musllinux-x86_64
+            os: ubuntu-latest
+            target: x86_64
+            manylinux: musllinux_1_2
+          - name: musllinux-aarch64
+            os: ubuntu-24.04-arm
+            target: aarch64
+            manylinux: musllinux_1_2
+          - name: macos-x86_64
+            os: macos-15-intel
+            target: x86_64
+          - name: macos-arm64
+            os: macos-latest
+            target: aarch64
+          - name: windows-x86_64
+            os: windows-latest
+            target: x64
+          - name: windows-arm64
+            os: windows-11-arm
+            target: aarch64
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - name: Set up uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
+        with:
+          python-version: "3.11"
+          enable-cache: true
+      - name: Stamp the release version into the Rust crate
+        env:
+          PROJECT: ${{ needs.resolve.outputs.project }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        shell: bash
+        run: uv run --no-project --with packaging python packages/curupira-python/scripts/stamp_release_version.py --project "$PROJECT" --version "$VERSION"
+      - name: Build the curupira wheel
+        uses: PyO3/maturin-action@423a6347767a8b16e65c2a7a7042e4a921528da8
+        with:
+          command: build
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux || 'auto' }}
+          # maturin reads [tool.maturin] from the pyproject in this directory.
+          working-directory: packages/curupira-python
+          args: --release --out dist
+      - name: Upload the curupira wheel
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dist-curupira-${{ matrix.name }}
+          path: packages/curupira-python/dist/
+          if-no-files-found: error
+
+  install-test:
+    name: Install and validate (${{ matrix.os }})
+    needs: [resolve, build, build-curupira]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15-intel, macos-latest, windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -82,10 +170,11 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - name: Download distributions
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: dist
+          pattern: dist-*
           path: dist/
+          merge-multiple: true
       - name: Install the tagged wheel and run smoke checks
         env:
           PROJECT: ${{ needs.resolve.outputs.project }}
@@ -101,6 +190,7 @@ jobs:
 
   publish:
     name: Publish distributions
+    if: github.event_name == 'push'
     needs: [resolve, install-test]
     runs-on: ubuntu-latest
     environment: pypi
@@ -116,10 +206,11 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - name: Download distributions
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: dist
+          pattern: dist-*
           path: dist/
+          merge-multiple: true
       - name: Require green CI
         run: python3 .github/scripts/require_ci_checks.py --repository "${GITHUB_REPOSITORY}" --sha "${GITHUB_SHA}"
       - name: Select the tagged project's distributions
@@ -137,7 +228,7 @@ jobs:
   release:
     name: Attach GitHub release
     # Pre-releases (dev, alpha, beta, rc) stay off GitHub Releases; PyPI still gets them.
-    if: needs.resolve.outputs.prerelease == 'false'
+    if: github.event_name == 'push' && needs.resolve.outputs.prerelease == 'false'
     needs: [resolve, publish]
     runs-on: ubuntu-latest
     permissions:
@@ -155,10 +246,11 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - name: Download distributions
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: dist
+          pattern: dist-*
           path: dist/
+          merge-multiple: true
       - name: Attach the tagged project's distributions
         run: |
           uv run --no-project --with packaging python packages/curupira-python/scripts/verify_dist_version.py \
