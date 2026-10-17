@@ -25,12 +25,10 @@ dependencies. Official triggers are one pure-Python wheel (`curupira-plugins`, d
 `curupira-sdk`), exposed as optional extras on `curupira` (`extensions`, or forge-named
 aliases `github` / `azure` / `trello` / `monday` that install the same package).
 A release is one `uv build` over all workspace members.
-Console scripts `curupira` and `curu` point at the binary. Build and smoke-test with:
+Console scripts `curupira` and `curu` point at the binary. Build with:
 
 ```bash
 uv build --all-packages --out-dir dist
-uv run --no-sync python packages/curupira-python/scripts/smoke_install.py --dist dist \
-  --config packages/curupira-core/curupira.example.toml
 ```
 
 ## Extending Curupira
@@ -193,7 +191,7 @@ package reads it:
   cannot read git, so their checked-in versions are placeholders.
 
 One workflow, `.github/workflows/publish.yml`, releases every project: it resolves the tag,
-builds all distributions, install-smoke-tests the tagged project, publishes it to PyPI
+builds all distributions, verifies the tagged project's versions, publishes it to PyPI
 (environment `pypi`, Trusted Publishing), and attaches a GitHub Release for stable
 versions only. Before anything is uploaded, the tag must name a known project, the
 distributions of that project must carry the tag's version (`verify_dist_version.py`), and

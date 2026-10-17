@@ -62,8 +62,8 @@ CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_plugins)
 | `packages/curupira-core/PROTOCOL.md` | Wire protocol spec |
 | `packages/curupira-core/tests/` | Rust CLI and extension tests; `tests/fixtures/` protocol fixtures |
 | `packages/curupira-core/curupira.example.toml` | Example config (`validate` must accept it) |
-| `packages/curupira-python/` | PyPI `curupira` package, maturin build, packaging smoke tests |
-| `packages/curupira-python/scripts/` | Packaging scripts (`smoke_install.py`, `verify_dist_version.py`, `check_packaged_readme.py`) |
+| `packages/curupira-python/` | PyPI `curupira` package, maturin build, packaging tests |
+| `packages/curupira-python/scripts/` | Release scripts (`publish_tag.py`, `stamp_release_version.py`, `verify_dist_version.py`, `check_packaged_readme.py`) |
 | `packages/curupira-python-sdk/` | Declarative extension SDK (`curupira-sdk`) |
 | `packages/curupira-python-plugins/` | Official triggers (`curupira-plugins`): source, manifest, tests |
 | `.github/scripts/` | CI gate (`require_ci_checks.py`) |
@@ -114,8 +114,6 @@ uv run --no-sync pytest
 uv run --no-sync cargo run --manifest-path packages/curupira-core/Cargo.toml --bin curupira -- \
   --config packages/curupira-core/curupira.example.toml validate
 uv build --all-packages --out-dir dist
-uv run --no-sync python packages/curupira-python/scripts/smoke_install.py --dist dist \
-  --config packages/curupira-core/curupira.example.toml
 ```
 
 Each package keeps its own tests (`packages/*/tests/`, Rust tests in

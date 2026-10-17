@@ -25,7 +25,7 @@ REQUIRED_CHECKS = frozenset(
         "Python packaging tests (Python 3.12)",
         "Python packaging tests (Python 3.13)",
         "Python packaging tests (Python 3.14)",
-        "Build and smoke-test distributions",
+        "Build distributions",
     }
 )
 
