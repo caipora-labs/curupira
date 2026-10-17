@@ -140,9 +140,12 @@ class GitHubClient:
                 with urllib.request.urlopen(request, timeout=_HTTP_TIMEOUT_SECONDS) as response:
                     return bytes(response.read())
             except urllib.error.HTTPError as exc:
-                if exc.code not in _RETRY_STATUSES or attempt == _ATTEMPTS:
+                # Close the response so the connection is released before retrying or raising.
+                status = exc.code
+                exc.close()
+                if status not in _RETRY_STATUSES or attempt == _ATTEMPTS:
                     raise RpcError(
-                        -32002, f"GitHub GraphQL request failed with status {exc.code}"
+                        -32002, f"GitHub GraphQL request failed with status {status}"
                     ) from exc
             except urllib.error.URLError as exc:
                 if attempt == _ATTEMPTS:
