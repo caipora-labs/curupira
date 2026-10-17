@@ -38,7 +38,7 @@ pub struct Response {
 
 /// Method: negotiate protocol version and identify the extension.
 pub const METHOD_INITIALIZE: &str = "initialize";
-/// Method: list triggers and agents contributed by this process.
+/// Method: list triggers contributed by this process.
 pub const METHOD_DESCRIBE: &str = "describe";
 /// Method: return JSON Schema (draft 2020-12) for a trigger's automation table.
 pub const METHOD_TRIGGER_SCHEMA: &str = "trigger/schema";
@@ -50,10 +50,6 @@ pub const METHOD_TRIGGER_POLL: &str = "trigger/poll";
 pub const METHOD_TRIGGER_ON_STARTED: &str = "trigger/onStarted";
 /// Method: lifecycle — coding agent finished.
 pub const METHOD_TRIGGER_ON_FINISHED: &str = "trigger/onFinished";
-/// Method: build argv for a coding-agent CLI.
-pub const METHOD_AGENT_BUILD_ARGUMENTS: &str = "agent/buildArguments";
-/// Method: optional interactive launch spec for the TUI assistant.
-pub const METHOD_AGENT_INTERACTIVE_LAUNCH: &str = "agent/interactiveLaunch";
 /// Method: graceful shutdown.
 pub const METHOD_SHUTDOWN: &str = "shutdown";
 
@@ -85,7 +81,10 @@ pub struct ServerInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DescribeResult {
     pub triggers: Vec<TriggerDescription>,
-    pub agents: Vec<AgentDescription>,
+    /// Always empty for current hosts; retained so older extension processes that
+    /// still emit `"agents": []` deserialize cleanly.
+    #[serde(default)]
+    pub agents: Vec<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,12 +92,6 @@ pub struct TriggerDescription {
     pub trigger_type: String,
     #[serde(default)]
     pub prompt_fields: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentDescription {
-    pub provider: String,
-    pub executable: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -146,39 +139,4 @@ pub struct TriggerPollResult {
 pub struct TriggerLifecycleParams {
     pub trigger_type: String,
     pub task: Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentBuildArgumentsParams {
-    pub provider: String,
-    pub profile: Value,
-    pub request: Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentBuildArgumentsResult {
-    pub argv: Vec<String>,
-    #[serde(default)]
-    pub env: Vec<(String, String)>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentInteractiveLaunchParams {
-    pub provider: String,
-    pub profile: Value,
-    pub model: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgentInteractiveLaunchResult {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub spec: Option<InteractiveLaunchSpec>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InteractiveLaunchSpec {
-    pub program: String,
-    pub args: Vec<String>,
-    #[serde(default)]
-    pub env: Vec<(String, String)>,
 }

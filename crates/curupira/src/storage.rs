@@ -4,6 +4,7 @@ use std::path::Path;
 
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::{Deserialize, Serialize};
 
 use crate::config::Task;
 use crate::error::CurupiraError;
@@ -186,6 +187,71 @@ impl<'a> CompletedTaskRepository<'a> {
             .execute(
                 "INSERT OR IGNORE INTO completed_tasks (task_key, completed_at) VALUES (?1, ?2)",
                 params![key, at.to_rfc3339()],
+            )
+            .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
+        Ok(())
+    }
+}
+
+/// Persisted coding-agent session for resume.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunningCodingSession {
+    pub session_id: String,
+    pub provider: String,
+    pub original_prompt: String,
+}
+
+pub struct RunningSessionRepository<'a> {
+    conn: &'a Connection,
+}
+
+impl<'a> RunningSessionRepository<'a> {
+    pub fn new(conn: &'a Connection) -> Self {
+        Self { conn }
+    }
+
+    pub fn get(&self, task_key: &str) -> Result<Option<RunningCodingSession>, CurupiraError> {
+        let payload: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT payload FROM running_sessions WHERE task_key = ?1",
+                params![task_key],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
+        match payload {
+            None => Ok(None),
+            Some(raw) => {
+                let session = serde_json::from_str(&raw)
+                    .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
+                Ok(Some(session))
+            }
+        }
+    }
+
+    pub fn save(
+        &self,
+        task_key: &str,
+        session: &RunningCodingSession,
+    ) -> Result<(), CurupiraError> {
+        let payload =
+            serde_json::to_string(session).map_err(|e| CurupiraError::Runtime(e.to_string()))?;
+        self.conn
+            .execute(
+                "INSERT INTO running_sessions (task_key, payload) VALUES (?1, ?2)
+                 ON CONFLICT(task_key) DO UPDATE SET payload = excluded.payload",
+                params![task_key, payload],
+            )
+            .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn delete(&self, task_key: &str) -> Result<(), CurupiraError> {
+        self.conn
+            .execute(
+                "DELETE FROM running_sessions WHERE task_key = ?1",
+                params![task_key],
             )
             .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
         Ok(())

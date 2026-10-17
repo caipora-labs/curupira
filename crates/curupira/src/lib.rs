@@ -1,5 +1,6 @@
 //! Curupira CLI — Rust host for automations and process-based extensions.
 
+pub mod agents;
 pub mod cli;
 pub mod config;
 pub mod cron;
@@ -9,6 +10,7 @@ pub mod extensions;
 pub mod process;
 pub mod runtime;
 pub mod storage;
+pub mod vcs;
 pub mod version;
 
 use std::ffi::OsString;

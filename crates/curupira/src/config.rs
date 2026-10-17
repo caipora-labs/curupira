@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::agents::AgentProvider;
 use crate::error::CurupiraError;
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::registry::ExtensionRegistry;
@@ -211,6 +212,7 @@ impl AutomationTable {
 pub struct ResolvedAutomation {
     pub automation_id: String,
     pub identity_repo: String,
+    pub repository_alias: String,
     pub configuration: serde_json::Value,
     pub trigger_type: String,
     pub repository: RepositoryConfiguration,
@@ -259,6 +261,7 @@ pub fn load_settings(
     validate_identifier_keys(&settings)?;
     validate_setup_scripts(&settings)?;
     validate_cross_references(&settings)?;
+    validate_agent_providers(&settings)?;
 
     // Trigger-specific validation: cron in-process; others via extension RPC schema.
     validate_automations(&settings)?;
@@ -335,6 +338,18 @@ fn validate_cross_references(settings: &ApplicationSettings) -> Result<(), Curup
                 "automation {name:?} references unknown profile {profile:?}"
             )));
         }
+    }
+    Ok(())
+}
+
+fn validate_agent_providers(settings: &ApplicationSettings) -> Result<(), CurupiraError> {
+    for (name, profile) in &settings.agents.profiles {
+        AgentProvider::parse(&profile.provider)
+            .map_err(|err| CurupiraError::Config(format!("agents.profiles.{name}: {err}")))?;
+    }
+    if let Some(agent) = &settings.assistant.agent {
+        AgentProvider::parse(agent)
+            .map_err(|err| CurupiraError::Config(format!("assistant.agent: {err}")))?;
     }
     Ok(())
 }
@@ -481,6 +496,7 @@ pub fn resolve_automations(
         out.push(ResolvedAutomation {
             automation_id: name.clone(),
             identity_repo: forge,
+            repository_alias: auto.repository.clone(),
             configuration,
             trigger_type,
             repository: repo,
@@ -522,6 +538,11 @@ pub struct Task {
     pub profile_name: String,
     pub provider: String,
     pub repository_remote: String,
+    pub repository_alias: String,
+    #[serde(default)]
+    pub repository_path: Option<String>,
+    #[serde(default)]
+    pub setup_script: Option<String>,
     pub checkout: String,
     pub workspace_dir: String,
 }
