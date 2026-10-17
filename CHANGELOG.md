@@ -14,10 +14,11 @@ All notable changes to this project are documented here. The format follows
   CLI-only; install triggers with extras (`curupira[extensions]`, or the forge-named
   extras that install the same package) or `curupira plugins install`.
 - **Plugin registration aliases.** Settings use `[plugins.<alias>]` with `type` (`uvx` or
-  `npx`), `package`, and `args` passed to that launcher (for example
-  `[plugins.plugins-py]` / `type = "uvx"` / `args = ["--from", "curupira-plugins", …]`).
-  Automations address triggers as `<alias>/<local-trigger>` (for example
-  `plugins-py/github-issues`).
+  `npx`) and `args` passed to that launcher (for example `[plugins.plugins-py]` /
+  `type = "uvx"` / `args = ["--from", "curupira-plugins", …]`). There is no separate
+  `package` field — put the distribution in `args`. The host discovers trigger types by
+  spawning the process and calling `describe`. Automations address triggers as
+  `<alias>/<local-trigger>` (for example `plugins-py/github-issues`).
 - **Trigger local names are kebab-case.** The SDK derives the local name from
   `function.__name__` (`github_issues` → `github-issues`). Use `@app.trigger(alias="…")` to
   override. Manifests declare local names only; the host prefixes the TOML alias.

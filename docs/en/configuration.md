@@ -88,7 +88,6 @@ provider = "opencode"
 
 [plugins.plugins-py]
 type = "uvx"
-package = "curupira-plugins"
 args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
 
 [automations.resolve-ready-issues]
@@ -103,7 +102,7 @@ prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 Save this as `~/.curupira/settings.toml`. The keys under `repositories`, `profiles`,
 `plugins`, and `automations` are user-chosen identifiers; `repository` connects an
 automation to a checkout alias, `profile` connects it to a coding-agent profile, and
-`[plugins.<alias>]` registers an installed trigger package so automations can use
+`[plugins.<alias>]` registers a trigger launcher so automations can use
 `<alias>/<local-trigger>` (for example `plugins-py/github-issues`).
 
 Each profile's `provider` selects a **built-in** coding agent: `claude`, `codex`, `copilot`,
@@ -130,25 +129,23 @@ implemented in the Rust core for that future surface.
 
 ## Plugins
 
-`[plugins.<alias>]` registers a trigger package under a settings alias and declares how
-to launch it. `uvx` and `npx` are independent launchers; `args` are passed to that tool
-as argv (never a shell string):
+`[plugins.<alias>]` registers a trigger under a settings alias and declares how to launch
+it. `uvx` and `npx` are independent launchers; `args` are passed to that tool as argv
+(never a shell string). The host discovers trigger types by spawning the process and
+calling `describe` — put the distribution name in `args` (for example `--from`), not as a
+separate field:
 
 ```toml
 [plugins.plugins-py]
 type = "uvx"
-package = "curupira-plugins"
 args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
 
 [plugins.acme-node]
 type = "npx"
-package = "@acme/curupira-ext"
 args = ["--yes", "@acme/curupira-ext@1.2.3"]
 ```
 
 - `type` (required): `uvx` or `npx`.
-- `package` (required): distribution / manifest package name used to match declared
-  `trigger_types` from installed or bundled manifests.
 - `args` (required, non-empty): arguments after the launcher binary.
 
 Automations then set `trigger_type = "<alias>/<local-trigger>"`. Local trigger names are

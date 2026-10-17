@@ -17,7 +17,6 @@ use crate::cron;
 use crate::error::CurupiraError;
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::namespace::PluginNamespaceIndex;
-use crate::extensions::registry::ExtensionRegistry;
 use crate::process::run_process;
 use crate::storage::{
     open_db, CompletedTaskRepository, CronScheduleRepository, RunningCodingSession,
@@ -36,11 +35,10 @@ pub async fn run_command(
     let automations = resolve_automations(settings)?;
     let db_path = expand_user(&settings.settings.state_db_path);
     let conn = open_db(&db_path)?;
-    let registry = ExtensionRegistry::load()?;
-    let namespace = PluginNamespaceIndex::build(&settings.plugins, &registry)?;
+    let namespace = PluginNamespaceIndex::build(&settings.plugins)?;
 
     if dry_run {
-        let tasks = poll_all(settings, &automations, &conn, &registry, &namespace, true).await?;
+        let tasks = poll_all(settings, &automations, &conn, &namespace, true).await?;
         if let Some(task) = tasks.into_iter().next() {
             println!(
                 "dry-run\t{}\t{}\t{}",
@@ -75,8 +73,7 @@ pub async fn run_command(
             && !interrupted.load(Ordering::SeqCst)
             && size.is_none_or(|n| admitted < n)
         {
-            let tasks =
-                poll_all(settings, &automations, &conn, &registry, &namespace, false).await?;
+            let tasks = poll_all(settings, &automations, &conn, &namespace, false).await?;
             if tasks.is_empty() {
                 exhausted = true;
             }
@@ -94,7 +91,7 @@ pub async fn run_command(
                 admitted += 1;
                 in_flight.insert(key.clone());
                 attempted.insert(key);
-                running.push(run_task(settings, task, &conn, &vcs, &registry, &namespace));
+                running.push(run_task(settings, task, &conn, &vcs, &namespace));
             }
             if running.len() < workers {
                 exhausted = true;
@@ -153,12 +150,11 @@ async fn run_task(
     task: Task,
     conn: &rusqlite::Connection,
     vcs: &VersionControl,
-    registry: &ExtensionRegistry,
     namespace: &PluginNamespaceIndex,
 ) -> TaskOutcome {
     let key = task.identity.key();
     let title = task.title.clone();
-    let result = execute_task(settings, &task, conn, vcs, registry, namespace).await;
+    let result = execute_task(settings, &task, conn, vcs, namespace).await;
     TaskOutcome { key, title, result }
 }
 
@@ -166,7 +162,6 @@ async fn poll_all(
     settings: &ApplicationSettings,
     automations: &[ResolvedAutomation],
     conn: &rusqlite::Connection,
-    registry: &ExtensionRegistry,
     namespace: &PluginNamespaceIndex,
     preview: bool,
 ) -> Result<Vec<Task>, CurupiraError> {
@@ -198,10 +193,7 @@ async fn poll_all(
         let host = if let Some(h) = hosts.get_mut(&cache_key) {
             h
         } else {
-            let installed = registry.get(&binding.extension_name).ok_or_else(|| {
-                CurupiraError::Plugin(format!("missing extension {}", binding.extension_name))
-            })?;
-            let host = ExtensionHost::spawn_with_plugin_launch(installed, &binding.launch)?;
+            let host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
             hosts.insert(cache_key.clone(), host);
             hosts.get_mut(&cache_key).unwrap()
         };
@@ -304,7 +296,6 @@ async fn execute_task(
     task: &Task,
     conn: &rusqlite::Connection,
     vcs: &VersionControl,
-    registry: &ExtensionRegistry,
     namespace: &PluginNamespaceIndex,
 ) -> Result<(), CurupiraError> {
     let prepared = vcs.prepare(settings, task).await?;
@@ -313,8 +304,7 @@ async fn execute_task(
         let repo = CronScheduleRepository::new(conn);
         cron::on_task_started(&repo, task)?;
     } else if let Some(binding) = namespace.resolve(&task.trigger_type) {
-        let installed = registry.get(&binding.extension_name).unwrap();
-        let mut host = ExtensionHost::spawn_with_plugin_launch(installed, &binding.launch)?;
+        let mut host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
         let task_json =
             serde_json::to_value(task).map_err(|e| CurupiraError::Plugin(e.to_string()))?;
         host.on_started(&binding.local_trigger, &task_json)?;
@@ -327,8 +317,7 @@ async fn execute_task(
         let repo = CronScheduleRepository::new(conn);
         cron::on_task_finished(&repo, task)?;
     } else if let Some(binding) = namespace.resolve(&task.trigger_type) {
-        let installed = registry.get(&binding.extension_name).unwrap();
-        let mut host = ExtensionHost::spawn_with_plugin_launch(installed, &binding.launch)?;
+        let mut host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
         let task_json =
             serde_json::to_value(task).map_err(|e| CurupiraError::Plugin(e.to_string()))?;
         let _ = host.on_finished(&binding.local_trigger, &task_json);

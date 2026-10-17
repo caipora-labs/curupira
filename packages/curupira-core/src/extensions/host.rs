@@ -35,18 +35,29 @@ impl ExtensionHost {
     }
 
     /// Spawn using a `[plugins.<alias>]` launcher (`uvx` / `npx` + args).
-    pub fn spawn_with_plugin_launch(
-        installed: &InstalledExtension,
+    pub fn spawn_plugin(
+        alias: &str,
         launch: &crate::config::PluginConfiguration,
     ) -> Result<Self, CurupiraError> {
         let (program, args) = launch.resolve_command()?;
-        Self::spawn_command(installed, &program, &args)
+        Self::spawn_argv(alias, &program, &args, None)
     }
 
+    /// Spawn using a registry manifest launch (managed installs / fixtures).
     fn spawn_command(
         installed: &InstalledExtension,
         program: &str,
         args: &[String],
+    ) -> Result<Self, CurupiraError> {
+        let cwd = installed.dir.is_dir().then_some(installed.dir.as_path());
+        Self::spawn_argv(&installed.name, program, args, cwd)
+    }
+
+    fn spawn_argv(
+        name: &str,
+        program: &str,
+        args: &[String],
+        cwd: Option<&std::path::Path>,
     ) -> Result<Self, CurupiraError> {
         let mut command = Command::new(program);
         command
@@ -54,8 +65,8 @@ impl ExtensionHost {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
-        if installed.dir.is_dir() {
-            command.current_dir(&installed.dir);
+        if let Some(dir) = cwd {
+            command.current_dir(dir);
         }
         // Ensure official in-tree modules resolve when developing from a checkout.
         // Paths must be absolute: children often run with cwd = the extension directory.
@@ -64,8 +75,7 @@ impl ExtensionHost {
         }
         let mut child = command.spawn().map_err(|e| {
             CurupiraError::Plugin(format!(
-                "failed to start extension {}: {e} (program {program:?})",
-                installed.name
+                "failed to start extension {name}: {e} (program {program:?})"
             ))
         })?;
         let stdin = child

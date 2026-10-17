@@ -71,7 +71,6 @@ independent launcher (`uvx` or `npx`) and args; automations then use
 ```toml
 [plugins.plugins-py]
 type = "uvx"
-package = "curupira-plugins"
 args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
 ```
 
@@ -142,8 +141,9 @@ Rules:
 - Use `@app.trigger` with no parentheses to derive the **local** trigger name from
   `function.__name__` in kebab-case (`github_issues` → `github-issues`).
 - Use `@app.trigger(alias="issues")` to override the local name.
-- Register the package under `[plugins.<alias>]` in settings. Automations address
-  the trigger as `<alias>/<local-name>` (for example `plugins-py/github-issues`).
+- Register the launcher under `[plugins.<alias>]` in settings (`type` + `args`).
+  Automations address the trigger as `<alias>/<local-name>` (for example
+  `plugins-py/github-issues`).
 - Function parameters are the source of truth for TOML extras. Required /
   optional / defaults / `None` come from the signature and type hints.
 - Return **one** object or `None`. Lists, tuples, and iterators are rejected.
@@ -155,12 +155,13 @@ Rules:
 
 ### Matching TOML
 
-Register the package, then keep core automation fields on the table with trigger
-arguments as siblings:
+Register the launcher under `[plugins.<alias>]`, then keep core automation fields on the
+table with trigger arguments as siblings:
 
 ```toml
 [plugins.plugins-py]
-package = "curupira-plugins"
+type = "uvx"
+args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
 
 [automations.resolve-ready-issues]
 trigger_type = "plugins-py/github-issues"
