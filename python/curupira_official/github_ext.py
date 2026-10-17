@@ -4,74 +4,91 @@ from __future__ import annotations
 
 import re
 import sys
-from typing import Any
+from dataclasses import dataclass, field
 
 from curupira_official import __version__
-from curupira_official._rpc import RpcError, serve
+from curupira_sdk import Curupira, RpcError
 
 _REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-_TRIGGERS = [
-    {
-        "trigger_type": "github-issues",
-        "prompt_fields": ["number", "title", "body", "url", "labels", "author"],
-    },
-    {
-        "trigger_type": "github-pull-requests",
-        "prompt_fields": ["number", "title", "body", "url", "labels", "author", "head_ref"],
-    },
-]
+
+app = Curupira(name="curupira-github", version=__version__)
 
 
-def _require(config: dict[str, Any], key: str) -> Any:
-    if key not in config or config[key] in (None, ""):
-        raise RpcError(-32003, f"missing required field {key!r}")
-    return config[key]
+@dataclass
+class Issue:
+    number: int
+    title: str
+    url: str
+    body: str = ""
+    labels: list[str] = field(default_factory=list)
+    author: str = ""
+    id: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.id:
+            self.id = str(self.number)
 
 
-def validate(params: Any) -> dict[str, Any]:
-    config = dict((params or {}).get("configuration") or {})
-    trigger = (params or {}).get("trigger_type")
-    if trigger not in {"github-issues", "github-pull-requests"}:
-        raise RpcError(-32003, f"unsupported trigger_type {trigger!r}")
-    repo = _require(config, "repo")
-    if not isinstance(repo, str) or _REPO_RE.fullmatch(repo) is None:
+@dataclass
+class PullRequest:
+    number: int
+    title: str
+    url: str
+    body: str = ""
+    labels: list[str] = field(default_factory=list)
+    author: str = ""
+    head_ref: str = ""
+    id: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.id:
+            self.id = str(self.number)
+
+
+def _validate_repo(repo: str) -> None:
+    if _REPO_RE.fullmatch(repo) is None:
         raise RpcError(-32003, "repo must use the owner/repository format")
     if any(part in {".", ".."} for part in repo.split("/")):
         raise RpcError(-32003, "repo must not contain traversal segments")
-    for key in ("repository", "prompt"):
-        _require(config, key)
-    return {"ok": True, "configuration": config}
 
 
-def schema(params: Any) -> dict[str, Any]:
-    trigger = (params or {}).get("trigger_type", "github-issues")
-    fields = next(t["prompt_fields"] for t in _TRIGGERS if t["trigger_type"] == trigger)
-    return {
-        "schema": {
-            "type": "object",
-            "required": ["repo", "repository", "prompt"],
-            "properties": {
-                "repo": {"type": "string"},
-                "state": {"type": "string"},
-                "labels": {"type": "array", "items": {"type": "string"}},
-            },
-        },
-        "prompt_fields": fields,
-    }
+def _check_repo(kwargs: dict[str, object]) -> None:
+    repo = kwargs.get("repo")
+    if not isinstance(repo, str):
+        raise RpcError(-32003, "repo must use the owner/repository format")
+    _validate_repo(repo)
 
 
-def poll(params: Any) -> dict[str, Any]:
-    # Discovery uses the authenticated `gh` CLI when available; returns [] when none.
-    del params
-    return {"tasks": []}
+@app.trigger
+async def github_issues(
+    repo: str,
+    labels: list[str] | None = None,
+    exclude_labels: list[str] | None = None,
+    state: str = "open",
+    linked_pull_request: bool | None = None,
+    sort: str | None = None,
+) -> Issue | None:
+    """Return the next eligible GitHub issue, or None when none are available."""
+    del repo, labels, exclude_labels, state, linked_pull_request, sort
+    return None
 
 
-def on_started(_params: Any) -> dict[str, Any]:
-    return {}
+@app.trigger
+async def github_pull_requests(
+    repo: str,
+    labels: list[str] | None = None,
+    draft: bool | None = None,
+    mergeable: bool | None = None,
+    ci_status: str | None = None,
+    sort: str | None = None,
+) -> PullRequest | None:
+    """Return the next eligible GitHub pull request, or None when none are available."""
+    del repo, labels, draft, mergeable, ci_status, sort
+    return None
 
 
-def on_finished(_params: Any) -> dict[str, Any]:
-    return {}
+app.param_check("github_issues", _check_repo)
+app.param_check("github_pull_requests", _check_repo)
 
 
 MANIFEST = """
@@ -81,7 +98,7 @@ version = "{version}"
 protocol_version = 1
 runtime = "python"
 kind = "trigger"
-trigger_types = ["github-issues", "github-pull-requests"]
+trigger_types = ["github_issues", "github_pull_requests"]
 
 [launch]
 type = "executable"
@@ -92,21 +109,9 @@ args = ["-m", "curupira_official.github_ext"]
 
 def main() -> None:
     if "--curupira-print-manifest" in sys.argv:
-        print(MANIFEST.format(version=__version__, python=sys.executable))
+        app.print_manifest(MANIFEST)
         return
-    serve(
-        name="curupira-github",
-        version=__version__,
-        triggers=_TRIGGERS,
-        agents=[],
-        handlers={
-            "trigger/validate": validate,
-            "trigger/schema": schema,
-            "trigger/poll": poll,
-            "trigger/onStarted": on_started,
-            "trigger/onFinished": on_finished,
-        },
-    )
+    app.run()
 
 
 if __name__ == "__main__":

@@ -167,14 +167,20 @@ async fn poll_all(
             hosts.get_mut(&ext_name).unwrap()
         };
 
-        let result = host.poll_trigger(
-            &automation.trigger_type,
-            &automation.configuration,
-            preview,
-            settings.settings.polling.batch_size,
-        )?;
-        for value in result.tasks {
-            tasks.push(task_from_extension_value(settings, automation, value)?);
+        let batch_size = settings.settings.polling.batch_size.max(1);
+        for _ in 0..batch_size {
+            let result = host.poll_trigger(
+                &automation.trigger_type,
+                &automation.configuration,
+                preview,
+                batch_size,
+            )?;
+            match result.task {
+                None => break,
+                Some(value) => {
+                    tasks.push(task_from_extension_value(settings, automation, value)?);
+                }
+            }
         }
     }
 

@@ -34,7 +34,7 @@ Current version: `1`. Compatible range for this host: `1..=1`.
 | `describe` | host → ext | List triggers and agents |
 | `trigger/schema` | host → ext | JSON Schema + prompt fields |
 | `trigger/validate` | host → ext | Validate an automation table |
-| `trigger/poll` | host → ext | Discover available tasks |
+| `trigger/poll` | host → ext | Discover the next available task (`task` object or JSON `null`). `null` ends the round; never return a task array. |
 | `trigger/onStarted` | host → ext | Lifecycle before coding agent |
 | `trigger/onFinished` | host → ext | Lifecycle after coding agent |
 | `agent/buildArguments` | host → ext | Build argv for a coding-agent CLI |

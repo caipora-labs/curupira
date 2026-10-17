@@ -25,8 +25,8 @@ configuration; `run` / `run --watch` / `tui` dispatch work. One process holds
 - **Extensions:** separate OS processes. Discovery reads `curupira-extension.toml` only
   (never executes code to list). Launch via argv (executable / `uvx` / `npx`), never a
   shell string.
-- **Python package:** thin `curupira.__version__` + `curupira_official.*` extension
-  modules. No Pluggy. No in-process plugin import API.
+- **Python package:** thin `curupira.__version__`, declarative `curupira_sdk`, and
+  `curupira_official.*` extension modules. No Pluggy. No in-process plugin import API.
 
 ```
 CLI (Rust) --JSON-RPC/stdio--> extension process (Python / Node / …)
@@ -42,8 +42,10 @@ CLI (Rust) --JSON-RPC/stdio--> extension process (Python / Node / …)
 | `crates/curupira/` | Rust CLI and host logic |
 | `crates/curupira-protocol/` | Framing, manifests, JSON-RPC types |
 | `python/curupira/` | Version export / `python -m curupira` shim |
+| `python/curupira_sdk/` | Declarative extension SDK (`curupira-sdk`) |
 | `python/curupira_official/` | Official extension servers |
 | `plugins/` | Official + test-fixture manifests |
+| `plugins/sdk-python/` | Packaged `curupira-sdk` distribution metadata |
 | `protocol/` | Wire protocol docs |
 | `tests/` | Python packaging / manifest tests |
 | `crates/curupira/tests/` | Rust CLI and extension tests |

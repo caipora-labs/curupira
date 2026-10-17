@@ -96,7 +96,7 @@ timezone = "UTC"
 provider = "opencode"
 
 [automations.resolve-ready-issues]
-trigger_type = "github-issues"
+trigger_type = "github_issues"
 repository = "api"
 repo = "acme/api"
 labels = ["agent-ready"]
@@ -115,12 +115,12 @@ into every task identity. `repository` selects a `[repositories.<alias>]` checko
 full Git `remote` URL (and optional `path` / `setup_script`). `trigger_type` selects the
 source:
 
-- `"github-issues"` / `"github-pull-requests"` — discover matching GitHub issues and pull
+- `"github_issues"` / `"github_pull_requests"` — discover matching GitHub issues and pull
   requests; see the
   [GitHub task source guide](https://caipora-labs.github.io/curupira/github/)
-- `"azure-cli-pull-requests"` — lists Azure DevOps pull requests with `az repos pr list`
-- `"trello-cli-cards"` — discovers cards from a configured board with Scale-Flow's `trello-cli`
-- `"monday-items"` — discovers board items through the monday.com GraphQL API; see the
+- `"azure_cli_pull_requests"` — lists Azure DevOps pull requests with `az repos pr list`
+- `"trello_cli_cards"` — discovers cards from a configured board with Scale-Flow's `trello-cli`
+- `"monday_items"` — discovers board items through the monday.com GraphQL API; see the
   [monday.com task source guide](https://caipora-labs.github.io/curupira/monday/)
 - `"cron"` — produces occurrences from `schedule` instead of querying a forge
 

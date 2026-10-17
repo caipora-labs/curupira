@@ -44,7 +44,7 @@ pub const METHOD_DESCRIBE: &str = "describe";
 pub const METHOD_TRIGGER_SCHEMA: &str = "trigger/schema";
 /// Method: validate an automation configuration object.
 pub const METHOD_TRIGGER_VALIDATE: &str = "trigger/validate";
-/// Method: discover currently available tasks (poll).
+/// Method: discover the next available task (poll). Returns at most one item.
 pub const METHOD_TRIGGER_POLL: &str = "trigger/poll";
 /// Method: lifecycle — task about to start coding agent.
 pub const METHOD_TRIGGER_ON_STARTED: &str = "trigger/onStarted";
@@ -139,7 +139,20 @@ pub struct TriggerPollParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TriggerPollResult {
-    pub tasks: Vec<Value>,
+    /// Next task payload, or `null` when no item is available this call.
+    #[serde(default, deserialize_with = "deserialize_optional_task")]
+    pub task: Option<Value>,
+}
+
+fn deserialize_optional_task<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<Value>::deserialize(deserializer)?;
+    match value {
+        None | Some(Value::Null) => Ok(None),
+        Some(other) => Ok(Some(other)),
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -181,4 +194,30 @@ pub struct InteractiveLaunchSpec {
     pub args: Vec<String>,
     #[serde(default)]
     pub env: Vec<(String, String)>,
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::TriggerPollResult;
+
+    #[test]
+    fn poll_result_accepts_null_task() {
+        let parsed: TriggerPollResult = serde_json::from_value(json!({"task": null})).unwrap();
+        assert!(parsed.task.is_none());
+    }
+
+    #[test]
+    fn poll_result_accepts_missing_task_as_none() {
+        let parsed: TriggerPollResult = serde_json::from_value(json!({})).unwrap();
+        assert!(parsed.task.is_none());
+    }
+
+    #[test]
+    fn poll_result_accepts_object_task() {
+        let parsed: TriggerPollResult =
+            serde_json::from_value(json!({"task": {"id": "1", "title": "t"}})).unwrap();
+        assert_eq!(parsed.task.unwrap()["id"], "1");
+    }
 }

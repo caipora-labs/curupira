@@ -6,7 +6,7 @@ import sys
 from typing import Any
 
 from curupira_official import __version__
-from curupira_official._rpc import RpcError, serve
+from curupira_sdk import Curupira, RpcError
 
 _AGENTS = [
     {"provider": "opencode", "executable": "opencode"},
@@ -21,6 +21,8 @@ _AGENTS = [
 ]
 
 _EXECUTABLE = {a["provider"]: a["executable"] for a in _AGENTS}
+
+app = Curupira(name="curupira-agents", version=__version__, agents=_AGENTS)
 
 
 def build_arguments(params: Any) -> dict[str, Any]:
@@ -136,18 +138,11 @@ args = ["-m", "curupira_official.agents_ext"]
 
 def main() -> None:
     if "--curupira-print-manifest" in sys.argv:
-        print(MANIFEST.format(version=__version__, python=sys.executable))
+        app.print_manifest(MANIFEST)
         return
-    serve(
-        name="curupira-agents",
-        version=__version__,
-        triggers=[],
-        agents=_AGENTS,
-        handlers={
-            "agent/buildArguments": build_arguments,
-            "agent/interactiveLaunch": interactive_launch,
-        },
-    )
+    app.on("agent/buildArguments", build_arguments)
+    app.on("agent/interactiveLaunch", interactive_launch)
+    app.run()
 
 
 if __name__ == "__main__":

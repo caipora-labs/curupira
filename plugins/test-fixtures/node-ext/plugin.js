@@ -41,7 +41,7 @@ async function* frames(stream) {
     } else if (req.method === "trigger/validate") {
       result = { ok: true, configuration: (req.params || {}).configuration };
     } else if (req.method === "trigger/poll") {
-      result = { tasks: [] };
+      result = { task: null };
     } else if (req.method === "shutdown") {
       writeFrame({ jsonrpc: "2.0", id, result: {} });
       return;

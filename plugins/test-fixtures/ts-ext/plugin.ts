@@ -49,7 +49,7 @@ async function* frames(stream: NodeJS.ReadStream): AsyncGenerator<any> {
         },
       });
     } else if (req.method === "trigger/poll") {
-      writeFrame({ jsonrpc: "2.0", id, result: { tasks: [] } });
+      writeFrame({ jsonrpc: "2.0", id, result: { task: null } });
     } else if (req.method === "shutdown") {
       writeFrame({ jsonrpc: "2.0", id, result: {} });
       return;

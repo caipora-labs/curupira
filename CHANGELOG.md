@@ -16,16 +16,31 @@ All notable changes to this project are documented here. The format follows
   Official integrations live under `plugins/` / `python/curupira_official/`. **cron** remains
   built into the Rust binary. New commands: `plugins install|uninstall|info` (plus existing
   `plugins list`).
-- The supported Python import surface remains `curupira.__version__` only. Third-party
-  packages must implement the process protocol instead of `curupira.triggers` /
-  `curupira.agents` entry points.
+- The supported Python import surface remains `curupira.__version__` only (plus the
+  shipped `curupira_sdk` / `curupira_official` modules). Third-party packages must
+  implement the process protocol instead of `curupira.triggers` / `curupira.agents`
+  entry points.
+- **`trigger/poll` returns a single task:** `{ "task": <object|null> }` instead of
+  `{ "tasks": [...] }`. The host calls poll repeatedly until `null` or
+  `settings.polling.batch_size`. `null` ends the current round and is not an error.
+- **Trigger type names** match Python function names with underscores:
+  `github_issues`, `github_pull_requests`, `azure_cli_pull_requests`,
+  `trello_cli_cards`, `monday_items` (replacing hyphenated names). Update
+  `trigger_type` in existing settings TOML accordingly.
+- The third-party SDK distribution is renamed from `curupira-extension` to
+  `curupira-sdk` (import `curupira_sdk`).
 - The interactive `tui` command currently runs continuous dispatch with status lines
   (ratatui dashboard parity is follow-up work). Official trigger `poll` implementations
-  return empty task lists until forge discovery is fully reattached to the process
+  return `task: null` until forge discovery is fully reattached to the process
   protocol; configuration validation and agent argv building are live.
 
 ### Added
 
+- **`curupira-sdk`** (`curupira_sdk`): declarative Python SDK for process extensions.
+  Register triggers with `@app.trigger` (no parentheses); parameter schemas and defaults
+  come from the function signature; each poll returns one item or `None`. Optional
+  extra: `curupira-sdk[pydantic]` for Pydantic v2 models. Official extensions use the SDK;
+  the CLI wheel ships `curupira_sdk` alongside `curupira_official`.
 - Global `[settings].log_level` (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`; default
   `INFO`) and the process-wide CLI flag `--log-level` control console, file, and TUI
   verbosity. More internal debug logs cover feed construction, discovery batches,

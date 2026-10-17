@@ -3,36 +3,31 @@
 from __future__ import annotations
 
 import sys
-from typing import Any
+from dataclasses import dataclass
 
 from curupira_official import __version__
-from curupira_official._rpc import RpcError, serve
+from curupira_sdk import Curupira
 
-_TRIGGERS = [
-    {
-        "trigger_type": "trello-cli-cards",
-        "prompt_fields": ["id", "name", "url", "desc", "list_name"],
-    }
-]
+app = Curupira(name="curupira-trello", version=__version__)
 
 
-def validate(params: Any) -> dict[str, Any]:
-    config = dict((params or {}).get("configuration") or {})
-    for key in ("board_id", "repository", "prompt"):
-        if key not in config or config[key] in (None, ""):
-            raise RpcError(-32003, f"missing required field {key!r}")
-    return {"ok": True, "configuration": config}
+@dataclass
+class Card:
+    id: str
+    name: str
+    url: str
+    desc: str = ""
+    list_name: str = ""
 
 
-def schema(_params: Any) -> dict[str, Any]:
-    return {
-        "schema": {"type": "object"},
-        "prompt_fields": _TRIGGERS[0]["prompt_fields"],
-    }
-
-
-def poll(_params: Any) -> dict[str, Any]:
-    return {"tasks": []}
+@app.trigger
+def trello_cli_cards(
+    board_id: str,
+    list_ids: list[str] | None = None,
+) -> Card | None:
+    """Return the next eligible Trello card, or None when none are available."""
+    del board_id, list_ids
+    return None
 
 
 MANIFEST = """
@@ -42,7 +37,7 @@ version = "{version}"
 protocol_version = 1
 runtime = "python"
 kind = "trigger"
-trigger_types = ["trello-cli-cards"]
+trigger_types = ["trello_cli_cards"]
 
 [launch]
 type = "executable"
@@ -53,21 +48,9 @@ args = ["-m", "curupira_official.trello_ext"]
 
 def main() -> None:
     if "--curupira-print-manifest" in sys.argv:
-        print(MANIFEST.format(version=__version__, python=sys.executable))
+        app.print_manifest(MANIFEST)
         return
-    serve(
-        name="curupira-trello",
-        version=__version__,
-        triggers=_TRIGGERS,
-        agents=[],
-        handlers={
-            "trigger/validate": validate,
-            "trigger/schema": schema,
-            "trigger/poll": poll,
-            "trigger/onStarted": lambda _p: {},
-            "trigger/onFinished": lambda _p: {},
-        },
-    )
+    app.run()
 
 
 if __name__ == "__main__":

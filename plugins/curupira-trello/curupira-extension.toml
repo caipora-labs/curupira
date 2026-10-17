@@ -4,7 +4,7 @@ version = "0.2.0"
 protocol_version = 1
 runtime = "python"
 kind = "trigger"
-trigger_types = ["trello-cli-cards"]
+trigger_types = ["trello_cli_cards"]
 
 [launch]
 type = "executable"

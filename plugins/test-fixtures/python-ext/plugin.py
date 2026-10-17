@@ -45,7 +45,7 @@ def main() -> None:
         elif method == "trigger/validate":
             result = {"ok": True, "configuration": req.get("params", {}).get("configuration")}
         elif method == "trigger/poll":
-            result = {"tasks": []}
+            result = {"task": None}
         elif method == "shutdown":
             write_frame(json.dumps({"jsonrpc": "2.0", "id": req_id, "result": {}}).encode())
             return

@@ -202,7 +202,7 @@ impl AutomationTable {
         if self.extra.contains_key("schedule") {
             "cron"
         } else {
-            "github-issues"
+            "github_issues"
         }
     }
 }
@@ -446,6 +446,8 @@ pub fn expand_user(path: &str) -> PathBuf {
 pub fn resolve_automations(
     settings: &ApplicationSettings,
 ) -> Result<Vec<ResolvedAutomation>, CurupiraError> {
+    let registry = ExtensionRegistry::load().unwrap_or_else(|_| ExtensionRegistry::empty());
+    let mut host_cache: BTreeMap<String, ExtensionHost> = BTreeMap::new();
     let mut out = Vec::new();
     for (name, auto) in &settings.automations {
         let repo = settings
@@ -476,6 +478,30 @@ pub fn resolve_automations(
                     );
                 }
             }
+        } else if let Some(ext_name) = registry.extension_for_trigger(&trigger_type) {
+            let ext_name = ext_name.to_string();
+            let host = if let Some(h) = host_cache.get_mut(&ext_name) {
+                h
+            } else {
+                let installed = registry.get(&ext_name).ok_or_else(|| {
+                    CurupiraError::Plugin(format!("missing extension {ext_name}"))
+                })?;
+                let host = ExtensionHost::spawn(installed)?;
+                host_cache.insert(ext_name.clone(), host);
+                host_cache.get_mut(&ext_name).unwrap()
+            };
+            let result = host.validate_trigger(&trigger_type, &configuration)?;
+            if !result.ok {
+                return Err(CurupiraError::Config(format!(
+                    "automation {name:?}: {}",
+                    result
+                        .error
+                        .unwrap_or_else(|| "invalid configuration".into())
+                )));
+            }
+            if let Some(normalized) = result.configuration {
+                configuration = normalized;
+            }
         }
         let forge = forge_identity(&repo.remote);
         out.push(ResolvedAutomation {
@@ -489,6 +515,9 @@ pub fn resolve_automations(
             prompt: auto.prompt.clone(),
             checkout: auto.checkout.clone().unwrap_or_else(|| "worktree".into()),
         });
+    }
+    for host in host_cache.values_mut() {
+        let _ = host.shutdown();
     }
     Ok(out)
 }

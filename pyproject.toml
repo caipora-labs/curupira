@@ -55,6 +55,7 @@ include = [
   "plugins/**/*",
   "protocol/**/*",
   "python/curupira_official/**/*",
+  "python/curupira_sdk/**/*",
 ]
 
 [tool.pytest.ini_options]
