@@ -1,4 +1,10 @@
-"""Official Curupira trigger extension process (all providers)."""
+"""Official Curupira trigger extension process (all providers).
+
+Console script ``curupira-plugins`` (also ``python -m curupira_plugins``) speaks
+the extension protocol on stdin/stdout. End-user settings typically launch with::
+
+    uvx --from curupira-plugins curupira-plugins
+"""
 
 from __future__ import annotations
 
@@ -34,12 +40,12 @@ trigger_types = [
 ]
 
 [launch]
-type = "executable"
-program = "{python}"
-args = ["-m", "curupira_plugins"]
+type = "uvx"
+package = "curupira-plugins"
+executable = "curupira-plugins"
 
 [package]
-source = "bundled"
+source = "pip"
 name = "curupira-plugins"
 version = "{version}"
 """.strip()

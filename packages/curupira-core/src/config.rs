@@ -56,20 +56,38 @@ pub struct ApplicationSettings {
 
 /// One `[plugins.<alias>]` entry: launcher (`uvx` / `npx`) plus argv after it.
 ///
-/// Trigger types are discovered by spawning the process and calling `describe`.
+/// Trigger types are discovered by spawning the process and calling `describe`,
+/// then filtered by optional [`Self::tools`] globs.
 ///
 /// ```toml
 /// [plugins.plugins-py]
 /// type = "uvx"
-/// args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
+/// args = ["--from", "curupira-plugins", "curupira-plugins"]
+/// tools = ["github-*"]
 ///
 /// [plugins.acme-node]
 /// type = "npx"
 /// args = ["--yes", "@acme/curupira-ext@1.2.3"]
+/// tools = ["*", "!internal-*"]
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PluginConfiguration {
+    /// How to start the extension process.
+    #[serde(flatten)]
+    pub launcher: PluginLauncher,
+    /// Glob patterns selecting which local trigger names to expose.
+    ///
+    /// Empty (default) keeps every trigger from `describe`. Positive patterns
+    /// (`github-*`, `*`) are includes; patterns starting with `!` (`!monday-*`)
+    /// are excludes.
+    #[serde(default)]
+    pub tools: Vec<String>,
+}
+
+/// Launcher binary and argv for a `[plugins.<alias>]` entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
-pub enum PluginConfiguration {
+pub enum PluginLauncher {
     /// Run `uvx` with the given args (never a shell string).
     Uvx {
         /// Arguments passed to `uvx`.
@@ -85,8 +103,8 @@ pub enum PluginConfiguration {
 impl PluginConfiguration {
     /// Resolve `uvx`/`npx` on PATH and return `(program, args)` for the child process.
     pub fn resolve_command(&self) -> Result<(String, Vec<String>), CurupiraError> {
-        match self {
-            Self::Uvx { args } => {
+        match &self.launcher {
+            PluginLauncher::Uvx { args } => {
                 if args.is_empty() {
                     return Err(CurupiraError::Config(
                         "plugins entry type = \"uvx\" requires a non-empty args array".into(),
@@ -100,7 +118,7 @@ impl PluginConfiguration {
                 })?;
                 Ok((uvx.to_string_lossy().into_owned(), args.clone()))
             }
-            Self::Npx { args } => {
+            PluginLauncher::Npx { args } => {
                 if args.is_empty() {
                     return Err(CurupiraError::Config(
                         "plugins entry type = \"npx\" requires a non-empty args array".into(),

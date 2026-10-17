@@ -88,7 +88,8 @@ provider = "opencode"
 
 [plugins.plugins-py]
 type = "uvx"
-args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
+args = ["--from", "curupira-plugins", "curupira-plugins"]
+tools = ["*"]
 
 [automations.resolve-ready-issues]
 trigger_type = "plugins-py/github-issues"
@@ -132,21 +133,28 @@ implemented in the Rust core for that future surface.
 `[plugins.<alias>]` registers a trigger under a settings alias and declares how to launch
 it. `uvx` and `npx` are independent launchers; `args` are passed to that tool as argv
 (never a shell string). The host discovers trigger types by spawning the process and
-calling `describe` — put the distribution name in `args` (for example `--from`), not as a
-separate field:
+calling `describe`, then applies an optional `tools` filter:
 
 ```toml
 [plugins.plugins-py]
 type = "uvx"
-args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
+args = ["--from", "curupira-plugins", "curupira-plugins"]
+tools = ["github-*"]
 
 [plugins.acme-node]
 type = "npx"
 args = ["--yes", "@acme/curupira-ext@1.2.3"]
+tools = ["*", "!internal-*"]
 ```
 
 - `type` (required): `uvx` or `npx`.
-- `args` (required, non-empty): arguments after the launcher binary.
+- `args` (required, non-empty): arguments after the launcher binary. Official Python
+  plugins expose a `curupira-plugins` console script, so end users run
+  `uvx --from curupira-plugins curupira-plugins` (no `python -m`).
+- `tools` (optional): glob list selecting which local trigger names to expose. Empty or
+  omitted keeps every trigger from `describe`. Positive patterns (`github-*`, `*`) are
+  includes; patterns starting with `!` (`!monday-*`) are excludes. A name must match an
+  include when any includes are set, and must not match any exclude.
 
 Automations then set `trigger_type = "<alias>/<local-trigger>"`. Local trigger names are
 kebab-case names declared by the extension (for example `github-issues`). The official

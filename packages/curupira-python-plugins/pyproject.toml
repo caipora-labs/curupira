@@ -6,6 +6,9 @@ requires-python = ">=3.11"
 license = "MIT"
 dependencies = ["curupira-sdk[pydantic]==0.2.0"]
 
+[project.scripts]
+curupira-plugins = "curupira_plugins.__main__:main"
+
 [project.urls]
 Homepage = "https://github.com/caipora-labs/curupira"
 Repository = "https://github.com/caipora-labs/curupira"

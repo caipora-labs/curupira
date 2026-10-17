@@ -103,17 +103,20 @@ provider = "cursor"
 
 # Register trigger packages under a TOML alias with an independent launcher.
 # type is "uvx" or "npx"; args are passed to that tool (never a shell string).
-# Trigger types are discovered by spawning the process and calling describe.
+# Trigger types are discovered by spawning the process and calling describe,
+# then filtered by optional tools globs (github-*, !monday-*, *).
 # Automations address triggers as <alias>/<local-trigger>
 # (for example plugins-py/github-issues).
 [plugins.plugins-py]
 type = "uvx"
-args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
+args = ["--from", "curupira-plugins", "curupira-plugins"]
+tools = ["*"]
 
 # Node example:
 # [plugins.acme-node]
 # type = "npx"
 # args = ["--yes", "@acme/curupira-ext@1.2.3"]
+# tools = ["*", "!internal-*"]
 
 [automations.resolve-ready-issues]
 trigger_type = "plugins-py/github-issues"

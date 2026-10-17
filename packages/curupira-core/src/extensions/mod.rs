@@ -5,3 +5,4 @@ pub mod host;
 pub mod manager;
 pub mod namespace;
 pub mod registry;
+pub mod tools;

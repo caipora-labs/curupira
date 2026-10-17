@@ -71,8 +71,13 @@ independent launcher (`uvx` or `npx`) and args; automations then use
 ```toml
 [plugins.plugins-py]
 type = "uvx"
-args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
+args = ["--from", "curupira-plugins", "curupira-plugins"]
+tools = ["*"]
 ```
+
+The package ships a `curupira-plugins` console script, so `uvx` runs it directly (no
+`python -m`). Use `tools` to keep only matching local triggers (`github-*`) or to drop
+matches (`!monday-*`).
 
 | Local trigger (in the package) | Example automation `trigger_type` |
 | --- | --- |
@@ -161,7 +166,8 @@ table with trigger arguments as siblings:
 ```toml
 [plugins.plugins-py]
 type = "uvx"
-args = ["--from", "curupira-plugins", "python", "-m", "curupira_plugins"]
+args = ["--from", "curupira-plugins", "curupira-plugins"]
+tools = ["github-*"]
 
 [automations.resolve-ready-issues]
 trigger_type = "plugins-py/github-issues"

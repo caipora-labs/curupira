@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use crate::config::PluginConfiguration;
 use crate::error::CurupiraError;
 use crate::extensions::host::ExtensionHost;
+use crate::extensions::tools::tool_allowed;
 
 /// Resolved binding from a fully-qualified trigger type to an extension process.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +42,8 @@ impl PluginNamespaceIndex {
                     "plugins.{alias}: extension describe returned no triggers"
                 )));
             }
+
+            let mut matched = 0_usize;
             for trigger in described.triggers {
                 let local = trigger.trigger_type;
                 if local.contains('/') {
@@ -48,6 +51,10 @@ impl PluginNamespaceIndex {
                         "plugins.{alias}: trigger names must be local (no '/'); got {local:?}"
                     )));
                 }
+                if !tool_allowed(&local, &config.tools) {
+                    continue;
+                }
+                matched += 1;
                 let full = format!("{alias}/{local}");
                 if let Some(other) = by_full.get(&full) {
                     return Err(CurupiraError::Config(format!(
@@ -64,6 +71,12 @@ impl PluginNamespaceIndex {
                         launch: config.clone(),
                     },
                 );
+            }
+            if matched == 0 {
+                return Err(CurupiraError::Config(format!(
+                    "plugins.{alias}: tools filter matched no triggers (tools = {:?})",
+                    config.tools
+                )));
             }
         }
         Ok(Self { by_full })

@@ -54,10 +54,8 @@ fn validate_example_config() {
         .to_string_lossy()
         .into_owned();
     let rewritten = example.replace(
-        "args = [\"--from\", \"curupira-plugins\", \"python\", \"-m\", \"curupira_plugins\"]",
-        &format!(
-            "args = [\"--from\", \"{plugins_path}\", \"python\", \"-m\", \"curupira_plugins\"]"
-        ),
+        "args = [\"--from\", \"curupira-plugins\", \"curupira-plugins\"]",
+        &format!("args = [\"--from\", \"{plugins_path}\", \"curupira-plugins\"]"),
     );
     let dir = tempfile::tempdir().expect("tempdir");
     let config_path = dir.path().join("settings.toml");
