@@ -392,9 +392,7 @@ fn validate_identifier_keys(settings: &ApplicationSettings) -> Result<(), Curupi
     for (alias, plugin) in &settings.plugins {
         // Fail closed early if the launcher is missing or args are empty.
         plugin.resolve_command().map_err(|err| match err {
-            CurupiraError::Config(msg) => {
-                CurupiraError::Config(format!("plugins.{alias}: {msg}"))
-            }
+            CurupiraError::Config(msg) => CurupiraError::Config(format!("plugins.{alias}: {msg}")),
             other => other,
         })?;
     }

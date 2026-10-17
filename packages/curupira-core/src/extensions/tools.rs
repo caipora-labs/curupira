@@ -29,9 +29,7 @@ pub fn tool_allowed(name: &str, patterns: &[String]) -> bool {
     if !included {
         return false;
     }
-    !excludes
-        .iter()
-        .any(|pattern| wildcard_match(pattern, name))
+    !excludes.iter().any(|pattern| wildcard_match(pattern, name))
 }
 
 /// Simple glob: only `*` is special (matches any sequence, including empty).
