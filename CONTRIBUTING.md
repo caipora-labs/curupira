@@ -181,85 +181,44 @@ permanent ignore.
 
 ## Releases
 
-Versioning is `MAJOR.MINOR.PATCH`. The version is kept in lockstep across every package; [AGENTS.md](AGENTS.md#versions) lists each place.
-Built wheels and sdists use that string as-is, so the Git tag and the file match
-character for character after the tag's leading `v`.
+Each package has its own version and is released by its own git tag,
+`publish/<project>/<version>`, where `<project>` is `curupira`, `curupira-sdk`, or
+`curupira-plugins`, and `<version>` is a PEP 440 version such as `0.3.0dev0`. The tag is
+the only source of a release version, and [AGENTS.md](AGENTS.md#versions) lists how each
+package reads it:
 
-### Release-candidate checklist
+- `curupira-sdk` and `curupira-plugins` read the tag through hatch-vcs.
+- `curupira` takes its version from the Rust crate's `Cargo.toml`, which the release
+  workflow stamps from the tag before building. The Rust crate and the plugin manifest
+  cannot read git, so their checked-in versions are placeholders.
 
-Run this checklist before tagging either a `.devN` rehearsal or a stable cut.
-`publish.yml` publishes tags that contain `.dev` to real PyPI (environment `pypi`),
-so the checklist must pass before any tag is pushed. A maintainer decides when to tag;
-do not tag, publish, or release from automation that skips these steps.
+One workflow, `.github/workflows/publish.yml`, releases every project: it resolves the tag,
+builds all distributions, install-smoke-tests the tagged project, publishes it to PyPI
+(environment `pypi`, Trusted Publishing), and attaches a GitHub Release for stable
+versions only. Before anything is uploaded, the tag must name a known project, the
+distributions of that project must carry the tag's version (`verify_dist_version.py`), and
+the commit must have green CI (`require_ci_checks.py`).
 
-1. Bump the version as listed in [AGENTS.md](AGENTS.md#versions) and move `CHANGELOG.md` entries as
-   appropriate for the cut.
-2. Run the full verification suite from [AGENTS.md](AGENTS.md) (`pytest`, Ruff, Pyrefly,
-   example-config validate, and docs build when docs changed).
-3. Build and gate packaging metadata:
+### Cutting a release
 
-```bash
-uv run --no-sync python packages/curupira-python/scripts/check_packaged_readme.py
-```
-
-4. Inspect the packaged long description that PyPI will render (for example
-   `tar -xOf dist/curupira-*.tar.gz '*/PKG-INFO' | sed -n '/^$/,$p'` or the
-   `METADATA` payload inside the wheel) and confirm it says Curupira, not OpsCli.
-5. Wait for CI green on that commit, then a maintainer tags and pushes
-   `vX.Y.Z.devN` or `vX.Y.Z`.
-
-### PyPI development rehearsal
-
-Tag `vX.Y.Z.devN` publishes package `X.Y.Z.devN` (PEP 440) to PyPI. Bump the version
-in every package (see [AGENTS.md](AGENTS.md#versions)), commit that change, and tag the same commit. Tag
-`v0.1.0.dev0` already exists and must not be reused. The next rehearsal is
-`0.1.0.dev1` with tag `v0.1.0.dev1`.
-
-1. Bump the version to the next unused `X.Y.Z.devN` (see [AGENTS.md](AGENTS.md#versions)) and commit.
-2. Wait until CI is green on that commit. The tag workflow publishes only after the
-   Ubuntu CI checks (lint, type check, Python test matrix, and distribution smoke
-   tests) have succeeded for the tagged SHA.
-3. Tag that commit and push the tag:
+1. Make sure CI is green on the commit to release. Run the verification suite from
+   [AGENTS.md](AGENTS.md) and `packages/curupira-python/scripts/check_packaged_readme.py`.
+2. Move the `Unreleased` entries in `CHANGELOG.md` into a version section if the release
+   needs one.
+3. Tag the commit and push the tag:
 
 ```bash
-git tag v0.1.0.dev1
-git push origin v0.1.0.dev1
+git tag publish/curupira-sdk/0.1.0dev0
+git push origin publish/curupira-sdk/0.1.0dev0
 ```
 
-`publish.yml` builds the wheels and sdists of every workspace package once, then install-smoke-tests that
-wheel on `ubuntu-latest` with `curupira --config packages/curupira-core/curupira.example.toml validate`. The
-publish job checks that the distribution version equals the tag without its leading
-`v` and uploads with Trusted Publishing (`id-token: write`, environment `pypi`). Use
-the canonical dotted form `vX.Y.Z.devN`. PyPI keeps an uploaded file, so each
-rehearsal needs a new suffix.
+Publish in dependency order: `curupira-sdk`, then `curupira-plugins` (it depends on the SDK),
+then `curupira` (its extras depend on `curupira-plugins`). PyPI never accepts the same file
+twice, so a fix needs a new version.
 
-Tags that contain `.dev` do not open a GitHub Release (`release.yml` still skips
-them). `testpypi.yml` is unchanged: the same `v*.dev*` tags, and a manual
-`workflow_dispatch` from `main`, still target TestPyPI. The rehearsal that gates the
-first stable publish is the real PyPI upload from `publish.yml`.
+### Trusted Publishing
 
-Stable `vX.Y.Z` tags keep the production path below. Issue #103 publishes `0.1.0`
-from a commit whose `__version__` is `0.1.0`.
-
-To cut a release:
-
-1. Move the `Unreleased` entries in `CHANGELOG.md` into a new version section.
-2. Bump the version in every package to the stable `X.Y.Z` version (see [AGENTS.md](AGENTS.md#versions)).
-3. Complete the [release-candidate checklist](#release-candidate-checklist) (verification
-   suite, `packages/curupira-python/scripts/check_packaged_readme.py`, inspect packaged README).
-4. Rehearse with a `vX.Y.Z.devN` tag on PyPI (see above) before the first production
-   publication.
-5. Tag the validated commit as `vX.Y.Z` and push the tag. The `publish.yml` workflow
-   publishes that version to PyPI; the `release.yml` workflow attaches the distributions
-   to the matching GitHub release.
-
-PyPI publishing uses Trusted Publishing (OIDC), so no API tokens are stored. Before
-publishing, a PyPI maintainer registers this repository as a trusted publisher for the
-`curupira` project with GitHub owner `caipora-labs`, repository `curupira`, workflow
-filename `publish.yml`, and environment `pypi`. Development tags `vX.Y.Z.devN` use
-that same publisher. `testpypi.yml` remains a separate workflow with environment
-`testpypi`, workflow filename `testpypi.yml`, and audience `testpypi`. It uploads to
-`https://test.pypi.org/legacy/` and smoke-tests that installation. The publish
-workflow checks that the Ubuntu CI checks (lint, type check, Python test matrix,
-and distribution smoke tests) succeeded for the commit
-(`.github/scripts/require_ci_checks.py`).
+PyPI accepts an upload only from a trusted publisher registered for the project: owner
+`caipora-labs`, repository `curupira`, workflow `publish.yml`, and environment `pypi`. A
+project that does not exist on PyPI yet, such as `curupira-sdk` before its first release,
+must be registered as a pending publisher with those values before its tag is pushed.

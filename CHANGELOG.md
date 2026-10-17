@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **One publish pipeline, versioned per package.** `curupira`, `curupira-sdk`, and
+  `curupira-plugins` each have their own version, released by a git tag
+  `publish/<project>/<version>`. The tag supplies the version: hatch-vcs reads it for the
+  SDK and plugins, and `publish.yml` stamps it into the Rust crate and the plugin manifest.
+  `publish.yml` replaces the former `v*` publish and release workflows and the TestPyPI
+  rehearsal workflow, which are removed.
 - **Official triggers ship as one optional package.** `packages/curupira-python-plugins/`
   publishes PyPI `curupira-plugins` (import `curupira_plugins`) and depends on
   `curupira-sdk`. It replaces the former `curupira-github` / `curupira-azure` /
