@@ -12,7 +12,7 @@ scheduling, and execution pipeline: `run` drains currently available tasks, whil
 ## Requirements
 
 - A supported platform wheel from PyPI (the CLI is a Rust binary; Python 3.11+ is
-  used for packaging and official trigger extensions)
+  used for packaging and optional official trigger extras)
 - [`gh`](https://cli.github.com/) installed and authenticated (`gh auth login`) when
   using GitHub automations
 - Only the CLIs used by the configured profiles need to be installed:
@@ -31,12 +31,20 @@ scheduling, and execution pipeline: `run` drains currently available tasks, whil
 
 ## Installation
 
-Install the published package from PyPI (ships the Rust CLI):
+Install the published package from PyPI (ships the Rust CLI only):
 
 ```bash
 uv tool install curupira
 # or
 pip install curupira
+```
+
+Official triggers (`curupira-plugins`) and `curupira-sdk` are optional. Install them when
+you need forge task sources:
+
+```bash
+pip install 'curupira[extensions]'  # installs curupira-plugins (+ curupira-sdk)
+pip install 'curupira[github]'      # same package; forge-named extras are aliases
 ```
 
 To pin a specific version, use `uv tool install "curupira==X.Y.Z"`.

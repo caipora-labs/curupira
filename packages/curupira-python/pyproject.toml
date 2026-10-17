@@ -19,11 +19,18 @@ classifiers = [
   "Programming Language :: Rust",
   "Typing :: Typed",
 ]
-# The CLI is the Rust binary. Official trigger extensions ship as curupira-plugins
-# (depends on curupira-sdk) and run as a separate process.
-dependencies = [
-  "curupira-plugins==0.2.0",
-]
+# The CLI is the Rust binary from curupira-core (maturin). Official triggers ship as
+# one optional package (curupira-plugins → curupira-sdk); install via extras or
+# `curupira plugins install`.
+dependencies = []
+
+[project.optional-dependencies]
+# Per-forge extras all install the consolidated package (one process, all triggers).
+github = ["curupira-plugins==0.2.0"]
+azure = ["curupira-plugins==0.2.0"]
+trello = ["curupira-plugins==0.2.0"]
+monday = ["curupira-plugins==0.2.0"]
+extensions = ["curupira-plugins==0.2.0"]
 
 [project.urls]
 Homepage = "https://github.com/caipora-labs/curupira"

@@ -10,11 +10,12 @@ workspace**: every package lives under `packages/`, and there are no symlinks. D
 repo-level config stay at the root.
 
 - **`packages/curupira-core/`** — Rust CLI host (crate `curupira`, binaries `curupira` and `curu`).
-- **`packages/curupira-python/`** — PyPI distribution `curupira` (maturin). Ships the binary and a thin
-  `curupira.__version__` / `python -m curupira` shim.
+- **`packages/curupira-python/`** — PyPI distribution `curupira` (maturin). CLI-only wheel (Rust
+  binary + thin `curupira.__version__` shim). Official triggers are optional extras.
 - **`packages/curupira-python-sdk/`** — PyPI distribution `curupira-sdk` (import `curupira_sdk`).
 - **`packages/curupira-python-plugins/`** — PyPI distribution `curupira-plugins` (import
   `curupira_plugins`). Official trigger extensions in one package; depends on `curupira-sdk`.
+  Install via `curupira[extensions]` (or forge-named extras) / `curupira plugins install`.
 
 Automations are configured in TOML (`~/.curupira/settings.toml`). Register packages under
 `[plugins.<alias>]` (for example `[plugins.plugins-py]`); automations address triggers as
@@ -70,8 +71,8 @@ CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_plugins)
 ## Versions
 
 All packages share one version. Bump them together: `version` in `packages/curupira-core/Cargo.toml`
-and every `pyproject.toml` under `packages/`; the `==` pin on `curupira-plugins` in
-`packages/curupira-python/pyproject.toml` and on `curupira-sdk` in the plugins
+and every `pyproject.toml` under `packages/`; the `==` pins on optional `curupira-plugins`
+extras in `packages/curupira-python/pyproject.toml` and on `curupira-sdk` in the plugins
 `pyproject.toml`; and `__version__` in `packages/curupira-python/src/curupira/__init__.py`,
 `packages/curupira-python-sdk/src/curupira_sdk/__init__.py`, and
 `packages/curupira-python-plugins/src/curupira_plugins/__init__.py`.

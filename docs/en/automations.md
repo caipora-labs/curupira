@@ -38,6 +38,8 @@ repositories and boards where you trust everyone who can write text.
 
    ```bash
    uv tool install curupira
+   # forge triggers are optional extras, for example:
+   # uv tool install 'curupira[github]'
    ```
 
 2. Copy a minimal settings file (or start from `curupira.example.toml`), then validate

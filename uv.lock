@@ -369,12 +369,33 @@ wheels = [
 name = "curupira"
 version = "0.2.0"
 source = { editable = "packages/curupira-python" }
-dependencies = [
+
+[package.optional-dependencies]
+azure = [
+    { name = "curupira-plugins" },
+]
+extensions = [
+    { name = "curupira-plugins" },
+]
+github = [
+    { name = "curupira-plugins" },
+]
+monday = [
+    { name = "curupira-plugins" },
+]
+trello = [
     { name = "curupira-plugins" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "curupira-plugins", editable = "packages/curupira-python-plugins" }]
+requires-dist = [
+    { name = "curupira-plugins", marker = "extra == 'azure'", editable = "packages/curupira-python-plugins" },
+    { name = "curupira-plugins", marker = "extra == 'extensions'", editable = "packages/curupira-python-plugins" },
+    { name = "curupira-plugins", marker = "extra == 'github'", editable = "packages/curupira-python-plugins" },
+    { name = "curupira-plugins", marker = "extra == 'monday'", editable = "packages/curupira-python-plugins" },
+    { name = "curupira-plugins", marker = "extra == 'trello'", editable = "packages/curupira-python-plugins" },
+]
+provides-extras = ["github", "azure", "trello", "monday", "extensions"]
 
 [[package]]
 name = "curupira-plugins"

@@ -7,10 +7,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- **Official triggers ship as one package.** `packages/curupira-python-plugins/` publishes
-  PyPI `curupira-plugins` (import `curupira_plugins`) and depends on `curupira-sdk`. The
-  `curupira` wheel depends on `curupira-plugins` instead of the former
-  `curupira-github` / `curupira-azure` / `curupira-trello` / `curupira-monday` distributions.
+- **Official triggers ship as one optional package.** `packages/curupira-python-plugins/`
+  publishes PyPI `curupira-plugins` (import `curupira_plugins`) and depends on
+  `curupira-sdk`. It replaces the former `curupira-github` / `curupira-azure` /
+  `curupira-trello` / `curupira-monday` distributions. The `curupira` wheel stays
+  CLI-only; install triggers with extras (`curupira[extensions]`, or the forge-named
+  extras that install the same package) or `curupira plugins install`.
 - **Plugin registration aliases.** Settings use `[plugins.<alias>]` with a `package` field
   (for example `[plugins.plugins-py]` / `package = "curupira-plugins"`). Automations address
   triggers as `<alias>/<local-trigger>` (for example `plugins-py/github-issues`).
@@ -44,16 +46,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **`curupira` installs the Rust CLI only.** The PyPI wheel does not depend on
+  `curupira-sdk` or `curupira-plugins`. Install forge sources with optional extras
+  (`curupira[extensions]` or forge-named extras) or with `curupira plugins install`.
+  Built-in cron needs no extra package. `curupira-sdk` remains a separate distribution for
+  extension authors and a transitive dependency of `curupira-plugins`.
 - **Repository is a uv workspace under `packages/`:** `packages/curupira-core` (Rust crate; the
   protocol crate is now the `protocol` module of the core), `packages/curupira-python` (PyPI
-  `curupira`), `packages/curupira-python-sdk` (`curupira-sdk`), and one package per official
-  trigger under `packages/plugins/`. Each package owns its tests. No symlinks remain. Build all
-  distributions with `uv build --all-packages --out-dir dist`.
-- **Official trigger modules are renamed** from `curupira_official.<name>_ext` to
-  `curupira_<name>` (`curupira_github`, `curupira_azure`, `curupira_trello`, `curupira_monday`).
-  Each is published as its own `curupira-<name>` distribution, and `curupira` depends on them.
-  Extension manifests installed before this change still launch `curupira_official.*`; reinstall
-  them with `curupira plugins install`.
+  `curupira`), `packages/curupira-python-sdk` (`curupira-sdk`), and
+  `packages/curupira-python-plugins` (`curupira-plugins`). Each package owns its tests. No
+  symlinks remain. Build all distributions with `uv build --all-packages --out-dir dist`.
 - The `curupira` wheel no longer embeds Python plugin code, and the Rust host no longer falls back
   to a `python/` directory in the working tree for `PYTHONPATH`.
 - **Architectural rewrite:** the CLI host (command parsing, configuration, dispatch,
@@ -73,10 +75,10 @@ All notable changes to this project are documented here. The format follows
   Official trigger integrations live under `plugins/` / `python/curupira_official/`.
   **cron** remains built into the Rust binary. New commands: `plugins install|uninstall|info`
   (plus existing `plugins list`).
-- The supported Python import surface remains `curupira.__version__` only (plus the
-  shipped `curupira_sdk` / `curupira_official` modules). Third-party packages must
-  implement the process protocol for triggers instead of `curupira.triggers` /
-  `curupira.agents` entry points.
+- The supported Python import surface of the `curupira` package remains
+  `curupira.__version__` only. Official triggers and `curupira_sdk` are separate
+  distributions. Third-party packages must implement the process protocol for triggers
+  instead of `curupira.triggers` / `curupira.agents` entry points.
 - **`trigger/poll` returns a single task:** `{ "task": <object|null> }` instead of
   `{ "tasks": [...] }`. The host calls poll repeatedly until `null` or
   `settings.polling.batch_size`. `null` ends the current round and is not an error.
@@ -96,8 +98,8 @@ All notable changes to this project are documented here. The format follows
 - **`curupira-sdk`** (`curupira_sdk`): declarative Python SDK for process extensions.
   Register triggers with `@app.trigger` (no parentheses); parameter schemas and defaults
   come from the function signature; each poll returns one item or `None`. Optional
-  extra: `curupira-sdk[pydantic]` for Pydantic v2 models. Official extensions use the SDK;
-  the CLI wheel ships `curupira_sdk` alongside `curupira_official`.
+  extra: `curupira-sdk[pydantic]` for Pydantic v2 models. Official extensions depend on
+  the SDK; the base `curupira` wheel does not.
 - Global `[settings].log_level` (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`; default
   `INFO`) and the process-wide CLI flag `--log-level` control console, file, and TUI
   verbosity. More internal debug logs cover feed construction, discovery batches,

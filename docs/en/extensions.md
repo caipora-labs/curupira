@@ -17,11 +17,20 @@ pip install curupira
 uv tool install curupira
 ```
 
-`curupira` and `curu` are the same binary. Python is used only to distribute that
-binary, the declarative SDK (`curupira_sdk`), and the official **trigger** extension
-packages (`curupira-plugins`), which
-the `curupira` wheel depends on. Node.js is required only when you install a Node-based
-third-party trigger extension.
+`curupira` and `curu` are the same binary. The base wheel ships only that Rust CLI
+(plus a thin `curupira.__version__` shim). Official triggers ship as one optional
+package (`curupira-plugins`, which depends on `curupira-sdk`): install with extras or
+`curupira plugins install`. Built-in **cron** needs no extension package. Node.js is
+required only when you install a Node-based third-party trigger extension.
+
+```bash
+# official triggers (pulls curupira-sdk transitively)
+pip install 'curupira[extensions]'
+# forge-named extras install the same package
+pip install 'curupira[github]'
+# or manage a package with the CLI (uses uvx)
+curupira plugins install --yes pip:curupira-plugins
+```
 
 ## Manage extensions
 
@@ -45,7 +54,7 @@ Discovery reads `curupira-extension.toml` manifests from
 
 | Source | Needs on PATH |
 | --- | --- |
-| Official Python trigger extensions (shipped) | `python3` |
+| Official Python trigger extras / managed installs | `python3` (or `uvx` for `pip:` installs) |
 | `pip:` installs | `uvx` (from [uv](https://docs.astral.sh/uv/)) |
 | `npm:` installs | `npx` (Node.js) |
 | Built-in cron and coding agents | the agent CLIs you configure (plus `git`) |
@@ -53,8 +62,10 @@ Discovery reads `curupira-extension.toml` manifests from
 ## Official extensions
 
 Bundled as one PyPI package `curupira-plugins`
-(`packages/curupira-python-plugins/`, import `curupira_plugins`). Register it in settings
-under a TOML alias; automations then use `<alias>/<local-trigger>`:
+(`packages/curupira-python-plugins/`, import `curupira_plugins`). It is **not** required
+to install the CLI. PyPI extras `github` / `azure` / `trello` / `monday` / `extensions`
+all install that same distribution. Register it in settings under a TOML alias;
+automations then use `<alias>/<local-trigger>`:
 
 ```toml
 [plugins.plugins-py]
@@ -73,16 +84,14 @@ package = "curupira-plugins"
 
 ## Write a Python extension with curupira-sdk
 
-Install the SDK (stdlib-only by default; Pydantic is optional):
+Install the SDK separately (stdlib-only by default; Pydantic is optional). Official
+trigger packages depend on it; third-party packages should declare it explicitly:
 
 ```bash
 pip install curupira-sdk
 # optional structured models:
 pip install 'curupira-sdk[pydantic]'
 ```
-
-The `curupira` wheel already depends on `curupira-sdk` through the official extensions.
-Third-party packages should depend on `curupira-sdk` explicitly.
 
 ### Minimal trigger
 

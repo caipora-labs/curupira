@@ -46,9 +46,22 @@ def main(argv: list[str] | None = None) -> None:
 
         _run([str(pip), "install", "--only-binary=:all:", "--find-links", str(dist), str(wheel)])
         _assert_import(python, args.expected_version or None)
+        _assert_optional_extensions_absent(python)
         _assert_cli(curupira, "curupira", args.expected_version or None)
         _assert_cli(curu, "curu", args.expected_version or None)
         if config is not None:
+            # Example configs use official triggers; install the optional package
+            # from the same dist/ after asserting the base wheel stayed CLI-only.
+            _run(
+                [
+                    str(pip),
+                    "install",
+                    "--only-binary=:all:",
+                    "--find-links",
+                    str(dist),
+                    "curupira-plugins",
+                ]
+            )
             _run([str(curupira), "--config", str(config), "validate"])
             print(f"validated configuration {config}")
         print(f"smoke-tested {wheel.name}")
@@ -117,6 +130,26 @@ print(curupira.__version__)
     env.pop("PYTHONPATH", None)
     if expected_version:
         env["CURUPIRA_EXPECTED_VERSION"] = expected_version
+    subprocess.run(
+        [str(python), "-c", script],
+        check=True,
+        cwd=tempfile.gettempdir(),
+        env=env,
+    )
+
+
+def _assert_optional_extensions_absent(python: Path) -> None:
+    """Base wheel must not pull in SDK or the official trigger package."""
+    script = """
+import importlib.util
+
+for name in ("curupira_sdk", "curupira_plugins"):
+    if importlib.util.find_spec(name) is not None:
+        raise SystemExit(f"unexpected dependency installed: {name}")
+print("optional extensions absent")
+"""
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
     subprocess.run(
         [str(python), "-c", script],
         check=True,
