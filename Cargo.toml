@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = ["crates/curupira", "crates/curupira-protocol"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/caipora-labs/curupira"
+rust-version = "1.89"
+
+[workspace.dependencies]
+curupira-protocol = { path = "crates/curupira-protocol" }
+anyhow = "1"
+bytes = "1"
+ctrlc = "3"
+chrono = { version = "0.4", features = ["clock", "serde"] }
+chrono-tz = "0.10"
+clap = { version = "4", features = ["derive", "env"] }
+cron = "0.15"
+dirs = "6"
+fs2 = "0.4"
+futures = "0.3"
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4"] }
+which = "7"
+tempfile = "3"
+assert_cmd = "2"
+predicates = "3"

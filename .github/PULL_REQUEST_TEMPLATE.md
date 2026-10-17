@@ -3,10 +3,11 @@
 ## Behavior and tests
 
 - [ ] Behavioral tests cover the change (no authenticated agents or network access)
-- [ ] `uv run --no-sync pytest` passes
+- [ ] `cargo test -p curupira -p curupira-protocol` passes
+- [ ] `PYTHONPATH=python uv run --no-sync pytest tests` passes
 - [ ] `uv run --no-sync ruff check .` and `uv run --no-sync ruff format --check .` pass
-- [ ] `uv run --no-sync pyrefly check` passes
-- [ ] `uv build` passes
+- [ ] `cargo clippy -p curupira -p curupira-protocol -- -D warnings` and `cargo fmt --all -- --check` pass
+- [ ] `uv run --no-sync maturin build --release --out dist -m crates/curupira/Cargo.toml` passes
 
 ## Documentation
 

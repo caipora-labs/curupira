@@ -1,9 +1,5 @@
 # Managed with prek (https://prek.j178.dev/), a drop-in pre-commit alternative.
 # Install hooks: uv run --no-sync prek install
-# Run all hooks: uv run --no-sync prek run --all-files
-#
-# Ruff and Pyrefly run through `uv` so they use the locked project environment
-# (same versions as `uv run --no-sync ruff` / `pyrefly` in AGENTS.md).
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -27,10 +23,15 @@ repos:
         language: system
         types_or: [python, pyi]
         require_serial: true
-      - id: pyrefly
-        name: pyrefly
-        entry: uv run --no-sync pyrefly check
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all -- --check
         language: system
-        types: [python]
+        files: '\.rs$'
         pass_filenames: false
-        require_serial: true
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy -p curupira -p curupira-protocol -- -D warnings
+        language: system
+        files: '\.rs$'
+        pass_filenames: false
