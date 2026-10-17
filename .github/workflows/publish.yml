@@ -25,8 +25,8 @@ jobs:
           enable-cache: true
       - name: Build distributions
         run: |
-          uv sync --frozen --dev
-          uv run --no-sync maturin build --release --sdist --out dist -m crates/curupira/Cargo.toml
+          uv sync --frozen --all-packages --dev
+          uv build --all-packages --out-dir dist
       - name: Upload distributions
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -55,11 +55,11 @@ jobs:
           path: dist/
       - name: Install wheel and run validate
         run: |
-          uv sync --frozen --dev
-          version="$(uv run --no-sync python scripts/verify_dist_version.py --dist dist)"
-          uv run --no-sync python scripts/smoke_install.py \
+          uv sync --frozen --all-packages --dev
+          version="$(uv run --no-sync python packages/curupira-python/scripts/verify_dist_version.py --dist dist)"
+          uv run --no-sync python packages/curupira-python/scripts/smoke_install.py \
             --dist dist \
-            --config curupira.example.toml \
+            --config packages/curupira-core/curupira.example.toml \
             --expected-version "${version}"
 
   publish:
@@ -85,8 +85,8 @@ jobs:
           path: dist/
       - name: Require green CI
         run: |
-          uv sync --frozen --dev
-          uv run --no-sync python scripts/require_ci_checks.py \
+          uv sync --frozen --all-packages --dev
+          uv run --no-sync python .github/scripts/require_ci_checks.py \
             --repository "${GITHUB_REPOSITORY}" \
             --sha "${GITHUB_SHA}"
       - name: Publish to PyPI

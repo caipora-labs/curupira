@@ -29,8 +29,8 @@ jobs:
       - name: Build distributions
         run: |
           rm -rf dist
-          uv sync --frozen --dev
-          uv run --no-sync maturin build --release --sdist --out dist -m crates/curupira/Cargo.toml
+          uv sync --frozen --all-packages --dev
+          uv build --all-packages --out-dir dist
       - name: Upload distributions
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -59,11 +59,11 @@ jobs:
           path: dist/
       - name: Install wheel and run validate
         run: |
-          uv sync --frozen --dev
-          version="$(uv run --no-sync python scripts/verify_dist_version.py --dist dist)"
-          uv run --no-sync python scripts/smoke_install.py \
+          uv sync --frozen --all-packages --dev
+          version="$(uv run --no-sync python packages/curupira-python/scripts/verify_dist_version.py --dist dist)"
+          uv run --no-sync python packages/curupira-python/scripts/smoke_install.py \
             --dist dist \
-            --config curupira.example.toml \
+            --config packages/curupira-core/curupira.example.toml \
             --expected-version "${version}"
 
   publish:
@@ -87,8 +87,8 @@ jobs:
           GH_REPOSITORY: ${{ github.repository }}
           RELEASE_SHA: ${{ github.sha }}
         run: |
-          uv sync --frozen --dev
-          uv run --no-sync python scripts/require_ci_checks.py
+          uv sync --frozen --all-packages --dev
+          uv run --no-sync python .github/scripts/require_ci_checks.py
       - name: Download distributions
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
@@ -104,7 +104,7 @@ jobs:
           if [ "$EVENT_NAME" = "push" ]; then
             args+=(--tag "$REF_NAME" --require-dev)
           fi
-          version="$(uv run --no-sync python scripts/verify_dist_version.py "${args[@]}")"
+          version="$(uv run --no-sync python packages/curupira-python/scripts/verify_dist_version.py "${args[@]}")"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           ls -la dist/
       - name: Publish rehearsal to TestPyPI
@@ -149,4 +149,4 @@ jobs:
           /tmp/curupira-testpypi/bin/curu --help >/tmp/curu-help.txt
           grep -q 'usage: curu' /tmp/curu-help.txt
           test "$(/tmp/curupira-testpypi/bin/curu --version)" = "curu ${PACKAGE_VERSION}"
-          /tmp/curupira-testpypi/bin/curupira --config "$GITHUB_WORKSPACE/curupira.example.toml" validate
+          /tmp/curupira-testpypi/bin/curupira --config "$GITHUB_WORKSPACE/packages/curupira-core/curupira.example.toml" validate

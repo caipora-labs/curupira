@@ -7,6 +7,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Repository is a uv workspace under `packages/`:** `packages/curupira-core` (Rust crate; the
+  protocol crate is now the `protocol` module of the core), `packages/curupira-python` (PyPI
+  `curupira`), `packages/curupira-python-sdk` (`curupira-sdk`), and one package per official
+  trigger under `packages/plugins/`. Each package owns its tests. No symlinks remain. Build all
+  distributions with `uv build --all-packages --out-dir dist`.
+- **Official trigger modules are renamed** from `curupira_official.<name>_ext` to
+  `curupira_<name>` (`curupira_github`, `curupira_azure`, `curupira_trello`, `curupira_monday`).
+  Each is published as its own `curupira-<name>` distribution, and `curupira` depends on them.
+  Extension manifests installed before this change still launch `curupira_official.*`; reinstall
+  them with `curupira plugins install`.
+- The `curupira` wheel no longer embeds Python plugin code, and the Rust host no longer falls back
+  to a `python/` directory in the working tree for `PYTHONPATH`.
 - **Architectural rewrite:** the CLI host (command parsing, configuration, dispatch,
   scheduling, execution, storage, and process supervision) is implemented in **Rust** and
   distributed on PyPI via **maturin** wheels. `pip install curupira` / `uv tool install

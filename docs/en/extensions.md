@@ -2,7 +2,7 @@
 
 Curupira's CLI is a Rust binary. **Task sources** (except built-in **cron**) run as
 **separate processes** that speak the
-[extension protocol](https://github.com/caipora-labs/curupira/blob/main/protocol/PROTOCOL.md)
+[extension protocol](https://github.com/caipora-labs/curupira/blob/main/packages/curupira-core/PROTOCOL.md)
 (JSON-RPC 2.0 over length-prefixed stdin/stdout).
 
 **Coding agents** (OpenCode, Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot CLI,
@@ -19,7 +19,8 @@ uv tool install curupira
 
 `curupira` and `curu` are the same binary. Python is used only to distribute that
 binary, the declarative SDK (`curupira_sdk`), and the official **trigger** extension
-modules shipped in the wheel. Node.js is required only when you install a Node-based
+packages (`curupira-github`, `curupira-azure`, `curupira-trello`, `curupira-monday`), which
+the `curupira` wheel depends on. Node.js is required only when you install a Node-based
 third-party trigger extension.
 
 ## Manage extensions
@@ -27,14 +28,14 @@ third-party trigger extension.
 ```bash
 curupira plugins list
 curupira plugins info curupira-github
-curupira plugins install --yes path:./plugins/curupira-github
+curupira plugins install --yes path:./packages/plugins/curupira-github
 curupira plugins install --yes pip:some-extension==1.2.3
 curupira plugins install --yes npm:@acme/curupira-ext@1.2.3
 curupira plugins uninstall some-extension
 ```
 
 Discovery reads `curupira-extension.toml` manifests from
-`~/.curupira/extensions/`, `CURUPIRA_EXTENSIONS_PATH`, and bundled `plugins/`.
+`~/.curupira/extensions/`, `CURUPIRA_EXTENSIONS_PATH`, and bundled `packages/plugins/`.
 **Listing never executes extension code.**
 
 `plugins list` also shows built-in cron and the built-in coding-agent providers
@@ -51,7 +52,8 @@ Discovery reads `curupira-extension.toml` manifests from
 
 ## Official extensions
 
-Bundled under `plugins/` and implemented in `python/curupira_official/`:
+Bundled under `packages/plugins/` and implemented one package per extension, for example
+`packages/plugins/curupira-github/src/curupira_github/`:
 
 | Extension | Contributes |
 | --- | --- |
@@ -72,8 +74,8 @@ pip install curupira-sdk
 pip install 'curupira-sdk[pydantic]'
 ```
 
-The wheel that ships the CLI already includes `curupira_sdk` for official
-extensions. Third-party packages should depend on `curupira-sdk` explicitly.
+The `curupira` wheel already depends on `curupira-sdk` through the official extensions.
+Third-party packages should depend on `curupira-sdk` explicitly.
 
 ### Minimal trigger
 
@@ -161,9 +163,9 @@ declare them as function parameters (use `repo` or another name for forge ids).
 ### Manifest
 
 Ship a `curupira-extension.toml` and support `--curupira-print-manifest` on
-stdout for `plugins install pip:…`. See `plugins/test-fixtures/python-ext/` for
-a minimal protocol fixture, and `python/curupira_official/github_ext.py` for a
-full SDK example.
+stdout for `plugins install pip:…`. See `packages/curupira-core/tests/fixtures/python-ext/`
+for a minimal protocol fixture, and `packages/plugins/curupira-github/src/curupira_github/__main__.py`
+for a full SDK example.
 
 Extensions discover and normalize tasks, validate their configuration, and receive
 lifecycle events. They must not select coding agents, build agent argv, clone
@@ -174,7 +176,8 @@ repositories, or manage worktrees — the Rust host owns those steps.
 Use the same framing and methods. Publish an npm package whose `bin` speaks the
 protocol on stdio. TypeScript packages should compile to JS or run under
 `tsx`/`node` as documented in the package. See
-`plugins/test-fixtures/node-ext/` and `plugins/test-fixtures/ts-ext/`.
+`packages/curupira-core/tests/fixtures/node-ext/` and
+`packages/curupira-core/tests/fixtures/ts-ext/`.
 
 Poll results must use `{ "task": null }` or a single task object — never a task
 array.
