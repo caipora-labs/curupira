@@ -32,6 +32,7 @@ def test_runtime_directories_create_central_logs_directory(
     ensure_runtime_directories()
 
     assert (tmp_path / ".curupira" / "logs").is_dir()
+    assert (tmp_path / ".curupira" / "logs" / "crashes").is_dir()
 
 
 def test_execution_log_handler_appends_to_central_file(
@@ -57,7 +58,27 @@ def test_execution_log_handler_appends_to_central_file(
     assert len(lines) == 2
     assert "first task entry" in lines[0]
     assert "second task entry" in lines[1]
+    assert "curupira.runtime_test" in lines[0]
     assert lines[0][:4].isdigit()
+
+
+def test_execution_log_handler_respects_debug_level(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    logger = logging.getLogger("curupira.runtime_debug_test")
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+    handler = create_execution_log_handler("DEBUG")
+    logger.addHandler(handler)
+    try:
+        logger.debug("debug detail")
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+    log_path = tmp_path / ".curupira" / "logs" / "curupira.log"
+    assert "debug detail" in log_path.read_text(encoding="utf-8")
 
 
 def test_instance_lock_rejects_concurrent_process_and_can_be_reacquired(tmp_path: Path) -> None:

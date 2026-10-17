@@ -32,8 +32,8 @@ _LEVEL_LABELS = {
 class TuiLogHandler(logging.Handler):
     """Emit colorized ``[HH:MM:SS] [level] message`` lines into a RichLog."""
 
-    def __init__(self, write: Callable[[str], None]) -> None:
-        super().__init__(level=logging.INFO)
+    def __init__(self, write: Callable[[str], None], *, level: int = logging.INFO) -> None:
+        super().__init__(level=level)
         self._write = write
 
     @override
@@ -49,14 +49,19 @@ class TuiLogHandler(logging.Handler):
             self.handleError(record)
 
 
-def attach_rich_log(log: RichLog, logger: logging.Logger | None = None) -> TuiLogHandler:
+def attach_rich_log(
+    log: RichLog,
+    logger: logging.Logger | None = None,
+    *,
+    level: int = logging.INFO,
+) -> TuiLogHandler:
     """Install a handler that writes into ``log`` and return it for later removal."""
     target = logging.getLogger() if logger is None else logger
 
     def write(line: str) -> None:
         log.write(line)
 
-    handler = TuiLogHandler(write)
+    handler = TuiLogHandler(write, level=level)
     handler.setFormatter(logging.Formatter("%(message)s"))
     target.addHandler(handler)
     return handler

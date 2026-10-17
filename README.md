@@ -69,6 +69,7 @@ state, and automation paths are resolved from that file's directory.
 max_active_tasks = 1
 workspace_dir = "~/.curupira/workspaces"
 state_db_path = "~/.curupira/state.sqlite3"
+log_level = "INFO"
 # Optional OTLP/HTTP trace endpoint; omit it to disable telemetry.
 # otlp_endpoint = "http://localhost:4318/v1/traces"
 
@@ -224,7 +225,9 @@ an error instead of deleting it — delete or move the file yourself to start fr
 The `run` and `run --watch` commands append records to
 `~/.curupira/logs/curupira.log`; restarting the process does not erase existing
 content. Each task records its start and completion time, repository, type, and
-identifier. If a task fails, the record includes the error.
+identifier. If a task fails, the record includes the error. Set
+`[settings].log_level` (or pass `--log-level`) to `DEBUG` for more internal detail.
+Uncaught crashes write separate reports under `~/.curupira/logs/crashes/`.
 
 ## Usage
 

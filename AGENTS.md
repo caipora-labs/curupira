@@ -58,6 +58,9 @@ Implementations depend on the contract in each `base.py`, not on sibling package
   `TransientCliError` and `TransientHttpApiError`, using the existing `pyresilience`
   `RetryConfig` on the GitHub and Azure clients. Do not retry authentication,
   configuration, or agent-task failures. Log with `logging.getLogger(__name__)`.
+  `[settings].log_level` / `--log-level` set process verbosity; put internal detail at
+  `DEBUG`. Uncaught crashes persist under `~/.curupira/logs/crashes/` via
+  `logging_setup` (never echo secrets).
 
 ## Repository map
 

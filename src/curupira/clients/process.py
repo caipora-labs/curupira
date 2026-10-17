@@ -44,6 +44,14 @@ class AsyncProcessRunner:
     ) -> ProcessResult:
         """Reap the process and helper tasks on timeout, cancellation, or callback failure."""
         capture = request.capture_output or on_stdout_line is not None
+        logger.debug(
+            "Starting process executable=%s argc=%s cwd=%s timeout=%s capture=%s",
+            request.executable,
+            len(request.arguments),
+            request.cwd,
+            request.timeout,
+            capture,
+        )
         try:
             process = await asyncio.create_subprocess_exec(
                 request.executable,

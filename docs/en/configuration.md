@@ -16,6 +16,7 @@ than maintaining a parallel field table here.
         - workspace_dir
         - state_db_path
         - otlp_endpoint
+        - log_level
         - task_timeout_minutes
         - max_output_bytes
         - polling
@@ -65,6 +66,7 @@ points at a repository alias for checkout.
 max_active_tasks = 1
 workspace_dir = "~/.curupira/workspaces"
 state_db_path = "~/.curupira/state.sqlite3"
+log_level = "INFO"
 task_timeout_minutes = 20
 
 [settings.polling]

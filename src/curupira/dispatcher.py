@@ -42,10 +42,17 @@ def create_task_feeds(
         state_db_path=settings.settings.state_db_path,
         runner=runner or AsyncProcessRunner(),
     )
-    return [
+    automations = settings.resolve_automations()
+    feeds = [
         get_trigger(automation.configuration.trigger_type).build_feed(automation, dependencies)
-        for automation in settings.resolve_automations().values()
+        for automation in automations.values()
     ]
+    logger.debug(
+        "Built %s task feed(s) for automations=%s",
+        len(feeds),
+        sorted(automations),
+    )
+    return feeds
 
 
 async def dispatch_next_task(
@@ -63,6 +70,11 @@ async def dispatch_next_task(
     cron = CronScheduleRepository(settings.settings.state_db_path)
     feeds = create_task_feeds(settings, cron, runner=process_runner)
     available = await poll_task_feeds(feeds, preview=dry_run)
+    logger.debug(
+        "One-shot discovery returned %s candidate(s) dry_run=%s",
+        len(available),
+        dry_run,
+    )
     if dry_run:
         return DispatchOutcome(selected=available[0] if available else None)
     sessions = RunningSessionRepository(settings.settings.state_db_path)

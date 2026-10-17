@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from typing import BinaryIO
 
+from curupira.models.configuration import LogLevel
+
 
 def dispatch_home() -> Path:
     """Return the shared per-user curupira directory."""
@@ -21,16 +23,20 @@ def ensure_runtime_directories() -> None:
     """Create the central state and log directories with private permissions."""
     home = dispatch_home()
     home.mkdir(parents=True, exist_ok=True, mode=0o700)
-    (home / "logs").mkdir(exist_ok=True, mode=0o700)
+    logs = home / "logs"
+    logs.mkdir(exist_ok=True, mode=0o700)
+    (logs / "crashes").mkdir(exist_ok=True, mode=0o700)
 
 
-def create_execution_log_handler() -> logging.FileHandler:
+def create_execution_log_handler(level: LogLevel = "INFO") -> logging.FileHandler:
     """Create an append-only UTF-8 handler under the central logs directory."""
+    from curupira.logging_setup import logging_level_value
+
     ensure_runtime_directories()
     log_path = dispatch_home() / "logs" / "curupira.log"
     handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
-    handler.setLevel(logging.INFO)
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    handler.setLevel(logging_level_value(level))
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     return handler
 
 
