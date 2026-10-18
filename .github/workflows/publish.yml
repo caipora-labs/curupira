@@ -250,9 +250,13 @@ jobs:
 
   publish:
     name: Publish distributions
+    # always() is required: build-curupira is skipped for the pure-Python projects, and a
+    # skipped ancestor would otherwise skip this job through the implicit success() check.
     if: |
+      always() &&
       github.event_name == 'push' &&
-      needs.resolve.outputs.project != 'curupira-js-sdk'
+      needs.resolve.outputs.project != 'curupira-js-sdk' &&
+      needs.verify.result == 'success'
     needs: [resolve, verify]
     runs-on: ubuntu-latest
     environment: pypi
