@@ -1,8 +1,11 @@
 //! Install / uninstall managed extensions (pip / npm / local path).
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+use crate::process::apply_spawn_environment;
 
 use crate::protocol::{
     ExtensionKind, ExtensionManifest, ExtensionRuntime, LaunchSpec, PackageRef, MANIFEST_FILE_NAME,
@@ -99,7 +102,13 @@ fn validate_package_name(name: &str) -> Result<(), CurupiraError> {
 }
 
 /// Install an extension and write its manifest into the registry.
-pub fn install_extension(source: &ExtensionSource) -> Result<ExtensionManifest, CurupiraError> {
+///
+/// `env_vars` are `[environment.vars]` overwrites for the `uvx` / `npx` probe. An empty
+/// map still replicates the Curupira process environment.
+pub fn install_extension(
+    source: &ExtensionSource,
+    env_vars: &BTreeMap<String, String>,
+) -> Result<ExtensionManifest, CurupiraError> {
     match source {
         ExtensionSource::Path { path } => install_from_path(path),
         ExtensionSource::Pip { package, version } => {
@@ -136,14 +145,14 @@ pub fn install_extension(source: &ExtensionSource) -> Result<ExtensionManifest, 
             // Prefer vendor-provided manifest if the user pointed at a wheel later; for pip we
             // require the package to expose `curupira-extension.toml` via a known data file after
             // a controlled `uvx` print-manifest helper:
-            let resolved = fetch_pip_manifest(package, version.as_deref())?;
+            let resolved = fetch_pip_manifest(package, version.as_deref(), env_vars)?;
             ExtensionRegistry::write_manifest(&dir, &resolved)?;
             let _ = manifest;
             Ok(resolved)
         }
         ExtensionSource::Npm { package, version } => {
             ensure_npx()?;
-            let resolved = fetch_npm_manifest(package, version.as_deref())?;
+            let resolved = fetch_npm_manifest(package, version.as_deref(), env_vars)?;
             let dir = extensions_dir().join(&resolved.name);
             ExtensionRegistry::write_manifest(&dir, &resolved)?;
             Ok(resolved)
@@ -182,6 +191,7 @@ fn install_from_path(path: &Path) -> Result<ExtensionManifest, CurupiraError> {
 fn fetch_pip_manifest(
     package: &str,
     version: Option<&str>,
+    env_vars: &BTreeMap<String, String>,
 ) -> Result<ExtensionManifest, CurupiraError> {
     let uvx = ensure_uvx()?;
     let from = match version {
@@ -190,15 +200,17 @@ fn fetch_pip_manifest(
     };
     // Convention: `python -m <module> --curupira-print-manifest`
     let module = package.replace('-', "_");
-    let output = Command::new(&uvx)
-        .args([
-            "--from",
-            &from,
-            "python",
-            "-m",
-            &module,
-            "--curupira-print-manifest",
-        ])
+    let mut command = Command::new(&uvx);
+    command.args([
+        "--from",
+        &from,
+        "python",
+        "-m",
+        &module,
+        "--curupira-print-manifest",
+    ]);
+    apply_spawn_environment(&mut command, env_vars, &[], None);
+    let output = command
         .output()
         .map_err(|e| CurupiraError::Plugin(format!("uvx failed: {e}")))?;
     if !output.status.success() {
@@ -217,14 +229,17 @@ fn fetch_pip_manifest(
 fn fetch_npm_manifest(
     package: &str,
     version: Option<&str>,
+    env_vars: &BTreeMap<String, String>,
 ) -> Result<ExtensionManifest, CurupiraError> {
     let npx = ensure_npx()?;
     let spec = match version {
         Some(v) => format!("{package}@{v}"),
         None => package.to_string(),
     };
-    let output = Command::new(&npx)
-        .args(["--yes", &spec, "--curupira-print-manifest"])
+    let mut command = Command::new(&npx);
+    command.args(["--yes", &spec, "--curupira-print-manifest"]);
+    apply_spawn_environment(&mut command, env_vars, &[], None);
+    let output = command
         .output()
         .map_err(|e| CurupiraError::Plugin(format!("npx failed: {e}")))?;
     if !output.status.success() {

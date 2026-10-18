@@ -5,6 +5,7 @@ use curupira::config::{PluginConfiguration, PluginLauncher};
 use curupira::extensions::host::ExtensionHost;
 use curupira::protocol::KeyValue;
 use predicates::prelude::*;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -83,7 +84,8 @@ fn js_sdk_extension_via_npx_speaks_protocol() {
         .canonicalize()
         .expect("js-sdk-ext fixture path");
     let launch = npx_plugin_config(&fixture);
-    let mut host = ExtensionHost::spawn_plugin("js-sdk", &launch).expect("spawn via npx");
+    let mut host =
+        ExtensionHost::spawn_plugin("js-sdk", &launch, &BTreeMap::new()).expect("spawn via npx");
     let described = host.describe().expect("describe");
     let names: Vec<_> = described
         .triggers

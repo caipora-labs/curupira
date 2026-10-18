@@ -1,5 +1,6 @@
 //! Spawn an extension process and speak JSON-RPC over stdin/stdout.
 
+use std::collections::BTreeMap;
 use std::io::{BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
@@ -16,6 +17,7 @@ use serde::Serialize;
 
 use crate::error::CurupiraError;
 use crate::extensions::registry::InstalledExtension;
+use crate::process::apply_spawn_environment;
 use crate::version::VERSION;
 
 /// Live JSON-RPC extension session.
@@ -29,18 +31,22 @@ pub struct ExtensionHost {
 
 impl ExtensionHost {
     /// Spawn from a registry entry and complete `initialize`.
-    pub fn spawn(installed: &InstalledExtension) -> Result<Self, CurupiraError> {
+    pub fn spawn(
+        installed: &InstalledExtension,
+        env_vars: &BTreeMap<String, String>,
+    ) -> Result<Self, CurupiraError> {
         let (program, args) = resolve_launch(&installed.manifest.launch)?;
-        Self::spawn_command(installed, &program, &args)
+        Self::spawn_command(installed, &program, &args, env_vars)
     }
 
     /// Spawn using a `[plugins.<alias>]` launcher (`uvx` / `npx` + args).
     pub fn spawn_plugin(
         alias: &str,
         launch: &crate::config::PluginConfiguration,
+        env_vars: &BTreeMap<String, String>,
     ) -> Result<Self, CurupiraError> {
         let (program, args) = launch.resolve_command()?;
-        Self::spawn_argv(alias, &program, &args, None)
+        Self::spawn_argv(alias, &program, &args, None, env_vars)
     }
 
     /// Spawn using a registry manifest launch (managed installs / fixtures).
@@ -48,9 +54,10 @@ impl ExtensionHost {
         installed: &InstalledExtension,
         program: &str,
         args: &[String],
+        env_vars: &BTreeMap<String, String>,
     ) -> Result<Self, CurupiraError> {
         let cwd = installed.dir.is_dir().then_some(installed.dir.as_path());
-        Self::spawn_argv(&installed.name, program, args, cwd)
+        Self::spawn_argv(&installed.name, program, args, cwd, env_vars)
     }
 
     fn spawn_argv(
@@ -58,6 +65,7 @@ impl ExtensionHost {
         program: &str,
         args: &[String],
         cwd: Option<&std::path::Path>,
+        env_vars: &BTreeMap<String, String>,
     ) -> Result<Self, CurupiraError> {
         let mut command = Command::new(program);
         command
@@ -65,14 +73,14 @@ impl ExtensionHost {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
-        if let Some(dir) = cwd {
-            command.current_dir(dir);
-        }
         // Ensure official in-tree modules resolve when developing from a checkout.
         // Paths must be absolute: children often run with cwd = the extension directory.
+        // This pair is applied after `[environment.vars]`, so the checkout path wins.
+        let mut extra = Vec::new();
         if let Some(pythonpath) = resolve_extension_pythonpath() {
-            command.env("PYTHONPATH", pythonpath);
+            extra.push(("PYTHONPATH".into(), pythonpath));
         }
+        apply_spawn_environment(&mut command, env_vars, &extra, cwd);
         let mut child = command.spawn().map_err(|e| {
             CurupiraError::Plugin(format!(
                 "failed to start extension {name}: {e} (program {program:?})"

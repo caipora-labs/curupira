@@ -1,5 +1,8 @@
 //! Headless subprocess runner (argv only; never a shell string).
 
+use std::collections::BTreeMap;
+use std::ffi::OsStr;
+use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -27,12 +30,98 @@ pub struct ProcessResult {
     pub stderr: Vec<u8>,
 }
 
+/// Command builder surface shared by the std and tokio process APIs.
+pub(crate) trait SpawnCommand {
+    fn clear_env(&mut self);
+    fn set_env(&mut self, key: &OsStr, val: &OsStr);
+    fn remove_env(&mut self, key: &OsStr);
+    fn set_current_dir(&mut self, dir: &Path);
+}
+
+impl SpawnCommand for std::process::Command {
+    fn clear_env(&mut self) {
+        self.env_clear();
+    }
+
+    fn set_env(&mut self, key: &OsStr, val: &OsStr) {
+        self.env(key, val);
+    }
+
+    fn remove_env(&mut self, key: &OsStr) {
+        self.env_remove(key);
+    }
+
+    fn set_current_dir(&mut self, dir: &Path) {
+        self.current_dir(dir);
+    }
+}
+
+impl SpawnCommand for Command {
+    fn clear_env(&mut self) {
+        self.env_clear();
+    }
+
+    fn set_env(&mut self, key: &OsStr, val: &OsStr) {
+        self.env(key, val);
+    }
+
+    fn remove_env(&mut self, key: &OsStr) {
+        self.env_remove(key);
+    }
+
+    fn set_current_dir(&mut self, dir: &Path) {
+        self.current_dir(dir);
+    }
+}
+
+/// Give a child a copy of Curupira's environment, then apply overwrites.
+///
+/// Order:
+/// 1. Drop implicit inheritance (`env_clear`).
+/// 2. Copy every variable the current process can see (`std::env::vars_os`).
+/// 3. Replace keys from `[environment.vars]` (`overrides`).
+/// 4. Apply call-site pairs (`extra`), such as an agent's database path.
+/// 5. When `cwd` is set, point `PWD` at that directory and drop `OLDPWD` plus the
+///    repository-binding `GIT_*` variables, even if an earlier step set them.
+pub(crate) fn apply_spawn_environment(
+    command: &mut impl SpawnCommand,
+    overrides: &BTreeMap<String, String>,
+    extra: &[(String, String)],
+    cwd: Option<&Path>,
+) {
+    command.clear_env();
+    for (key, value) in std::env::vars_os() {
+        command.set_env(&key, &value);
+    }
+    for (key, value) in overrides {
+        command.set_env(OsStr::new(key), OsStr::new(value));
+    }
+    for (key, value) in extra {
+        command.set_env(OsStr::new(key), OsStr::new(value));
+    }
+    if let Some(dir) = cwd {
+        command.set_current_dir(dir);
+        // Tools read PWD (and Git reads GIT_*) instead of the kernel cwd. Without this, an
+        // agent started in a task worktree inherits the caller's PWD and repository binding
+        // and can act on the caller's checkout.
+        command.set_env(OsStr::new("PWD"), dir.as_os_str());
+        command.remove_env(OsStr::new("OLDPWD"));
+        for var in REPOSITORY_BINDING_ENV {
+            command.remove_env(OsStr::new(var));
+        }
+    }
+}
+
 /// Run an executable with an argument vector, timeout, and retained output tails.
+///
+/// `env_overrides` are `[environment.vars]` replacements applied on top of a full copy of
+/// this process's environment. `env` is applied after those replacements.
 pub async fn run_process(
     program: &str,
     args: &[String],
     cwd: Option<&std::path::Path>,
     env: &[(String, String)],
+    env_overrides: &BTreeMap<String, String>,
     timeout_duration: Duration,
     max_output_bytes: usize,
 ) -> Result<ProcessResult, String> {
@@ -42,19 +131,7 @@ pub async fn run_process(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    if let Some(dir) = cwd {
-        cmd.current_dir(dir);
-        // Tools read PWD (and Git reads GIT_*) instead of the kernel cwd. Without this, an
-        // agent started in a task worktree inherits the caller's PWD and repository binding
-        // and can act on the caller's checkout.
-        cmd.env("PWD", dir).env_remove("OLDPWD");
-        for var in REPOSITORY_BINDING_ENV {
-            cmd.env_remove(var);
-        }
-    }
-    for (k, v) in env {
-        cmd.env(k, v);
-    }
+    apply_spawn_environment(&mut cmd, env_overrides, env, cwd);
     // Platform process-group isolation is applied by the OS defaults; kill_on_drop
     // covers timeout cancellation for the direct child.
 
@@ -152,6 +229,7 @@ mod tests {
             &["-c".into(), "printf %s \"$PWD\"".into()],
             Some(dir.path()),
             &[],
+            &BTreeMap::new(),
             Duration::from_secs(10),
             1024,
         )
@@ -161,5 +239,86 @@ mod tests {
         assert_eq!(result.exit_code, 0);
         let pwd = String::from_utf8(result.stdout).unwrap();
         assert_eq!(std::path::Path::new(&pwd).canonicalize().unwrap(), expected);
+    }
+
+    #[tokio::test]
+    async fn child_copies_parent_env_and_applies_overrides() {
+        let inherited = "CURUPIRA_SPAWN_INHERITED";
+        let replaced = "CURUPIRA_SPAWN_OVERRIDE";
+        let only_config = "CURUPIRA_SPAWN_ONLY_CONFIG";
+        std::env::set_var(inherited, "from-parent");
+        std::env::set_var(replaced, "parent-value");
+        std::env::remove_var(only_config);
+
+        let mut overrides = BTreeMap::new();
+        overrides.insert(replaced.into(), "from-config".into());
+        overrides.insert(only_config.into(), "config-only".into());
+
+        let script = format!(
+            "printf '%s\\n%s\\n%s' \"${{{inherited}}}\" \"${{{replaced}}}\" \"${{{only_config}}}\""
+        );
+        let result = run_process(
+            "sh",
+            &["-c".into(), script],
+            None,
+            &[],
+            &overrides,
+            Duration::from_secs(10),
+            1024,
+        )
+        .await
+        .unwrap();
+
+        std::env::remove_var(inherited);
+        std::env::remove_var(replaced);
+
+        assert_eq!(
+            result.exit_code,
+            0,
+            "{:?}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let stdout = String::from_utf8(result.stdout).unwrap();
+        assert_eq!(stdout, "from-parent\nfrom-config\nconfig-only");
+    }
+
+    #[tokio::test]
+    async fn call_site_env_and_workdir_win_over_overrides() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut overrides = BTreeMap::new();
+        overrides.insert("GIT_DIR".into(), "/should-not-leak".into());
+        overrides.insert("CURUPIRA_SPAWN_EXTRA".into(), "from-config".into());
+        overrides.insert("PWD".into(), "/not-the-workdir".into());
+
+        let result = run_process(
+            "sh",
+            &[
+                "-c".into(),
+                "printf '%s\\n%s\\n%s' \"${GIT_DIR-unset}\" \"$CURUPIRA_SPAWN_EXTRA\" \"$PWD\""
+                    .into(),
+            ],
+            Some(dir.path()),
+            &[("CURUPIRA_SPAWN_EXTRA".into(), "from-extra".into())],
+            &overrides,
+            Duration::from_secs(10),
+            1024,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            result.exit_code,
+            0,
+            "{:?}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let stdout = String::from_utf8(result.stdout).unwrap();
+        let mut lines = stdout.lines();
+        assert_eq!(lines.next(), Some("unset"));
+        assert_eq!(lines.next(), Some("from-extra"));
+        let pwd = std::path::Path::new(lines.next().unwrap())
+            .canonicalize()
+            .unwrap();
+        assert_eq!(pwd, dir.path().canonicalize().unwrap());
     }
 }

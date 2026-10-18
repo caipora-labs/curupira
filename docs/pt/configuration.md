@@ -1,11 +1,12 @@
 # Configuração
 
 O Curupira lê um único arquivo TOML, `~/.curupira/settings.toml` por padrão (`--config` escolhe
-outro). Ele tem cinco tipos de tabela:
+outro). Ele tem seis tipos de tabela:
 
 | Tabela | O que declara |
 | --- | --- |
 | `[settings]` | Limites de execução, caminhos e consultas |
+| `[environment]` | Variáveis copiadas para cada processo que o Curupira inicia |
 | `[repositories.<alias>]` | Remotes Git em que os agentes trabalham |
 | `[agents]` | O perfil padrão e uma tabela por perfil de agente |
 | `[plugins.<alias>]` | Pacotes de fontes de tarefas e como iniciá-los |
@@ -27,6 +28,9 @@ task_timeout_minutes = 20
 [settings.polling]
 poll_interval_seconds = 30
 batch_size = 100
+
+[environment.vars]
+# HTTPS_PROXY = "http://proxy.internal:8080"
 
 [repositories.api]
 remote = "https://github.com/acme/api.git"
@@ -70,6 +74,24 @@ Todas as chaves são opcionais.
 | `polling.batch_size` | `100` | Itens solicitados a cada trigger por consulta. |
 
 Caminhos relativos são resolvidos a partir do diretório do arquivo de configuração.
+
+## Ambiente { #environment }
+
+Todo processo que o Curupira inicia — agentes de código, Git, `setup_script` e extensões — recebe uma cópia de cada variável de ambiente que o processo Curupira enxerga. `[environment.vars]` substitui esses valores. Omita a tabela para repassar o ambiente do processo sem alterações.
+
+Os valores são strings literais. `$VAR` e `${VAR}` não são expandidos.
+
+O Curupira ainda define o diretório de trabalho (`PWD`) e remove as variáveis que amarram um repositório (`GIT_DIR` e os outros vínculos `GIT_*`) depois desses overwrites, e as variáveis próprias de um agente (por exemplo `OPENCODE_DB`) são aplicadas depois de `[environment.vars]`.
+
+```toml
+[environment.vars]
+HTTPS_PROXY = "http://proxy.internal:8080"
+GITHUB_TOKEN = "ghp_..."
+```
+
+| Chave | Significado |
+| --- | --- |
+| `vars` | Nomes de variáveis de ambiente e os valores que as substituem. Vazio quando omitido. Os nomes seguem `[A-Za-z_][A-Za-z0-9_]*`. |
 
 ## Repositórios { #repositories }
 
