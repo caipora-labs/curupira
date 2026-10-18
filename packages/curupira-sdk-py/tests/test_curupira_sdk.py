@@ -16,9 +16,7 @@ from curupira_sdk import Curupira, RegistrationError, SerializationError
 from curupira_sdk.serialize import serialize_trigger_result
 from curupira_sdk.signature import bind_arguments, build_trigger_spec, normalize_configuration
 
-_FIXTURES = (
-    Path(__file__).resolve().parents[2] / "curupira-cli" / "tests" / "fixtures" / "protocol"
-)
+_FIXTURES = Path(__file__).resolve().parents[2] / "curupira-cli" / "tests" / "fixtures" / "protocol"
 
 
 def test_trigger_decorator_without_parens_uses_kebab_case() -> None:
