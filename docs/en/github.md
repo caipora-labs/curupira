@@ -1,4 +1,4 @@
-# GitHub task sources
+# GitHub issues and pull requests
 
 Curupira discovers GitHub issues and pull requests with typed TOML filters, compiles them
 into [GitHub Search](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests)
@@ -14,6 +14,7 @@ worktree where that agent runs.
 | --- | --- |
 | `plugins-py/github-issues` | Issues in one `owner/repository` |
 | `plugins-py/github-pull-requests` | Pull requests in one `owner/repository` |
+| `plugins-py/github-project-items` | Issues and pull requests in a column of a GitHub Project board. See [GitHub Projects](github-projects.md) |
 
 ## Prerequisites
 
@@ -44,7 +45,7 @@ depending on its profile. See
 [GitHub's GraphQL authentication guide](https://docs.github.com/en/graphql/guides/forming-calls-with-graphql#authenticating-with-graphql)
 for how requested data maps to scopes.
 
-## Minimal issue automation
+## Minimal issue automation { #minimal-issue-automation }
 
 In an automation, `repo` is the GitHub `owner/name` that Curupira searches. `repository` is
 the alias of a `[repositories.<alias>]` checkout where the agent runs. They can differ.
@@ -179,16 +180,16 @@ Compiled into the Search query.
 | --- | --- | --- |
 | `repo` | *(required)* | `repo:owner/name` (`owner/repository` format) |
 | `state` | `"open"` | `"open"` → `is:open`; `"closed"` → `is:closed`; `"all"` → neither. For pull requests, `is:closed` includes merged PRs |
-| `labels` | `()` | Each value → `label:…` (AND: every label must be present) |
-| `exclude_labels` | `()` | Each value → `-label:…` |
+| `labels` | `()` | One label or a list. Each value → `label:…` (AND: every label must be present) |
+| `exclude_labels` | `()` | One label or a list. Each value → `-label:…` |
 | `assignee` | `None` | Login, `@me`, `none` → `no:assignee`, or `any` → `assignee:*` |
 | `author` | `None` | `author:…` |
 | `milestone` | `None` | `milestone:…` |
 | `project` | `None` | `project:<value>`, for example `acme/5` |
 | `sort` | `"created-asc"` | Appended as `sort:…`. Allowed: `created-asc`, `created-desc`, `updated-asc`, `updated-desc`, `comments-asc`, `comments-desc` |
 
-Curupira does not filter by board column or Status (such as Todo); only Search
-qualifiers are applied. Values with whitespace or `"`, `:`, `,` are quoted in the
+The `project` qualifier only restricts which project an item belongs to. To pick items by
+board column, use [`github-project-items`](github-projects.md). Values with whitespace or `"`, `:`, `,` are quoted in the
 compiled query.
 
 ### Issue-only fields
@@ -236,14 +237,30 @@ repo:acme/api is:issue is:open label:agent-ready -linked:pr sort:created-asc
 Discovery uses GraphQL Search (`ISSUE` search type covers both issues and pull requests).
 There is no free-form `query` field: filters are typed TOML only.
 
-### Deduplication
+### Deduplication { #deduplication }
 
-The host identifies a result by hashing the key/value list the trigger returned, in
-that order, together with the automation, repository, and trigger type. After the
-task completes, that key is stored and a later poll with the same pairs is skipped.
-Changing any returned value, including title or body, is a different task. The key
-is per automation, so two automations may process the same issue or pull request
-with different prompts. `run --dry-run` previews without recording completion.
+The host identifies a result by hashing the key/value list the trigger returned, in that
+order, together with the automation, repository, and trigger type. Curupira keeps two records:
+
+- **Completed tasks are remembered across restarts.** When the agent finishes successfully, the
+  key is stored in the state database (`state_db_path`), and a later poll that returns the same
+  pairs is skipped, even after a restart.
+- **Failed tasks are retried.** A task whose agent run failed is not stored as completed. It is
+  skipped for the rest of the current process and tried again after a restart.
+
+Changing any returned value, including the title, body, or labels, makes a different task. For
+that reason the official triggers do not return values that change by themselves or because the
+agent worked on the item (comments, update time, CI and review state, linked pull requests):
+the agent would be started again for the same issue. When the agent needs them, tell it to read
+them, for example with `gh issue view ${issue_number} --comments`.
+
+The key is per automation, so two automations may process the same issue or pull request with
+different prompts. `run --dry-run` previews without recording completion.
+
+!!! tip "Running an item again"
+    To run a completed item again, edit it (a label or the title is enough), use a different
+    automation name (a new automation has its own history), or remove the row from the state
+    database. Changing the filters alone does not make a completed item eligible again.
 
 When a full cycle finds nothing (or discovery fails), the feed waits
 `poll_interval_seconds`, then doubles the wait on consecutive empty cycles up to five
@@ -251,29 +268,13 @@ minutes (`300` seconds). Any successful discovery resets the interval.
 
 ## What the agent prompt receives
 
-Placeholders use `${name}` syntax. `${repository}` and `${automation}` come from
-the host. Every other name is a field of the object this trigger returns. A name
-the result does not contain is left unchanged.
+The prompt can use `${field}` or Jinja syntax, see [Writing prompts](prompts.md). Every field
+of issues and pull requests (title, body, labels, assignees, milestone, diff size, and more) is listed in the [Prompt field reference](prompt-fields.md).
 
-**Issues:** `${id}`, `${title}`, `${url}`, `${repo}`, `${issue_number}`,
-`${issue_title}`, `${issue_body}`, `${issue_url}`, `${issue_state}`,
-`${issue_author}`, `${issue_labels}`.
-
-**Pull requests:** `${id}`, `${title}`, `${url}`, `${repo}`,
-`${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
-`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`,
-`${pull_request_base_ref}`, `${pull_request_head_sha}`, `${pull_request_author}`,
-`${pull_request_labels}`, `${pull_request_mergeable}`, and
-`${pull_request_merge_state_status}`. List-valued fields render as compact JSON
-arrays.
-
-Booleans render as `true` / `false`. These names are the plugin's fields, not
-fields the protocol requires.
-
-## Security: issue and pull-request text is untrusted
+## Security: issue and pull-request text is untrusted { #security }
 
 Titles and bodies (`${issue_title}`, `${issue_body}`, `${pull_request_title}`,
-`${pull_request_body}`) come from anyone who can open an issue or pull request and are
+`${pull_request_body}`, `${item_body}`) come from anyone who can open an issue or pull request and are
 placed in the coding agent's prompt, so a hostile author can try to steer the agent
 (prompt injection). The agent can run destructive actions in the checkout it works in,
 so the risk depends on what you allow in the agent profile. Restrict what reaches the

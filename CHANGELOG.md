@@ -7,6 +7,34 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Dynamic prompts.** Prompts accept Jinja syntax (`{{ field }}`, `{% if %}`, `{% for %}`,
+  filters such as `default`, `truncate`, and `fromjson`) next to the existing `${field}`,
+  which keeps working (an unknown `${name}` is still left unchanged). Field text is never
+  interpreted as a template. `validate` now checks
+  prompt syntax and unknown fields (with "did you mean" hints), and `run --dry-run` prints the
+  rendered prompt. See `docs/en/prompts.md`.
+- **GitHub Projects trigger.** `plugins-py/github-project-items` finds issues and pull
+  requests sitting in a column (a single-select field, `Status` by default) of a GitHub
+  Projects v2 board owned by a user or organization. Columns are filtered by GitHub through the
+  project view filter, then by `content`, `repo`, `state`, `labels`, `exclude_labels`,
+  `assignee`, and `author`. Needs the `read:project` token scope.
+- **Documentation.** New pages: a quick start on the home page, GitHub Projects, a prompt
+  field reference, and recipes. The GitHub page now documents that completed tasks are
+  remembered across restarts. The Portuguese and Spanish documentation is now a full translation
+  of the English pages (it used to link to the English reference), and CI fails when the three
+  languages drift apart (`.github/scripts/check_docs_parity.py`).
+- **Friendlier GitHub filters.** `labels`, `exclude_labels`, `merge_state`, and `column` accept a
+  single string as well as a list.
+- **Richer prompt fields for issues and pull requests.** Assignees, milestone, creation time,
+  close reason, and, for pull requests, diff size and the issues they close. Fields that change
+  without the item being edited (comments, update time, CI and review state) are left out on
+  purpose, because the task identity is a hash of every returned field.
+
+### Removed
+
+- **Breaking:** the Azure DevOps (`azure-cli-pull-requests`), Trello (`trello-cli-cards`), and
+  monday.com (`monday-items`) triggers, their docs, and the `azure`, `trello`, and `monday`
+  extras of `curupira`. The plugin package is GitHub-only for now.
 - **`@caipora/curupira` (npm CLI).** `packages/curupira-npm/` installs the existing Rust
   `curupira` and `curu` binaries through Node.js, without Python, pip, uv, or a Rust
   toolchain. Platform packages (`@caipora/curupira-linux-x64`, musl, macOS, and Windows,

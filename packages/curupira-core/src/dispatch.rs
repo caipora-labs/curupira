@@ -42,6 +42,11 @@ pub async fn run_command(
         let tasks = poll_all(settings, &automations, &conn, &namespace, true).await?;
         if let Some(task) = tasks.into_iter().next() {
             println!("dry-run\t{}", task.identity.key());
+            // The rendered prompt is what the agent would receive: check templates here.
+            println!(
+                "--- prompt ---\n{}\n--- end prompt ---",
+                task.prompt.trim_end()
+            );
         } else {
             println!("dry-run\t(no tasks available)");
         }
@@ -283,7 +288,7 @@ fn validate_pairs(values: &[KeyValue]) -> Result<(), CurupiraError> {
     Ok(())
 }
 
-/// Substitute `${key}` in one pass. Inserted text is not scanned again.
+/// Render a prompt: `${key}` substitution and Jinja. Inserted text is never scanned again.
 ///
 /// `${repository}` and `${automation}` come from the automation, not the trigger
 /// result. A placeholder with no match is left unchanged.
@@ -294,29 +299,7 @@ pub(crate) fn render_prompt(
     automation_id: &str,
 ) -> Result<String, CurupiraError> {
     validate_pairs(values)?;
-    let mut out = String::with_capacity(template.len());
-    let mut rest = template;
-    while let Some(start) = rest.find("${") {
-        out.push_str(&rest[..start]);
-        let after = &rest[start + 2..];
-        let Some(end) = after.find('}') else {
-            out.push_str(&rest[start..]);
-            return Ok(out);
-        };
-        let key = &after[..end];
-        if key == "repository" {
-            out.push_str(repository);
-        } else if key == "automation" {
-            out.push_str(automation_id);
-        } else if let Some(pair) = values.iter().find(|pair| pair.key == key) {
-            out.push_str(&pair.value);
-        } else {
-            out.push_str(&rest[start..start + 2 + end + 1]);
-        }
-        rest = &after[end + 1..];
-    }
-    out.push_str(rest);
-    Ok(out)
+    crate::prompt::render(template, values, repository, automation_id)
 }
 
 async fn execute_task(

@@ -55,7 +55,7 @@ Curupira passes each list as one comma-separated CLI argument.
 
 Curupira never adds broader flags such as `--allow-all`, `--yolo`, or path/URL bypasses.
 
-## Configuration reference
+## Configuration reference { #configuration-reference }
 
 ::: curupira.agents.copilot.CopilotCliProfile
     options:

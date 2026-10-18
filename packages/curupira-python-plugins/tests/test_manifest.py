@@ -17,6 +17,8 @@ def test_print_manifest() -> None:
     assert "manifest_version = 1" in proc.stdout
     assert 'name = "curupira-plugins"' in proc.stdout
     assert "github-issues" in proc.stdout
+    assert "github-project-items" in proc.stdout
+    assert "trello" not in proc.stdout
     assert "protocol_version = 2" in proc.stdout
     assert 'type = "uvx"' in proc.stdout
     assert 'executable = "curupira-plugins"' in proc.stdout

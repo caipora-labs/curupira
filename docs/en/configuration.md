@@ -39,10 +39,6 @@ than maintaining a parallel field table here.
 
 ::: curupira.models.configuration.PullRequestAutomationConfiguration
 
-::: curupira.models.configuration.AzurePullRequestAutomationConfiguration
-
-::: curupira.models.configuration.TrelloAutomationConfiguration
-
 ::: curupira.models.configuration.CronAutomationConfiguration
 
 ### CLI profiles
@@ -111,7 +107,7 @@ Each profile's `provider` selects a **built-in** coding agent: `claude`, `codex`
 CLI (not process extensions). `curu plugins list` shows those providers as
 `agent:<name>` with origin `built-in`, alongside trigger extensions.
 
-## Assistant
+## Assistant { #assistant }
 
 `[assistant]` is optional. It records which built-in coding-agent provider should run
 the interactive configuration assistant and which model that CLI should use:
@@ -152,12 +148,12 @@ tools = ["*", "!internal-*"]
   plugins expose a `curupira-plugins` console script, so end users run
   `uvx --from curupira-plugins curupira-plugins` (no `python -m`). Node plugins publish
   an npm package whose `bin` speaks the protocol (typically built with
-  [`@caipora/curupira-sdk`](extensions.md#write-a-javascript--typescript-extension-with-caiporacurupira-sdk));
+  [`@caipora/curupira-sdk`](extensions.md#javascript-extension));
   pin the version in `args` (for example `@acme/curupira-ext@1.2.3`). `npx` must be on
   `PATH` (install [Node.js](https://nodejs.org/)).
 - `tools` (optional): glob list selecting which local trigger names to expose. Empty or
   omitted keeps every trigger from `describe`. Positive patterns (`github-*`, `*`) are
-  includes; patterns starting with `!` (`!monday-*`) are excludes. A name must match an
+  includes; patterns starting with `!` (`!github-project-*`) are excludes. A name must match an
   include when any includes are set, and must not match any exclude.
 
 Automations then set `trigger_type = "<alias>/<local-trigger>"`. Local trigger names are
@@ -172,9 +168,9 @@ kebab-case names declared by the extension (for example `github-issues`). The of
 - `path` (optional): existing checkout or alternate clone destination.
 - `setup_script` (optional): repository-relative executable run only after a fresh clone.
 
-Forge discovery is independent of the checkout URL. A common pattern is an Azure DevOps
-`remote` with GitHub public issues: set `repositories.api.remote` to the Azure Git URL and
-set the automation's GitHub `repo` to `owner/name`.
+Forge discovery is independent of the checkout URL. A common pattern is a `remote`
+on a different host than GitHub with GitHub public issues: set `repositories.api.remote` to
+that Git URL and set the automation's GitHub `repo` to `owner/name`.
 
 ## Automations
 
@@ -188,33 +184,26 @@ set the automation's GitHub `repo` to `owner/name`.
   sessions.
 - `plugins-py/github-pull-requests` discovers GitHub pull requests the same way, with PR filters such
   as `draft`, `review`, `ci_status`, plus post-filters `mergeable` / `merge_state`.
-- `plugins-py/azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
-- `plugins-py/trello-cli-cards` discovers Trello cards through Scale-Flow's `trello-cli` for a
-  configured `board_id`, optionally restricted to `list_ids`.
-- `plugins-py/monday-items` discovers monday.com board items through the GraphQL API for a
-  configured `board_id`, optionally restricted to `group_ids` (token from `token_env`,
-  default `MONDAY_API_TOKEN`). See the [monday.com task source guide](monday.md).
 - `cron` produces occurrences from a five-field `schedule` instead of querying a forge.
 - Installed [trigger extensions](extensions.md) add their own trigger types;
   `curu plugins list` shows every available type.
 
-Each automation requires `repository` (alias) and `prompt`. GitHub and Azure triggers also
-require forge `repo` identity (`owner/name` or `organization/project/repository`). Cron
-requires `schedule`. Trello automations require `board_id`. monday.com automations require
-`board_id` and a token in the environment named by `token_env`. Optional `profile` selects a
-CLI profile. Different repository aliases cannot share one workspace path. Automations keep
+Each automation requires `repository` (alias) and `prompt`. GitHub triggers also
+require forge `repo` identity (`owner/name`). Cron requires `schedule`. Optional `profile`
+selects a CLI profile. Different repository aliases cannot share one workspace path. Automations keep
 file order, and one-shot selection follows that order.
 
 GitHub API authentication uses `gh auth token` from an already authenticated GitHub CLI.
 Clone authentication uses native Git credentials for the configured `remote`.
 
-Placeholders use `${name}` syntax. The host always provides `${repository}` (the
+Placeholders use `${name}` syntax (Jinja conditionals and loops are also available; see
+[Writing prompts](prompts.md)). The host always provides `${repository}` (the
 forge identity derived from the Git remote) and `${automation}` (the automation
 name). Every other `${key}` comes from the trigger result: the SDK turns the
 returned object into string pairs, and each key is substituted as written,
 including keys that are not ordinary identifiers (`${issue-number}`). A
-placeholder with no match is left unchanged; `validate` does not require the
-prompt to name particular keys. Official plugins choose their own keys. GitHub
+placeholder with no match is left unchanged (it may be shell text such as `${HOME}`);
+`validate` only complains when a `${name}` or `{{ name }}` looks like a typo of a real key. Official plugins choose their own keys. GitHub
 issues include `issue_number`, `issue_title`, `issue_body`, and `issue_url`;
 pull requests include `pull_request_number`, `pull_request_title`,
 `pull_request_body`, `pull_request_url`, `pull_request_is_draft`,
@@ -235,7 +224,7 @@ prevents the agent from starting and removes the newly cloned checkout. Validati
 path syntax but does not require the script to exist. `run --dry-run` does not fetch, clone,
 create worktrees, or run setup.
 
-## Scheduling and state
+## Scheduling and state { #scheduling-and-state }
 
 Polls fetch up to `batch_size` items (default 100, maximum 1000). Empty poll cycles back off
 from `poll_interval_seconds` (default 30 seconds) up to five minutes; discovery resets the

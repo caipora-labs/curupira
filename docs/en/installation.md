@@ -68,7 +68,7 @@ package:
 
 ```bash
 uv tool install 'curupira[extensions]'
-# forge-named extras (github/azure/trello/monday) install the same package
+# forge-named extras (github) install the same package
 uv tool install 'curupira[github]'
 ```
 

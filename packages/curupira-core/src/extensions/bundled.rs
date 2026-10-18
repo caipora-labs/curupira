@@ -28,9 +28,7 @@ pub fn official_manifests() -> Vec<ExtensionManifest> {
         trigger_types: vec![
             "github-issues".into(),
             "github-pull-requests".into(),
-            "azure-cli-pull-requests".into(),
-            "trello-cli-cards".into(),
-            "monday-items".into(),
+            "github-project-items".into(),
         ],
         agent_providers: vec![],
     }]

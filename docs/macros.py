@@ -15,44 +15,130 @@ class MacroEnvironment(Protocol):
         """Register a zero-argument string-producing macro."""
 
 
-_TRIGGER_ROWS: tuple[tuple[str, str, str, str], ...] = (
+# (trigger, guide page, {language: (prerequisites, summary)}); English is the fallback.
+_TRIGGER_ROWS: tuple[tuple[str, str, dict[str, tuple[str, str]]], ...] = (
     (
         "plugins-py/github-issues",
         "github.md",
-        "`gh` authenticated (`gh auth login`)",
-        "Finds issues using filters you set in TOML",
+        {
+            "en": (
+                "`gh` authenticated (`gh auth login`)",
+                "Finds issues using filters you set in TOML",
+            ),
+            "pt": (
+                "`gh` autenticado (`gh auth login`)",
+                "Encontra issues usando filtros definidos no TOML",
+            ),
+            "es": (
+                "`gh` autenticado (`gh auth login`)",
+                "Encuentra issues usando filtros definidos en el TOML",
+            ),
+        },
     ),
     (
         "plugins-py/github-pull-requests",
         "github.md",
-        "`gh` authenticated (`gh auth login`)",
-        "Finds pull requests using filters you set in TOML",
+        {
+            "en": (
+                "`gh` authenticated (`gh auth login`)",
+                "Finds pull requests using filters you set in TOML",
+            ),
+            "pt": (
+                "`gh` autenticado (`gh auth login`)",
+                "Encontra pull requests usando filtros definidos no TOML",
+            ),
+            "es": (
+                "`gh` autenticado (`gh auth login`)",
+                "Encuentra pull requests usando filtros definidos en el TOML",
+            ),
+        },
     ),
     (
-        "plugins-py/azure-cli-pull-requests",
-        "#azure-devops-pull-requests",
-        "`az` + Azure DevOps extension (`az login`)",
-        "Lists Azure DevOps pull requests with the Azure CLI",
-    ),
-    (
-        "plugins-py/trello-cli-cards",
-        "trello.md",
-        "`trello` CLI (`trello auth login`)",
-        "Finds open cards on a Trello board",
-    ),
-    (
-        "plugins-py/monday-items",
-        "monday.md",
-        "`MONDAY_API_TOKEN` (or `token_env`) set",
-        "Finds board items through monday.com's API (read-only)",
+        "plugins-py/github-project-items",
+        "github-projects.md",
+        {
+            "en": (
+                "`gh` authenticated with the `read:project` scope",
+                "Finds issues and pull requests sitting in a GitHub Project board column",
+            ),
+            "pt": (
+                "`gh` autenticado com o escopo `read:project`",
+                "Encontra issues e pull requests em uma coluna de um board do GitHub Projects",
+            ),
+            "es": (
+                "`gh` autenticado con el alcance `read:project`",
+                "Encuentra issues y pull requests en una columna de un tablero de GitHub Projects",
+            ),
+        },
     ),
     (
         "cron",
-        "#cron",
-        "None (local schedule)",
-        "Runs on a local schedule you set (built into the Rust CLI)",
+        "automations.md#cron",
+        {
+            "en": (
+                "None (local schedule)",
+                "Runs on a local schedule you set (built into the Rust CLI)",
+            ),
+            "pt": (
+                "Nenhum (agenda local)",
+                "Roda em uma agenda local definida por você (embutido na CLI Rust)",
+            ),
+            "es": (
+                "Ninguno (agenda local)",
+                "Se ejecuta en una agenda local que defines (integrado en la CLI Rust)",
+            ),
+        },
     ),
 )
+
+_TRIGGER_HEADERS: dict[str, tuple[str, str, str, str]] = {
+    "en": ("Trigger", "Guide", "Prerequisites", "Summary"),
+    "pt": ("Trigger", "Guia", "Pré-requisitos", "Resumo"),
+    "es": ("Trigger", "Guía", "Requisitos previos", "Resumen"),
+}
+
+_AGENT_HEADERS: dict[str, tuple[str, str, str]] = {
+    "en": ("Provider", "Executable", "Guide"),
+    "pt": ("Provider", "Executável", "Guia"),
+    "es": ("Proveedor", "Ejecutable", "Guía"),
+}
+
+_REQUIREMENT_TEXT: dict[str, tuple[str, str, str]] = {
+    # (Python line, Node.js line, prefix of optional tools)
+    "en": (
+        (
+            "Python {range} on {platforms}, only for the PyPI install and for extensions launched "
+            "with `uvx`."
+        ),
+        (
+            "Node.js {range}, only for the npm install (`@caipora/curupira`) and for extensions "
+            "launched with `npx`."
+        ),
+        "Optional, ",
+    ),
+    "pt": (
+        (
+            "Python {range} em {platforms}, apenas para a instalação pelo PyPI e para extensões "
+            "iniciadas com `uvx`."
+        ),
+        (
+            "Node.js {range}, apenas para a instalação pelo npm (`@caipora/curupira`) e para "
+            "extensões iniciadas com `npx`."
+        ),
+        "Opcional, ",
+    ),
+    "es": (
+        (
+            "Python {range} en {platforms}, solo para la instalación desde PyPI y para extensiones "
+            "iniciadas con `uvx`."
+        ),
+        (
+            "Node.js {range}, solo para la instalación desde npm (`@caipora/curupira`) y para "
+            "extensiones iniciadas con `npx`."
+        ),
+        "Opcional, ",
+    ),
+}
 
 _AGENT_ROWS: tuple[tuple[str, str, str], ...] = (
     ("claude", "claude", "providers/claude.md"),
@@ -72,43 +158,57 @@ _REQUIREMENTS = tomllib.loads(
 )
 
 
+def _lang(lang: str) -> str:
+    return lang if lang in _TRIGGER_HEADERS else "en"
+
+
+def _localized(table: dict[str, object], key: str, lang: str) -> object:
+    """Return `<key>_<lang>` when the data defines it, otherwise the English `<key>`."""
+    return table.get(f"{key}_{lang}", table[key]) if lang != "en" else table[key]
+
+
 def define_env(env: MacroEnvironment) -> None:
-    """Register macros used by the English docs."""
+    """Register macros used by the documentation; each takes an optional language code."""
 
     @env.macro
-    def requirements_list() -> str:
+    def requirements_list(lang: str = "en") -> str:
+        lang = _lang(lang)
         python = _REQUIREMENTS["python"]
         node = _REQUIREMENTS["node"]
+        python_line, node_line, optional = _REQUIREMENT_TEXT[lang]
+        platforms = _localized(python, "platforms", lang)
+        node_range = _localized(node, "range", lang)
         lines = [
-            (
-                f"- Python {python['range']} on {python['platforms']}, only for the PyPI "
-                "install and for extensions launched with `uvx`."
-            ),
-            (
-                f"- Node.js {node['range']}, only for the npm install (`@caipora/curupira`) "
-                "and for extensions launched with `npx`."
-            ),
+            f"- {python_line.format(range=python['range'], platforms=platforms)}",
+            f"- {node_line.format(range=node_range)}",
         ]
         for tool in _REQUIREMENTS["required_tools"]:
-            lines.append(f"- [{tool['name']}]({tool['url']}): {tool['detail']}")
+            detail = _localized(tool, "detail", lang)
+            lines.append(f"- [{tool['name']}]({tool['url']}): {detail}")
         for tool in _REQUIREMENTS["optional_tools"]:
-            lines.append(f"- Optional, [{tool['name']}]({tool['url']}): {tool['detail']}")
+            detail = _localized(tool, "detail", lang)
+            lines.append(f"- {optional}[{tool['name']}]({tool['url']}): {detail}")
         return "\n".join(lines)
 
     @env.macro
-    def triggers_table() -> str:
+    def triggers_table(lang: str = "en") -> str:
+        lang = _lang(lang)
+        header = _TRIGGER_HEADERS[lang]
         lines = [
-            "| Trigger | Guide | Prerequisites | Summary |",
+            "| " + " | ".join(header) + " |",
             "| --- | --- | --- | --- |",
         ]
-        for trigger, guide, prereq, summary in _TRIGGER_ROWS:
+        for trigger, guide, texts in _TRIGGER_ROWS:
+            prereq, summary = texts[lang]
             lines.append(f"| `{trigger}` | [{guide}]({guide}) | {prereq} | {summary} |")
         return "\n".join(lines)
 
     @env.macro
-    def agents_table() -> str:
+    def agents_table(lang: str = "en") -> str:
+        lang = _lang(lang)
+        header = _AGENT_HEADERS[lang]
         lines = [
-            "| Provider | Executable | Guide |",
+            "| " + " | ".join(header) + " |",
             "| --- | --- | --- |",
         ]
         for provider, executable, guide in _AGENT_ROWS:

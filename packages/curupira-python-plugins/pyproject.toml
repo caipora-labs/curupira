@@ -1,7 +1,7 @@
 [project]
 name = "curupira-plugins"
 dynamic = ["version"]
-description = "Official Curupira trigger extensions (GitHub, Azure, Trello, monday.com)"
+description = "Official Curupira trigger extensions (GitHub issues, pull requests, and Projects)"
 requires-python = ">=3.11"
 license = "MIT"
 # Pre-releases need an explicit pre-release specifier, or pip ignores them.

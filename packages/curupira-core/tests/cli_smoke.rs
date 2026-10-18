@@ -116,3 +116,76 @@ fn run_dry_run_and_watch_are_mutually_exclusive() {
         .failure()
         .code(2);
 }
+
+fn cron_config(dir: &std::path::Path, prompt: &str) -> PathBuf {
+    let path = dir.join("settings.toml");
+    std::fs::write(
+        &path,
+        format!(
+            r#"[repositories.api]
+remote = "https://github.com/acme/api.git"
+
+[agents.defaults]
+profile = "opencode-default"
+timezone = "UTC"
+
+[agents.profiles.opencode-default]
+provider = "opencode"
+
+[automations.nightly]
+trigger_type = "cron"
+repository = "api"
+schedule = "0 9 * * 1"
+prompt = '''{prompt}'''
+"#
+        ),
+    )
+    .expect("write settings");
+    path
+}
+
+#[test]
+fn validate_accepts_jinja_and_dollar_prompts() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = cron_config(
+        dir.path(),
+        "{% if repository == 'acme/api' %}API{% endif %} ${automation} {{ automation }} ${HOME}",
+    );
+
+    cargo_bin_cmd!("curupira")
+        .arg("--config")
+        .arg(&config)
+        .arg("validate")
+        .assert()
+        .success();
+}
+
+#[test]
+fn validate_reports_prompt_typos_with_suggestions() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = cron_config(dir.path(), "Run ${automatoin}");
+
+    cargo_bin_cmd!("curupira")
+        .arg("--config")
+        .arg(&config)
+        .arg("validate")
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("did you mean \"automation\""));
+}
+
+#[test]
+fn validate_reports_prompt_syntax_errors_with_the_automation_name() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let config = cron_config(dir.path(), "{% if x %}never closed");
+
+    cargo_bin_cmd!("curupira")
+        .arg("--config")
+        .arg(&config)
+        .arg("validate")
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("nightly").and(predicate::str::contains("endif")));
+}

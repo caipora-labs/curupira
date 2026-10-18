@@ -37,6 +37,11 @@ class SearchFilters(BaseModel):
     project: str | None = None
     sort: SortOrder | None = None
 
+    @field_validator("labels", "exclude_labels", mode="before")
+    @classmethod
+    def _as_list(cls, value: object) -> object:
+        return [value] if isinstance(value, str) else value
+
     @field_validator("repo")
     @classmethod
     def _reject_traversal(cls, value: str) -> str:
@@ -82,6 +87,11 @@ class PullRequestFilters(SearchFilters):
     linked_issue: bool | None = None
     mergeable: bool | None = None
     merge_state: list[MergeState] | None = None
+
+    @field_validator("merge_state", mode="before")
+    @classmethod
+    def _merge_state_as_list(cls, value: object) -> object:
+        return [value] if isinstance(value, str) else value
 
     def search_query(self) -> str:
         qualifiers = ["is:pr", *self.shared_qualifiers()]
@@ -134,3 +144,90 @@ def _qualifier(name: str, value: str) -> str:
         escaped = value.replace('"', '\\"')
         return f'{name}:"{escaped}"'
     return f"{name}:{value}"
+
+
+ProjectContent = Literal["all", "issue", "pull_request"]
+
+
+class ProjectFilters(BaseModel):
+    """Filters for `github-project-items`: one board, one or more Status columns."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    owner: str = Field(min_length=1, pattern=r"^[A-Za-z0-9_.-]+$")
+    project: int = Field(gt=0)
+    column: list[str] = Field(min_length=1)
+    status_field: str = "Status"
+    content: ProjectContent = "all"
+    repo: str | None = Field(default=None, pattern=REPO_PATTERN)
+    state: SearchState = "open"
+    labels: list[str] | None = None
+    exclude_labels: list[str] | None = None
+    assignee: str | None = None
+    author: str | None = None
+
+    @field_validator("column", "labels", "exclude_labels", mode="before")
+    @classmethod
+    def _as_list(cls, value: object) -> object:
+        return [value] if isinstance(value, str) else value
+
+    @field_validator("column")
+    @classmethod
+    def _column_not_blank(cls, value: list[str]) -> list[str]:
+        if any(not name.strip() for name in value):
+            raise ValueError("column names must not be blank")
+        return value
+
+    def view_filter(self) -> str | None:
+        """Projects view-filter text that makes GitHub return only the chosen columns.
+
+        Field names with whitespace are not safe in that syntax, so those fall back to the
+        client-side check in `keeps_column`.
+        """
+        if any(char.isspace() for char in self.status_field):
+            return None
+        values = ",".join(_view_value(name) for name in self.column)
+        return f"{self.status_field.lower()}:{values}"
+
+    def keeps_column(self, fields: dict[str, str]) -> bool:
+        wanted = {name.strip().casefold() for name in self.column}
+        by_field = {name.casefold(): value for name, value in fields.items()}
+        return by_field.get(self.status_field.casefold(), "").strip().casefold() in wanted
+
+    def keeps_content(
+        self,
+        *,
+        kind: str,
+        repo: str,
+        state: str,
+        labels: list[str],
+        assignees: list[str],
+        author: str,
+    ) -> bool:
+        """Apply the issue/pull-request filters that the view filter cannot express."""
+        if self.content != "all" and kind != self.content:
+            return False
+        if self.repo and repo.casefold() != self.repo.casefold():
+            return False
+        if self.state != "all" and state.casefold() != self.state:
+            return False
+        have = {label.casefold() for label in labels}
+        if any(label.casefold() not in have for label in self.labels or []):
+            return False
+        if any(label.casefold() in have for label in self.exclude_labels or []):
+            return False
+        if self.assignee is not None and not _assignee_matches(self.assignee, assignees):
+            return False
+        return self.author is None or author.casefold() == self.author.casefold()
+
+
+def _view_value(name: str) -> str:
+    return f'"{name}"' if any(char in name for char in ' ,"') else name
+
+
+def _assignee_matches(wanted: str, assignees: list[str]) -> bool:
+    if wanted == "none":
+        return not assignees
+    if wanted == "any":
+        return bool(assignees)
+    return wanted.casefold() in {login.casefold() for login in assignees}

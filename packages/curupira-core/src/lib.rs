@@ -8,6 +8,7 @@ pub mod dispatch;
 pub mod error;
 pub mod extensions;
 pub mod process;
+pub mod prompt;
 pub mod protocol;
 pub mod runtime;
 pub mod storage;

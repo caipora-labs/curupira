@@ -13,16 +13,10 @@ import sys
 from curupira_sdk import Curupira
 
 from curupira_plugins import __version__
-from curupira_plugins.azure.triggers import register as register_azure
 from curupira_plugins.github.triggers import register as register_github
-from curupira_plugins.monday.triggers import register as register_monday
-from curupira_plugins.trello.triggers import register as register_trello
 
 app = Curupira(name="curupira-plugins", version=__version__)
 register_github(app)
-register_azure(app)
-register_trello(app)
-register_monday(app)
 
 MANIFEST = """
 manifest_version = 1
@@ -34,9 +28,7 @@ kind = "trigger"
 trigger_types = [
   "github-issues",
   "github-pull-requests",
-  "azure-cli-pull-requests",
-  "trello-cli-cards",
-  "monday-items",
+  "github-project-items",
 ]
 
 [launch]
