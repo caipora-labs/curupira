@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **`@caipora/curupira` (npm CLI).** `packages/curupira-npm/` installs the existing Rust
+  `curupira` and `curu` binaries through Node.js, without Python, pip, uv, or a Rust
+  toolchain. Platform packages (`@caipora/curupira-linux-x64`, musl, macOS, and Windows,
+  including ARM64) are optional dependencies built from the same maturin wheels as the
+  PyPI release. Configuration, state, extensions, and the dispatch lock stay in
+  `~/.curupira/`. A `publish/curupira/<version>` tag builds and, on push, publishes the
+  npm packages with the Cargo form of that version. Docs: `docs/en/installation.md`.
 - **`@caipora/curupira-sdk` (Node.js).** New package under `packages/curupira-js-sdk/`
   provides a declarative `defineTriggers({ ... })` API for JavaScript and TypeScript
   extensions, protocol-2 serialization to string key/value pairs (or `null`), and a

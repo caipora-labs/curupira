@@ -1,13 +1,16 @@
 """Write a release version into the files that cannot read the git tag themselves.
 
 hatch-vcs gives the Python packages their version from the tag. The Rust crate reads its
-version from Cargo.toml, and the official plugin manifest is a static TOML file, so the
-release workflow stamps both before building. Only the publish workflow runs this.
+version from Cargo.toml, the npm CLI reads ``package.json``, and the official plugin
+manifest is a static TOML file, so the release workflow stamps those before building.
+Only the publish workflow runs this. The npm version uses the Cargo semver form
+(``0.3.0.dev0`` becomes ``0.3.0-dev0``).
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from pathlib import Path
 
@@ -24,12 +27,21 @@ STAMPED = {
         str,
     ),
 }
+# The npm CLI ships the same Rust binary, so it takes the Cargo form of the tag.
+NPM_MANIFEST = Path("packages/curupira-npm/package.json")
 
 
 def stamp(project: str, version: Version, root: Path = Path()) -> list[Path]:
     """Write ``version`` into the project's stamped files and return the files changed."""
-    if project not in STAMPED:
-        return []
+    changed: list[Path] = []
+    if project in STAMPED:
+        changed.append(_stamp_version_line(project, version, root))
+    if project == "curupira":
+        changed.append(_stamp_npm_manifest(root, cargo_version(version)))
+    return changed
+
+
+def _stamp_version_line(project: str, version: Version, root: Path) -> Path:
     relative, count, render = STAMPED[project]
     path = root / relative
     text = path.read_text(encoding="utf-8")
@@ -39,7 +51,23 @@ def stamp(project: str, version: Version, root: Path = Path()) -> list[Path]:
         message = f"No version line found in {path}"
         raise SystemExit(message)
     path.write_text(stamped, encoding="utf-8")
-    return [path]
+    return path
+
+
+def _stamp_npm_manifest(root: Path, version: str) -> Path:
+    """Write the release version into the npm CLI manifest and its platform dependencies."""
+    path = root / NPM_MANIFEST
+    if not path.is_file():
+        message = f"Missing npm manifest {path}"
+        raise SystemExit(message)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["version"] = version
+    optional = manifest.get("optionalDependencies")
+    if isinstance(optional, dict):
+        for name in optional:
+            optional[name] = version
+    path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return path
 
 
 def main(argv: list[str] | None = None) -> None:
