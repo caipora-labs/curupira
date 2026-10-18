@@ -15,8 +15,9 @@ comparten un mismo flujo de descubrimiento, programación y ejecución.
 
 {{ triggers_table("es") }}
 
-Los [plugins](plugins.md) instalados pueden añadir más tipos de trigger. `curu plugins list`
-muestra cada tipo registrado y sus campos de prompt.
+Los conectores registrados en `[plugins.<alias>]` añaden más tipos de trigger, consulta
+[Plugins y conectores](plugins.md). `curu plugins list` muestra cada tipo disponible y sus
+campos de prompt.
 
 ## Seguridad: el texto de las tareas no es confiable { #security-task-text-is-untrusted }
 
@@ -35,8 +36,6 @@ todas las personas que pueden escribir texto.
    ```bash
    npm install -g @caipora/curupira
    # o: uv tool install curupira
-   # los triggers de forge son extras opcionales de PyPI, por ejemplo:
-   # uv tool install 'curupira[github]'
    ```
 
 2. Copia un archivo de configuración mínimo (o parte de `curupira.example.toml`) y valida
@@ -182,7 +181,7 @@ veces al mismo tiempo.
 
 | Síntoma | Causa probable | Solución |
 | --- | --- | --- |
-| `unknown trigger type: …` | Error tipográfico o plugin no instalado | Compara `trigger_type` con `curu plugins list` |
+| `unknown trigger type: …` | Error tipográfico, o el plugin no está registrado | Compara `trigger_type` con `curu plugins list` |
 | Errores de alias de repositorio / falta el repositorio | `repository` no coincide con una clave `[repositories.<alias>]` | Alinea el alias y comprueba que `remote` sea una URL de Git completa |
 | Placeholder sin reemplazar en el prompt | `${name}` no es una variable del host y el trigger no devolvió esa clave | Usa una clave que devuelva el trigger; consulta la [Referencia de campos de prompt](prompt-fields.md). `validate` sugiere la clave más cercana |
 | `prompt uses unknown field(s)` de `validate` | Un `{{ name }}` (o un `${name}` que parece un error tipográfico) no es una clave de este trigger | Corrige el nombre; el mensaje lista los campos disponibles |

@@ -11,11 +11,12 @@ built into the Rust CLI and are not launched through this protocol.
 Each message is:
 
 ```
-XXXXXXXX <utf-8 JSON body>
+XXXXXXXX<utf-8 JSON body>
 ```
 
 where `XXXXXXXX` is eight lowercase or uppercase ASCII hex digits giving the
-byte length of the JSON body (big-endian interpretation of the hex integer).
+byte length of the JSON body (big-endian interpretation of the hex integer). The
+body follows the header directly, with no separator and no trailing newline.
 
 - **stdout** is reserved for protocol frames only.
 - **stderr** is for logs and diagnostics.

@@ -6,7 +6,7 @@ render_macros: false
 
 Copy one, change the repository names, and run `curupira validate` followed by
 `curupira run --dry-run`. Every recipe assumes the settings from the
-[quick start](index.md#quick-start) (a repository alias, an agent profile, and
+[quick start](quick-start.md) (a repository alias, an agent profile, and
 the `[plugins.plugins-py]` registration).
 
 ## Resolve issues that carry a label

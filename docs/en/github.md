@@ -249,7 +249,7 @@ order, together with the automation, repository, and trigger type. Curupira keep
   skipped for the rest of the current process and tried again after a restart.
 
 Changing any returned value, including the title, body, or labels, makes a different task. For
-that reason the official triggers do not return values that change by themselves or because the
+that reason the GitHub triggers do not return values that change by themselves or because the
 agent worked on the item (comments, update time, CI and review state, linked pull requests):
 the agent would be started again for the same issue. When the agent needs them, tell it to read
 them, for example with `gh issue view ${issue_number} --comments`.

@@ -2,8 +2,7 @@
 
 O Curupira é um programa de linha de comando em Rust. Instale esse mesmo programa com npm ou
 pelo PyPI. Os dois comandos são `curupira` e `curu`, e ambos usam `~/.curupira/` para
-`settings.toml`, o arquivo de estado SQLite, workspaces, worktrees, logs, telemetria e
-extensões. Migrar do pip para o npm mantém esse diretório; o pacote npm não cria um
+`settings.toml`, o arquivo de estado SQLite, workspaces e worktrees. Migrar do pip para o npm mantém esse diretório; o pacote npm não cria um
 segundo caminho de configuração.
 
 O repositório do código-fonte é [caipora-labs/curupira](https://github.com/caipora-labs/curupira).
@@ -26,11 +25,10 @@ ambiente nem a configuração, e encerra com o status do processo Rust. Uma list
 processos mostra o Node.js como pai desse processo. O processo Rust é o que mantém o
 `~/.curupira/dispatch.lock`.
 
-`import curupira` e `curupira.__version__` existem apenas na instalação pelo PyPI. Extras do
-PyPI como `curupira[extensions]` não são recursos do npm. As extensões continuam usando o
-launcher do `settings.toml` (`uvx` ou `npx`). O pacote npm não instala Python nem um ambiente
-Node.js privado para elas. Se `uvx` ou `npx` não estiver disponível, a validação informa que o
-launcher não foi encontrado no `PATH`.
+`import curupira` e `curupira.__version__` existem apenas na instalação pelo PyPI. Os plugins
+são iniciados pelo launcher definido no `settings.toml` (`uvx` ou `npx`), com qualquer uma das
+instalações. O Curupira não instala Python nem um ambiente Node.js privado para eles. Se `uvx`
+ou `npx` não estiver disponível, a validação informa que o launcher não foi encontrado no `PATH`.
 
 ## Instalar com Node.js
 
@@ -47,8 +45,8 @@ npx @caipora/curupira --help
 O npm instala o pacote opcional que corresponde a este sistema operacional, CPU e biblioteca C
 (`@caipora/curupira-linux-x64` e os demais pacotes de plataforma listados no
 [README do pacote](https://github.com/caipora-labs/curupira/blob/main/packages/curupira-npm/README.md)).
-Os triggers oficiais em Python não estão incluídos. Instale-os depois com
-`curupira plugins install`, ou configure você mesmo `[plugins.<alias>]`.
+Os conectores não estão incluídos: você os registra em `[plugins.<alias>]` nas suas
+configurações, veja [Plugins e conectores](plugins.md).
 
 ## Instalar com Python
 
@@ -62,15 +60,8 @@ uv tool install curupira
 pip install curupira
 ```
 
-O cron embutido funciona de imediato. Para fontes de tarefas de forges, adicione um extra
-opcional (ou use `curupira plugins install`). Os extras instalam o pacote consolidado
-`curupira-plugins`:
-
-```bash
-uv tool install 'curupira[extensions]'
-# extras com nome de forge (github) instalam o mesmo pacote
-uv tool install 'curupira[github]'
-```
+O cron embutido funciona de imediato. Conectores como o do GitHub são registrados nas suas
+configurações, veja [Plugins e conectores](plugins.md).
 
 Para fixar uma versão específica, use `uv tool install "curupira==X.Y.Z"`.
 
@@ -102,4 +93,4 @@ Invoke-WebRequest `
   -OutFile "$HOME\.curupira\settings.toml"
 ```
 
-Edite repositórios, consultas e prompts no TOML. O diretório `~/.curupira` também guarda o estado e os logs. Passe `--config caminho/para/settings.toml` para usar outro arquivo.
+Edite repositórios, consultas e prompts no TOML. O diretório `~/.curupira` também guarda o estado e os workspaces. Passe `--config caminho/para/settings.toml` para usar outro arquivo.

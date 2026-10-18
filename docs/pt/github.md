@@ -249,7 +249,7 @@ ordem, junto com a automação, o repositório e o tipo do trigger. O Curupira m
   ignorada pelo restante do processo atual e tentada novamente após uma reinicialização.
 
 Alterar qualquer valor retornado, inclusive o título, o corpo ou as labels, cria uma tarefa diferente. Por
-isso os triggers oficiais não retornam valores que mudam sozinhos ou porque o agente trabalhou no item
+isso os triggers do GitHub não retornam valores que mudam sozinhos ou porque o agente trabalhou no item
 (comentários, horário de atualização, estado do CI e da revisão, pull requests vinculados):
 o agente seria iniciado novamente para a mesma issue. Quando o agente precisar deles, diga a ele que os leia,
 por exemplo com `gh issue view ${issue_number} --comments`.

@@ -23,12 +23,34 @@ All notable changes to this project are documented here. The format follows
   remembered across restarts. The Portuguese and Spanish documentation is now a full translation
   of the English pages (it used to link to the English reference), and CI fails when the three
   languages drift apart (`.github/scripts/check_docs_parity.py`).
+- **Documentation site redesign.** The docs are organized in top tabs: *Get started*
+  (installation, a quick start, and a new *How it works* page with a diagram and glossary),
+  *Orchestrator* (configuration, automations, prompts, running Curupira, the terminal
+  dashboard, coding agents), *Plugins* (a connector catalog that presents GitHub as the first
+  connector and Monday.com and Azure DevOps as in development, then the GitHub guides), and
+  *Build extensions* (an overview plus separate Python SDK, JavaScript and TypeScript SDK, and
+  manifest and protocol pages). The docs no longer mention the in-process plugin API, the
+  `curupira[github]` extras, or `curupira plugins install`. A new home page, a neutral header with the Curupira flame logo, brand-colored syntax highlighting,
+  content tabs, code annotations, and Mermaid diagrams. Every coding-agent page now follows
+  one template (install, options, example, sessions).
 - **Friendlier GitHub filters.** `labels`, `exclude_labels`, `merge_state`, and `column` accept a
   single string as well as a list.
 - **Richer prompt fields for issues and pull requests.** Assignees, milestone, creation time,
   close reason, and, for pull requests, diff size and the issues they close. Fields that change
   without the item being edited (comments, update time, CI and review state) are left out on
   purpose, because the task identity is a hash of every returned field.
+
+### Fixed
+
+- **Documentation matches the Rust CLI.** Removed claims inherited from the Python CLI:
+  the Textual dashboard and its embedded assistant panel, configuration hot reload, the
+  task log file and crash reports, `gh` retry with backoff, OTLP trace export, and
+  head-SHA revalidation before admission. `operations.md` now documents the real output
+  format, exit codes (`0`, `1`, `2`, `130`), the dispatch lock, and session resume.
+  `configuration.md` drops the leftover mkdocstrings directives and lists the settings with
+  their defaults; the `[assistant]` page became *Terminal dashboard* (`tui.md`).
+- **Protocol framing.** `PROTOCOL.md` and the docs now state that the eight-digit hex header
+  is followed directly by the JSON body, with no separator, as the host implements it.
 
 ### Removed
 

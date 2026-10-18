@@ -1,77 +1,144 @@
-# Curupira
+---
+template: home.html
+title: Curupira
+description: Entrega tareas de GitHub, tableros de proyectos y cronogramas cron a la CLI de agente de código que ya usas.
+hide:
+  - navigation
+  - toc
+hero:
+  eyebrow: Automatizaciones locales para agentes de código
+  title: Entrega tu backlog al agente de código que ya usas
+  lead: >-
+    Curupira vigila fuentes de tareas mediante conectores (GitHub hoy, Monday.com y Azure
+    DevOps en desarrollo) y cronogramas cron, y ejecuta cada tarea con Claude Code, Codex,
+    Gemini u otra CLI de agente en su propio worktree de Git. Se ejecuta en tu máquina,
+    desde un único archivo TOML.
+  primary:
+    text: Empezar
+    href: quick-start/
+  secondary:
+    text: Cómo funciona
+    href: concepts/
+  install_label: Instalar
+  trace_label: Ejemplo de sesión en la terminal
+  trace_caption: >-
+    Valida el archivo, previsualiza el prompt exacto y sigue vigilando. Cada tarea
+    terminada imprime ok con su identidad y nunca se ejecuta dos veces.
+---
 
-Curupira ejecuta automatizaciones en tu máquina. Vigila una fuente de trabajo (issues de GitHub, pull
-requests, una columna de un tablero de GitHub Projects o un cronograma cron) y entrega cada elemento a
-una CLI de agente de código que ya uses, como Claude Code, Codex, Gemini u OpenCode. Cada
-tarea se ejecuta en su propio worktree de Git, así que tu propio checkout nunca se toca.
+<div class="grid cards cp-cols-4" markdown>
 
-Todo se configura en un único archivo TOML, `~/.curupira/settings.toml`.
+-   :material-rocket-launch-outline:{ .lg } **Empezar**
 
-## Inicio rápido (unos 5 minutos) { #quick-start }
+    ---
 
-Necesitas [Git](https://git-scm.com/), la [CLI de GitHub](https://cli.github.com/) (`gh`) y una
-CLI de agente de código. Los detalles están en [Instalación](installation.md).
+    Instala la CLI, escribe tu primera automatización y mira el prompt antes de que se ejecute nada.
 
-**1. Instala e inicia sesión**
+    [Primeros pasos](quick-start.md) · [Instalación](installation.md)
 
-```sh
-uv tool install 'curupira[github]'
-gh auth login
-```
+-   :material-transit-connection-variant:{ .lg } **Orquestador**
 
-**2. Crea `~/.curupira/settings.toml`**
+    ---
 
-Esto resuelve los issues que tengan el label `agent-ready`:
+    Configura repositorios, perfiles de agente, automatizaciones, prompts y el ciclo de ejecución.
 
-```toml
-[repositories.api]
-remote = "https://github.com/acme/api.git"   # donde trabaja el agente
+    [Configuración](configuration.md) · [Ejecutar Curupira](operations.md)
 
-[agents.defaults]
-profile = "claude"
-timezone = "UTC"
+-   :material-puzzle-outline:{ .lg } **Plugins y conectores**
 
-[agents.profiles.claude]
-provider = "claude"
+    ---
 
-[plugins.plugins-py]                          # los triggers oficiales de GitHub
-type = "uvx"
-args = ["--from", "curupira-plugins", "curupira-plugins"]
+    Fuentes de tareas para GitHub y más. Cada conector es un plugin que registras por nombre.
 
-[automations.resolve-ready-issues]
-trigger_type = "plugins-py/github-issues"
-repository = "api"
-repo = "acme/api"                             # el repositorio de GitHub a vigilar
-labels = ["agent-ready"]
-prompt = """
-Resolve issue #${issue_number}: ${issue_title}
+    [Resumen de plugins](plugins.md) · [Recetas](recipes.md)
 
-${issue_body}
-"""
-```
+-   :material-code-braces:{ .lg } **Desarrollar extensiones**
 
-**3. Valídalo, previsualízalo y ejecútalo**
+    ---
 
-```sh
-curupira validate      # ¿el archivo es correcto?
-curupira run --dry-run # qué tarea se ejecutaría y el prompt exacto que recibe el agente
-curupira run --watch   # sigue consultando y ejecuta las tareas a medida que aparecen
-```
+    Escribe tu propio conector en Python o JavaScript con los SDK de Curupira.
 
-`--dry-run` no clona nada ni inicia ningún agente, así que puedes repetirlo sin riesgo mientras ajustas
-los filtros y el prompt.
+    [Resumen de extensiones](extensions.md) · [Protocolo](extensions-protocol.md)
 
-## A dónde ir después
+</div>
 
-| Quiero... | Lee |
-| --- | --- |
-| Instalar Curupira y las CLI de agentes | [Instalación](installation.md) |
-| Entender cada ajuste del archivo | [Configuración](configuration.md) |
-| Elegir un trigger y ver un ejemplo mínimo | [Automatizaciones](automations.md) |
-| Filtrar issues y pull requests | [Issues y pull requests de GitHub](github.md) |
-| Trabajar desde una columna de un tablero de proyecto | [GitHub Projects](github-projects.md) |
-| Escribir un prompt más inteligente (condiciones, bucles) | [Cómo escribir prompts](prompts.md) |
-| Ver todos los campos que puede usar un prompt | [Referencia de campos del prompt](prompt-fields.md) |
-| Copiar una configuración que funciona | [Recetas](recipes.md) |
-| Elegir o ajustar el agente de código | [Proveedores y agentes](providers.md) |
-| Usarlo día a día, leer logs, corregir errores | [Operaciones](operations.md) |
+## Conectores { #connectors }
+
+Un conector es un plugin que le dice a Curupira qué trabajo existe. Elige uno, regístralo en
+`settings.toml` y cada tarea que encuentre llega a tu agente.
+
+<div class="grid cards cp-cols-4" markdown>
+
+-   :material-github:{ .lg } **GitHub** <span class="cp-status cp-status--live">Disponible</span>
+
+    ---
+
+    Issues, pull requests y columnas de tableros de Projects, a través de la CLI `gh`.
+
+    [Conector de GitHub](github.md)
+
+-   :material-view-dashboard-outline:{ .lg } **Monday.com** <span class="cp-status cp-status--dev">En desarrollo</span>
+
+    ---
+
+    Elementos de tus tableros de Monday.com como tareas para el agente.
+
+    [Resumen de plugins](plugins.md#catalog)
+
+-   :material-microsoft-azure-devops:{ .lg } **Azure DevOps** <span class="cp-status cp-status--dev">En desarrollo</span>
+
+    ---
+
+    Elementos de trabajo de Azure DevOps como tareas para el agente.
+
+    [Resumen de plugins](plugins.md#catalog)
+
+-   :material-puzzle-plus-outline:{ .lg } **El tuyo** <span class="cp-status cp-status--live">Disponible</span>
+
+    ---
+
+    Cualquier cosa que pueda devolver un elemento a la vez puede ser un conector.
+
+    [Desarrollar extensiones](extensions.md)
+
+</div>
+
+Cron está integrado y no necesita conector: [programa una automatización](automations.md#cron).
+
+## Funciona con la CLI de tu agente { #agents }
+
+Curupira inicia cada agente con su propio comando no interactivo, así que tu sesión, tus
+modelos y tus ajustes se quedan donde están.
+
+<div class="cp-agents" markdown>
+
+- [Claude Code](providers/claude.md)
+- [Codex](providers/codex.md)
+- [Cursor](providers/cursor.md)
+- [Gemini CLI](providers/gemini.md)
+- [GitHub Copilot CLI](providers/copilot.md)
+- [Kilo CLI](providers/kilo.md)
+- [OpenCode](providers/opencode.md)
+- [pi](providers/pi.md)
+- [Qwen Code](providers/qwen.md)
+
+</div>
+
+## Tareas comunes { #tasks }
+
+<div class="cp-tasks" markdown>
+
+- [Instalación](installation.md) <span>Instala Curupira y las CLI de los agentes</span>
+- [Cómo funciona](concepts.md) <span>Sigue una tarea desde su fuente hasta el agente</span>
+- [Configuración](configuration.md) <span>Entiende cada ajuste del archivo</span>
+- [Automatizaciones](automations.md) <span>Elige un trigger y mira un ejemplo mínimo</span>
+- [Conector de GitHub](github.md) <span>Filtra issues y pull requests</span>
+- [GitHub Projects](github-projects.md) <span>Trabaja desde una columna de un tablero</span>
+- [Escribir prompts](prompts.md) <span>Usa condiciones y bucles en un prompt</span>
+- [Referencia de campos del prompt](prompt-fields.md) <span>Mira cada campo que puede usar un prompt</span>
+- [Recetas](recipes.md) <span>Copia una configuración que funciona</span>
+- [Agentes de código](providers.md) <span>Elige o ajusta el agente de código</span>
+- [Ejecutar Curupira](operations.md) <span>Úsalo día a día y corrige errores</span>
+- [Desarrollar extensiones](extensions.md) <span>Escribe tu propio conector</span>
+
+</div>

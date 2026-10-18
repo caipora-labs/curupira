@@ -6,7 +6,7 @@ render_macros: false
 
 Copie uma, altere os nomes dos repositórios e execute `curupira validate` seguido de
 `curupira run --dry-run`. Toda receita pressupõe as configurações do
-[início rápido](index.md#quick-start) (um alias de repositório, um perfil de agente e
+[início rápido](quick-start.md) (um alias de repositório, um perfil de agente e
 o registro `[plugins.plugins-py]`).
 
 ## Resolver issues que têm uma label

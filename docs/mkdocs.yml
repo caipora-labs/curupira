@@ -1,6 +1,8 @@
 site_name: Curupira
 site_url: https://caipora-labs.github.io/curupira/
 site_description: Run GitHub and cron automations with local coding-agent CLIs.
+site_author: Caipora Labs
+copyright: Copyright &copy; Caipora Labs &middot; MIT License
 repo_name: caipora-labs/curupira
 repo_url: https://github.com/caipora-labs/curupira
 edit_uri: edit/main/docs/
@@ -13,6 +15,7 @@ exclude_docs: |
   mkdocs.yml
   macros.py
   data/
+  overrides/
   __pycache__/
 plugins:
   - search
@@ -27,118 +30,198 @@ plugins:
           name: Português
           nav:
             - Início: index.md
-            - Instalação: installation.md
-            - Configuração: configuration.md
-            - Automações: automations.md
-            - Prompts:
-                - Escrevendo prompts: prompts.md
-                - Referência de campos: prompt-fields.md
+            - Começar:
+                - Instalação: installation.md
+                - Primeiros passos: quick-start.md
+                - Como funciona: concepts.md
+            - Orquestrador:
+                - Configuração: configuration.md
+                - Automações: automations.md
+                - Prompts:
+                    - Escrevendo prompts: prompts.md
+                    - Referência de campos: prompt-fields.md
+                - Executando o Curupira: operations.md
+                - Painel no terminal: tui.md
+                - Agentes de código:
+                    - Visão geral: providers.md
+                    - Claude Code: providers/claude.md
+                    - Codex: providers/codex.md
+                    - Cursor: providers/cursor.md
+                    - Gemini CLI: providers/gemini.md
+                    - GitHub Copilot CLI: providers/copilot.md
+                    - Kilo CLI: providers/kilo.md
+                    - OpenCode: providers/opencode.md
+                    - pi: providers/pi.md
+                    - Qwen Code: providers/qwen.md
+            - Plugins:
+                - Plugins e conectores: plugins.md
+                - GitHub:
+                    - Issues e pull requests: github.md
+                    - Projects (colunas do board): github-projects.md
                 - Receitas: recipes.md
-            - Assistente TUI: assistant.md
-            - GitHub:
-                - Issues e pull requests: github.md
-                - Projects (colunas do board): github-projects.md
-            - Operação: operations.md
-            - Providers e agentes:
-                - Visão geral: providers.md
-                - Claude Code: providers/claude.md
-                - Codex: providers/codex.md
-                - Cursor: providers/cursor.md
-                - Kilo CLI: providers/kilo.md
-                - Gemini CLI: providers/gemini.md
-                - GitHub Copilot CLI: providers/copilot.md
-                - OpenCode: providers/opencode.md
-                - pi: providers/pi.md
-                - Qwen Code: providers/qwen.md
-            - Extensions: extensions.md
-            - Plugins (notas legadas): plugins.md
+            - Desenvolver extensões:
+                - Visão geral: extensions.md
+                - SDK Python: extensions-python.md
+                - SDK JavaScript e TypeScript: extensions-javascript.md
+                - Manifesto e protocolo: extensions-protocol.md
+                - Contribuir com o Curupira: https://github.com/caipora-labs/curupira/blob/main/CONTRIBUTING.md
         - locale: es
           name: Español
           nav:
             - Inicio: index.md
-            - Instalación: installation.md
-            - Configuración: configuration.md
-            - Automatizaciones: automations.md
-            - Prompts:
-                - Escribir prompts: prompts.md
-                - Referencia de campos: prompt-fields.md
+            - Empezar:
+                - Instalación: installation.md
+                - Primeros pasos: quick-start.md
+                - Cómo funciona: concepts.md
+            - Orquestador:
+                - Configuración: configuration.md
+                - Automatizaciones: automations.md
+                - Prompts:
+                    - Escribir prompts: prompts.md
+                    - Referencia de campos: prompt-fields.md
+                - Ejecutar Curupira: operations.md
+                - Panel en la terminal: tui.md
+                - Agentes de código:
+                    - Resumen: providers.md
+                    - Claude Code: providers/claude.md
+                    - Codex: providers/codex.md
+                    - Cursor: providers/cursor.md
+                    - Gemini CLI: providers/gemini.md
+                    - GitHub Copilot CLI: providers/copilot.md
+                    - Kilo CLI: providers/kilo.md
+                    - OpenCode: providers/opencode.md
+                    - pi: providers/pi.md
+                    - Qwen Code: providers/qwen.md
+            - Plugins:
+                - Plugins y conectores: plugins.md
+                - GitHub:
+                    - Issues y pull requests: github.md
+                    - Projects (columnas del tablero): github-projects.md
                 - Recetas: recipes.md
-            - Asistente TUI: assistant.md
-            - GitHub:
-                - Issues y pull requests: github.md
-                - Projects (columnas del tablero): github-projects.md
-            - Operaciones: operations.md
-            - Proveedores y agentes:
-                - Resumen: providers.md
-                - Claude Code: providers/claude.md
-                - Codex: providers/codex.md
-                - Cursor: providers/cursor.md
-                - Kilo CLI: providers/kilo.md
-                - Gemini CLI: providers/gemini.md
-                - GitHub Copilot CLI: providers/copilot.md
-                - OpenCode: providers/opencode.md
-                - pi: providers/pi.md
-                - Qwen Code: providers/qwen.md
-            - Extensions: extensions.md
-            - Plugins (notas legacy): plugins.md
+            - Desarrollar extensiones:
+                - Resumen: extensions.md
+                - SDK de Python: extensions-python.md
+                - SDK de JavaScript y TypeScript: extensions-javascript.md
+                - Manifiesto y protocolo: extensions-protocol.md
+                - Contribuir a Curupira: https://github.com/caipora-labs/curupira/blob/main/CONTRIBUTING.md
   - macros:
       module_name: macros
 theme:
   name: material
+  custom_dir: overrides
   language: en
+  logo: assets/curupira-mark.svg
+  favicon: assets/curupira-mark.svg
+  # Fonts are loaded in overrides/main.html (display, text, and code faces in one request).
+  font: false
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil-outline
+    admonition:
+      tip: material/leaf
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: custom
       accent: custom
       toggle:
-        icon: material/brightness-7
+        icon: material/weather-night
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: custom
       accent: custom
       toggle:
-        icon: material/brightness-4
+        icon: material/weather-sunny
         name: Switch to light mode
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.top
+    - navigation.footer
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
     - content.action.edit
     - content.code.copy
-    - language.select
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
 markdown_extensions:
+  - abbr
   - admonition
   - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
   - tables
   - toc:
       permalink: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/caipora-labs/curupira
+      name: Source on GitHub
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/curupira/
+      name: curupira on PyPI
+    - icon: fontawesome/brands/npm
+      link: https://www.npmjs.com/package/@caipora/curupira
+      name: "@caipora/curupira on npm"
 extra_css:
   - stylesheets/extra.css
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Configuration: configuration.md
-  - Automations: automations.md
-  - Prompts:
-      - Writing prompts: prompts.md
-      - Field reference: prompt-fields.md
+  - Get started:
+      - Installation: installation.md
+      - Quick start: quick-start.md
+      - How it works: concepts.md
+  - Orchestrator:
+      - Configuration: configuration.md
+      - Automations: automations.md
+      - Prompts:
+          - Writing prompts: prompts.md
+          - Field reference: prompt-fields.md
+      - Running Curupira: operations.md
+      - Terminal dashboard: tui.md
+      - Coding agents:
+          - Overview: providers.md
+          - Claude Code: providers/claude.md
+          - Codex: providers/codex.md
+          - Cursor: providers/cursor.md
+          - Gemini CLI: providers/gemini.md
+          - GitHub Copilot CLI: providers/copilot.md
+          - Kilo CLI: providers/kilo.md
+          - OpenCode: providers/opencode.md
+          - pi: providers/pi.md
+          - Qwen Code: providers/qwen.md
+  - Plugins:
+      - Plugins and connectors: plugins.md
+      - GitHub:
+          - Issues and pull requests: github.md
+          - Projects (board columns): github-projects.md
       - Recipes: recipes.md
-  - TUI assistant: assistant.md
-  - GitHub:
-      - Issues and pull requests: github.md
-      - Projects (board columns): github-projects.md
-  - Operations: operations.md
-  - Providers and agents:
-      - Overview: providers.md
-      - Claude Code: providers/claude.md
-      - Codex: providers/codex.md
-      - Cursor: providers/cursor.md
-      - Kilo CLI: providers/kilo.md
-      - Gemini CLI: providers/gemini.md
-      - GitHub Copilot CLI: providers/copilot.md
-      - OpenCode: providers/opencode.md
-      - pi: providers/pi.md
-      - Qwen Code: providers/qwen.md
-  - Extensions: extensions.md
-  - Plugins (legacy notes): plugins.md
+  - Build extensions:
+      - Overview: extensions.md
+      - Python SDK: extensions-python.md
+      - JavaScript and TypeScript SDK: extensions-javascript.md
+      - Manifest and protocol: extensions-protocol.md
+      - Contributing to Curupira: https://github.com/caipora-labs/curupira/blob/main/CONTRIBUTING.md

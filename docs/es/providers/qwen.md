@@ -1,27 +1,50 @@
 # Qwen Code
 
-Instala Qwen Code con Node.js 22 o posterior:
+Curupira ejecuta [Qwen Code](https://github.com/QwenLM/qwen-code) en modo no interactivo
+con salida JSON en streaming:
 
-```bash
-npm install -g @qwen-code/qwen-code@latest
+```text
+qwen --output-format stream-json [options] --prompt=<prompt>
 ```
 
-Curupira ejecuta `qwen --output-format stream-json --prompt=<message>`. Reanuda una sesión
-conocida con `--resume <session_id>`. Qwen Code se encarga de la autenticación; Curupira no
-gestiona las credenciales del proveedor.
+## Instalar e iniciar sesión { #install }
 
-| Opción del perfil | Argumento nativo |
-| --- | --- |
-| `model` | `--model` opcional |
-| `approval_mode` | `--approval-mode` opcional (`plan`, `default`, `auto-edit`, `auto` o `yolo`) |
-| `max_session_turns` | `--max-session-turns` opcional (entero ≥ 1) |
-| `agent` | No compatible; se rechaza |
-| `effort` | No compatible; se rechaza |
+Qwen Code necesita Node.js 22 o posterior.
 
-`approval_mode = "yolo"` habilita la aprobación automática. La documentación de Qwen Code advierte
-que el modo YOLO “no habilita un sandbox”.
+```sh
+npm install -g @qwen-code/qwen-code@latest
+qwen   # inicia sesión una vez
+```
 
-Las opciones `--max-wall-time` y `--max-tool-calls` no se exponen; el timeout de tareas de Curupira
-acota cada ejecución.
+Qwen Code se encarga de la autenticación. Curupira nunca lee ni guarda credenciales.
 
-::: curupira.agents.qwen.QwenCodeCliProfile
+## Opciones del perfil { #options }
+
+| Opción | Argumento nativo | Notas |
+| --- | --- | --- |
+| `model` | `--model <model>` | |
+| `approval_mode` | `--approval-mode <mode>` | `plan`, `default`, `auto-edit`, `auto` o `yolo`. |
+| `max_session_turns` | `--max-session-turns <n>` | Un entero mayor o igual que `1`. |
+| `agent` | — | No se admite; se rechaza. |
+| `effort` | — | No se admite; se rechaza. |
+
+!!! warning "`yolo` no es un sandbox"
+    `approval_mode = "yolo"` aprueba cada acción automáticamente. La documentación de Qwen
+    Code advierte que "does not enable a sandbox" (no habilita un sandbox).
+
+`--max-wall-time` y `--max-tool-calls` no se exponen; `task_timeout_minutes` de Curupira
+limita cada ejecución.
+
+## Ejemplo { #example }
+
+```toml
+[agents.profiles.qwen]
+provider = "qwen"
+approval_mode = "auto-edit"
+max_session_turns = 40
+```
+
+## Sesiones { #sessions }
+
+El id de sesión del stream JSON se guarda con la tarea. Una tarea interrumpida se reanuda
+con `--resume <session_id>`.

@@ -1,31 +1,44 @@
 # Kilo CLI
 
-Instala Kilo con npm:
+Curupira ejecuta la [CLI de Kilo](https://kilocode.ai/cli) en modo `run` con salida JSON:
 
-```bash
-npm install -g @kilocode/cli
+```text
+kilo run --format json [options] -- <prompt>
 ```
 
-Autentícate con `kilo auth login` o configura las credenciales de un proveedor de modelos compatible en Kilo. Curupira no guarda, solicita ni gestiona credenciales; Kilo y sus
-integraciones con proveedores se encargan de la autenticación.
+## Instalar e iniciar sesión { #install }
 
-Curupira invoca `kilo run --format json` y envía el mensaje de la tarea después de `--`. Los
-eventos JSONL de Kilo incluyen un ID de sesión en cada registro, y las partes de texto usan la misma
-forma `text`/`part.text` que OpenCode. Por eso Curupira usa el parser y el renderizador de sesión compartidos, y
-reanuda una sesión guardada con `--session <session_id>`.
+```sh
+npm install -g @kilocode/cli
+kilo auth login
+```
 
-| Opción del perfil | Argumento nativo | Notas |
+Kilo y sus integraciones con proveedores se encargan de la autenticación. Curupira nunca
+lee ni guarda credenciales.
+
+## Opciones del perfil { #options }
+
+| Opción | Argumento nativo | Notas |
 | --- | --- | --- |
-| `model` | `--model <provider/model>` | Usa el identificador `provider/model` de Kilo. |
-| `agent` | `--agent <agent>` | Nombre de un agente de Kilo existente. |
-| `effort` | `--variant <effort>` | Variante de razonamiento específica del proveedor, como `high`, `max` o `minimal`. |
-| `auto_approve` | `--auto` cuando es `true` | Peligroso: aprueba automáticamente los permisos que no se hayan denegado explícitamente. |
-| ID de sesión | `--session <session_id>` | Lo añade Curupira al reanudar una tarea. |
-| Mensaje de la tarea | `-- <message>` | El separador evita que los mensajes que empiezan con `-` se interpreten como flags. |
+| `model` | `--model <provider/model>` | Debe usar la forma `provider/model`; cualquier otra cosa es un error de configuración. |
+| `agent` | `--agent <agent>` | Un agente de Kilo existente. |
+| `effort` | `--variant <variant>` | Variante de razonamiento específica del proveedor, como `high`, `max` o `minimal`. |
+| `auto_approve = true` | `--auto` | Aprueba los permisos que no se deniegan explícitamente. Úsalo con cuidado. |
 
-`effort` se traduce a `--variant`; el `--thinking` de Kilo solo muestra bloques de razonamiento y no se
-usa como opción de esfuerzo de razonamiento. Sin `auto_approve`, Kilo rechaza las solicitudes de
-permisos durante las ejecuciones sin interfaz en lugar de esperar una entrada interactiva. Deja
-`auto_approve` desactivado a menos que ese comportamiento de permisos más amplio sea intencional.
+`--thinking` de Kilo solo muestra los bloques de razonamiento, así que no se usa para
+`effort`. Sin `auto_approve`, Kilo rechaza las solicitudes de permiso en las ejecuciones
+sin interfaz en lugar de esperar una respuesta.
 
-::: curupira.agents.kilo.KiloCliProfile
+## Ejemplo { #example }
+
+```toml
+[agents.profiles.kilo]
+provider = "kilo"
+model = "anthropic/claude-sonnet-4"
+effort = "high"
+```
+
+## Sesiones { #sessions }
+
+Cada registro JSON lleva el id de sesión, que se guarda con la tarea. Una tarea
+interrumpida se reanuda con `--session <session_id>`.

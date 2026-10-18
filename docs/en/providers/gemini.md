@@ -1,45 +1,50 @@
 # Gemini CLI
 
-Curupira runs Gemini CLI in non-interactive `stream-json` mode and resumes sessions
-with Gemini's native `--resume <session_id>` option.
+Curupira runs [Gemini CLI](https://github.com/google-gemini/gemini-cli) non-interactively
+with streaming JSON output:
 
-## Install
-
-Gemini CLI requires Node.js 20 or newer. Install it globally with npm:
-
-```bash
-npm install -g @google/gemini-cli
+```text
+gemini --output-format stream-json [options] --prompt=<prompt>
 ```
 
-## Authentication
+## Install and sign in { #install }
 
-Authentication is owned by Gemini CLI. Sign in through its Google account flow, set
-`GEMINI_API_KEY`, or configure the environment for Vertex AI. Curupira does not read,
-store, or manage provider credentials.
+Gemini CLI needs Node.js 20 or newer.
 
-## Curupira options
+```sh
+npm install -g @google/gemini-cli
+gemini   # sign in once with your Google account
+```
 
-Curupira maps the Gemini profile fields to these native arguments:
+You can also set `GEMINI_API_KEY` or configure Vertex AI. Gemini CLI owns authentication;
+Curupira never reads or stores credentials.
 
-| Option | Native argument |
-| --- | --- |
-| `model` | Optional `--model <model>` |
-| `approval_mode` | Optional `--approval-mode <mode>`: `default`, `auto_edit`, `yolo`, or `plan` |
-| `skip_trust` | `--skip-trust` when `true` |
-| `agent` | Unsupported; rejected |
-| `effort` | Unsupported; rejected |
+## Profile options { #options }
 
-When `approval_mode` is unset, headless runs use Gemini CLI's native approval policy.
-Setting it selects one of Gemini's explicit approval modes. **Warning:** setting
-`approval_mode = "yolo"` disables approval prompts; use it only when that behavior is
-intended. Curupira uses the `--approval-mode yolo` value rather than the deprecated
-`--yolo` flag.
+| Option | Native argument | Notes |
+| --- | --- | --- |
+| `model` | `--model <model>` | `auto` lets Gemini choose. |
+| `approval_mode` | `--approval-mode <mode>` | `default`, `auto_edit`, `yolo`, or `plan`. Unset keeps Gemini's policy. |
+| `skip_trust = true` | `--skip-trust` | Skips the folder trust check. |
+| `agent` | — | Not supported; rejected. |
+| `effort` | — | Not supported; rejected. |
 
-The prompt is passed as `--prompt=<message>`, keeping messages that start with `-` as
-prompt text. Gemini's native session identifier is captured from its `init` event.
+!!! warning "`yolo` approves everything"
+    `approval_mode = "yolo"` turns off approval prompts. Curupira passes
+    `--approval-mode yolo` rather than the deprecated `--yolo` flag.
 
-## Profile reference
+The prompt is passed as `--prompt=<prompt>`, so a prompt that starts with `-` stays text.
 
-{% if page.url == "providers/gemini/" %}
-::: curupira.agents.gemini.GeminiCliProfile
-{% endif %}
+## Example { #example }
+
+```toml
+[agents.profiles.gemini]
+provider = "gemini"
+model = "auto"
+approval_mode = "auto_edit"
+```
+
+## Sessions { #sessions }
+
+The session id comes from Gemini's `init` event and is saved with the task. An
+interrupted task resumes with `--resume <session_id>`.
