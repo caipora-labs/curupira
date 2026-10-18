@@ -319,7 +319,9 @@ fn resolve_launch(
         } => {
             let npx = which::which("npx").map_err(|_| {
                 CurupiraError::Plugin(
-                    "npx is required to run Node extensions but was not found on PATH".into(),
+                    "npx is required to run Node extensions but was not found on PATH; \
+                     install Node.js from https://nodejs.org/ so the npx command is available"
+                        .into(),
                 )
             })?;
             let mut argv = vec!["--yes".into()];

@@ -188,3 +188,7 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Node.js (JS/TS SDK and fixtures)
+node_modules/
+

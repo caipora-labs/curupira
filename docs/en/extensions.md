@@ -249,17 +249,142 @@ Extensions discover and normalize tasks, validate their configuration, and recei
 lifecycle events. They must not select coding agents, build agent argv, clone
 repositories, or manage worktrees — the Rust host owns those steps.
 
-## Write a JavaScript / TypeScript extension
+## Write a JavaScript / TypeScript extension with `@caipora/curupira-sdk`
 
-Use the same framing and methods. Publish an npm package whose `bin` speaks the
-protocol on stdio. TypeScript packages should compile to JS or run under
-`tsx`/`node` as documented in the package. See
-`packages/curupira-core/tests/fixtures/node-ext/` and
-`packages/curupira-core/tests/fixtures/ts-ext/`.
+Install the SDK in your npm package (Node.js 20+). The CLI launches the published
+package with `npx`; you do not need a global install of the plugin or the SDK.
 
-Poll results must use `{ "values": null }`, `{ "values": [] }`, or
-`{ "values": [{ "key": "...", "value": "..." }] }`. Do not return a task object
-or an array of items.
+```bash
+npm install @caipora/curupira-sdk
+```
+
+### Minimal JavaScript trigger (JSDoc optional)
+
+```js
+import { defineTriggers } from "@caipora/curupira-sdk";
+
+/**
+ * @typedef {Object} GitHubIssueParams
+ * @property {string} repo
+ * @property {string[]} [labels]
+ */
+
+/**
+ * @param {GitHubIssueParams} params
+ */
+async function githubIssue({ repo, labels = [] }) {
+  // Return one object, or null when nothing was found.
+  return { repo, labels, title: "Fix authentication" };
+}
+
+export default defineTriggers({
+  githubIssue,
+});
+```
+
+JSDoc is documentation for editors. It is not read at runtime.
+
+### Minimal TypeScript trigger
+
+```ts
+import { defineTriggers } from "@caipora/curupira-sdk";
+
+export default defineTriggers({
+  githubIssue: async (params: { repo: string; labels?: string[] }) => ({
+    repo: params.repo,
+    labels: params.labels ?? [],
+    title: "Fix authentication",
+  }),
+});
+```
+
+Compile TypeScript to plain ESM JavaScript before publish. Curupira does not
+transpile arbitrary TypeScript when it starts the plugin.
+
+### Plugin `bin` entrypoint
+
+```js
+#!/usr/bin/env node
+import { runExtension } from "@caipora/curupira-sdk";
+import triggers from "./index.js";
+
+await runExtension(triggers, {
+  name: "@acme/curupira-ext",
+  version: "1.2.0",
+  // Optional: printed for `curupira plugins install npm:…`
+  manifestTemplate: `manifest_version = 1
+name = "acme-curupira-ext"
+version = "{version}"
+protocol_version = 2
+runtime = "node"
+kind = "trigger"
+trigger_types = ["github-issue"]
+
+[launch]
+type = "npx"
+package = "@acme/curupira-ext"
+version = "{version}"
+`,
+});
+```
+
+Declare the executable in `package.json`:
+
+```json
+{
+  "name": "@acme/curupira-ext",
+  "version": "1.2.0",
+  "type": "module",
+  "bin": {
+    "curupira-acme-ext": "./bin.js"
+  },
+  "dependencies": {
+    "@caipora/curupira-sdk": "^0.1.0"
+  }
+}
+```
+
+Publish to npm. Register the launcher in settings (pin the version in `args`):
+
+```toml
+[plugins.acme]
+type = "npx"
+args = ["--yes", "@acme/curupira-ext@1.2.0"]
+tools = ["*"]
+
+[automations.demo]
+trigger_type = "acme/github-issue"
+repository = "api"
+repo = "acme/api"
+labels = ["bug"]
+prompt = """
+Resolve ${title} in ${repo}
+"""
+```
+
+The CLI runs `npx --yes @acme/curupira-ext@1.2.0` as argv (never a shell string),
+forwards stdin/stdout for protocol frames, and leaves stderr for logs. npm's
+normal cache is used. If `npx` is missing, validate fails with a message that
+points at installing Node.js.
+
+### Rules for the JS/TS SDK
+
+- The object property name is the local trigger id, converted to kebab-case
+  (`githubIssue` → `github-issue`).
+- Sync and async functions are both supported.
+- Return **one** plain object or `null`. The SDK converts the object to
+  `{ "values": [{ "key", "value" }, ...] }` string pairs. `null` becomes
+  `{ "values": null }`. An empty object becomes `{ "values": [] }`.
+- Do not hand-build the pair list. Do not return an array of business items.
+- Nested values use the same serialization rules as the Python SDK (see above).
+- Core automation fields (`trigger_type`, `repository`, `prompt`, `profile`,
+  `checkout`) are not function parameters — use `repo` (or similar) for forge ids.
+- Polling flags (`preview`, `limit`) are not passed into the trigger function.
+- The package is ESM. Prefer publishing compiled JavaScript plus `.d.ts` files.
+
+Low-level protocol fixtures without the SDK remain under
+`packages/curupira-core/tests/fixtures/node-ext/` and `ts-ext/`. Full examples
+live in `packages/curupira-js-sdk/examples/`.
 
 ## Security
 

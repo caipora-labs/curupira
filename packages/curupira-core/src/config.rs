@@ -127,7 +127,8 @@ impl PluginConfiguration {
                 }
                 let npx = which::which("npx").map_err(|_| {
                     CurupiraError::Config(
-                        "npx is required for plugins with type = \"npx\" but was not found on PATH"
+                        "npx is required for plugins with type = \"npx\" but was not found on PATH; \
+                         install Node.js from https://nodejs.org/ so the npx command is available"
                             .into(),
                     )
                 })?;

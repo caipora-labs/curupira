@@ -16,6 +16,8 @@ repo-level config stay at the root.
 - **`packages/curupira-python-plugins/`** — PyPI distribution `curupira-plugins` (import
   `curupira_plugins`). Official trigger extensions in one package; depends on `curupira-sdk`.
   Install via `curupira[extensions]` (or forge-named extras) / `curupira plugins install`.
+- **`packages/curupira-js-sdk/`** — npm package `@caipora/curupira-sdk` (ESM). Declarative
+  `defineTriggers` API and protocol runtime for Node.js plugins launched with `npx`.
 
 Automations are configured in TOML (`~/.curupira/settings.toml`). Register packages under
 `[plugins.<alias>]` with `type = "uvx"` or `"npx"` and `args` for that launcher (for
@@ -42,6 +44,9 @@ triggers (GitHub, Azure DevOps, Trello, monday.com, and third-party sources) are
   native argv and runs the CLI with `process::run_process`. No extension RPC.
 - **Python packages:** thin `curupira.__version__`, declarative `curupira_sdk`, and
   `curupira_plugins` trigger modules. No Pluggy. No in-process plugin import API.
+- **Node.js packages:** declarative `@caipora/curupira-sdk` (`defineTriggers` + stdio
+  runtime). Third-party npm plugins declare a `bin` and depend on the SDK; the host
+  starts them with `npx` (no global install, no Curupira-managed Node env).
 
 ```
 CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_plugins)
@@ -66,6 +71,7 @@ CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_plugins)
 | `packages/curupira-python/scripts/` | Release scripts (`publish_tag.py`, `stamp_release_version.py`, `verify_dist_version.py`, `check_packaged_readme.py`) |
 | `packages/curupira-python-sdk/` | Declarative extension SDK (`curupira-sdk`) |
 | `packages/curupira-python-plugins/` | Official triggers (`curupira-plugins`): source, manifest, tests |
+| `packages/curupira-js-sdk/` | Declarative Node.js SDK (`@caipora/curupira-sdk`) |
 | `.github/scripts/` | CI gate (`require_ci_checks.py`) |
 | `docs/en/` | Canonical docs |
 
@@ -111,10 +117,13 @@ uv sync --all-packages --dev
 uv run --no-sync cargo test --manifest-path packages/curupira-core/Cargo.toml
 uv run --no-sync ruff check packages
 uv run --no-sync pytest
+npm --prefix packages/curupira-js-sdk install
+npm --prefix packages/curupira-js-sdk test
 uv run --no-sync cargo run --manifest-path packages/curupira-core/Cargo.toml --bin curupira -- \
-  --config packages/curupira-core/curupira.example.toml validate
+ --config packages/curupira-core/curupira.example.toml validate
 uv build --all-packages --out-dir dist
 ```
 
 Each package keeps its own tests (`packages/*/tests/`, Rust tests in
-`packages/curupira-core/tests/`).
+`packages/curupira-core/tests/`). The Node.js SDK uses `npm test` under
+`packages/curupira-js-sdk/`.
