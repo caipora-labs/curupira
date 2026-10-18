@@ -4,24 +4,10 @@ name: Publish
 # publish/<project>/<version>, for example publish/curupira-sdk/0.1.0dev0 or
 # publish/curupira-js-sdk/0.1.0dev0.
 #
-# workflow_dispatch builds and verifies a tag without publishing by default. After the
-# first npm versions exist and Trusted Publishers are configured, publish_npm can be set
-# to true to test an npm-only OIDC publish (PyPI and GitHub Releases remain untouched).
 on:
   push:
     tags:
       - "publish/**"
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Tag to build, e.g. publish/curupira/0.3.0dev0 (publishes only if publish_npm is true)"
-        required: true
-        type: string
-      publish_npm:
-        description: "Publish npm through OIDC (only after npm packages and Trusted Publishers are configured)"
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -51,7 +37,7 @@ jobs:
       - name: Parse publish tag
         id: tag
         env:
-          TAG: ${{ inputs.tag || github.ref_name }}
+          TAG: ${{ github.ref_name }}
         run: uv run --no-project --with packaging python packages/curupira-python/scripts/publish_tag.py "$TAG" >> "$GITHUB_OUTPUT"
 
   build:
@@ -177,7 +163,7 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
-      - name: Assemble the npm platform package
+      - name: Stage the npm binary
         if: needs.resolve.outputs.project == 'curupira'
         shell: bash
         env:
@@ -202,7 +188,7 @@ jobs:
           VERSION: ${{ needs.resolve.outputs.cargo_version }}
           NPM_TARGET: ${{ matrix.npm_target }}
         run: |
-          bin="npm-stage/curupira-${NPM_TARGET}/bin/curupira"
+          bin="npm-stage/binaries/${NPM_TARGET}/curupira"
           if [[ "$NPM_TARGET" == win32-* ]]; then
             bin="${bin}.exe"
           fi
@@ -216,11 +202,11 @@ jobs:
           VERSION: ${{ needs.resolve.outputs.cargo_version }}
           NPM_TARGET: ${{ matrix.npm_target }}
         run: |
-          bin="npm-stage/curupira-${NPM_TARGET}/bin/curupira"
+          bin="npm-stage/binaries/${NPM_TARGET}/curupira"
           docker run --rm -v "$PWD:/work" -w /work alpine:3.22 "/work/${bin}" --version | tee musl-version.txt
           test "$(tr -d '\r' < musl-version.txt)" = "curupira ${VERSION}"
           docker run --rm -v "$PWD:/work" -w /work alpine:3.22 "/work/${bin}" --help >/dev/null
-      - name: Upload the npm platform package
+      - name: Upload the npm binary
         if: needs.resolve.outputs.project == 'curupira'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -264,7 +250,9 @@ jobs:
 
   publish:
     name: Publish distributions
-    if: github.event_name == 'push' && needs.resolve.outputs.project != 'curupira-js-sdk'
+    if: |
+      github.event_name == 'push' &&
+      needs.resolve.outputs.project != 'curupira-js-sdk'
     needs: [resolve, verify]
     runs-on: ubuntu-latest
     environment: pypi
@@ -300,7 +288,7 @@ jobs:
           packages-dir: publish-dist/
 
   pack-npm:
-    name: Pack npm CLI packages
+    name: Pack the single npm CLI package
     needs: [resolve, build-curupira]
     if: needs.resolve.outputs.project == 'curupira'
     runs-on: ubuntu-latest
@@ -317,7 +305,7 @@ jobs:
       - name: Skip npm packing for other projects
         if: needs.resolve.outputs.project != 'curupira'
         run: echo "project ${{ needs.resolve.outputs.project }} does not publish the npm CLI"
-      - name: Download platform packages
+      - name: Download platform binaries
         if: needs.resolve.outputs.project == 'curupira'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
@@ -335,14 +323,16 @@ jobs:
           node packages/curupira-npm/scripts/assemble.js verify \
             --dir npm-stage \
             --version "$VERSION"
-      - name: Pack tarballs
+      - name: Pack one tarball
         if: needs.resolve.outputs.project == 'curupira'
+        env:
+          VERSION: ${{ needs.resolve.outputs.cargo_version }}
         run: |
-          mkdir -p dist-npm/platform
-          for dir in npm-stage/curupira-*; do
-            npm pack --pack-destination dist-npm/platform "./$dir"
-          done
+          mkdir -p dist-npm
           npm pack --pack-destination dist-npm ./npm-stage/curupira
+          node packages/curupira-npm/scripts/assemble.js verify-tarballs \
+            --dir dist-npm \
+            --version "$VERSION"
       - name: Install the Linux x64 package and run the CLI
         if: needs.resolve.outputs.project == 'curupira'
         env:
@@ -350,12 +340,14 @@ jobs:
         run: |
           node packages/curupira-npm/scripts/install-local.js \
             --prefix "${RUNNER_TEMP}/curupira-npm" \
-            --main dist-npm/curupira-${VERSION}.tgz \
-            --platform dist-npm/platform/caipora-labs-curupira-linux-x64-${VERSION}.tgz
+            --main dist-npm/caipora-labs-curupira-${VERSION}.tgz
           bin="${RUNNER_TEMP}/curupira-npm/node_modules/.bin/curupira"
           test "$("$bin" --version)" = "curupira ${VERSION}"
           "$bin" --help >/dev/null
           test "$("${RUNNER_TEMP}/curupira-npm/node_modules/.bin/curu" --version)" = "curu ${VERSION}"
+      - name: Require green CI for the npm artifact
+        if: needs.resolve.outputs.project == 'curupira'
+        run: python3 .github/scripts/require_ci_checks.py --repository "${GITHUB_REPOSITORY}" --sha "${GITHUB_SHA}"
       - name: Upload npm tarballs
         if: needs.resolve.outputs.project == 'curupira'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -366,14 +358,13 @@ jobs:
 
   publish-npm:
     name: Publish npm packages
-    # Bootstrap package versions manually, then register curupira and each
-    # @caipora-labs/curupira-* package with this workflow and the npm environment.
-    # workflow_dispatch can publish npm only when explicitly selected; PyPI is never
-    # published from a manual run.
+    # Skip the exact first version, which is manually published once from this artifact.
+    # Every later version is published via npm OIDC.
     if: |
-      (github.event_name == 'push' ||
-       (github.event_name == 'workflow_dispatch' && inputs.publish_npm)) &&
-      needs.resolve.outputs.project == 'curupira'
+      github.event_name == 'push' &&
+      needs.resolve.outputs.project == 'curupira' &&
+      vars.NPM_OIDC_READY == 'true' &&
+      needs.resolve.outputs.cargo_version != vars.NPM_MANUAL_BOOTSTRAP_VERSION
     needs: [resolve, pack-npm]
     runs-on: ubuntu-latest
     environment: npm
@@ -404,15 +395,11 @@ jobs:
         run: python3 .github/scripts/require_ci_checks.py --repository "${GITHUB_REPOSITORY}" --sha "${GITHUB_SHA}"
       - name: Install npm with trusted publishing
         run: npm install -g npm@11
-      - name: Publish platform packages, then the CLI
+      - name: Publish the CLI package
         env:
           NPM_TAG: ${{ needs.resolve.outputs.prerelease == 'true' && 'next' || 'latest' }}
         run: |
-          shopt -s nullglob
-          for tarball in dist-npm/platform/*.tgz; do
-            npm publish "$tarball" --access public --tag "$NPM_TAG" --provenance
-          done
-          npm publish dist-npm/curupira-*.tgz --access public --tag "$NPM_TAG" --provenance
+          npm publish dist-npm/caipora-labs-curupira-*.tgz --access public --tag "$NPM_TAG" --provenance
 
   pack-npm-sdk:
     name: Pack JavaScript SDK
@@ -464,9 +451,9 @@ jobs:
   publish-npm-sdk:
     name: Publish JavaScript SDK to npm
     if: |
-      (github.event_name == 'push' ||
-       (github.event_name == 'workflow_dispatch' && inputs.publish_npm)) &&
-      needs.resolve.outputs.project == 'curupira-js-sdk'
+      github.event_name == 'push' &&
+      needs.resolve.outputs.project == 'curupira-js-sdk' &&
+      vars.NPM_SDK_OIDC_READY == 'true'
     needs: [resolve, pack-npm-sdk]
     runs-on: ubuntu-latest
     environment: npm
@@ -503,7 +490,7 @@ jobs:
   release:
     name: Attach GitHub release
     # Pre-releases (dev, alpha, beta, rc) stay off GitHub Releases; PyPI still gets them.
-    # publish-npm is skipped for other projects; a failed npm publish blocks the release.
+    # npm publishes are gated until OIDC trusted publishing is configured for that package.
     if: |
       always() &&
       github.event_name == 'push' &&
@@ -565,7 +552,7 @@ jobs:
           fi
           files=(release-dist/*)
           if [ "$PROJECT" = "curupira" ]; then
-            files+=(dist-npm/*.tgz dist-npm/platform/*.tgz)
+            files+=(dist-npm/*.tgz)
           fi
           gh release create "$GITHUB_REF_NAME" "${files[@]}" \
             --title "$PROJECT $VERSION" --generate-notes

@@ -18,7 +18,7 @@ function tempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "curupira-npm-"));
 }
 
-test("selects the host platform package and forwards argv0 without a shell", () => {
+test("selects the host binary from the bundled target directory and forwards argv0", () => {
   const root = tempRoot();
   const fixture = installFixture(root, { platform: "linux", arch: "x64", libc: "glibc" });
   const prepared = prepare({
@@ -38,7 +38,7 @@ test("selects the host platform package and forwards argv0 without a shell", () 
   assert.equal(prepared.spawnOptions.cwd, undefined);
   assert.deepEqual(prepared.args, ["--config", "my settings.toml", "validate"]);
   assert.equal(path.basename(prepared.bin), "curupira");
-  assert.match(prepared.bin, /curupira-linux-x64/);
+  assert.match(prepared.bin, /bin[/\\]platforms[/\\]linux-x64[/\\]curupira$/);
 });
 
 test("resolves a binary path that contains spaces", () => {
@@ -130,7 +130,7 @@ test("forwards SIGTERM and exits with the child status", async () => {
 
 test("reports an unsupported platform", () => {
   const root = tempRoot();
-  const fixture = installFixture(root, { omitPlatform: true });
+  const fixture = installFixture(root, { omitBinary: true });
   const prepared = prepare({
     packageRoot: fixture.mainDir,
     platform: "sunos",
@@ -146,12 +146,12 @@ test("reports an unsupported platform", () => {
   assert.match(prepared.error, /win32-arm64/);
   const result = spawnSync(fixture.wrapper, ["--version"], { encoding: "utf8" });
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /no npm binary|platform package/);
+  assert.match(result.stderr, /Curupira binary .* is missing/);
 });
 
-test("reports a missing platform package for a supported target", () => {
+test("reports a missing embedded binary for a supported target", () => {
   const root = tempRoot();
-  const fixture = installFixture(root, { omitPlatform: true });
+  const fixture = installFixture(root, { platform: "darwin", arch: "arm64", libc: null, omitBinary: true });
   const prepared = prepare({
     packageRoot: fixture.mainDir,
     platform: "darwin",
@@ -162,52 +162,13 @@ test("reports a missing platform package for a supported target", () => {
   });
   assert.equal("error" in prepared, true);
   if (!("error" in prepared)) return;
-  assert.match(prepared.error, /@caipora-labs\/curupira-darwin-arm64 is not installed/);
-});
-
-test("reports a missing binary inside the platform package", () => {
-  const root = tempRoot();
-  const fixture = installFixture(root, { platform: "linux", arch: "x64", libc: "glibc" });
-  fs.rmSync(path.join(fixture.platformDir, "bin", "curupira"));
-  const prepared = prepare({
-    packageRoot: fixture.mainDir,
-    platform: "linux",
-    arch: "x64",
-    libc: "glibc",
-    argv0: "curupira",
-    args: [],
-  });
-  assert.equal("error" in prepared, true);
-  if (!("error" in prepared)) return;
-  assert.match(prepared.error, /binary is missing/);
-});
-
-test("reports a wrapper and platform version mismatch", () => {
-  const root = tempRoot();
-  const fixture = installFixture(root, {
-    platform: "linux",
-    arch: "x64",
-    libc: "glibc",
-    mainVersion: "0.2.0",
-    platformVersion: "0.9.0",
-  });
-  const prepared = prepare({
-    packageRoot: fixture.mainDir,
-    platform: "linux",
-    arch: "x64",
-    libc: "glibc",
-    argv0: "curupira",
-    args: [],
-  });
-  assert.equal("error" in prepared, true);
-  if (!("error" in prepared)) return;
-  assert.match(prepared.error, /wrapper 0\.2\.0 does not match @caipora-labs\/curupira-linux-x64 0\.9\.0/);
+  assert.match(prepared.error, /Curupira binary for darwin-arm64 is missing/);
 });
 
 test("reports a failure to execute the binary", () => {
   const root = tempRoot();
   const fixture = installFixture(root);
-  fs.chmodSync(path.join(fixture.platformDir, "bin", "curupira"), 0o000);
+  fs.chmodSync(fixture.binaryPath, 0o000);
   const result = spawnSync(fixture.wrapper, ["--version"], { encoding: "utf8" });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Failed to start Curupira binary/);
@@ -234,15 +195,9 @@ test("uses the Windows executable name", () => {
   assert.equal(path.basename(prepared.bin), "curupira.exe");
 });
 
-test("distinguishes glibc and musl packages", () => {
-  assert.equal(
-    require("../lib/targets.js").selectTarget("linux", "x64", "musl")?.packageName,
-    "@caipora-labs/curupira-linux-x64-musl",
-  );
-  assert.equal(
-    require("../lib/targets.js").selectTarget("linux", "arm64", "glibc")?.packageName,
-    "@caipora-labs/curupira-linux-arm64",
-  );
+test("selects distinct bundled variants for glibc and musl", () => {
+  assert.equal(require("../lib/targets.js").selectTarget("linux", "x64", "musl")?.key, "linux-x64-musl");
+  assert.equal(require("../lib/targets.js").selectTarget("linux", "arm64", "glibc")?.key, "linux-arm64");
   assert.equal(require("../lib/targets.js").selectTarget("linux", "ia32", "glibc"), null);
   assert.equal(detectLibc("darwin"), null);
   assert.equal(
@@ -263,8 +218,7 @@ test("distinguishes glibc and musl packages", () => {
   );
 });
 
-test("every published target has a distinct package name", () => {
-  const names = new Set(TARGETS.map((target) => target.packageName));
-  assert.equal(names.size, TARGETS.length);
-  assert.equal(names.has("curupira"), false);
+test("every bundled platform target has a distinct key", () => {
+  const keys = new Set(TARGETS.map((target) => target.key));
+  assert.equal(keys.size, TARGETS.length);
 });

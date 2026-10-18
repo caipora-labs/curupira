@@ -10,19 +10,21 @@ const { PACKAGE_ROOT } = require("../scripts/layout.js");
 
 const REPO_ROOT = path.resolve(PACKAGE_ROOT, "../..");
 
-test("the wrapper package is curupira and has no install-time compiler", () => {
+test("the scoped wrapper is one self-contained package with no install-time compiler", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, "package.json"), "utf8"));
-  assert.equal(manifest.name, "curupira");
+  assert.equal(manifest.name, "@caipora-labs/curupira");
   assert.equal(manifest.dependencies, undefined);
+  assert.equal(manifest.optionalDependencies, undefined);
   assert.equal(manifest.scripts.preinstall, undefined);
   assert.equal(manifest.scripts.install, undefined);
   assert.equal(manifest.scripts.postinstall, undefined);
   assert.equal(manifest.bin.curupira, "./bin/curupira.js");
   assert.equal(manifest.bin.curu, "./bin/curu.js");
   assert.deepEqual(
-    manifest.optionalDependencies,
-    Object.fromEntries(TARGETS.map((target) => [target.packageName, manifest.version])),
+    manifest.os,
+    ["linux", "darwin", "win32"],
   );
+  assert.deepEqual(manifest.cpu, ["x64", "arm64"]);
   const cargo = fs.readFileSync(path.join(REPO_ROOT, "packages/curupira-core/Cargo.toml"), "utf8");
   const version = cargo.match(/^version = "([^"]+)"/m);
   assert.ok(version);
@@ -36,11 +38,21 @@ test("the wrapper package is curupira and has no install-time compiler", () => {
 
 test("publish workflow targets match the npm platform list", () => {
   const workflow = fs.readFileSync(path.join(REPO_ROOT, ".github/workflows/publish.yml"), "utf8");
+  assert.match(workflow, /tags:\s*\n\s+- "publish\/\*\*"/);
+  assert.doesNotMatch(workflow, /workflow_dispatch|publish_npm/);
   for (const target of TARGETS) {
     assert.match(workflow, new RegExp(`npm_target: ${target.key}\\b`));
   }
-  assert.match(workflow, /npm pack --pack-destination dist-npm\/platform "\.\/\$dir"/);
   assert.match(workflow, /npm pack --pack-destination dist-npm \.\/npm-stage\/curupira/);
+  assert.match(workflow, /dist-npm\/caipora-labs-curupira-\$\{VERSION\}\.tgz/);
+  assert.match(workflow, /npm publish dist-npm\/caipora-labs-curupira-\*\.tgz/);
+  assert.doesNotMatch(workflow, /dist-npm\/platform|Publish platform packages/);
+  assert.match(workflow, /vars\.NPM_OIDC_READY == 'true'/);
+  assert.match(workflow, /NPM_MANUAL_BOOTSTRAP_VERSION/);
+  const publishPython = workflow.match(/  publish:\n([\s\S]*?)\n  pack-npm:/)?.[1];
+  assert.ok(publishPython);
+  assert.doesNotMatch(publishPython, /NPM_OIDC_READY|NPM_MANUAL_BOOTSTRAP_VERSION/);
+  assert.doesNotMatch(workflow, /NPM_BOOTSTRAP_TOKEN|NODE_AUTH_TOKEN|workflow_dispatch/);
 });
 
 test("LICENSE matches the repository license", () => {

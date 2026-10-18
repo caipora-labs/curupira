@@ -35,7 +35,7 @@ todas as pessoas que podem escrever texto.
    do seu perfil:
 
    ```bash
-   npm install -g curupira
+    npm install -g @caipora-labs/curupira
    # ou: uv tool install curupira
    ```
 

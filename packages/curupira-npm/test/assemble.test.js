@@ -28,21 +28,14 @@ function tempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "curupira-assemble-"));
 }
 
-test("stages a native binary into the platform package", () => {
+test("stages a native binary for later inclusion in the single package", () => {
   const root = tempRoot();
   const bin = path.join(root, "curupira");
   fs.writeFileSync(bin, ELF);
   const out = path.join(root, "stage");
   stageBinary({ bin, target: "linux-arm64", version: "1.2.3", out });
   verifyOne(out, "linux-arm64", "1.2.3");
-  const manifest = JSON.parse(
-    fs.readFileSync(path.join(out, "curupira-linux-arm64", "package.json"), "utf8"),
-  );
-  assert.equal(manifest.libc[0], "glibc");
-  assert.equal(manifest.os[0], "linux");
-  assert.equal(manifest.cpu[0], "arm64");
-  assert.equal(fs.existsSync(path.join(out, "curupira-linux-arm64", "LICENSE")), true);
-  const mode = fs.statSync(path.join(out, "curupira-linux-arm64", "bin", "curupira")).mode;
+  const mode = fs.statSync(path.join(out, "binaries", "linux-arm64", "curupira")).mode;
   assert.equal(mode & 0o111, 0o111);
 });
 
@@ -74,7 +67,7 @@ test("extracts the native binary from a wheel and ignores script entry points", 
   const out = path.join(root, "stage");
   stageFromWheel({ wheel, target: "win32-x64", version: "0.2.0", out });
   verifyOne(out, "win32-x64", "0.2.0");
-  const packed = fs.readFileSync(path.join(out, "curupira-win32-x64", "bin", "curupira.exe"));
+  const packed = fs.readFileSync(path.join(out, "binaries", "win32-x64", "curupira.exe"));
   assert.equal(packed.subarray(0, 2).toString(), "MZ");
 });
 
@@ -88,44 +81,57 @@ test("refuses a wheel that escapes its output directory", () => {
   );
 });
 
-test("main package and every platform package share one version", () => {
+test("the single package bundles every platform binary", () => {
   const root = tempRoot();
   const out = path.join(root, "stage");
-  stageMain({ version: "9.9.9-dev0", out });
   for (const target of TARGETS) {
     const bin = path.join(root, `${target.key}.bin`);
     fs.writeFileSync(bin, target.os === "win32" ? PE : ELF);
     stageBinary({ bin, target: target.key, version: "9.9.9-dev0", out });
   }
+  stageMain({ version: "9.9.9-dev0", out });
   verifyAll(out, "9.9.9-dev0");
   const main = JSON.parse(fs.readFileSync(path.join(out, "curupira", "package.json"), "utf8"));
+  assert.equal(main.name, "@caipora-labs/curupira");
   assert.equal(main.version, "9.9.9-dev0");
   assert.equal(main.scripts, undefined);
-  assert.deepEqual(Object.keys(main.optionalDependencies).sort(), TARGETS.map((target) => target.packageName).sort());
+  assert.equal(main.optionalDependencies, undefined);
+  for (const target of TARGETS) {
+    const binary = path.join(
+      out,
+      "curupira",
+      "bin",
+      "platforms",
+      target.key,
+      target.os === "win32" ? "curupira.exe" : "curupira",
+    );
+    assert.equal(fs.existsSync(binary), true);
+  }
+  assert.deepEqual(fs.readdirSync(out), ["curupira"]);
   assert.equal(fs.existsSync(path.join(out, "curupira", "bin", "curu.js")), true);
   assert.equal(fs.existsSync(path.join(out, "curupira", "test")), false);
 });
 
-test("verify-tarballs checks the packed package version", () => {
+test("verify-tarballs requires one complete scoped package at the release version", () => {
   const root = tempRoot();
-  const packed = path.join(root, "package");
-  fs.mkdirSync(packed);
-  fs.writeFileSync(
-    path.join(packed, "package.json"),
-    JSON.stringify({ name: "@caipora-labs/curupira-linux-x64", version: "1.2.3" }),
-  );
-  execFileSync("tar", ["-czf", path.join(root, "caipora-labs-curupira-linux-x64-1.2.3.tgz"), "-C", root, "package"]);
-  assert.throws(() => verifyTarballs(root, "1.2.3"), /Expected 9 npm tarballs/);
-  verifyTarballs(root, "1.2.3", "1");
+  const stage = path.join(root, "stage");
+  for (const target of TARGETS) {
+    const bin = path.join(root, `${target.key}.bin`);
+    fs.writeFileSync(bin, target.os === "win32" ? PE : ELF);
+    stageBinary({ bin, target: target.key, version: "1.2.3", out: stage });
+  }
+  stageMain({ version: "1.2.3", out: stage });
+  fs.cpSync(path.join(stage, "curupira"), path.join(root, "package"), { recursive: true });
+  execFileSync("tar", ["-czf", path.join(root, "caipora-labs-curupira-1.2.3.tgz"), "-C", root, "package"]);
+  verifyTarballs(root, "1.2.3");
   assert.throws(() => verifyTarballs(root, "9.9.9", "1"), /1\.2\.3/);
 });
 
-test("verify rejects mixed versions", () => {
+test("single-package assembly rejects a missing platform binary", () => {
   const root = tempRoot();
   const out = path.join(root, "stage");
-  stageMain({ version: "1.0.0", out });
   const bin = path.join(root, "curupira");
   fs.writeFileSync(bin, ELF);
-  stageBinary({ bin, target: "linux-x64", version: "1.0.1", out });
-  assert.throws(() => verifyAll(out, "1.0.0"), /1\.0\.1/);
+  stageBinary({ bin, target: "linux-x64", version: "1.0.0", out });
+  assert.throws(() => stageMain({ version: "1.0.0", out }), /not an ELF, Mach-O, or PE/);
 });

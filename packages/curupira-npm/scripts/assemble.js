@@ -6,15 +6,16 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { TARGETS, binaryFileName, packageDirectory } = require("../lib/targets.js");
+const { TARGETS, binaryFileName } = require("../lib/targets.js");
 const { unzip } = require("./unzip.js");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const REPO_ROOT = path.resolve(PACKAGE_ROOT, "../..");
 const MAIN_DIRECTORY = "curupira";
+const MAIN_PACKAGE_NAME = "@caipora-labs/curupira";
 
 /**
- * Stage npm packages from a Cargo binary or a maturin wheel.
+ * Assemble the single npm package from Cargo binaries or maturin wheels.
  *
  * The published tarballs contain the already-built Rust executable. Nothing here
  * compiles Rust or downloads a binary.
@@ -72,7 +73,7 @@ function stageBinary(options) {
   const outDir = requirePath(options.out, "--out");
   const bin = requirePath(options.bin, "--bin");
   assertNativeBinary(bin);
-  writePlatformPackage(target, version, bin, outDir);
+  writePlatformBinary(target, bin, outDir);
 }
 
 /**
@@ -87,7 +88,7 @@ function stageFromWheel(options) {
   fs.rmSync(extracted, { recursive: true, force: true });
   unzip(wheel, extracted);
   const bin = findNativeBinary(extracted, binaryFileName(target.os));
-  writePlatformPackage(target, version, bin, outDir);
+  writePlatformBinary(target, bin, outDir);
   fs.rmSync(path.join(outDir, ".wheel"), { recursive: true, force: true });
 }
 
@@ -103,11 +104,18 @@ function stageMain(options) {
   const manifest = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, "package.json"), "utf8"));
   manifest.version = version;
   delete manifest.scripts;
-  manifest.optionalDependencies = Object.fromEntries(
-    TARGETS.map((target) => [target.packageName, version]),
-  );
+  delete manifest.optionalDependencies;
   fs.writeFileSync(path.join(destination, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   copyTree(path.join(PACKAGE_ROOT, "bin"), path.join(destination, "bin"));
+  for (const target of TARGETS) {
+    const source = binaryPath(outDir, target, "staging");
+    assertNativeBinary(source);
+    const binary = binaryPath(destination, target, "package");
+    fs.mkdirSync(path.dirname(binary), { recursive: true });
+    fs.copyFileSync(source, binary);
+    fs.chmodSync(binary, 0o755);
+  }
+  fs.rmSync(path.join(outDir, "binaries"), { recursive: true, force: true });
   const libDir = path.join(destination, "lib");
   fs.mkdirSync(libDir, { recursive: true });
   for (const file of ["launch.js", "targets.js"]) {
@@ -122,69 +130,14 @@ function stageMain(options) {
 
 /**
  * @param {(typeof TARGETS)[number]} target
- * @param {string} version
  * @param {string} bin
  * @param {string} outDir
  */
-function writePlatformPackage(target, version, bin, outDir) {
-  const destination = path.join(outDir, packageDirectory(target.packageName));
-  fs.rmSync(destination, { recursive: true, force: true });
-  const binDir = path.join(destination, "bin");
-  fs.mkdirSync(binDir, { recursive: true });
-  const binary = path.join(binDir, binaryFileName(target.os));
+function writePlatformBinary(target, bin, outDir) {
+  const binary = binaryPath(outDir, target, "staging");
+  fs.mkdirSync(path.dirname(binary), { recursive: true });
   fs.copyFileSync(bin, binary);
   fs.chmodSync(binary, 0o755);
-  fs.writeFileSync(path.join(destination, "package.json"), `${JSON.stringify(platformManifest(target, version), null, 2)}\n`);
-  fs.writeFileSync(path.join(destination, "README.md"), platformReadme(target));
-  fs.copyFileSync(licensePath(), path.join(destination, "LICENSE"));
-}
-
-/**
- * @param {(typeof TARGETS)[number]} target
- * @param {string} version
- * @returns {Record<string, unknown>}
- */
-function platformManifest(target, version) {
-  /** @type {Record<string, unknown>} */
-  const manifest = {
-    name: target.packageName,
-    version,
-    description: target.description,
-    license: "MIT",
-    repository: repository(),
-    homepage: "https://github.com/caipora-labs/curupira/tree/main/packages/curupira-npm",
-    bugs: { url: "https://github.com/caipora-labs/curupira/issues" },
-    os: [target.os],
-    cpu: [target.cpu],
-    files: ["bin", "README.md", "LICENSE"],
-    publishConfig: { access: "public" },
-  };
-  if (target.libc !== null) manifest.libc = [target.libc];
-  return manifest;
-}
-
-/**
- * @returns {Record<string, unknown>}
- */
-function repository() {
-  return {
-    type: "git",
-    url: "git+https://github.com/caipora-labs/curupira.git",
-    directory: "packages/curupira-npm",
-  };
-}
-
-/**
- * @param {(typeof TARGETS)[number]} target
- * @returns {string}
- */
-function platformReadme(target) {
-  return (
-    `# ${target.packageName}\n\n` +
-    `${target.description}\n\n` +
-    "This package is an optional dependency of [`curupira`](https://www.npmjs.com/package/curupira). " +
-    "Install the CLI with `npm install -g curupira`. Do not depend on this package directly.\n"
-  );
 }
 
 /**
@@ -194,24 +147,7 @@ function platformReadme(target) {
 function verifyAll(root, version) {
   const expected = requireVersion(version);
   const stage = requirePath(root, "--dir");
-  const main = readManifest(path.join(stage, MAIN_DIRECTORY, "package.json"));
-  assertVersion(main, expected, MAIN_DIRECTORY);
-  if (main.name !== "curupira") {
-    throw new Error(`Main package name is ${main.name}`);
-  }
-  const dependencies = main.optionalDependencies ?? {};
-  for (const target of TARGETS) {
-    if (dependencies[target.packageName] !== expected) {
-      throw new Error(`${target.packageName} is ${dependencies[target.packageName]}, expected ${expected}`);
-    }
-    verifyPlatform(stage, target, expected);
-  }
-  const extra = Object.keys(dependencies).filter(
-    (name) => !TARGETS.some((target) => target.packageName === name),
-  );
-  if (extra.length > 0) {
-    throw new Error(`Unexpected optional dependencies: ${extra.join(", ")}`);
-  }
+  verifySinglePackage(path.join(stage, MAIN_DIRECTORY), expected);
 }
 
 /**
@@ -221,11 +157,13 @@ function verifyAll(root, version) {
  */
 function verifyOne(root, key, version) {
   const target = requireTarget(key);
-  verifyPlatform(requirePath(root, "--dir"), target, requireVersion(version));
+  const binary = binaryPath(requirePath(root, "--dir"), target, "staging");
+  requireVersion(version);
+  assertNativeBinary(binary);
 }
 
 /**
- * Check npm pack tarballs. Each archive must contain `package/package.json` at `version`.
+ * Check the single npm pack tarball contains the expected manifest and all native binaries.
  *
  * @param {string | undefined} dir
  * @param {string | undefined} version
@@ -235,7 +173,7 @@ function verifyTarballs(dir, version, count) {
   const expected = requireVersion(version);
   const root = requirePath(dir, "--dir");
   const tarballs = listTarballs(root);
-  const expectedCount = count === undefined ? TARGETS.length + 1 : Number(count);
+  const expectedCount = count === undefined ? 1 : Number(count);
   if (!Number.isInteger(expectedCount) || tarballs.length !== expectedCount) {
     throw new Error(
       `Expected ${expectedCount} npm tarballs in ${root}, found ${tarballs.map((file) => path.basename(file)).join(", ") || "none"}`,
@@ -245,12 +183,8 @@ function verifyTarballs(dir, version, count) {
     const extracted = fs.mkdtempSync(path.join(os.tmpdir(), "curupira-npm-tgz-"));
     try {
       execFileSync("tar", ["-xzf", tarball, "-C", extracted], { stdio: "inherit" });
-      const manifestPath = path.join(extracted, "package", "package.json");
-      if (!fs.existsSync(manifestPath)) {
-        throw new Error(`Missing package/package.json in ${tarball}`);
-      }
-      const manifest = readManifest(manifestPath);
-      assertVersion(manifest, expected, path.basename(tarball));
+      const packageDir = path.join(extracted, "package");
+      verifySinglePackage(packageDir, expected, path.basename(tarball));
     } finally {
       fs.rmSync(extracted, { recursive: true, force: true });
     }
@@ -271,36 +205,45 @@ function listTarballs(root) {
 }
 
 /**
- * @param {string} stage
- * @param {(typeof TARGETS)[number]} target
+ * @param {string} directory
  * @param {string} version
+ * @param {string} [label]
  */
-function verifyPlatform(stage, target, version) {
-  const directory = path.join(stage, packageDirectory(target.packageName));
+function verifySinglePackage(directory, version, label = MAIN_DIRECTORY) {
   const manifest = readManifest(path.join(directory, "package.json"));
-  assertVersion(manifest, version, target.packageName);
-  if (manifest.name !== target.packageName) {
-    throw new Error(`${directory} is named ${manifest.name}`);
+  assertVersion(manifest, version, label);
+  if (manifest.name !== MAIN_PACKAGE_NAME) {
+    throw new Error(`${label} is named ${manifest.name}, expected ${MAIN_PACKAGE_NAME}`);
   }
-  if (!Array.isArray(manifest.os) || manifest.os[0] !== target.os) {
-    throw new Error(`${target.packageName} os is ${JSON.stringify(manifest.os)}`);
+  if (manifest.optionalDependencies && Object.keys(manifest.optionalDependencies).length > 0) {
+    throw new Error(`${label} must bundle its platform binaries instead of using optional dependencies`);
   }
-  if (!Array.isArray(manifest.cpu) || manifest.cpu[0] !== target.cpu) {
-    throw new Error(`${target.packageName} cpu is ${JSON.stringify(manifest.cpu)}`);
+  for (const target of TARGETS) {
+    const binary = binaryPath(directory, target, "package");
+    assertNativeBinary(binary);
+    if ((fs.statSync(binary).mode & 0o111) === 0) {
+      throw new Error(`${binary} is not executable`);
+    }
   }
-  const libc = manifest.libc ?? null;
-  const expectedLibc = target.libc === null ? null : [target.libc];
-  if (JSON.stringify(libc) !== JSON.stringify(expectedLibc)) {
-    throw new Error(`${target.packageName} libc is ${JSON.stringify(libc)}`);
+  const embedded = fs.readdirSync(path.join(directory, "bin", "platforms")).sort();
+  const expected = TARGETS.map((target) => target.key).sort();
+  if (JSON.stringify(embedded) !== JSON.stringify(expected)) {
+    throw new Error(`${label} has unexpected platform binaries: ${embedded.join(", ")}`);
   }
-  if (manifest.bin !== undefined) {
-    throw new Error(`${target.packageName} must not publish its own bin entries`);
+  if (!fs.existsSync(path.join(directory, "LICENSE"))) {
+    throw new Error(`${label} is missing LICENSE`);
   }
-  const binary = path.join(directory, "bin", binaryFileName(target.os));
-  assertNativeBinary(binary);
-  if (fs.existsSync(path.join(directory, "LICENSE")) === false) {
-    throw new Error(`${target.packageName} is missing LICENSE`);
-  }
+}
+
+/**
+ * @param {string} root
+ * @param {(typeof TARGETS)[number]} target
+ * @param {"staging" | "package"} layout
+ * @returns {string}
+ */
+function binaryPath(root, target, layout) {
+  const base = layout === "staging" ? path.join(root, "binaries") : path.join(root, "bin", "platforms");
+  return path.join(base, target.key, binaryFileName(target.os));
 }
 
 /**

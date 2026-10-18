@@ -44,21 +44,19 @@ process.exit(2);
  *   arch?: string,
  *   libc?: string | null,
  *   mainVersion?: string,
- *   platformVersion?: string,
  *   binary?: Buffer | string,
- *   omitPlatform?: boolean,
+ *   omitBinary?: boolean,
  * }} [options]
- * @returns {{ mainDir: string, wrapper: string, alias: string, platformDir: string | null }}
+ * @returns {{ mainDir: string, wrapper: string, alias: string, binaryPath: string | null }}
  */
 function installFixture(root, options = {}) {
   const platform = options.platform ?? process.platform;
   const arch = options.arch ?? process.arch;
   const libc = options.libc === undefined ? detectLibc(platform) : options.libc;
   const mainVersion = options.mainVersion ?? "0.2.0";
-  const platformVersion = options.platformVersion ?? mainVersion;
-  const { selectTarget, packageDirectory, binaryFileName } = require("../lib/targets.js");
+  const { selectTarget, binaryFileName } = require("../lib/targets.js");
   const target = selectTarget(platform, arch, libc);
-  const mainDir = path.join(root, "node_modules", "curupira");
+  const mainDir = path.join(root, "node_modules", "@caipora-labs", "curupira");
   fs.mkdirSync(mainDir, { recursive: true });
   fs.cpSync(path.join(PACKAGE_ROOT, "bin"), path.join(mainDir, "bin"), { recursive: true });
   fs.cpSync(path.join(PACKAGE_ROOT, "lib"), path.join(mainDir, "lib"), { recursive: true });
@@ -67,36 +65,25 @@ function installFixture(root, options = {}) {
   const manifest = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, "package.json"), "utf8"));
   manifest.version = mainVersion;
   fs.writeFileSync(path.join(mainDir, "package.json"), JSON.stringify(manifest));
-  if (options.omitPlatform || target === null) {
+  if (options.omitBinary || target === null) {
     return {
       mainDir,
       wrapper: path.join(mainDir, "bin", "curupira.js"),
       alias: path.join(mainDir, "bin", "curu.js"),
-      platformDir: null,
+      binaryPath: null,
     };
   }
-  const scope = target.packageName.split("/")[0];
-  const platformDir = path.join(root, "node_modules", scope, packageDirectory(target.packageName));
-  const binDir = path.join(platformDir, "bin");
+  const binDir = path.join(mainDir, "bin", "platforms", target.key);
   fs.mkdirSync(binDir, { recursive: true });
   const binary = path.join(binDir, binaryFileName(platform));
   const payload = options.binary ?? FAKE_BINARY;
   fs.writeFileSync(binary, payload);
   fs.chmodSync(binary, 0o755);
-  fs.writeFileSync(
-    path.join(platformDir, "package.json"),
-    JSON.stringify({
-      name: target.packageName,
-      version: platformVersion,
-      os: [target.os],
-      cpu: [target.cpu],
-    }),
-  );
   return {
     mainDir,
     wrapper: path.join(mainDir, "bin", "curupira.js"),
     alias: path.join(mainDir, "bin", "curu.js"),
-    platformDir,
+    binaryPath: binary,
   };
 }
 

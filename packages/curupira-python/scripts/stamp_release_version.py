@@ -27,7 +27,7 @@ STAMPED = {
         str,
     ),
 }
-# The npm CLI ships the same Rust binary, so it takes the Cargo form of the tag.
+# The single npm CLI package ships the same Rust binary, so it takes the Cargo form of the tag.
 NPM_MANIFEST = Path("packages/curupira-npm/package.json")
 NPM_SDK_MANIFEST = Path("packages/curupira-js-sdk/package.json")
 NPM_SDK_LOCKFILE = Path("packages/curupira-js-sdk/package-lock.json")
@@ -59,17 +59,13 @@ def _stamp_version_line(project: str, version: Version, root: Path) -> Path:
 
 
 def _stamp_npm_manifest(root: Path, version: str) -> Path:
-    """Write the release version into the npm CLI manifest and its platform dependencies."""
+    """Write the release version into the single npm CLI package manifest."""
     path = root / NPM_MANIFEST
     if not path.is_file():
         message = f"Missing npm manifest {path}"
         raise SystemExit(message)
     manifest = json.loads(path.read_text(encoding="utf-8"))
     manifest["version"] = version
-    optional = manifest.get("optionalDependencies")
-    if isinstance(optional, dict):
-        for name in optional:
-            optional[name] = version
     path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return path
 

@@ -1,4 +1,4 @@
-# `curupira`
+# `@caipora-labs/curupira`
 
 npm distribution of the [Curupira](https://github.com/caipora-labs/curupira) command-line
 interface. The package installs the same Rust executable published on PyPI and exposes
@@ -10,11 +10,11 @@ compile Rust on install.
 Node.js 20 or newer:
 
 ```bash
-npm install -g curupira
+npm install -g @caipora-labs/curupira
 ```
 
 ```bash
-npx curupira --help
+npx @caipora-labs/curupira --help
 ```
 
 Python, pip, uv, and Rust are not required to install or run the CLI.
@@ -31,23 +31,23 @@ after you switch to npm.
 
 ## Platforms
 
-npm publishes a prebuilt binary for:
+This is one self-contained npm package: it includes the prebuilt binary for each supported
+platform and selects the matching one when you run `curupira` or `curu`.
 
-| Package | System |
+| Variant | System |
 | --- | --- |
-| `@caipora-labs/curupira-linux-x64` | Linux x64, glibc |
-| `@caipora-labs/curupira-linux-arm64` | Linux ARM64, glibc |
-| `@caipora-labs/curupira-linux-x64-musl` | Linux x64, musl (Alpine) |
-| `@caipora-labs/curupira-linux-arm64-musl` | Linux ARM64, musl (Alpine) |
-| `@caipora-labs/curupira-darwin-x64` | macOS Intel |
-| `@caipora-labs/curupira-darwin-arm64` | macOS Apple Silicon |
-| `@caipora-labs/curupira-win32-x64` | Windows x64 |
-| `@caipora-labs/curupira-win32-arm64` | Windows ARM64 |
+| `linux-x64` | Linux x64, glibc |
+| `linux-arm64` | Linux ARM64, glibc |
+| `linux-x64-musl` | Linux x64, musl (Alpine) |
+| `linux-arm64-musl` | Linux ARM64, musl (Alpine) |
+| `darwin-x64` | macOS Intel |
+| `darwin-arm64` | macOS Apple Silicon |
+| `win32-x64` | Windows x64 |
+| `win32-arm64` | Windows ARM64 |
 
-The main package depends on these as optional dependencies. npm installs the one that
-matches the current operating system, CPU, and C library. Other systems and 32-bit
-architectures are not published. The command fails with the supported list when the
-platform package is missing.
+All binaries ship in the same package; there are no platform-specific npm dependencies
+or additional package names to install. Other systems and 32-bit architectures are not
+supported. The command reports the supported list on an unsupported platform.
 
 ## Extensions
 

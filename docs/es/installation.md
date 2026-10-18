@@ -33,18 +33,19 @@ instalaciones. Curupira no instala Python ni un entorno privado de Node.js para 
 ## Instalar con Node.js
 
 ```bash
-npm install -g curupira
+npm install -g @caipora-labs/curupira
 ```
 
 Ejecútalo una vez sin instalación global:
 
 ```bash
-npx curupira --help
+npx @caipora-labs/curupira --help
 ```
 
-npm instala el paquete opcional que corresponde a este sistema operativo, CPU y biblioteca C
-(`@caipora-labs/curupira-linux-x64` y los demás paquetes de plataforma listados en el
-[README del paquete](https://github.com/caipora-labs/curupira/blob/main/packages/curupira-npm/README.md)).
+El único paquete de npm incluye binarios para todos los sistemas operativos, CPU y bibliotecas C
+compatibles. Selecciona el binario correspondiente al ejecutar el comando; no hay paquetes
+adicionales de plataforma que instalar. Consulta el [README del paquete](https://github.com/caipora-labs/curupira/blob/main/packages/curupira-npm/README.md)
+para ver las plataformas compatibles.
 Los conectores no están incluidos: los registras en `[plugins.<alias>]` dentro de tu
 configuración, consulta [Plugins y conectores](plugins.md).
 

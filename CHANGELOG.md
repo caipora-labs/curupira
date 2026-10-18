@@ -59,11 +59,10 @@ All notable changes to this project are documented here. The format follows
   extras of `curupira`. The plugin package is GitHub-only for now.
 - **`curupira` (npm CLI).** `packages/curupira-npm/` installs the existing Rust
   `curupira` and `curu` binaries through Node.js, without Python, pip, uv, or a Rust
-  toolchain. Platform packages (`@caipora-labs/curupira-linux-x64`, musl, macOS, and Windows,
-  including ARM64) are optional dependencies built from the same maturin wheels as the
-  PyPI release. Configuration, state, extensions, and the dispatch lock stay in
-  `~/.curupira/`. A `publish/curupira/<version>` tag builds and, on push, publishes the
-  npm packages with the Cargo form of that version. Docs: `docs/en/installation.md`.
+  toolchain. The single scoped package includes all platform binaries built from the same
+  maturin wheels as the PyPI release. Configuration, state, extensions, and the dispatch
+  lock stay in `~/.curupira/`. A `publish/curupira/<version>` tag builds and publishes that
+  one npm package with the Cargo form of that version. Docs: `docs/en/installation.md`.
 - **`@caipora-labs/curupira-sdk` (Node.js).** New package under `packages/curupira-js-sdk/`
   provides a declarative `defineTriggers({ ... })` API for JavaScript and TypeScript
   extensions, protocol-2 serialization to string key/value pairs (or `null`), and a
@@ -74,6 +73,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **npm CLI package name.** Install the npm CLI as `@caipora-labs/curupira`; the unscoped
+  `curupira` name is unavailable on npm. The installed commands remain `curupira` and `curu`.
 - **Breaking: trigger results are generic key/value pairs (protocol 2).** The host
   accepts protocol version `2` only. `trigger/poll` returns `{ "values": null }`
   when nothing was found, `{ "values": [] }` for an item with no pairs, or
@@ -100,8 +101,8 @@ All notable changes to this project are documented here. The format follows
   rehearsal workflow, which are removed.
 - **Independent npm SDK release.** A `publish/curupira-js-sdk/<version>` tag tests and
   publishes `@caipora-labs/curupira-sdk` at its own version. A `publish/curupira/<version>`
-  tag still publishes the CLI package `curupira` and its platform packages with the
-  Curupira release version; Python SDK and plugin versions remain independent.
+  tag publishes the single CLI package `@caipora-labs/curupira` with the Curupira release
+  version; Python SDK and plugin versions remain independent.
 - **Official triggers ship as one optional package.** `packages/curupira-python-plugins/`
   publishes PyPI `curupira-plugins` (import `curupira_plugins`) and depends on
   `curupira-sdk`. It replaces the former `curupira-github` / `curupira-azure` /

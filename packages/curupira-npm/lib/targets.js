@@ -1,10 +1,10 @@
 "use strict";
 
 /**
- * Official npm platform packages for the Curupira CLI.
+ * Native binary targets embedded in the single Curupira npm package.
  *
  * Keys match `npm_target` in `.github/workflows/publish.yml`. npm installs only the
- * optional dependency whose `os`, `cpu`, and `libc` match the current machine.
+ * one package; this list selects the binary it runs for the current machine.
  */
 
 const TARGETS = Object.freeze([
@@ -32,8 +32,6 @@ function target(key, osName, cpu, libc, label) {
     cpu,
     libc,
     label,
-    packageName: `@caipora-labs/curupira-${key}`,
-    description: `Prebuilt Curupira CLI for ${label}.`,
   });
 }
 
@@ -63,14 +61,6 @@ function binaryFileName(osName) {
 }
 
 /**
- * @param {string} packageName Scoped package name.
- * @returns {string}
- */
-function packageDirectory(packageName) {
-  const slash = packageName.lastIndexOf("/");
-  return slash === -1 ? packageName : packageName.slice(slash + 1);
-}
-
 /**
  * @returns {string[]}
  */
@@ -81,7 +71,6 @@ function supportedKeys() {
 module.exports = {
   TARGETS,
   binaryFileName,
-  packageDirectory,
   selectTarget,
   supportedKeys,
 };
