@@ -39,6 +39,8 @@ test("publish workflow targets match the npm platform list", () => {
   for (const target of TARGETS) {
     assert.match(workflow, new RegExp(`npm_target: ${target.key}\\b`));
   }
+  assert.match(workflow, /npm pack --pack-destination dist-npm\/platform "\.\/\$dir"/);
+  assert.match(workflow, /npm pack --pack-destination dist-npm \.\/npm-stage\/curupira/);
 });
 
 test("LICENSE matches the repository license", () => {
