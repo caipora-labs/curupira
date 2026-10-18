@@ -21,9 +21,6 @@ const SIGNAL_NUMBERS = {
 /**
  * Detect the Linux C library. Non-Linux platforms return null.
  *
- * npm also filters optional dependencies with the package `libc` field. This check
- * picks the same binary if both packages are present.
- *
  * @param {string} platform
  * @param {() => { header?: { glibcVersionRuntime?: string }, sharedObjects?: string[] } | null} [report]
  * @param {(file: string) => boolean} [exists]
@@ -82,18 +79,9 @@ function prepare(options = {}) {
   if (target === null) {
     return { error: unsupportedPlatformMessage(platform, arch) };
   }
-  const manifestPath = locatePlatformPackage(packageRoot, target.packageName);
-  if (manifestPath === null) {
-    return { error: missingPackageMessage(target) };
-  }
-  const platformManifest = readJson(manifestPath);
-  const wrapperManifest = readJson(path.join(packageRoot, "package.json"));
-  if (platformManifest.version !== wrapperManifest.version) {
-    return { error: versionMismatchMessage(wrapperManifest.version, target, platformManifest.version) };
-  }
-  const bin = path.join(path.dirname(manifestPath), "bin", binaryFileName(platform));
+  const bin = path.join(packageRoot, "bin", "platforms", target.key, binaryFileName(platform));
   if (!fs.existsSync(bin)) {
-    return { error: missingBinaryMessage(target, bin) };
+    return { error: missingBinaryMessage(target.key, bin) };
   }
   return {
     bin,
@@ -183,28 +171,6 @@ function exitStatusForSignal(signal) {
 }
 
 /**
- * @param {string} packageRoot
- * @param {string} packageName
- * @returns {string | null}
- */
-function locatePlatformPackage(packageRoot, packageName) {
-  try {
-    return require.resolve(`${packageName}/package.json`, { paths: [packageRoot] });
-  } catch (error) {
-    if (error && /** @type {{ code?: string }} */ (error).code === "MODULE_NOT_FOUND") return null;
-    throw error;
-  }
-}
-
-/**
- * @param {string} file
- * @returns {any}
- */
-function readJson(file) {
-  return JSON.parse(fs.readFileSync(file, "utf8"));
-}
-
-/**
  * @param {string} platform
  * @param {string} arch
  * @returns {string}
@@ -217,40 +183,13 @@ function unsupportedPlatformMessage(platform, arch) {
 }
 
 /**
- * @param {{ packageName: string, key: string }} target
- * @returns {string}
- */
-function missingPackageMessage(target) {
-  return (
-    `Curupira platform package ${target.packageName} is not installed. ` +
-    `npm installs it as an optional dependency of curupira on ${target.key}. ` +
-    "Reinstall with `npm install -g curupira`. " +
-    `If optional dependencies were skipped, install ${target.packageName} at the same version.`
-  );
-}
-
-/**
- * @param {{ packageName: string }} target
- * @param {string} binPath
+ * @param {string} target
  * @returns {string}
  */
 function missingBinaryMessage(target, binPath) {
   return (
-    `Curupira binary is missing from ${target.packageName} (expected ${binPath}). ` +
-    `Reinstall curupira and ${target.packageName} at the same version.`
-  );
-}
-
-/**
- * @param {string} wrapperVersion
- * @param {{ packageName: string }} target
- * @param {string} platformVersion
- * @returns {string}
- */
-function versionMismatchMessage(wrapperVersion, target, platformVersion) {
-  return (
-    `Curupira wrapper ${wrapperVersion} does not match ${target.packageName} ${platformVersion}. ` +
-    "Reinstall both packages at the same version."
+    `Curupira binary for ${target} is missing from ${binPath}. ` +
+    "Reinstall with `npm install -g @caipora-labs/curupira`."
   );
 }
 

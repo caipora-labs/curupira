@@ -34,7 +34,7 @@ todas las personas que pueden escribir texto.
    automatizaciones (por ejemplo `gh`) más la CLI del agente de código de tu perfil:
 
    ```bash
-   npm install -g curupira
+    npm install -g @caipora-labs/curupira
    # o: uv tool install curupira
    ```
 

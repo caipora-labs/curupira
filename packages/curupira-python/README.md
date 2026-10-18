@@ -30,9 +30,9 @@ Install the Rust CLI from npm or PyPI. Both ship the same executable and use
 `~/.curupira/` for configuration and state. The npm install does not need Python.
 
 ```bash
-npm install -g curupira
+npm install -g @caipora-labs/curupira
 # or, without a global install:
-npx curupira --help
+npx @caipora-labs/curupira --help
 
 # Python
 uv tool install curupira

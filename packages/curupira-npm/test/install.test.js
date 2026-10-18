@@ -8,13 +8,13 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { detectLibc } = require("../lib/launch.js");
-const { selectTarget } = require("../lib/targets.js");
+const { TARGETS, selectTarget } = require("../lib/targets.js");
 const { PACKAGE_ROOT } = require("../scripts/layout.js");
 
 const REPO_ROOT = path.resolve(PACKAGE_ROOT, "../..");
 const CORE = path.join(REPO_ROOT, "packages/curupira-core");
 
-test("installs the local npm packages and runs the Rust CLI", { timeout: 600_000 }, () => {
+test("installs the single local npm package and runs the Rust CLI", { timeout: 600_000 }, () => {
   const libc = detectLibc(process.platform);
   const target = selectTarget(process.platform, process.arch, libc);
   assert.ok(target, `this runner has no npm target (${process.platform} ${process.arch} ${libc})`);
@@ -30,20 +30,28 @@ test("installs the local npm packages and runs the Rust CLI", { timeout: 600_000
   const built = path.join(CORE, "target", "debug", process.platform === "win32" ? "curupira.exe" : "curupira");
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), "curupira-npm-install-"));
   const assemble = path.join(PACKAGE_ROOT, "scripts/assemble.js");
-  execFileSync(process.execPath, [assemble, "binary", "--bin", built, "--target", target.key, "--version", version, "--out", stage], {
-    stdio: "inherit",
-  });
+  for (const bundled of TARGETS) {
+    const binary = bundled.key === target.key ? built : path.join(stage, `${bundled.key}.bin`);
+    if (bundled.key !== target.key) {
+      fs.writeFileSync(
+        binary,
+        bundled.os === "win32"
+          ? Buffer.from([0x4d, 0x5a, 0, 0])
+          : Buffer.from([0x7f, 0x45, 0x4c, 0x46]),
+      );
+    }
+    execFileSync(
+      process.execPath,
+      [assemble, "binary", "--bin", binary, "--target", bundled.key, "--version", version, "--out", stage],
+      { stdio: "inherit" },
+    );
+  }
   execFileSync(process.execPath, [assemble, "main", "--version", version, "--out", stage], { stdio: "inherit" });
-  execFileSync(process.execPath, [assemble, "verify-one", "--dir", stage, "--target", target.key, "--version", version], {
-    stdio: "inherit",
-  });
+  execFileSync(process.execPath, [assemble, "verify", "--dir", stage, "--version", version], { stdio: "inherit" });
 
   const packs = path.join(stage, "packs");
   fs.mkdirSync(packs);
-  const binaryName = target.os === "win32" ? "curupira.exe" : "curupira";
-  fs.chmodSync(path.join(stage, target.packageName.split("/")[1], "bin", binaryName), 0o644);
   const mainTarball = npmPack(path.join(stage, "curupira"), packs);
-  const platformTarball = npmPack(path.join(stage, target.packageName.split("/")[1]), packs);
   const prefix = path.join(stage, "prefix");
   execFileSync(
     process.execPath,
@@ -53,8 +61,6 @@ test("installs the local npm packages and runs the Rust CLI", { timeout: 600_000
       prefix,
       "--main",
       path.relative(stage, mainTarball),
-      "--platform",
-      path.relative(stage, platformTarball),
     ],
     { cwd: stage, stdio: "inherit" },
   );
@@ -110,7 +116,7 @@ test("installs the local npm packages and runs the Rust CLI", { timeout: 600_000
     PATH: empty,
     SystemRoot: process.env.SystemRoot,
   };
-  const wrapper = path.join(prefix, "node_modules", "curupira", "bin", "curupira.js");
+  const wrapper = path.join(prefix, "node_modules", "@caipora-labs", "curupira", "bin", "curupira.js");
   const direct = spawnSync(process.execPath, [wrapper, "--version"], { env: stripped, encoding: "utf8" });
   assert.equal(direct.status, 0, direct.stderr);
   assert.equal(direct.stdout.trim(), `curupira ${version}`);

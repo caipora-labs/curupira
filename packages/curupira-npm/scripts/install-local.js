@@ -6,20 +6,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 /**
- * Install a locally packed `curupira` tarball and one platform tarball.
- *
- * Optional dependencies are omitted so npm does not contact the registry. The
- * platform tarball is extracted into `node_modules` the way npm would place it.
+ * Install the locally packed, self-contained Curupira CLI tarball.
  */
 function main(argv) {
   const options = parseArgs(argv);
   const prefix = options.prefix;
   const mainTarball = options.main ? path.resolve(options.main) : null;
-  const platformTarball = options.platform ? path.resolve(options.platform) : null;
-  if (!prefix || !mainTarball || !platformTarball) {
-    process.stderr.write(
-      "Usage: install-local.js --prefix DIR --main TARBALL --platform TARBALL\n",
-    );
+  if (!prefix || !mainTarball) {
+    process.stderr.write("Usage: install-local.js --prefix DIR --main TARBALL\n");
     process.exit(1);
   }
   fs.rmSync(prefix, { recursive: true, force: true });
@@ -30,7 +24,6 @@ function main(argv) {
       "install",
       "--prefix",
       prefix,
-      "--omit=optional",
       "--ignore-scripts",
       "--no-save",
       "--no-package-lock",
@@ -42,20 +35,6 @@ function main(argv) {
       env: { ...process.env, npm_config_audit: "false", npm_config_fund: "false" },
     },
   );
-  const extracted = fs.mkdtempSync(path.join(prefix, "extract-"));
-  execFileSync("tar", ["-xzf", platformTarball, "-C", extracted], { stdio: "inherit" });
-  const packed = path.join(extracted, "package");
-  const manifest = JSON.parse(fs.readFileSync(path.join(packed, "package.json"), "utf8"));
-  const scope = manifest.name.split("/")[0];
-  if (!scope.startsWith("@")) throw new Error(`Expected a scoped platform package, got ${manifest.name}`);
-  const scopeDir = path.join(prefix, "node_modules", scope);
-  fs.mkdirSync(scopeDir, { recursive: true });
-  const folder = String(manifest.name).split("/")[1];
-  const platformDir = path.join(scopeDir, folder);
-  const binaryName = manifest.os?.includes("win32") ? "curupira.exe" : "curupira";
-  fs.chmodSync(path.join(packed, "bin", binaryName), 0o755);
-  fs.renameSync(packed, platformDir);
-  fs.rmSync(extracted, { recursive: true, force: true });
   process.stdout.write(`${path.join(prefix, "node_modules", ".bin")}\n`);
 }
 

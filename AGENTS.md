@@ -18,9 +18,9 @@ repo-level config stay at the root.
   Install via `curupira[extensions]` (or forge-named extras) / `curupira plugins install`.
 - **`packages/curupira-js-sdk/`** — npm package `@caipora-labs/curupira-sdk` (ESM). Declarative
   `defineTriggers` API and protocol runtime for Node.js plugins launched with `npx`.
-- **`packages/curupira-npm/`** — npm package `curupira`. Thin wrapper that runs the
-  prebuilt Rust CLI (`curupira` and `curu`). Optional platform packages ship the same binary
-  as the PyPI wheel. No second config directory and no FFI.
+- **`packages/curupira-npm/`** — npm package `@caipora-labs/curupira`. Thin wrapper that runs the
+  prebuilt Rust CLI (`curupira` and `curu`). One package bundles the platform binaries built
+  from the same wheels as PyPI. No second config directory and no FFI.
 
 Automations are configured in TOML (`~/.curupira/settings.toml`). Register packages under
 `[plugins.<alias>]` with `type = "uvx"` or `"npx"` and `args` for that launcher (for
@@ -76,7 +76,7 @@ CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_plugins)
 | `packages/curupira-python-sdk/` | Declarative extension SDK (`curupira-sdk`) |
 | `packages/curupira-python-plugins/` | Official triggers (`curupira-plugins`): source, manifest, tests |
 | `packages/curupira-js-sdk/` | Declarative Node.js SDK (`@caipora-labs/curupira-sdk`) |
-| `packages/curupira-npm/` | npm CLI distribution (`curupira` plus platform packages) |
+| `packages/curupira-npm/` | Single npm CLI distribution with bundled platform binaries |
 | `.github/scripts/` | CI gate (`require_ci_checks.py`) |
 | `docs/en/` | Canonical docs |
 
@@ -90,10 +90,10 @@ Each package has its own version and is released by its own git tag,
 - `curupira`: `dynamic = ["version"]`, so maturin takes it from `packages/curupira-core/Cargo.toml`.
   `publish.yml` stamps that from the tag before building (`scripts/stamp_release_version.py`).
   Its checked-in version is a placeholder; do not bump it by hand for a release.
-- `curupira` and its `@caipora-labs/curupira-*` platform packages use that same tag. The
-  stamp script writes the Cargo semver form (`0.3.0.dev0` → `0.3.0-dev0`) into
-  `packages/curupira-npm/package.json`. Do not publish them under a separate project name.
-  Platform tarballs are built from the maturin wheels, not from a second compile.
+- `@caipora-labs/curupira` uses that same tag. The stamp script writes the Cargo semver form
+  (`0.3.0.dev0` → `0.3.0-dev0`) into `packages/curupira-npm/package.json`. All platform
+  binaries are included in that one package and built from the maturin wheels, not from a
+  second compile.
 - `@caipora-labs/curupira-sdk` is independently released by
   `publish/curupira-js-sdk/<version>`; its npm manifest is stamped from that tag. It does
   not follow the CLI release version.
