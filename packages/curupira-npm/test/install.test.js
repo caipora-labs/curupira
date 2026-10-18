@@ -40,6 +40,8 @@ test("installs the local npm packages and runs the Rust CLI", { timeout: 600_000
 
   const packs = path.join(stage, "packs");
   fs.mkdirSync(packs);
+  const binaryName = target.os === "win32" ? "curupira.exe" : "curupira";
+  fs.chmodSync(path.join(stage, target.packageName.split("/")[1], "bin", binaryName), 0o644);
   const mainTarball = npmPack(path.join(stage, "curupira"), packs);
   const platformTarball = npmPack(path.join(stage, target.packageName.split("/")[1]), packs);
   const prefix = path.join(stage, "prefix");

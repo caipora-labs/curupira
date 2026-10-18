@@ -51,7 +51,10 @@ function main(argv) {
   const scopeDir = path.join(prefix, "node_modules", scope);
   fs.mkdirSync(scopeDir, { recursive: true });
   const folder = String(manifest.name).split("/")[1];
-  fs.renameSync(packed, path.join(scopeDir, folder));
+  const platformDir = path.join(scopeDir, folder);
+  const binaryName = manifest.os?.includes("win32") ? "curupira.exe" : "curupira";
+  fs.chmodSync(path.join(packed, "bin", binaryName), 0o755);
+  fs.renameSync(packed, platformDir);
   fs.rmSync(extracted, { recursive: true, force: true });
   process.stdout.write(`${path.join(prefix, "node_modules", ".bin")}\n`);
 }
