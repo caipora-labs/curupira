@@ -63,8 +63,8 @@ Discovery reads `curupira-extension.toml` manifests from
 
 Bundled as one PyPI package `curupira-plugins`
 (`packages/curupira-python-plugins/`, import `curupira_plugins`). It is **not** required
-to install the CLI. PyPI extras `github` / `azure` / `trello` / `monday` / `extensions`
-all install that same distribution. Register it in settings under a TOML alias with an
+to install the CLI. PyPI extras `github` / `extensions`
+both install that same distribution. Register it in settings under a TOML alias with an
 independent launcher (`uvx` or `npx`) and args; automations then use
 `<alias>/<local-trigger>`:
 
@@ -77,15 +77,13 @@ tools = ["*"]
 
 The package ships a `curupira-plugins` console script, so `uvx` runs it directly (no
 `python -m`). Use `tools` to keep only matching local triggers (`github-*`) or to drop
-matches (`!monday-*`).
+matches (`!github-project-*`).
 
 | Local trigger (in the package) | Example automation `trigger_type` |
 | --- | --- |
 | `github-issues` | `plugins-py/github-issues` |
 | `github-pull-requests` | `plugins-py/github-pull-requests` |
-| `azure-cli-pull-requests` | `plugins-py/azure-cli-pull-requests` |
-| `trello-cli-cards` | `plugins-py/trello-cli-cards` |
-| `monday-items` | `plugins-py/monday-items` |
+| `github-project-items` | `plugins-py/github-project-items` |
 
 **cron** and all coding-agent adapters remain inside the Rust CLI (not extensions).
 

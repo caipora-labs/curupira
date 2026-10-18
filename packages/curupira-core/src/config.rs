@@ -464,6 +464,7 @@ fn validate_automations(settings: &ApplicationSettings) -> Result<(), CurupiraEr
         let trigger = auto.effective_trigger_type().to_string();
         if trigger == "cron" {
             crate::cron::validate_automation_table(auto)?;
+            crate::prompt::check(name, &auto.prompt, Some(&[]))?;
             continue;
         }
         let binding = namespace.resolve(&trigger).ok_or_else(|| {
@@ -482,6 +483,13 @@ fn validate_automations(settings: &ApplicationSettings) -> Result<(), CurupiraEr
             host_cache.insert(cache_key.clone(), host);
             host_cache.get_mut(&cache_key).unwrap()
         };
+        let fields = host.trigger_schema(&local_trigger)?.prompt_fields;
+        // A trigger that declares no fields only gets its prompt syntax checked.
+        crate::prompt::check(
+            name,
+            &auto.prompt,
+            (!fields.is_empty()).then_some(&fields[..]),
+        )?;
         let config_value = automation_to_json(auto);
         let result = host.validate_trigger(&local_trigger, &config_value)?;
         if !result.ok {

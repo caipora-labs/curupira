@@ -39,10 +39,6 @@ than maintaining a parallel field table here.
 
 ::: curupira.models.configuration.PullRequestAutomationConfiguration
 
-::: curupira.models.configuration.AzurePullRequestAutomationConfiguration
-
-::: curupira.models.configuration.TrelloAutomationConfiguration
-
 ::: curupira.models.configuration.CronAutomationConfiguration
 
 ### CLI profiles
@@ -153,7 +149,7 @@ tools = ["*", "!internal-*"]
   `uvx --from curupira-plugins curupira-plugins` (no `python -m`).
 - `tools` (optional): glob list selecting which local trigger names to expose. Empty or
   omitted keeps every trigger from `describe`. Positive patterns (`github-*`, `*`) are
-  includes; patterns starting with `!` (`!monday-*`) are excludes. A name must match an
+  includes; patterns starting with `!` (`!github-project-*`) are excludes. A name must match an
   include when any includes are set, and must not match any exclude.
 
 Automations then set `trigger_type = "<alias>/<local-trigger>"`. Local trigger names are
@@ -168,9 +164,9 @@ kebab-case names declared by the extension (for example `github-issues`). The of
 - `path` (optional): existing checkout or alternate clone destination.
 - `setup_script` (optional): repository-relative executable run only after a fresh clone.
 
-Forge discovery is independent of the checkout URL. A common pattern is an Azure DevOps
-`remote` with GitHub public issues: set `repositories.api.remote` to the Azure Git URL and
-set the automation's GitHub `repo` to `owner/name`.
+Forge discovery is independent of the checkout URL. A common pattern is a `remote`
+on a different host than GitHub with GitHub public issues: set `repositories.api.remote` to
+that Git URL and set the automation's GitHub `repo` to `owner/name`.
 
 ## Automations
 
@@ -184,27 +180,20 @@ set the automation's GitHub `repo` to `owner/name`.
   sessions.
 - `plugins-py/github-pull-requests` discovers GitHub pull requests the same way, with PR filters such
   as `draft`, `review`, `ci_status`, plus post-filters `mergeable` / `merge_state`.
-- `plugins-py/azure-cli-pull-requests` lists Azure DevOps pull requests through `az repos pr list`.
-- `plugins-py/trello-cli-cards` discovers Trello cards through Scale-Flow's `trello-cli` for a
-  configured `board_id`, optionally restricted to `list_ids`.
-- `plugins-py/monday-items` discovers monday.com board items through the GraphQL API for a
-  configured `board_id`, optionally restricted to `group_ids` (token from `token_env`,
-  default `MONDAY_API_TOKEN`). See the [monday.com task source guide](monday.md).
 - `cron` produces occurrences from a five-field `schedule` instead of querying a forge.
 - Installed [trigger extensions](extensions.md) add their own trigger types;
   `curu plugins list` shows every available type.
 
-Each automation requires `repository` (alias) and `prompt`. GitHub and Azure triggers also
-require forge `repo` identity (`owner/name` or `organization/project/repository`). Cron
-requires `schedule`. Trello automations require `board_id`. monday.com automations require
-`board_id` and a token in the environment named by `token_env`. Optional `profile` selects a
-CLI profile. Different repository aliases cannot share one workspace path. Automations keep
+Each automation requires `repository` (alias) and `prompt`. GitHub triggers also
+require forge `repo` identity (`owner/name`). Cron requires `schedule`. Optional `profile`
+selects a CLI profile. Different repository aliases cannot share one workspace path. Automations keep
 file order, and one-shot selection follows that order.
 
 GitHub API authentication uses `gh auth token` from an already authenticated GitHub CLI.
 Clone authentication uses native Git credentials for the configured `remote`.
 
-Placeholders use `${name}` syntax and are validated when the configuration loads. Common
+Placeholders use `${name}` syntax (Jinja conditionals and loops are also available; see
+[Writing prompts](prompts.md)) and are validated when the configuration loads. Common
 placeholders include `${repo}`, `${repository}`, `${automation_id}`, `${task_type}`,
 `${task_number}`, `${task_title}`, `${task_body}`, and `${task_url}`. `${repo}` is the forge
 identity when the trigger has one; `${repository}` is the checkout alias. Each trigger also

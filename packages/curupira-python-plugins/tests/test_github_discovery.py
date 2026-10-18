@@ -301,3 +301,68 @@ def test_search_response_without_data_is_reported() -> None:
 
     assert response.data is None
     assert response.errors == []
+
+
+def test_pull_request_item_maps_review_ci_and_diff_fields() -> None:
+    node = parse_nodes(
+        _connection(
+            [
+                _pr_node(
+                    5,
+                    reviewDecision="CHANGES_REQUESTED",
+                    changedFiles=3,
+                    additions=10,
+                    deletions=2,
+                    assignees={"nodes": [{"login": "mario"}]},
+                    milestone={"title": "v1"},
+                    commits={"nodes": [{"commit": {"statusCheckRollup": {"state": "FAILURE"}}}]},
+                    closingIssuesReferences={"nodes": [{"number": 1, "url": "https://x/1"}]},
+                    reviewRequests={
+                        "nodes": [
+                            {"requestedReviewer": {"login": "ana"}},
+                            {"requestedReviewer": {"name": "core-team"}},
+                        ]
+                    },
+                    comments={"totalCount": 2, "nodes": [{"author": None, "body": "ghost"}]},
+                )
+            ],
+            has_next=False,
+            cursor=None,
+        ),
+        PullRequestNode,
+    )[0]
+
+    item = _pull_request_item("acme/api", node).model_dump()
+
+    assert item["pull_request_review_decision"] == "CHANGES_REQUESTED"
+    assert item["pull_request_ci_status"] == "FAILURE"
+    assert (item["pull_request_changed_files"], item["pull_request_additions"]) == (3, 10)
+    assert item["pull_request_assignees"] == ["mario"]
+    assert item["pull_request_milestone"] == "v1"
+    assert item["pull_request_closing_issues"] == ["https://x/1"]
+    assert item["pull_request_requested_reviewers"] == ["ana", "core-team"]
+    assert item["pull_request_comment_count"] == 2
+    assert "ghost" in item["pull_request_comments"]
+
+
+def test_single_string_labels_and_merge_state_are_accepted() -> None:
+    for trigger, extra in (
+        ("github-issues", {}),
+        ("github-pull-requests", {"merge_state": "CLEAN"}),
+    ):
+        result = app._handle_validate(
+            {
+                "trigger_type": trigger,
+                "configuration": {
+                    "repo": "acme/api",
+                    "labels": "agent-ready",
+                    "exclude_labels": "blocked",
+                    **extra,
+                },
+            }
+        )
+        assert result["ok"] is True, result
+
+    filters = PullRequestFilters(repo="acme/api", labels="a", merge_state="CLEAN")  # type: ignore[arg-type]
+    assert filters.labels == ["a"]
+    assert filters.merge_state == ["CLEAN"]

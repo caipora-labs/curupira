@@ -5,14 +5,24 @@ Discovery authenticates through `gh auth token`; no GitHub credentials are store
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from curupira_sdk import Curupira, RpcError
 from pydantic import ValidationError
 
 from curupira_plugins.github.client import Discovery, GitHubClient, GitHubCliToken, parse_nodes
-from curupira_plugins.github.filters import IssueFilters, PullRequestFilters
-from curupira_plugins.github.models import IssueItem, IssueNode, PullRequestItem, PullRequestNode
+from curupira_plugins.github.filters import IssueFilters, ProjectFilters, PullRequestFilters
+from curupira_plugins.github.models import (
+    CommentConnection,
+    IssueItem,
+    IssueNode,
+    ProjectItem,
+    ProjectItemNode,
+    PullRequestItem,
+    PullRequestNode,
+    ReferenceConnection,
+)
 
 _CLIENT = GitHubClient(GitHubCliToken())
 # One discovery feed per distinct filter set, kept for the lifetime of this process.
@@ -39,6 +49,28 @@ def _check_pull_request_filters(kwargs: dict[str, object]) -> None:
         raise RpcError(-32003, _validation_message(exc)) from exc
 
 
+def _comments_json(comments: CommentConnection) -> str:
+    """Render the latest comments as JSON; their text is untrusted, like the issue body."""
+    return json.dumps(
+        [
+            {"author": comment.author.login if comment.author else "", "body": comment.body}
+            for comment in comments.nodes
+        ],
+        ensure_ascii=False,
+    )
+
+
+def _reference_urls(references: ReferenceConnection) -> list[str]:
+    return [reference.url for reference in references.nodes]
+
+
+def _check_project_filters(kwargs: dict[str, object]) -> None:
+    try:
+        ProjectFilters(**kwargs)  # type: ignore[arg-type]
+    except ValidationError as exc:
+        raise RpcError(-32003, _validation_message(exc)) from exc
+
+
 def _issue_item(repo: str, node: IssueNode) -> IssueItem:
     return IssueItem(
         id=str(node.number),
@@ -52,6 +84,14 @@ def _issue_item(repo: str, node: IssueNode) -> IssueItem:
         issue_state=node.state,
         issue_author=node.author.login if node.author else "",
         issue_labels=[label.name for label in node.labels.nodes],
+        issue_assignees=[actor.login for actor in node.assignees.nodes],
+        issue_milestone=node.milestone.title if node.milestone else "",
+        issue_created_at=node.created_at,
+        issue_updated_at=node.updated_at,
+        issue_state_reason=node.state_reason or "",
+        issue_linked_pull_requests=_reference_urls(node.closed_by_pull_requests_references),
+        issue_comment_count=node.comments.total_count,
+        issue_comments=_comments_json(node.comments),
     )
 
 
@@ -73,6 +113,19 @@ def _pull_request_item(repo: str, node: PullRequestNode) -> PullRequestItem:
         pull_request_labels=[label.name for label in node.labels.nodes],
         pull_request_mergeable=node.mergeable,
         pull_request_merge_state_status=node.merge_state_status,
+        pull_request_assignees=[actor.login for actor in node.assignees.nodes],
+        pull_request_milestone=node.milestone.title if node.milestone else "",
+        pull_request_created_at=node.created_at,
+        pull_request_updated_at=node.updated_at,
+        pull_request_review_decision=node.review_decision or "",
+        pull_request_ci_status=node.ci_status,
+        pull_request_changed_files=node.changed_files,
+        pull_request_additions=node.additions,
+        pull_request_deletions=node.deletions,
+        pull_request_closing_issues=_reference_urls(node.closing_issues_references),
+        pull_request_requested_reviewers=node.requested_reviewers,
+        pull_request_comment_count=node.comments.total_count,
+        pull_request_comments=_comments_json(node.comments),
     )
 
 
@@ -111,10 +164,99 @@ def _pull_request_feed(
     return feed
 
 
+def _project_item(
+    filters: ProjectFilters,
+    project_title: str,
+    project_url: str,
+    node: ProjectItemNode,
+) -> ProjectItem | None:
+    """Map one project item to a task, or None when it is not an eligible issue/PR."""
+    content = node.content or {}
+    kind = content.get("__typename")
+    if node.is_archived or kind not in {"Issue", "PullRequest"}:
+        return None  # draft items, redacted content, and archived cards carry no repository
+    fields = node.field_values.by_name()
+    if not filters.keeps_column(fields):
+        return None
+    repo = str(content.get("repository", {}).get("nameWithOwner", ""))
+    pull_request = PullRequestNode.model_validate(content) if kind == "PullRequest" else None
+    base = pull_request or IssueNode.model_validate(content)
+    labels = [label.name for label in base.labels.nodes]
+    assignees = [actor.login for actor in base.assignees.nodes]
+    author = base.author.login if base.author else ""
+    item_type = "pull_request" if pull_request else "issue"
+    if not filters.keeps_content(
+        kind=item_type,
+        repo=repo,
+        state=base.state,
+        labels=labels,
+        assignees=assignees,
+        author=author,
+    ):
+        return None
+    return ProjectItem(
+        id=f"{repo}#{base.number}",
+        title=base.title,
+        url=base.url,
+        repo=repo,
+        project_title=project_title,
+        project_url=project_url,
+        project_column=fields.get(filters.status_field, ""),
+        project_fields=json.dumps(fields, ensure_ascii=False),
+        item_type=item_type,
+        item_number=base.number,
+        item_title=base.title,
+        item_body=base.body or "",
+        item_url=base.url,
+        item_state=base.state,
+        item_author=author,
+        item_labels=labels,
+        item_assignees=assignees,
+        item_milestone=base.milestone.title if base.milestone else "",
+        item_created_at=base.created_at,
+        item_updated_at=base.updated_at,
+        item_comment_count=base.comments.total_count,
+        item_comments=_comments_json(base.comments),
+        pull_request_head_ref=pull_request.head_ref_name if pull_request else "",
+        pull_request_base_ref=pull_request.base_ref_name if pull_request else "",
+        pull_request_head_sha=pull_request.head_ref_oid if pull_request else "",
+        pull_request_is_draft=pull_request.is_draft if pull_request else False,
+        pull_request_review_decision=(pull_request.review_decision or "") if pull_request else "",
+        pull_request_ci_status=pull_request.ci_status if pull_request else "",
+    )
+
+
+def _project_feed(filters: ProjectFilters) -> Discovery[ProjectItemNode, ProjectItem]:
+    key = f"project:{filters.model_dump_json()}"
+    feed = _FEEDS.get(key)
+    if feed is None:
+        view_filter = filters.view_filter()
+        # The project title and URL arrive with every page; keep the latest for `to_item`.
+        meta: dict[str, str] = {"title": "", "url": ""}
+
+        def fetch(after: str | None) -> Any:
+            project, items = _CLIENT.project_items(
+                filters.owner, filters.project, view_filter=view_filter, after=after
+            )
+            meta["title"], meta["url"] = project.title, project.url
+            return items
+
+        feed = Discovery(
+            fetch_page=fetch,
+            parse_page=lambda connection: parse_nodes(connection, ProjectItemNode),
+            keep=lambda node: _project_item(filters, meta["title"], meta["url"], node) is not None,
+            to_item=lambda node: _project_item(  # type: ignore[arg-type, return-value]
+                filters, meta["title"], meta["url"], node
+            ),
+        )
+        _FEEDS[key] = feed
+    return feed
+
+
 def github_issues(
     repo: str,
-    labels: list[str] | None = None,
-    exclude_labels: list[str] | None = None,
+    labels: str | list[str] | None = None,
+    exclude_labels: str | list[str] | None = None,
     state: str = "open",
     assignee: str | None = None,
     author: str | None = None,
@@ -141,8 +283,8 @@ def github_issues(
 
 def github_pull_requests(
     repo: str,
-    labels: list[str] | None = None,
-    exclude_labels: list[str] | None = None,
+    labels: str | list[str] | None = None,
+    exclude_labels: str | list[str] | None = None,
     state: str = "open",
     assignee: str | None = None,
     author: str | None = None,
@@ -155,7 +297,7 @@ def github_pull_requests(
     ci_status: str | None = None,
     linked_issue: bool | None = None,
     mergeable: bool | None = None,
-    merge_state: list[str] | None = None,
+    merge_state: str | list[str] | None = None,
     sort: str | None = None,
 ) -> PullRequestItem | None:
     """Return the next eligible GitHub pull request, or None when none are available."""
@@ -181,9 +323,41 @@ def github_pull_requests(
     return _pull_request_feed(filters).next_item()
 
 
+def github_project_items(
+    owner: str,
+    project: int,
+    column: str | list[str],
+    status_field: str = "Status",
+    content: str = "all",
+    repo: str | None = None,
+    state: str = "open",
+    labels: str | list[str] | None = None,
+    exclude_labels: str | list[str] | None = None,
+    assignee: str | None = None,
+    author: str | None = None,
+) -> ProjectItem | None:
+    """Return the next issue or pull request sitting in a GitHub Project column."""
+    filters = ProjectFilters(
+        owner=owner,
+        project=project,
+        column=column,
+        status_field=status_field,
+        content=content,  # type: ignore[arg-type]
+        repo=repo,
+        state=state,  # type: ignore[arg-type]
+        labels=labels,
+        exclude_labels=exclude_labels,
+        assignee=assignee,
+        author=author,
+    )
+    return _project_feed(filters).next_item()
+
+
 def register(app: Curupira) -> None:
     """Register GitHub triggers on ``app``."""
     app.trigger(github_issues)
     app.trigger(github_pull_requests)
+    app.trigger(github_project_items)
+    app.param_check("github-project-items", _check_project_filters)
     app.param_check("github-issues", _check_issue_filters)
     app.param_check("github-pull-requests", _check_pull_request_filters)

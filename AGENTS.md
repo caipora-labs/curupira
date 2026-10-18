@@ -25,7 +25,7 @@ configuration; `run` / `run --watch` / `tui` dispatch work. One process holds
 `~/.curupira/dispatch.lock`.
 
 **cron** and all **coding-agent adapters** are built into the Rust binary. Task-source
-triggers (GitHub, Azure DevOps, Trello, monday.com, and third-party sources) are
+triggers (GitHub and third-party sources) are
 **process extensions** (JSON-RPC 2.0, length-prefixed stdin/stdout). See
 [packages/curupira-core/PROTOCOL.md](packages/curupira-core/PROTOCOL.md) and
 [docs/en/extensions.md](docs/en/extensions.md).

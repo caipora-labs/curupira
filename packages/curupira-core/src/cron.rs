@@ -105,7 +105,7 @@ pub fn poll_cron(
         url: format!("cron://{name}"),
         item: serde_json::json!({}),
         scheduled_for: Some(occurrence),
-        prompt: render_prompt(&automation.prompt, name),
+        prompt: render_prompt(automation, name, &identity.id)?,
         trigger_type: "cron".into(),
         profile_name: automation.profile_name.clone(),
         provider: automation.profile.provider.clone(),
@@ -189,10 +189,26 @@ fn parse_boundary(raw: &str, tz: Tz) -> Result<DateTime<Tz>, CurupiraError> {
     Err(CurupiraError::Config(format!("invalid date {raw:?}")))
 }
 
-fn render_prompt(template: &str, automation_id: &str) -> String {
-    template
-        .replace("${automation}", automation_id)
-        .replace("$automation", automation_id)
+fn render_prompt(
+    automation: &ResolvedAutomation,
+    name: &str,
+    occurrence: &str,
+) -> Result<String, CurupiraError> {
+    let vars = crate::prompt::task_vars(
+        &[
+            ("repo", automation.identity_repo.clone()),
+            ("repository", automation.repository_alias.clone()),
+            ("automation", name.to_string()),
+            ("automation_id", name.to_string()),
+            ("task_type", "cron".to_string()),
+            ("task_number", occurrence.to_string()),
+            ("task_title", name.to_string()),
+            ("task_body", String::new()),
+            ("task_url", format!("cron://{name}")),
+        ],
+        &serde_json::json!({}),
+    );
+    crate::prompt::render(name, &automation.prompt, &vars)
 }
 
 /// Mark cron lifecycle after agent start.

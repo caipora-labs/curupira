@@ -1,4 +1,4 @@
-# GitHub task sources
+# GitHub issues and pull requests
 
 Curupira discovers GitHub issues and pull requests with typed TOML filters, compiles them
 into [GitHub Search](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests)
@@ -14,6 +14,7 @@ worktree where that agent runs.
 | --- | --- |
 | `plugins-py/github-issues` | Issues in one `owner/repository` |
 | `plugins-py/github-pull-requests` | Pull requests in one `owner/repository` |
+| `plugins-py/github-project-items` | Issues and pull requests in a column of a GitHub Project board. See [GitHub Projects](github-projects.md) |
 
 ## Prerequisites
 
@@ -179,16 +180,16 @@ Compiled into the Search query.
 | --- | --- | --- |
 | `repo` | *(required)* | `repo:owner/name` (`owner/repository` format) |
 | `state` | `"open"` | `"open"` → `is:open`; `"closed"` → `is:closed`; `"all"` → neither. For pull requests, `is:closed` includes merged PRs |
-| `labels` | `()` | Each value → `label:…` (AND: every label must be present) |
-| `exclude_labels` | `()` | Each value → `-label:…` |
+| `labels` | `()` | One label or a list. Each value → `label:…` (AND: every label must be present) |
+| `exclude_labels` | `()` | One label or a list. Each value → `-label:…` |
 | `assignee` | `None` | Login, `@me`, `none` → `no:assignee`, or `any` → `assignee:*` |
 | `author` | `None` | `author:…` |
 | `milestone` | `None` | `milestone:…` |
 | `project` | `None` | `project:<value>`, for example `acme/5` |
 | `sort` | `"created-asc"` | Appended as `sort:…`. Allowed: `created-asc`, `created-desc`, `updated-asc`, `updated-desc`, `comments-asc`, `comments-desc` |
 
-Curupira does not filter by board column or Status (such as Todo); only Search
-qualifiers are applied. Values with whitespace or `"`, `:`, `,` are quoted in the
+The `project` qualifier only restricts which project an item belongs to. To pick items by
+board column, use [`github-project-items`](github-projects.md). Values with whitespace or `"`, `:`, `,` are quoted in the
 compiled query.
 
 ### Issue-only fields
@@ -238,12 +239,21 @@ There is no free-form `query` field: filters are typed TOML only.
 
 ### Deduplication
 
-Each automation keeps an in-memory (per process) set of task identity keys
-(`[automation_id, repo, task_type, id]`). After a task is admitted, later polls in that
-process skip it for that automation. The set is not persisted: after a restart, an item that
-still matches the filters is discovered again. Deduplication is per automation, so two
-automations may process the same issue or pull request with different prompts.
-`run --dry-run` previews without adding to the seen set.
+A task is identified by `[automation_id, repo, task_type, id]`. Curupira keeps two records:
+
+- **Completed tasks are remembered across restarts.** When the agent finishes successfully,
+  the task is stored in the state database (`state_db_path`) and is never run again for that
+  automation, even if the item still matches your filters.
+- **Failed tasks are retried.** A task whose agent run failed is not stored as completed. It is
+  skipped for the rest of the current process and tried again after a restart.
+
+Deduplication is per automation, so two automations may process the same issue or pull request
+with different prompts. `run --dry-run` previews without recording anything.
+
+!!! tip "Running an item again"
+    To run a completed item again, use a different automation name (a new automation has its own
+    history) or remove the row from the state database. Changing the filters alone does not
+    make a completed item eligible again.
 
 When a full cycle finds nothing (or discovery fails), the feed waits
 `poll_interval_seconds`, then doubles the wait on consecutive empty cycles up to five
@@ -251,26 +261,15 @@ minutes (`300` seconds). Any successful discovery resets the interval.
 
 ## What the agent prompt receives
 
-Placeholders use `${name}` syntax and are validated when the configuration loads. Unknown
-placeholders are rejected.
-
-**Common fields:** `${repo}` (the `owner/name` searched), `${id}`, `${title}`, and `${url}`.
-
-**Issues:** `${issue_number}`, `${issue_title}`, `${issue_body}`, `${issue_url}`,
-`${issue_state}`, `${issue_author}`, `${issue_labels}`.
-
-**Pull requests:** `${pull_request_number}`, `${pull_request_title}`,
-`${pull_request_body}`, `${pull_request_url}`, `${pull_request_is_draft}`,
-`${pull_request_head_ref}`, `${pull_request_base_ref}`, `${pull_request_head_sha}`,
-`${pull_request_author}`, `${pull_request_labels}`, `${pull_request_mergeable}`, and
-`${pull_request_merge_state_status}`. List-valued fields render as JSON arrays.
-
-Booleans render as `true` / `false`; missing optional values render as empty strings.
+The prompt can use `${field}` or Jinja syntax, see [Writing prompts](prompts.md). Every field
+of issues and pull requests (title, body, labels, assignees, comments, review state, CI status,
+and more) is listed in the [Prompt field reference](prompt-fields.md).
 
 ## Security: issue and pull-request text is untrusted
 
-Titles and bodies (`${issue_title}`, `${issue_body}`, `${pull_request_title}`,
-`${pull_request_body}`) come from anyone who can open an issue or pull request and are
+Titles, bodies, and comments (`${issue_title}`, `${issue_body}`, `${issue_comments}`,
+`${pull_request_title}`, `${pull_request_body}`, `${pull_request_comments}`, `${item_body}`,
+`${item_comments}`) come from anyone who can open an issue or pull request and are
 placed in the coding agent's prompt, so a hostile author can try to steer the agent
 (prompt injection). The agent can run destructive actions in the checkout it works in,
 so the risk depends on what you allow in the agent profile. Restrict what reaches the

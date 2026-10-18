@@ -21,7 +21,7 @@ def test_cli_wheel_has_no_hard_python_deps() -> None:
     project = data["project"]
     assert project["dependencies"] == []
     extras = project["optional-dependencies"]
-    assert set(extras) == {"github", "azure", "trello", "monday", "extensions"}
-    for name in ("github", "azure", "trello", "monday", "extensions"):
+    assert set(extras) == {"github", "extensions"}
+    for name in ("github", "extensions"):
         assert extras[name] == ["curupira-plugins>=0.1.0.dev0"]
     assert "curupira-sdk" not in " ".join(dep for group in extras.values() for dep in group)

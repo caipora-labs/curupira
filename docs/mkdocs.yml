@@ -76,10 +76,14 @@ nav:
   - Installation: installation.md
   - Configuration: configuration.md
   - Automations: automations.md
+  - Prompts:
+      - Writing prompts: prompts.md
+      - Field reference: prompt-fields.md
+      - Recipes: recipes.md
   - TUI assistant: assistant.md
-  - GitHub tasks: github.md
-  - Trello tasks: trello.md
-  - monday.com tasks: monday.md
+  - GitHub:
+      - Issues and pull requests: github.md
+      - Projects (board columns): github-projects.md
   - Operations: operations.md
   - Providers and agents:
       - Overview: providers.md

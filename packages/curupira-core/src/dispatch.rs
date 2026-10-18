@@ -46,6 +46,11 @@ pub async fn run_command(
                 task.title,
                 task.url
             );
+            // The rendered prompt is what the agent would receive: check templates here.
+            println!(
+                "--- prompt ---\n{}\n--- end prompt ---",
+                task.prompt.trim_end()
+            );
         } else {
             println!("dry-run\t(no tasks available)");
         }
@@ -242,7 +247,21 @@ fn task_from_extension_value(
         .unwrap_or("")
         .to_string();
     let item = value.get("item").cloned().unwrap_or_else(|| json!({}));
-    let prompt = render_template(&automation.prompt, &item, automation);
+    let vars = crate::prompt::task_vars(
+        &[
+            ("repo", automation.identity_repo.clone()),
+            ("repository", automation.repository_alias.clone()),
+            ("automation", automation.automation_id.clone()),
+            ("automation_id", automation.automation_id.clone()),
+            ("task_type", automation.trigger_type.clone()),
+            ("task_number", id.clone()),
+            ("task_title", title.clone()),
+            ("task_body", task_body(&item)),
+            ("task_url", url.clone()),
+        ],
+        &item,
+    );
+    let prompt = crate::prompt::render(&automation.automation_id, &automation.prompt, &vars)?;
     Ok(Task {
         identity: crate::config::TaskIdentity {
             automation_id: automation.automation_id.clone(),
@@ -270,25 +289,13 @@ fn task_from_extension_value(
     })
 }
 
-fn render_template(
-    template: &str,
-    item: &serde_json::Value,
-    automation: &ResolvedAutomation,
-) -> String {
-    let mut out = template
-        .replace("${repository}", &automation.identity_repo)
-        .replace("${automation}", &automation.automation_id);
-    if let Some(obj) = item.as_object() {
-        for (k, v) in obj {
-            let needle = format!("${{{k}}}");
-            let value = match v {
-                serde_json::Value::String(s) => s.clone(),
-                other => other.to_string(),
-            };
-            out = out.replace(&needle, &value);
-        }
-    }
-    out
+/// The item's main text for `${task_body}`, whichever trigger produced it.
+fn task_body(item: &serde_json::Value) -> String {
+    ["issue_body", "pull_request_body", "item_body"]
+        .iter()
+        .find_map(|key| item.get(*key).and_then(|v| v.as_str()))
+        .unwrap_or("")
+        .to_string()
 }
 
 async fn execute_task(

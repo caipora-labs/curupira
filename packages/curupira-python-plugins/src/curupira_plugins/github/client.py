@@ -14,7 +14,14 @@ from typing import Any, Generic, TypeVar
 from curupira_sdk import RpcError
 from pydantic import ValidationError
 
-from curupira_plugins.github.models import IssueNode, SearchConnection, SearchResponse
+from curupira_plugins.github.models import (
+    Node,
+    ProjectItems,
+    ProjectResponse,
+    ProjectV2,
+    SearchConnection,
+    SearchResponse,
+)
 
 GRAPHQL_URL = "https://api.github.com/graphql"
 TOKEN_CACHE_SECONDS = 300.0
@@ -24,29 +31,87 @@ _ATTEMPTS = 3
 _GH_TIMEOUT_SECONDS = 30
 _HTTP_TIMEOUT_SECONDS = 30
 
-SEARCH_QUERY = """
-query CuripiraSearch($query: String!, $first: Int!, $after: String) {
-  search(query: $query, type: ISSUE, first: $first, after: $after) {
-    pageInfo { hasNextPage endCursor }
-    nodes {
-      ... on Issue {
-        id number title body url state
-        author { login }
-        labels(first: 100) { nodes { name } }
-      }
-      ... on PullRequest {
-        id number title body url state
-        author { login }
-        labels(first: 100) { nodes { name } }
-        headRefName baseRefName headRefOid isDraft mergeable mergeStateStatus
-      }
-    }
-  }
-}
+COMMON_FIELDS = """
+  id number title body url state createdAt updatedAt
+  author { login }
+  labels(first: 50) { nodes { name } }
+  assignees(first: 20) { nodes { login } }
+  milestone { title }
+  comments(last: 10) { totalCount nodes { author { login } body } }
 """
 
-NodeT = TypeVar("NodeT", bound=IssueNode)
+ISSUE_FIELDS = (
+    COMMON_FIELDS
+    + """
+  stateReason
+  closedByPullRequestsReferences(first: 10) { nodes { number url } }
+"""
+)
+
+PULL_REQUEST_FIELDS = (
+    COMMON_FIELDS
+    + """
+  headRefName baseRefName headRefOid isDraft mergeable mergeStateStatus
+  reviewDecision changedFiles additions deletions
+  commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+  closingIssuesReferences(first: 10) { nodes { number url } }
+  reviewRequests(first: 20) {
+    nodes { requestedReviewer { ... on User { login } ... on Team { name } } }
+  }
+"""
+)
+
+CONTENT_FRAGMENTS = f"""
+... on Issue {{ {ISSUE_FIELDS} repository {{ nameWithOwner }} }}
+... on PullRequest {{ {PULL_REQUEST_FIELDS} repository {{ nameWithOwner }} }}
+"""
+
+SEARCH_QUERY = f"""
+query CuripiraSearch($query: String!, $first: Int!, $after: String) {{
+  search(query: $query, type: ISSUE, first: $first, after: $after) {{
+    pageInfo {{ hasNextPage endCursor }}
+    nodes {{
+      ... on Issue {{ {ISSUE_FIELDS} }}
+      ... on PullRequest {{ {PULL_REQUEST_FIELDS} }}
+    }}
+  }}
+}}
+"""
+
+# `repositoryOwner` resolves users and organizations alike. `query` is the Projects view filter
+# syntax (for example `status:"In Progress",Review`) and is applied by GitHub.
+PROJECT_ITEMS_QUERY = f"""
+query CuripiraProjectItems($owner: String!, $number: Int!, $first: Int!, $after: String,
+                           $query: String) {{
+  repositoryOwner(login: $owner) {{
+    ... on ProjectV2Owner {{
+      projectV2(number: $number) {{
+        title url
+        items(first: $first, after: $after, query: $query) {{
+          pageInfo {{ hasNextPage endCursor }}
+          nodes {{
+            id isArchived
+            fieldValues(first: 50) {{
+              nodes {{
+                ... on ProjectV2ItemFieldSingleSelectValue {{ name field {{ ... on ProjectV2FieldCommon {{ name }} }} }}
+                ... on ProjectV2ItemFieldTextValue {{ text field {{ ... on ProjectV2FieldCommon {{ name }} }} }}
+                ... on ProjectV2ItemFieldNumberValue {{ number field {{ ... on ProjectV2FieldCommon {{ name }} }} }}
+                ... on ProjectV2ItemFieldDateValue {{ date field {{ ... on ProjectV2FieldCommon {{ name }} }} }}
+                ... on ProjectV2ItemFieldIterationValue {{ title field {{ ... on ProjectV2FieldCommon {{ name }} }} }}
+              }}
+            }}
+            content {{ __typename {CONTENT_FRAGMENTS} }}
+          }}
+        }}
+      }}
+    }}
+  }}
+}}
+"""
+
+NodeT = TypeVar("NodeT", bound=Node)
 ItemT = TypeVar("ItemT")
+ResponseT = TypeVar("ResponseT", SearchResponse, ProjectResponse)
 
 
 class GitHubCliToken:
@@ -110,17 +175,53 @@ class GitHubClient:
             "query": SEARCH_QUERY,
             "variables": {"query": query, "first": PAGE_SIZE, "after": after},
         }
-        body = self._post(payload)
-        try:
-            response = SearchResponse.model_validate_json(body)
-        except ValidationError as exc:
-            raise RpcError(-32002, f"unexpected GitHub GraphQL response: {exc}") from exc
-        if response.errors:
-            messages = "; ".join(error.message for error in response.errors)
-            raise RpcError(-32002, f"GitHub GraphQL error: {messages}")
+        response = self._parse(self._post(payload), SearchResponse)
         if response.data is None:
             raise RpcError(-32002, "GitHub GraphQL response has no data")
         return response.data.search
+
+    def project_items(
+        self, owner: str, number: int, *, view_filter: str | None, after: str | None
+    ) -> tuple[ProjectV2, ProjectItems]:
+        """Return the project and one page of its items, filtered server-side by `view_filter`."""
+        payload = {
+            "query": PROJECT_ITEMS_QUERY,
+            "variables": {
+                "owner": owner,
+                "number": number,
+                "first": PAGE_SIZE,
+                "after": after,
+                "query": view_filter,
+            },
+        }
+        response = self._parse(self._post(payload), ProjectResponse)
+        owner_node = response.data.repository_owner if response.data else None
+        project = owner_node.project_v2 if owner_node else None
+        if project is None:
+            raise RpcError(
+                -32002,
+                f"GitHub project {number} not found for {owner!r}; check the owner, the project "
+                "number, and that your token has the read:project scope "
+                "(gh auth refresh -s read:project)",
+            )
+        return project, project.items
+
+    @staticmethod
+    def _parse(body: bytes, model: type[ResponseT]) -> ResponseT:
+        try:
+            response = model.model_validate_json(body)
+        except ValidationError as exc:
+            raise RpcError(-32002, f"unexpected GitHub GraphQL response: {exc}") from exc
+        errors = getattr(response, "errors", [])
+        data = getattr(response, "data", None)
+        # A missing project is reported as a NOT_FOUND error next to partial data; let the
+        # caller explain that one, and surface everything else.
+        if errors and not (
+            data is not None and all("Could not resolve" in e.message for e in errors)
+        ):
+            messages = "; ".join(error.message for error in errors)
+            raise RpcError(-32002, f"GitHub GraphQL error: {messages}")
+        return response
 
     def _post(self, payload: dict[str, Any]) -> bytes:
         data = json.dumps(payload).encode("utf-8")

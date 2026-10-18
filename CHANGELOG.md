@@ -5,6 +5,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Dynamic prompts.** Prompts accept Jinja syntax (`{{ field }}`, `{% if %}`, `{% for %}`,
+  filters such as `default`, `truncate`, and `fromjson`) next to the existing `${field}`,
+  which keeps working. Item text is never interpreted as a template. `validate` now checks
+  prompt syntax and unknown fields (with "did you mean" hints), and `run --dry-run` prints the
+  rendered prompt. See `docs/en/prompts.md`.
+- **GitHub Projects trigger.** `plugins-py/github-project-items` finds issues and pull
+  requests sitting in a column (a single-select field, `Status` by default) of a GitHub
+  Projects v2 board owned by a user or organization. Columns are filtered by GitHub through the
+  project view filter, then by `content`, `repo`, `state`, `labels`, `exclude_labels`,
+  `assignee`, and `author`. Needs the `read:project` token scope.
+- **Documentation.** New pages: a quick start on the home page, GitHub Projects, a prompt
+  field reference, and recipes. The GitHub page now documents that completed tasks are
+  remembered across restarts.
+- **Friendlier GitHub filters.** `labels`, `exclude_labels`, `merge_state`, and `column` accept a
+  single string as well as a list.
+- **Richer prompt fields for issues and pull requests.** Assignees, milestone, timestamps,
+  the latest comments (as JSON), linked pull requests / closing issues, review decision, CI
+  status, diff size, and requested reviewers.
+
+### Fixed
+
+- The documented common prompt fields (`repo`, `repository`, `automation_id`, `task_type`,
+  `task_number`, `task_title`, `task_body`, `task_url`) are now provided. `${repository}` is the
+  checkout alias, as documented; it used to be the forge identity.
+
+### Removed
+
+- **Breaking:** the Azure DevOps (`azure-cli-pull-requests`), Trello (`trello-cli-cards`), and
+  monday.com (`monday-items`) triggers, their docs, and the `azure`, `trello`, and `monday`
+  extras of `curupira`. The plugin package is GitHub-only for now.
+
 ### Changed
 
 - **One publish pipeline, versioned per package.** `curupira`, `curupira-sdk`, and

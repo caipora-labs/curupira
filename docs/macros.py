@@ -29,22 +29,10 @@ _TRIGGER_ROWS: tuple[tuple[str, str, str, str], ...] = (
         "Finds pull requests using filters you set in TOML",
     ),
     (
-        "plugins-py/azure-cli-pull-requests",
-        "#azure-devops-pull-requests",
-        "`az` + Azure DevOps extension (`az login`)",
-        "Lists Azure DevOps pull requests with the Azure CLI",
-    ),
-    (
-        "plugins-py/trello-cli-cards",
-        "trello.md",
-        "`trello` CLI (`trello auth login`)",
-        "Finds open cards on a Trello board",
-    ),
-    (
-        "plugins-py/monday-items",
-        "monday.md",
-        "`MONDAY_API_TOKEN` (or `token_env`) set",
-        "Finds board items through monday.com's API (read-only)",
+        "plugins-py/github-project-items",
+        "github.md",
+        "`gh` authenticated with the `read:project` scope",
+        "Finds issues and pull requests sitting in a GitHub Project board column",
     ),
     (
         "cron",

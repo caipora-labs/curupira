@@ -1,4 +1,4 @@
-"""Official Curupira trigger extensions (GitHub, Azure, Trello, monday.com)."""
+"""Official Curupira trigger extensions (GitHub issues, pull requests, and Projects)."""
 
 from importlib.metadata import version
 

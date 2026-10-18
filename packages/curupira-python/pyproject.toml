@@ -27,9 +27,6 @@ dependencies = []
 [project.optional-dependencies]
 # Per-forge extras all install the consolidated package (one process, all triggers).
 github = ["curupira-plugins>=0.1.0.dev0"]
-azure = ["curupira-plugins>=0.1.0.dev0"]
-trello = ["curupira-plugins>=0.1.0.dev0"]
-monday = ["curupira-plugins>=0.1.0.dev0"]
 extensions = ["curupira-plugins>=0.1.0.dev0"]
 
 [project.urls]
