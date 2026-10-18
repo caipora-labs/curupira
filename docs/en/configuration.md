@@ -150,7 +150,11 @@ tools = ["*", "!internal-*"]
 - `type` (required): `uvx` or `npx`.
 - `args` (required, non-empty): arguments after the launcher binary. Official Python
   plugins expose a `curupira-plugins` console script, so end users run
-  `uvx --from curupira-plugins curupira-plugins` (no `python -m`).
+  `uvx --from curupira-plugins curupira-plugins` (no `python -m`). Node plugins publish
+  an npm package whose `bin` speaks the protocol (typically built with
+  [`@caipora/curupira-sdk`](extensions.md#write-a-javascript--typescript-extension-with-caiporacurupira-sdk));
+  pin the version in `args` (for example `@acme/curupira-ext@1.2.3`). `npx` must be on
+  `PATH` (install [Node.js](https://nodejs.org/)).
 - `tools` (optional): glob list selecting which local trigger names to expose. Empty or
   omitted keeps every trigger from `describe`. Positive patterns (`github-*`, `*`) are
   includes; patterns starting with `!` (`!monday-*`) are excludes. A name must match an

@@ -5,6 +5,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`@caipora/curupira-sdk` (Node.js).** New package under `packages/curupira-js-sdk/`
+  provides a declarative `defineTriggers({ ... })` API for JavaScript and TypeScript
+  extensions, protocol-2 serialization to string key/value pairs (or `null`), and a
+  stdio runtime so a package `bin` can speak JSON-RPC without hand-rolling framing.
+  Register npm plugins with `[plugins.<alias>] type = "npx"` and
+  `args = ["--yes", "@scope/pkg@version"]`. Docs: `docs/en/extensions.md` and the
+  package README. Examples: `packages/curupira-js-sdk/examples/`.
+
 ### Changed
 
 - **Breaking: trigger results are generic key/value pairs (protocol 2).** The host
@@ -21,6 +31,8 @@ All notable changes to this project are documented here. The format follows
   for the host. Task identity is a hash of the pair list; previously completed
   keys do not match. `trigger/onStarted` and `trigger/onFinished` receive the
   pairs, not the host task. Dry-run and success lines print the task key only.
+- **Clearer missing-`npx` errors.** Config validation and Node extension launch report
+  that Node.js must be installed so `npx` is on `PATH`.
 
 - **One publish pipeline, versioned per package.** `curupira`, `curupira-sdk`, and
   `curupira-plugins` each have their own version, released by a git tag

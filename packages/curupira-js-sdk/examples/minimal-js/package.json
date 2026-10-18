@@ -1,0 +1,12 @@
+{
+  "name": "@caipora/curupira-example-js",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "curupira-example-js": "./bin.js"
+  },
+  "dependencies": {
+    "@caipora/curupira-sdk": "file:../.."
+  }
+}

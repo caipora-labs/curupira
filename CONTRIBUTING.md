@@ -31,6 +31,10 @@ Console scripts `curupira` and `curu` point at the binary. Build with:
 uv build --all-packages --out-dir dist
 ```
 
+The Node.js extension SDK (`packages/curupira-js-sdk/`, npm
+`@caipora/curupira-sdk`) is outside the uv workspace. Build and test it with
+`npm install` / `npm test` in that directory.
+
 ## Extending Curupira
 
 See the repository map in [AGENTS.md](AGENTS.md). Curupira does not manage authentication:

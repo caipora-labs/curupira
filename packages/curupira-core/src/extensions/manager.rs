@@ -260,7 +260,9 @@ fn ensure_uvx() -> Result<PathBuf, CurupiraError> {
 fn ensure_npx() -> Result<PathBuf, CurupiraError> {
     which::which("npx").map_err(|_| {
         CurupiraError::Plugin(
-            "npx not found on PATH (install Node.js to use npm: extensions)".into(),
+            "npx not found on PATH; install Node.js from https://nodejs.org/ \
+             to use npm: extensions (the npx command must be available)"
+                .into(),
         )
     })
 }
