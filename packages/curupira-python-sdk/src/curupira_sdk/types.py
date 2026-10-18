@@ -301,8 +301,6 @@ def prompt_fields_for_return(annotation: Any) -> list[str]:
         return list(typing.get_type_hints(inner))
     if _is_pydantic_model(inner):
         return list(inner.model_fields)  # type: ignore[attr-defined]
-    if isinstance(inner, type) and inner in _SCALAR_SCHEMA:
-        return ["value"]
     origin = get_origin(inner)
     if origin is dict:
         return []

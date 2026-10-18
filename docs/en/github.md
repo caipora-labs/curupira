@@ -154,7 +154,7 @@ curupira --config path/to/settings.toml run --watch --size 12
    ```
 
 `--dry-run` cannot be combined with `--watch` or `--size`. `validate` checks TOML shape
-and prompt placeholders without calling GitHub; `run` and `run --watch` need `gh` and the
+and trigger configuration without calling GitHub; `run` and `run --watch` need `gh` and the
 chosen agent CLI installed and authenticated.
 
 ## Configuration fields
@@ -238,12 +238,12 @@ There is no free-form `query` field: filters are typed TOML only.
 
 ### Deduplication
 
-Each automation keeps an in-memory (per process) set of task identity keys
-(`[automation_id, repo, task_type, id]`). After a task is admitted, later polls in that
-process skip it for that automation. The set is not persisted: after a restart, an item that
-still matches the filters is discovered again. Deduplication is per automation, so two
-automations may process the same issue or pull request with different prompts.
-`run --dry-run` previews without adding to the seen set.
+The host identifies a result by hashing the key/value list the trigger returned, in
+that order, together with the automation, repository, and trigger type. After the
+task completes, that key is stored and a later poll with the same pairs is skipped.
+Changing any returned value, including title or body, is a different task. The key
+is per automation, so two automations may process the same issue or pull request
+with different prompts. `run --dry-run` previews without recording completion.
 
 When a full cycle finds nothing (or discovery fails), the feed waits
 `poll_interval_seconds`, then doubles the wait on consecutive empty cycles up to five
@@ -251,21 +251,24 @@ minutes (`300` seconds). Any successful discovery resets the interval.
 
 ## What the agent prompt receives
 
-Placeholders use `${name}` syntax and are validated when the configuration loads. Unknown
-placeholders are rejected.
+Placeholders use `${name}` syntax. `${repository}` and `${automation}` come from
+the host. Every other name is a field of the object this trigger returns. A name
+the result does not contain is left unchanged.
 
-**Common fields:** `${repo}` (the `owner/name` searched), `${id}`, `${title}`, and `${url}`.
+**Issues:** `${id}`, `${title}`, `${url}`, `${repo}`, `${issue_number}`,
+`${issue_title}`, `${issue_body}`, `${issue_url}`, `${issue_state}`,
+`${issue_author}`, `${issue_labels}`.
 
-**Issues:** `${issue_number}`, `${issue_title}`, `${issue_body}`, `${issue_url}`,
-`${issue_state}`, `${issue_author}`, `${issue_labels}`.
+**Pull requests:** `${id}`, `${title}`, `${url}`, `${repo}`,
+`${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
+`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`,
+`${pull_request_base_ref}`, `${pull_request_head_sha}`, `${pull_request_author}`,
+`${pull_request_labels}`, `${pull_request_mergeable}`, and
+`${pull_request_merge_state_status}`. List-valued fields render as compact JSON
+arrays.
 
-**Pull requests:** `${pull_request_number}`, `${pull_request_title}`,
-`${pull_request_body}`, `${pull_request_url}`, `${pull_request_is_draft}`,
-`${pull_request_head_ref}`, `${pull_request_base_ref}`, `${pull_request_head_sha}`,
-`${pull_request_author}`, `${pull_request_labels}`, `${pull_request_mergeable}`, and
-`${pull_request_merge_state_status}`. List-valued fields render as JSON arrays.
-
-Booleans render as `true` / `false`; missing optional values render as empty strings.
+Booleans render as `true` / `false`. These names are the plugin's fields, not
+fields the protocol requires.
 
 ## Security: issue and pull-request text is untrusted
 
@@ -315,5 +318,5 @@ the global OpenCode configuration and credentials, is still shared.
 | `GitHub GraphQL temporarily failed with status 429` (or similar) | Rate limit or transient API failure | Curupira retries transient errors a few times; back off or reduce poll frequency / `batch_size` |
 | Discovery warnings in `run --watch` | GraphQL or CLI failure treated as an empty cycle | Check logs for `Discovery failed for …`; fix auth or network, then wait for the next poll |
 
-`curupira validate` checks TOML shape and prompt placeholders without calling GitHub.
+`curupira validate` checks TOML shape and trigger configuration without calling GitHub.
 `curupira run` and `curupira run --watch` need `gh` installed and authenticated.

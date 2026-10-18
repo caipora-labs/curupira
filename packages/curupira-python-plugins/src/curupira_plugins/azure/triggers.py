@@ -18,11 +18,6 @@ class AzurePullRequest:
     pull_request_body: str = ""
     pull_request_head_ref: str = ""
     pull_request_base_ref: str = ""
-    id: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.id:
-            self.id = str(self.pull_request_number)
 
 
 def _validate_repo(repo: str) -> None:

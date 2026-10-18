@@ -112,7 +112,7 @@ pub fn install_extension(source: &ExtensionSource) -> Result<ExtensionManifest, 
                 manifest_version: 1,
                 name: name.clone(),
                 version: version.clone().unwrap_or_else(|| "*".into()),
-                protocol_version: 1,
+                protocol_version: 2,
                 runtime: ExtensionRuntime::Python,
                 kind: ExtensionKind::Trigger,
                 launch: LaunchSpec::Uvx {

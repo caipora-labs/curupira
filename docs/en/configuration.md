@@ -204,17 +204,19 @@ file order, and one-shot selection follows that order.
 GitHub API authentication uses `gh auth token` from an already authenticated GitHub CLI.
 Clone authentication uses native Git credentials for the configured `remote`.
 
-Placeholders use `${name}` syntax and are validated when the configuration loads. Common
-placeholders include `${repo}`, `${repository}`, `${automation_id}`, `${task_type}`,
-`${task_number}`, `${task_title}`, `${task_body}`, and `${task_url}`. `${repo}` is the forge
-identity when the trigger has one; `${repository}` is the checkout alias. Each trigger also
-exposes the fields of its typed item model: issues provide `${issue_number}`,
-`${issue_title}`, `${issue_body}`, and `${issue_url}`; pull requests provide
-`${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
-`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`,
-`${pull_request_base_ref}`, and optional refreshed metadata such as
-`${pull_request_head_sha}` and `${pull_request_mergeable}`. For cron tasks,
-`${task_number}` is the occurrence timestamp.
+Placeholders use `${name}` syntax. The host always provides `${repository}` (the
+forge identity derived from the Git remote) and `${automation}` (the automation
+name). Every other `${key}` comes from the trigger result: the SDK turns the
+returned object into string pairs, and each key is substituted as written,
+including keys that are not ordinary identifiers (`${issue-number}`). A
+placeholder with no match is left unchanged; `validate` does not require the
+prompt to name particular keys. Official plugins choose their own keys. GitHub
+issues include `issue_number`, `issue_title`, `issue_body`, and `issue_url`;
+pull requests include `pull_request_number`, `pull_request_title`,
+`pull_request_body`, `pull_request_url`, `pull_request_is_draft`,
+`pull_request_head_ref`, `pull_request_base_ref`, `pull_request_head_sha`, and
+`pull_request_mergeable`, among the other fields of that model. Cron prompts
+only receive the two host variables (and the legacy `$automation` form).
 
 ## Checkout and setup
 

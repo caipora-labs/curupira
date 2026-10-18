@@ -11,7 +11,7 @@ from typing import Any
 from .errors import RpcError
 from .framing import log, read_frame, write_frame
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 
 
 class ExtensionServer:

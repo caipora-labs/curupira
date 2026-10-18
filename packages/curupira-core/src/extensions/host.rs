@@ -5,7 +5,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use crate::protocol::{
     negotiate, read_frame, write_frame, ClientInfo, DescribeResult, ErrorCode, InitializeParams,
-    InitializeResult, Request, Response, TriggerLifecycleParams, TriggerPollParams,
+    InitializeResult, KeyValue, Request, Response, TriggerLifecycleParams, TriggerPollParams,
     TriggerPollResult, TriggerSchemaParams, TriggerSchemaResult, TriggerValidateParams,
     TriggerValidateResult, CURRENT_PROTOCOL_VERSION, DEFAULT_MAX_FRAME_BYTES, METHOD_DESCRIBE,
     METHOD_INITIALIZE, METHOD_SHUTDOWN, METHOD_TRIGGER_ON_FINISHED, METHOD_TRIGGER_ON_STARTED,
@@ -158,13 +158,13 @@ impl ExtensionHost {
     pub fn on_started(
         &mut self,
         trigger_type: &str,
-        task: &serde_json::Value,
+        values: &[KeyValue],
     ) -> Result<(), CurupiraError> {
         let _: serde_json::Value = self.call(
             METHOD_TRIGGER_ON_STARTED,
             TriggerLifecycleParams {
                 trigger_type: trigger_type.into(),
-                task: task.clone(),
+                values: values.to_vec(),
             },
         )?;
         Ok(())
@@ -173,13 +173,13 @@ impl ExtensionHost {
     pub fn on_finished(
         &mut self,
         trigger_type: &str,
-        task: &serde_json::Value,
+        values: &[KeyValue],
     ) -> Result<(), CurupiraError> {
         let _: serde_json::Value = self.call(
             METHOD_TRIGGER_ON_FINISHED,
             TriggerLifecycleParams {
                 trigger_type: trigger_type.into(),
-                task: task.clone(),
+                values: values.to_vec(),
             },
         )?;
         Ok(())

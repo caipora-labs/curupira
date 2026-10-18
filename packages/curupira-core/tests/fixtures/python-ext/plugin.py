@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import sys
 
-PROTOCOL = 1
+PROTOCOL = 2
 
 
 def write_frame(payload: bytes) -> None:
@@ -39,13 +39,13 @@ def main() -> None:
             }
         elif method == "describe":
             result = {
-                "triggers": [{"trigger_type": "python-test", "prompt_fields": ["id"]}],
+                "triggers": [{"trigger_type": "python-test", "prompt_fields": []}],
                 "agents": [],
             }
         elif method == "trigger/validate":
             result = {"ok": True, "configuration": req.get("params", {}).get("configuration")}
         elif method == "trigger/poll":
-            result = {"task": None}
+            result = {"values": None}
         elif method == "shutdown":
             write_frame(json.dumps({"jsonrpc": "2.0", "id": req_id, "result": {}}).encode())
             return

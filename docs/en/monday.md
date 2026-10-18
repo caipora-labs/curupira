@@ -66,18 +66,15 @@ board_id = "1234567890"
 group_ids = ["topics"]
 # token_env = "MONDAY_API_TOKEN"
 prompt = """
-Handle monday.com item ${item_id}: ${item_name}
+Handle monday.com item ${id}: ${name}
 
-Group: ${item_group_title} (${item_group_id})
+Group: ${group_title}
 Board: ${board_id}
-State: ${item_state}
-URL: ${item_url}
-
-${item_columns}
+URL: ${url}
 """
 ```
 
-`curu validate` checks the automation and prompt placeholders without contacting
+`curu validate` checks the automation configuration without contacting
 monday.com. `curu run` and `curu run --watch` require the token environment variable.
 
 ## Pagination, deduplication, and rate limits
@@ -86,8 +83,7 @@ Cursor pagination continues across polls while Curupira is running: when a poll 
 `settings.polling.batch_size`, the next poll resumes from the opaque monday.com cursor
 instead of re-reading the first page. Both the cursor and `PollingTaskFeed` deduplication
 are **in-memory only**. After a process restart, discovery starts again from the first
-page and previously handled item IDs may be re-emitted until the feed rebuilds its seen
-set.
+page. The host still skips a result whose key/value list matches a completed task.
 
 When the board is fully scanned, the cursor resets and the next cycle starts from the
 beginning. Items created at the top of a group after a cycle has already moved past that
@@ -101,22 +97,21 @@ so idle watching does not burn the daily quota; each page fetch is one GraphQL c
 
 | Placeholder | Source |
 | --- | --- |
-| `${item_id}` | Item ID (string) |
-| `${item_name}` | Item name |
-| `${item_url}` | Item HTML URL |
-| `${item_group_id}` | Group ID, or empty |
-| `${item_group_title}` | Group title, or empty |
-| `${board_id}` | Configured board ID |
-| `${item_state}` | Item state (for example `active`) |
-| `${item_columns}` | Column values as `column_id: text` lines, or empty |
+| `${id}` | Item ID returned by the trigger |
+| `${name}` | Item name |
+| `${url}` | Item URL |
+| `${board_id}` | Board ID returned by the trigger |
+| `${group_title}` | Group title |
+| `${repository}` | Host: forge identity derived from the Git remote |
+| `${automation}` | Host: automation name |
 
-Common placeholders (`${repository}`, `${automation_id}`, `${task_type}`,
-`${task_number}`, `${task_title}`, `${task_url}`, …) still apply. Archived and deleted
+These names are the fields this plugin returns, not fields the protocol requires.
+A placeholder the result does not contain is left unchanged. Archived and deleted
 items are skipped when present in a response.
 
 ## Security: item text is untrusted
 
-Item names, column values (`${item_columns}`), and related fields come from anyone who can
+Item names and related fields come from anyone who can
 edit the board and are placed in the coding agent's prompt, so a hostile editor can try to
 steer the agent (prompt injection). Restrict which groups reach the agent with
 `group_ids`, and review what your agent profile is allowed to run in the checkout.

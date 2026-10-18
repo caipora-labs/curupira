@@ -52,10 +52,13 @@ trigger_type = "plugins-py/trello-cli-cards"
 repository = "product"
 board_id = "66f6b55a1a2b3c4d5e6f7788"
 list_ids = ["66f6b55a1a2b3c4d5e6f7790"]
-prompt = "Handle Trello card ${card_id}: ${card_title}\n\n${card_body}\n\n${card_url}"
+prompt = "Handle Trello card ${id}: ${name}\n\n${desc}\n\n${url}"
 ```
 
-The `${card_id}`, `${card_title}`, `${card_body}`, `${card_url}`, and `${card_list_id}` prompt fields come from the card. Card IDs remain strings. Repeated polls are deduplicated by Curupira's normal task feed. `curu validate` validates the automation without contacting Trello; `curu run` and
+The trigger returns the card as the keys `id`, `name`, `url`, `desc`, and
+`list_name`. Those names are this plugin's choice. `${repository}` and
+`${automation}` come from the host. Repeated polls of the same pairs are skipped
+after the task completes. `curu validate` validates the automation without contacting Trello; `curu run` and
 `curu run --watch` require the CLI to be installed and authenticated.
 
 If the executable is missing, install Scale-Flow's `trello-cli`. For authentication failures, run `trello auth login`. Invalid JSON and CLI failures are reported as discovery errors.
