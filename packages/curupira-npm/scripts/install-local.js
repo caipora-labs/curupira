@@ -14,8 +14,8 @@ const path = require("node:path");
 function main(argv) {
   const options = parseArgs(argv);
   const prefix = options.prefix;
-  const mainTarball = options.main;
-  const platformTarball = options.platform;
+  const mainTarball = options.main ? path.resolve(options.main) : null;
+  const platformTarball = options.platform ? path.resolve(options.platform) : null;
   if (!prefix || !mainTarball || !platformTarball) {
     process.stderr.write(
       "Usage: install-local.js --prefix DIR --main TARBALL --platform TARBALL\n",
