@@ -44,7 +44,7 @@ npx @caipora-labs/curupira --help
 
 The single npm package includes binaries for every supported operating system, CPU, and C
 library. It selects the matching binary when you run the command; there are no additional
-platform packages to install. See the [package README](https://github.com/caipora-labs/curupira/blob/main/packages/curupira-npm/README.md)
+platform packages to install. See the [package README](https://github.com/caipora-labs/curupira/blob/main/packages/curupira-cli-js/README.md)
 for the supported platforms.
 Connectors are not included: you register them under `[plugins.<alias>]` in your
 settings, see [Plugins and connectors](plugins.md).
@@ -81,7 +81,7 @@ Curupira reads `~/.curupira/settings.toml` by default. Download the example conf
 
 ```bash
 mkdir -p ~/.curupira
-curl -fsSL https://raw.githubusercontent.com/caipora-labs/curupira/main/packages/curupira-core/curupira.example.toml \
+curl -fsSL https://raw.githubusercontent.com/caipora-labs/curupira/main/packages/curupira-cli/curupira.example.toml \
   -o ~/.curupira/settings.toml
 ```
 
@@ -90,7 +90,7 @@ On Windows PowerShell:
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\.curupira"
 Invoke-WebRequest `
-  -Uri https://raw.githubusercontent.com/caipora-labs/curupira/main/packages/curupira-core/curupira.example.toml `
+  -Uri https://raw.githubusercontent.com/caipora-labs/curupira/main/packages/curupira-cli/curupira.example.toml `
   -OutFile "$HOME\.curupira\settings.toml"
 ```
 

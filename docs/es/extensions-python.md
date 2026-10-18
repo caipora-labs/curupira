@@ -135,7 +135,7 @@ una pista para editores y documentación. No hace obligatoria ninguna clave.
 
 Ejemplos en el repositorio:
 
-- `packages/curupira-python-plugins/src/curupira_plugins/__main__.py`: el conector de
+- `packages/curupira-plugins-py/src/curupira_plugins/__main__.py`: el conector de
   GitHub, un ejemplo completo del SDK.
-- `packages/curupira-core/tests/fixtures/python-ext/`: un fixture mínimo del protocolo sin
+- `packages/curupira-cli/tests/fixtures/python-ext/`: un fixture mínimo del protocolo sin
   el SDK.

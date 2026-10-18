@@ -135,7 +135,7 @@ dica para editores e para a documentação. Ela não torna nenhuma chave obrigat
 
 Exemplos no repositório:
 
-- `packages/curupira-python-plugins/src/curupira_plugins/__main__.py`: o conector do GitHub,
+- `packages/curupira-plugins-py/src/curupira_plugins/__main__.py`: o conector do GitHub,
   um exemplo completo do SDK.
-- `packages/curupira-core/tests/fixtures/python-ext/`: uma fixture mínima do protocolo sem
+- `packages/curupira-cli/tests/fixtures/python-ext/`: uma fixture mínima do protocolo sem
   o SDK.

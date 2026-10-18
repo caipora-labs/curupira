@@ -135,7 +135,7 @@ hint for editors and docs. It does not make any key required.
 
 Examples in the repository:
 
-- `packages/curupira-python-plugins/src/curupira_plugins/__main__.py`: the GitHub connector,
+- `packages/curupira-plugins-py/src/curupira_plugins/__main__.py`: the GitHub connector,
   a complete SDK example.
-- `packages/curupira-core/tests/fixtures/python-ext/`: a minimal protocol fixture without
+- `packages/curupira-cli/tests/fixtures/python-ext/`: a minimal protocol fixture without
   the SDK.

@@ -12,6 +12,6 @@ pip install curupira
 ```
 
 The user documentation and the PyPI package description live in
-[packages/curupira-python/README.md](packages/curupira-python/README.md).
-The npm package is [packages/curupira-npm/README.md](packages/curupira-npm/README.md).
+[packages/curupira-cli-py/README.md](packages/curupira-cli-py/README.md).
+The npm package is [packages/curupira-cli-js/README.md](packages/curupira-cli-js/README.md).
 Contributor and workspace notes are in [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).

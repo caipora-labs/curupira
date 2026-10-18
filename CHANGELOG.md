@@ -76,6 +76,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Internal package layout and release tags.** Checkout directories are
+  `packages/curupira-cli`, `packages/curupira-cli-py`, `packages/curupira-cli-js`,
+  `packages/curupira-sdk-py`, `packages/curupira-sdk-js`, and `packages/curupira-plugins-py`.
+  A `publish/curupira-cli/<version>` tag releases PyPI `curupira` and npm `@caipora-labs/curupira`
+  together. The other tags are `publish/curupira-sdk-py/<version>`,
+  `publish/curupira-sdk-js/<version>`, and `publish/curupira-plugins-py/<version>`.
+  Published PyPI and npm names are unchanged.
 - **npm publishing uses OIDC only.** Every `publish/curupira/<version>` and
   `publish/curupira-js-sdk/<version>` tag publishes to npm through trusted publishing, without
   the `NPM_OIDC_READY`, `NPM_SDK_OIDC_READY`, and `NPM_MANUAL_BOOTSTRAP_VERSION` repository

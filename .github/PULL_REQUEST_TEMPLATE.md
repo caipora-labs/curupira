@@ -3,14 +3,14 @@
 ## Behavior and tests
 
 - [ ] Behavioral tests cover the change (no authenticated agents or network access)
-- [ ] `cargo test --manifest-path packages/curupira-core/Cargo.toml` passes
+- [ ] `cargo test --manifest-path packages/curupira-cli/Cargo.toml` passes
 - [ ] `uv run --no-sync pytest` passes
-- [ ] `npm --prefix packages/curupira-npm test` passes when the npm CLI changes
+- [ ] `npm --prefix packages/curupira-cli-js test` passes when the npm CLI changes
 - [ ] `uv run --no-sync ruff check .` and `uv run --no-sync ruff format --check .` pass
-- [ ] `cargo clippy --manifest-path packages/curupira-core/Cargo.toml -- -D warnings` and `cargo fmt --manifest-path packages/curupira-core/Cargo.toml --all -- --check` pass
+- [ ] `cargo clippy --manifest-path packages/curupira-cli/Cargo.toml -- -D warnings` and `cargo fmt --manifest-path packages/curupira-cli/Cargo.toml --all -- --check` pass
 - [ ] `uv build --all-packages --out-dir dist` passes
 
 ## Documentation
 
 - [ ] README/CONTRIBUTING/AGENTS/CHANGELOG updated if user-facing behavior changed
-- [ ] `packages/curupira-core/curupira.example.toml` still validates if configuration changed
+- [ ] `packages/curupira-cli/curupira.example.toml` still validates if configuration changed

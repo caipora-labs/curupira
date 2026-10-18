@@ -1,0 +1,36 @@
+{
+  "name": "@caipora-labs/curupira",
+  "version": "0.2.0",
+  "description": "Dispatch local automations to coding-agent CLIs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/caipora-labs/curupira.git",
+    "directory": "packages/curupira-cli-js"
+  },
+  "homepage": "https://github.com/caipora-labs/curupira/tree/main/packages/curupira-cli-js",
+  "bugs": {
+    "url": "https://github.com/caipora-labs/curupira/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "os": ["linux", "darwin", "win32"],
+  "cpu": ["x64", "arm64"],
+  "bin": {
+    "curupira": "./bin/curupira.js",
+    "curu": "./bin/curu.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test --test-reporter=spec"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
