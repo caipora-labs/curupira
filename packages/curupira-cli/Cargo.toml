@@ -27,7 +27,7 @@ chrono-tz = "0.10"
 clap = { version = "4", features = ["derive", "env"] }
 ctrlc = "3"
 cron = "0.17"
-dirs = "6"
+dirs = "7"
 fs2 = "0.4"
 futures = "0.3"
 hex = "0.4"
