@@ -1,8 +1,8 @@
 name: Publish
 
 # One pipeline for every package. A tag names the project and the version to release:
-# publish/<project>/<version>, for example publish/curupira-sdk/0.1.0dev0 or
-# publish/curupira-js-sdk/0.1.0dev0.
+# publish/<project>/<version>, for example publish/curupira-sdk-py/0.1.0dev0 or
+# publish/curupira-sdk-js/0.1.0dev0.
 #
 on:
   push:
@@ -23,6 +23,7 @@ jobs:
       contents: read
     outputs:
       project: ${{ steps.tag.outputs.project }}
+      distribution: ${{ steps.tag.outputs.distribution }}
       version: ${{ steps.tag.outputs.version }}
       cargo_version: ${{ steps.tag.outputs.cargo_version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
@@ -38,12 +39,12 @@ jobs:
         id: tag
         env:
           TAG: ${{ github.ref_name }}
-        run: uv run --no-project --with packaging python packages/curupira-python/scripts/publish_tag.py "$TAG" >> "$GITHUB_OUTPUT"
+        run: uv run --no-project --with packaging python packages/curupira-cli-py/scripts/publish_tag.py "$TAG" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build source and pure distributions
     needs: resolve
-    if: needs.resolve.outputs.project != 'curupira-js-sdk'
+    if: needs.resolve.outputs.project != 'curupira-sdk-js'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -62,7 +63,7 @@ jobs:
         env:
           PROJECT: ${{ needs.resolve.outputs.project }}
           VERSION: ${{ needs.resolve.outputs.version }}
-        run: uv run --no-project --with packaging python packages/curupira-python/scripts/stamp_release_version.py --project "$PROJECT" --version "$VERSION"
+        run: uv run --no-project --with packaging python packages/curupira-cli-py/scripts/stamp_release_version.py --project "$PROJECT" --version "$VERSION"
       - name: Build source distributions and the pure-Python wheels
         # The curupira wheel is platform-specific and comes from build-curupira.
         run: |
@@ -79,7 +80,7 @@ jobs:
   build-curupira:
     name: Build curupira wheel (${{ matrix.name }})
     needs: resolve
-    if: needs.resolve.outputs.project == 'curupira'
+    if: needs.resolve.outputs.project == 'curupira-cli'
     strategy:
       fail-fast: false
       matrix:
@@ -136,12 +137,12 @@ jobs:
           PROJECT: ${{ needs.resolve.outputs.project }}
           VERSION: ${{ needs.resolve.outputs.version }}
         shell: bash
-        run: uv run --no-project --with packaging python packages/curupira-python/scripts/stamp_release_version.py --project "$PROJECT" --version "$VERSION"
+        run: uv run --no-project --with packaging python packages/curupira-cli-py/scripts/stamp_release_version.py --project "$PROJECT" --version "$VERSION"
       - name: Cache the Rust build (native targets only)
         if: ${{ !matrix.manylinux }}
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/curupira-core
+          workspaces: packages/curupira-cli
           key: ${{ matrix.name }}
       - name: Build the curupira wheel
         uses: PyO3/maturin-action@423a6347767a8b16e65c2a7a7042e4a921528da8
@@ -150,39 +151,39 @@ jobs:
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux || 'auto' }}
           # maturin reads [tool.maturin] from the pyproject in this directory.
-          working-directory: packages/curupira-python
+          working-directory: packages/curupira-cli-py
           args: --release --out dist
       - name: Upload the curupira wheel
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: dist-curupira-${{ matrix.name }}
-          path: packages/curupira-python/dist/
+          path: packages/curupira-cli-py/dist/
           if-no-files-found: error
       - name: Set up Node.js
-        if: needs.resolve.outputs.project == 'curupira'
+        if: needs.resolve.outputs.project == 'curupira-cli'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
       - name: Stage the npm binary
-        if: needs.resolve.outputs.project == 'curupira'
+        if: needs.resolve.outputs.project == 'curupira-cli'
         shell: bash
         env:
           VERSION: ${{ needs.resolve.outputs.cargo_version }}
           NPM_TARGET: ${{ matrix.npm_target }}
         run: |
-          wheel="$(find packages/curupira-python/dist -name '*.whl' | head -n 1)"
+          wheel="$(find packages/curupira-cli-py/dist -name '*.whl' | head -n 1)"
           test -n "$wheel"
-          node packages/curupira-npm/scripts/assemble.js wheel \
+          node packages/curupira-cli-js/scripts/assemble.js wheel \
             --wheel "$wheel" \
             --target "$NPM_TARGET" \
             --version "$VERSION" \
             --out npm-stage
-          node packages/curupira-npm/scripts/assemble.js verify-one \
+          node packages/curupira-cli-js/scripts/assemble.js verify-one \
             --dir npm-stage \
             --target "$NPM_TARGET" \
             --version "$VERSION"
       - name: Smoke-test the native binary
-        if: needs.resolve.outputs.project == 'curupira' && matrix.manylinux != 'musllinux_1_2'
+        if: needs.resolve.outputs.project == 'curupira-cli' && matrix.manylinux != 'musllinux_1_2'
         shell: bash
         env:
           VERSION: ${{ needs.resolve.outputs.cargo_version }}
@@ -196,7 +197,7 @@ jobs:
           test "$out" = "curupira ${VERSION}"
           "$bin" --help >/dev/null
       - name: Smoke-test the musl binary
-        if: needs.resolve.outputs.project == 'curupira' && matrix.manylinux == 'musllinux_1_2'
+        if: needs.resolve.outputs.project == 'curupira-cli' && matrix.manylinux == 'musllinux_1_2'
         shell: bash
         env:
           VERSION: ${{ needs.resolve.outputs.cargo_version }}
@@ -207,7 +208,7 @@ jobs:
           test "$(tr -d '\r' < musl-version.txt)" = "curupira ${VERSION}"
           docker run --rm -v "$PWD:/work" -w /work alpine:3.22 "/work/${bin}" --help >/dev/null
       - name: Upload the npm binary
-        if: needs.resolve.outputs.project == 'curupira'
+        if: needs.resolve.outputs.project == 'curupira-cli'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: npm-curupira-${{ matrix.name }}
@@ -220,9 +221,9 @@ jobs:
     if: |
       always() &&
       needs.resolve.result == 'success' &&
-      needs.resolve.outputs.project != 'curupira-js-sdk' &&
+      needs.resolve.outputs.project != 'curupira-sdk-js' &&
       needs.build.result == 'success' &&
-      (needs.resolve.outputs.project != 'curupira' || needs.build-curupira.result == 'success')
+      (needs.resolve.outputs.project != 'curupira-cli' || needs.build-curupira.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -242,11 +243,11 @@ jobs:
           merge-multiple: true
       - name: Check the built distributions carry the tag's version
         env:
-          PROJECT: ${{ needs.resolve.outputs.project }}
+          DISTRIBUTION: ${{ needs.resolve.outputs.distribution }}
           VERSION: ${{ needs.resolve.outputs.version }}
         run: |
-          uv run --no-project --with packaging python packages/curupira-python/scripts/verify_dist_version.py \
-            --dist dist --project "$PROJECT" --version "$VERSION"
+          uv run --no-project --with packaging python packages/curupira-cli-py/scripts/verify_dist_version.py \
+            --dist dist --project "$DISTRIBUTION" --version "$VERSION"
 
   publish:
     name: Publish distributions
@@ -255,7 +256,7 @@ jobs:
     if: |
       always() &&
       github.event_name == 'push' &&
-      needs.resolve.outputs.project != 'curupira-js-sdk' &&
+      needs.resolve.outputs.project != 'curupira-sdk-js' &&
       needs.verify.result == 'success'
     needs: [resolve, verify]
     runs-on: ubuntu-latest
@@ -281,11 +282,11 @@ jobs:
         run: python3 .github/scripts/require_ci_checks.py --repository "${GITHUB_REPOSITORY}" --sha "${GITHUB_SHA}"
       - name: Select the tagged project's distributions
         env:
-          PROJECT: ${{ needs.resolve.outputs.project }}
+          DISTRIBUTION: ${{ needs.resolve.outputs.distribution }}
           VERSION: ${{ needs.resolve.outputs.version }}
         run: |
-          uv run --no-project --with packaging python packages/curupira-python/scripts/verify_dist_version.py \
-            --dist dist --project "$PROJECT" --version "$VERSION" --copy-to publish-dist
+          uv run --no-project --with packaging python packages/curupira-cli-py/scripts/verify_dist_version.py \
+            --dist dist --project "$DISTRIBUTION" --version "$VERSION" --copy-to publish-dist
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -294,7 +295,7 @@ jobs:
   pack-npm:
     name: Pack the single npm CLI package
     needs: [resolve, build-curupira]
-    if: needs.resolve.outputs.project == 'curupira'
+    if: needs.resolve.outputs.project == 'curupira-cli'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -302,47 +303,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Set up Node.js
-        if: needs.resolve.outputs.project == 'curupira'
+        if: needs.resolve.outputs.project == 'curupira-cli'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
       - name: Skip npm packing for other projects
-        if: needs.resolve.outputs.project != 'curupira'
+        if: needs.resolve.outputs.project != 'curupira-cli'
         run: echo "project ${{ needs.resolve.outputs.project }} does not publish the npm CLI"
       - name: Download platform binaries
-        if: needs.resolve.outputs.project == 'curupira'
+        if: needs.resolve.outputs.project == 'curupira-cli'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: npm-curupira-*
           path: npm-stage
           merge-multiple: true
       - name: Stage the main package and check versions
-        if: needs.resolve.outputs.project == 'curupira'
+        if: needs.resolve.outputs.project == 'curupira-cli'
         env:
           VERSION: ${{ needs.resolve.outputs.cargo_version }}
         run: |
-          node packages/curupira-npm/scripts/assemble.js main \
+          node packages/curupira-cli-js/scripts/assemble.js main \
             --version "$VERSION" \
             --out npm-stage
-          node packages/curupira-npm/scripts/assemble.js verify \
+          node packages/curupira-cli-js/scripts/assemble.js verify \
             --dir npm-stage \
             --version "$VERSION"
       - name: Pack one tarball
-        if: needs.resolve.outputs.project == 'curupira'
+        if: needs.resolve.outputs.project == 'curupira-cli'
         env:
           VERSION: ${{ needs.resolve.outputs.cargo_version }}
         run: |
           mkdir -p dist-npm
           npm pack --pack-destination dist-npm ./npm-stage/curupira
-          node packages/curupira-npm/scripts/assemble.js verify-tarballs \
+          node packages/curupira-cli-js/scripts/assemble.js verify-tarballs \
             --dir dist-npm \
             --version "$VERSION"
       - name: Install the Linux x64 package and run the CLI
-        if: needs.resolve.outputs.project == 'curupira'
+        if: needs.resolve.outputs.project == 'curupira-cli'
         env:
           VERSION: ${{ needs.resolve.outputs.cargo_version }}
         run: |
-          node packages/curupira-npm/scripts/install-local.js \
+          node packages/curupira-cli-js/scripts/install-local.js \
             --prefix "${RUNNER_TEMP}/curupira-npm" \
             --main dist-npm/caipora-labs-curupira-${VERSION}.tgz
           bin="${RUNNER_TEMP}/curupira-npm/node_modules/.bin/curupira"
@@ -350,10 +351,10 @@ jobs:
           "$bin" --help >/dev/null
           test "$("${RUNNER_TEMP}/curupira-npm/node_modules/.bin/curu" --version)" = "curu ${VERSION}"
       - name: Require green CI for the npm artifact
-        if: needs.resolve.outputs.project == 'curupira'
+        if: needs.resolve.outputs.project == 'curupira-cli'
         run: python3 .github/scripts/require_ci_checks.py --repository "${GITHUB_REPOSITORY}" --sha "${GITHUB_SHA}"
       - name: Upload npm tarballs
-        if: needs.resolve.outputs.project == 'curupira'
+        if: needs.resolve.outputs.project == 'curupira-cli'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: dist-npm
@@ -365,7 +366,7 @@ jobs:
     # Published through npm OIDC trusted publishing; no token is stored in GitHub.
     if: |
       github.event_name == 'push' &&
-      needs.resolve.outputs.project == 'curupira'
+      needs.resolve.outputs.project == 'curupira-cli'
     needs: [resolve, pack-npm]
     runs-on: ubuntu-latest
     environment: npm
@@ -389,7 +390,7 @@ jobs:
         env:
           VERSION: ${{ needs.resolve.outputs.cargo_version }}
         run: |
-          node packages/curupira-npm/scripts/assemble.js verify-tarballs \
+          node packages/curupira-cli-js/scripts/assemble.js verify-tarballs \
             --dir dist-npm \
             --version "$VERSION"
       - name: Require green CI
@@ -404,7 +405,7 @@ jobs:
 
   pack-npm-sdk:
     name: Pack JavaScript SDK
-    if: needs.resolve.outputs.project == 'curupira-js-sdk'
+    if: needs.resolve.outputs.project == 'curupira-sdk-js'
     needs: resolve
     runs-on: ubuntu-latest
     permissions:
@@ -421,15 +422,15 @@ jobs:
         env:
           PROJECT: ${{ needs.resolve.outputs.project }}
           VERSION: ${{ needs.resolve.outputs.version }}
-        run: uv run --no-project --with packaging python packages/curupira-python/scripts/stamp_release_version.py --project "$PROJECT" --version "$VERSION"
+        run: uv run --no-project --with packaging python packages/curupira-cli-py/scripts/stamp_release_version.py --project "$PROJECT" --version "$VERSION"
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: packages/curupira-js-sdk/package-lock.json
+          cache-dependency-path: packages/curupira-sdk-js/package-lock.json
       - name: Install, test, and pack the SDK
-        working-directory: packages/curupira-js-sdk
+        working-directory: packages/curupira-sdk-js
         env:
           VERSION: ${{ needs.resolve.outputs.cargo_version }}
         run: |
@@ -453,7 +454,7 @@ jobs:
     name: Publish JavaScript SDK to npm
     if: |
       github.event_name == 'push' &&
-      needs.resolve.outputs.project == 'curupira-js-sdk'
+      needs.resolve.outputs.project == 'curupira-sdk-js'
     needs: [resolve, pack-npm-sdk]
     runs-on: ubuntu-latest
     environment: npm
@@ -495,16 +496,16 @@ jobs:
       github.event_name == 'push' &&
       needs.resolve.outputs.prerelease == 'false' &&
       needs.resolve.result == 'success' &&
-      ((needs.resolve.outputs.project == 'curupira-js-sdk' && needs.publish.result == 'skipped') ||
-       (needs.resolve.outputs.project != 'curupira-js-sdk' && needs.publish.result == 'success')) &&
-      ((needs.resolve.outputs.project == 'curupira' && needs.pack-npm.result == 'success') ||
-       (needs.resolve.outputs.project != 'curupira' && needs.pack-npm.result == 'skipped')) &&
-      ((needs.resolve.outputs.project == 'curupira' && needs.publish-npm.result == 'success') ||
-       (needs.resolve.outputs.project != 'curupira' && needs.publish-npm.result == 'skipped')) &&
-      ((needs.resolve.outputs.project == 'curupira-js-sdk' && needs.pack-npm-sdk.result == 'success') ||
-       (needs.resolve.outputs.project != 'curupira-js-sdk' && needs.pack-npm-sdk.result == 'skipped')) &&
-      ((needs.resolve.outputs.project == 'curupira-js-sdk' && needs.publish-npm-sdk.result == 'success') ||
-       (needs.resolve.outputs.project != 'curupira-js-sdk' && needs.publish-npm-sdk.result == 'skipped'))
+      ((needs.resolve.outputs.project == 'curupira-sdk-js' && needs.publish.result == 'skipped') ||
+       (needs.resolve.outputs.project != 'curupira-sdk-js' && needs.publish.result == 'success')) &&
+      ((needs.resolve.outputs.project == 'curupira-cli' && needs.pack-npm.result == 'success') ||
+       (needs.resolve.outputs.project != 'curupira-cli' && needs.pack-npm.result == 'skipped')) &&
+      ((needs.resolve.outputs.project == 'curupira-cli' && needs.publish-npm.result == 'success') ||
+       (needs.resolve.outputs.project != 'curupira-cli' && needs.publish-npm.result == 'skipped')) &&
+      ((needs.resolve.outputs.project == 'curupira-sdk-js' && needs.pack-npm-sdk.result == 'success') ||
+       (needs.resolve.outputs.project != 'curupira-sdk-js' && needs.pack-npm-sdk.result == 'skipped')) &&
+      ((needs.resolve.outputs.project == 'curupira-sdk-js' && needs.publish-npm-sdk.result == 'success') ||
+       (needs.resolve.outputs.project != 'curupira-sdk-js' && needs.publish-npm-sdk.result == 'skipped'))
     needs: [resolve, publish, pack-npm, publish-npm, pack-npm-sdk, publish-npm-sdk]
     runs-on: ubuntu-latest
     permissions:
@@ -512,6 +513,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PROJECT: ${{ needs.resolve.outputs.project }}
+      DISTRIBUTION: ${{ needs.resolve.outputs.distribution }}
       VERSION: ${{ needs.resolve.outputs.version }}
     steps:
       - name: Checkout
@@ -522,20 +524,20 @@ jobs:
           python-version: "3.11"
           enable-cache: true
       - name: Download distributions
-        if: needs.resolve.outputs.project != 'curupira-js-sdk'
+        if: needs.resolve.outputs.project != 'curupira-sdk-js'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: dist-*
           path: dist/
           merge-multiple: true
       - name: Download npm tarballs
-        if: env.PROJECT == 'curupira'
+        if: env.PROJECT == 'curupira-cli'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: dist-npm
           path: dist-npm
       - name: Download npm SDK tarball
-        if: env.PROJECT == 'curupira-js-sdk'
+        if: env.PROJECT == 'curupira-sdk-js'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: dist-npm-sdk
@@ -543,14 +545,14 @@ jobs:
       - name: Attach the tagged project's distributions
         run: |
           mkdir -p release-dist
-          if [ "$PROJECT" = "curupira-js-sdk" ]; then
+          if [ "$PROJECT" = "curupira-sdk-js" ]; then
             cp dist-npm-sdk/*.tgz release-dist/
           else
-            uv run --no-project --with packaging python packages/curupira-python/scripts/verify_dist_version.py \
-              --dist dist --project "$PROJECT" --version "$VERSION" --copy-to release-dist
+            uv run --no-project --with packaging python packages/curupira-cli-py/scripts/verify_dist_version.py \
+              --dist dist --project "$DISTRIBUTION" --version "$VERSION" --copy-to release-dist
           fi
           files=(release-dist/*)
-          if [ "$PROJECT" = "curupira" ]; then
+          if [ "$PROJECT" = "curupira-cli" ]; then
             files+=(dist-npm/*.tgz)
           fi
           gh release create "$GITHUB_REF_NAME" "${files[@]}" \

@@ -3,7 +3,7 @@
 Os SDKs implementam tudo o que está nesta página para você. Leia-a quando escrever uma extensão
 sem um SDK, depurar uma ou quiser saber exatamente o que o host faz. A especificação
 normativa é o
-[`PROTOCOL.md`](https://github.com/caipora-labs/curupira/blob/main/packages/curupira-core/PROTOCOL.md).
+[`PROTOCOL.md`](https://github.com/caipora-labs/curupira/blob/main/packages/curupira-cli/PROTOCOL.md).
 
 ## Transporte { #transport }
 

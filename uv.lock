@@ -367,7 +367,7 @@ wheels = [
 
 [[package]]
 name = "curupira"
-source = { editable = "packages/curupira-python" }
+source = { editable = "packages/curupira-cli-py" }
 
 [package.optional-dependencies]
 extensions = [
@@ -379,24 +379,24 @@ github = [
 
 [package.metadata]
 requires-dist = [
-    { name = "curupira-plugins", marker = "extra == 'extensions'", editable = "packages/curupira-python-plugins" },
-    { name = "curupira-plugins", marker = "extra == 'github'", editable = "packages/curupira-python-plugins" },
+    { name = "curupira-plugins", marker = "extra == 'extensions'", editable = "packages/curupira-plugins-py" },
+    { name = "curupira-plugins", marker = "extra == 'github'", editable = "packages/curupira-plugins-py" },
 ]
 provides-extras = ["extensions", "github"]
 
 [[package]]
 name = "curupira-plugins"
-source = { editable = "packages/curupira-python-plugins" }
+source = { editable = "packages/curupira-plugins-py" }
 dependencies = [
     { name = "curupira-sdk", extra = ["pydantic"] },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "curupira-sdk", extras = ["pydantic"], editable = "packages/curupira-python-sdk" }]
+requires-dist = [{ name = "curupira-sdk", extras = ["pydantic"], editable = "packages/curupira-sdk-py" }]
 
 [[package]]
 name = "curupira-sdk"
-source = { editable = "packages/curupira-python-sdk" }
+source = { editable = "packages/curupira-sdk-py" }
 
 [package.optional-dependencies]
 pydantic = [

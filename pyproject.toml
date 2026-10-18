@@ -2,9 +2,9 @@
 # Member packages live under packages/ (see AGENTS.md for the layout).
 [tool.uv.workspace]
 members = [
-  "packages/curupira-python",
-  "packages/curupira-python-sdk",
-  "packages/curupira-python-plugins",
+  "packages/curupira-cli-py",
+  "packages/curupira-sdk-py",
+  "packages/curupira-plugins-py",
 ]
 
 [dependency-groups]
@@ -26,15 +26,15 @@ docs = [
 line-length = 100
 target-version = "py311"
 # The Rust crate only holds Python protocol fixtures, which are not packages.
-extend-exclude = ["packages/curupira-core"]
+extend-exclude = ["packages/curupira-cli"]
 force-exclude = true
 
 [tool.pytest.ini_options]
 # Each package owns its tests; importlib mode lets same-named test files coexist.
 testpaths = [
-  "packages/curupira-python/tests",
-  "packages/curupira-python-sdk/tests",
-  "packages/curupira-python-plugins/tests",
+  "packages/curupira-cli-py/tests",
+  "packages/curupira-sdk-py/tests",
+  "packages/curupira-plugins-py/tests",
 ]
 addopts = ["--import-mode=importlib"]
 filterwarnings = ["error"]

@@ -140,6 +140,6 @@ que instales Node.js.
 
 Ejemplos en el repositorio:
 
-- `packages/curupira-js-sdk/examples/`: ejemplos completos del SDK.
-- `packages/curupira-core/tests/fixtures/node-ext/` y `ts-ext/`: fixtures del protocolo
+- `packages/curupira-sdk-js/examples/`: ejemplos completos del SDK.
+- `packages/curupira-cli/tests/fixtures/node-ext/` y `ts-ext/`: fixtures del protocolo
   sin el SDK.

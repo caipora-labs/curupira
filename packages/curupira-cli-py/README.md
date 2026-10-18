@@ -1,0 +1,314 @@
+# Curupira
+
+**Curupira** (by Caipora Labs) is the product name. The PyPI project, primary console script, and Python import are `curupira`. The short command `curu` is the same entry point.
+
+Curupira runs automations on your machine. It takes a GitHub issue or pull request, or a local cron occurrence, and hands it to a coding-agent CLI you already have.
+
+Each automation in the settings TOML watches one source (issues, pull requests,
+or a cron schedule) and carries its own prompt. All automations share one discovery,
+scheduling, and execution pipeline: `run` drains currently available tasks, while
+`run --watch` polls every automation continuously.
+
+## Requirements
+
+- A supported platform wheel from PyPI (the CLI is a Rust binary; Python 3.11+ is
+  used for packaging and optional official trigger extras)
+- [`gh`](https://cli.github.com/) installed and authenticated (`gh auth login`) when
+  using GitHub automations
+- Only the CLIs used by the configured profiles need to be installed:
+  [`claude`](https://code.claude.com/docs/en/cli-reference),
+  [`codex`](https://developers.openai.com/codex/cli/), the Cursor CLI (`agent`),
+  [`gemini`](https://github.com/google-gemini/gemini-cli),
+  [GitHub Copilot CLI (`copilot`)](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli),
+  [`kilo`](https://kilo.ai/docs/code-with-ai/platforms/cli),
+  [`opencode`](https://opencode.ai/), [`pi`](https://pi.dev/docs/latest), or
+  [`qwen`](https://github.com/QwenLM/qwen-code)
+
+## Installation
+
+Install the Rust CLI from npm or PyPI. Both ship the same executable and use
+`~/.curupira/` for configuration and state. The npm install does not need Python.
+
+```bash
+npm install -g @caipora-labs/curupira
+# or, without a global install:
+npx @caipora-labs/curupira --help
+
+# Python
+uv tool install curupira
+pip install curupira
+```
+
+Official triggers (`curupira-plugins`) and `curupira-sdk` are optional. Install them when
+you need forge task sources:
+
+```bash
+pip install 'curupira[extensions]'  # installs curupira-plugins (+ curupira-sdk)
+pip install 'curupira[github]'      # same package; forge-named extras are aliases
+```
+
+To pin a specific version, use `uv tool install "curupira==X.Y.Z"`.
+
+The project is [caipora-labs/curupira](https://github.com/caipora-labs/curupira).
+`curupira --version` and the short alias `curu --version` report the installed version.
+Task-source extensions (except built-in cron) are separate processes; coding agents are
+built into the Rust CLI. See
+[Process extensions](https://caipora-labs.github.io/curupira/extensions/).
+
+## Documentation
+
+See the [full guide in Portuguese](https://caipora-labs.github.io/curupira/) for
+installation, automation configuration, providers, and operational commands. Newcomers
+can start with the
+[automations reference](https://caipora-labs.github.io/curupira/automations/)
+(triggers, minimal TOML examples, first-run commands, and common errors).
+
+## Configuration
+
+The default settings file is `~/.curupira/settings.toml`. Download the example
+configuration directly to that location, then adjust repositories, paths, queries, and
+prompts:
+
+```bash
+mkdir -p ~/.curupira
+curl -fsSL https://raw.githubusercontent.com/caipora-labs/curupira/main/packages/curupira-cli/curupira.example.toml \
+  -o ~/.curupira/settings.toml
+```
+
+The `~/.curupira` directory is created automatically when the default file is first
+loaded. Pass `--config path/to/settings.toml` to use a different file; relative workspace,
+state, and automation paths are resolved from that file's directory.
+
+```toml
+[settings]
+max_active_tasks = 1
+workspace_dir = "~/.curupira/workspaces"
+state_db_path = "~/.curupira/state.sqlite3"
+log_level = "INFO"
+# Optional OTLP/HTTP trace endpoint; omit it to disable telemetry.
+# otlp_endpoint = "http://localhost:4318/v1/traces"
+
+[settings.polling]
+poll_interval_seconds = 30
+batch_size = 100
+cron_poll_interval_seconds = 1
+
+[repositories.api]
+remote = "https://github.com/acme/api.git"
+# setup_script = "scripts/bootstrap.sh"
+
+[agents.defaults]
+profile = "opencode-default"
+timezone = "UTC"
+
+[agents.profiles.opencode-default]
+provider = "opencode"
+
+[automations.resolve-ready-issues]
+trigger_type = "plugins-py/github-issues"
+repository = "api"
+repo = "acme/api"
+labels = ["agent-ready"]
+linked_pull_request = false
+prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
+```
+
+### Automations
+
+For a newcomer-oriented map of every built-in trigger (minimal TOML, placeholders, and
+first-run commands), see the
+[automations reference](https://caipora-labs.github.io/curupira/automations/).
+
+`[automations.<name>]` is a keyed map; the map key is the automation ID and is carried
+into every task identity. `repository` selects a `[repositories.<alias>]` checkout with a
+full Git `remote` URL (and optional `path` / `setup_script`). `trigger_type` selects the
+source:
+
+- `"plugins-py/github-issues"` / `"plugins-py/github-pull-requests"` — discover matching GitHub issues and pull
+  requests; see the
+  [GitHub task source guide](https://caipora-labs.github.io/curupira/github/)
+- `"plugins-py/github-project-items"` — discover issues and pull requests in a GitHub Project board column (needs the `read:project` scope)
+- `"cron"` — produces occurrences from `schedule` instead of querying a forge
+
+Every automation requires `repository` and `prompt`. GitHub triggers also require
+forge `repo` identity; cron requires `schedule`. Optional `profile` selects a named CLI profile;
+otherwise the default profile applies. Relative paths resolve from the TOML directory.
+Different repository aliases cannot share one workspace path. Automations keep file order,
+and one-shot selection follows that order.
+
+### Providers and native options
+
+Curupira supports these coding-agent CLIs, selected with `provider` in a profile:
+
+- Claude Code (`claude`)
+- Codex (`codex`)
+- Cursor (`cursor`)
+- Kilo CLI (`kilo`)
+- Gemini CLI (`gemini`)
+- GitHub Copilot CLI (`copilot`)
+- OpenCode (`opencode`)
+- [pi (`pi`)](https://caipora-labs.github.io/curupira/providers/pi/)
+- [Qwen Code (`qwen`)](https://caipora-labs.github.io/curupira/providers/qwen/)
+
+How `model`, `effort`, `agent`, and permission options map to each CLI's native
+arguments is documented on the
+[Providers page](https://caipora-labs.github.io/curupira/providers/).
+
+### Prompts and placeholders
+
+Placeholders use `${name}` syntax. The host provides `${repository}` and
+`${automation}`. Every other name is a key from the trigger result, substituted
+as a string. A missing name is left unchanged. For dynamic prompts, Jinja syntax
+(`{{ name }}`, `{% if %}`, `{% for %}`) works next to `${name}`; the keys of the
+GitHub triggers are listed in the
+[GitHub task source guide](https://caipora-labs.github.io/curupira/github/).
+Cron prompts receive only the host variables.
+
+### Discovery, concurrency, and cron semantics
+
+GitHub discovery compiles typed filters into Search queries and runs them through GraphQL
+with a token from `gh auth token`; see the
+[GitHub task source guide](https://caipora-labs.github.io/curupira/github/) for filters,
+deduplication, scopes, and prompt fields. Polls fetch up to `batch_size` items (default 100,
+up to 1000). When a full cycle finds nothing, the shared poller waits
+`poll_interval_seconds` (default 30s); consecutive empty cycles double the wait up to
+5 minutes, and any discovery resets it. Each automation deduplicates its own items, so
+two automations may process the same forge item with different prompts.
+
+Other task sources can be added as trigger plugins registered under the
+`curupira.triggers` entry-point group; see the
+[plugins guide](https://github.com/caipora-labs/curupira/blob/main/docs/en/plugins.md).
+
+`max_active_tasks` bounds concurrently running coding agents (default 1). By default,
+each task runs in a new worktree beside its base checkout, so tasks for the same repository
+can run concurrently without sharing edits. The worktree branch is created from the
+fetched remote default branch and is not pushed. Set `checkout = "main"` to use the
+shared checkout instead (this means the shared checkout, not a branch named `main`, and
+restores the previous exclusive behavior). `path` continues to select the base checkout.
+With `checkout = "main"`, the agent runs on the shared checkout exactly as it is: Curupira does not fetch, pull, or switch branches there.
+Checkouts are created on demand with `git clone <remote>` under
+`workspace_dir/<repository-alias>` (or the alias `path`).
+
+An optional `setup_script` on the repository alias is a repository-relative executable
+path (no absolute paths or `..`). It runs directly, with the checkout root as its working
+directory, only when the base checkout has just been cloned. It does not run for an
+existing checkout or in the task worktree. Use `checkout = "main"` when the agent must run
+where setup wrote files. A nonzero setup exit prevents the agent from starting; the newly
+cloned checkout is removed, while an existing checkout is preserved. `validate` checks the
+path syntax but does not require the script to exist. `run --dry-run` does not fetch, clone,
+create a worktree, or run setup.
+
+Each cron automation coalesces overdue ticks into a single pending occurrence; the same
+automation never runs concurrently with itself. `schedule` is a five-field cron
+expression, `timezone` is IANA (defaulting to `agents.defaults.timezone`), and
+`start_date`/`end_date` form an optional inclusive window interpreted in that timezone.
+Without `start_date`, the window starts when the automation is first recorded.
+
+### OpenTelemetry
+
+Set `settings.otlp_endpoint` to an OTLP/HTTP trace endpoint (for example,
+`http://localhost:4318/v1/traces`) to export one span for each dispatched issue, pull
+request, or cron occurrence. Each span includes the repository, type, identifier, and
+result (success or failure); failures also include `error.message`. The endpoint must
+accept OTLP over HTTP/protobuf. If the field is omitted, no telemetry is exported.
+
+### State files
+
+Running sessions and cron schedule state live in `state_db_path` (default
+`~/.curupira/state.sqlite3`). The per-user dispatch lock is stored in
+`~/.curupira/dispatch.lock`, and the dedicated log directory is
+`~/.curupira/logs`. Only one `run` or `tui` process can dispatch at a time; a second
+process exits with an error rather than running tasks in parallel. Session records are
+removed when the agent process ends; `run` and `run --watch` resume saved sessions after
+a restart. If the file exists but is not a compatible database, the application exits with
+an error instead of deleting it — delete or move the file yourself to start fresh.
+
+### Log file
+
+The `run` and `run --watch` commands append records to
+`~/.curupira/logs/curupira.log`; restarting the process does not erase existing
+content. Each task records its start and completion time, repository, type, and
+identifier. If a task fails, the record includes the error. Set
+`[settings].log_level` (or pass `--log-level`) to `DEBUG` for more internal detail.
+Uncaught crashes write separate reports under `~/.curupira/logs/crashes/`.
+
+## Usage
+
+Validate configuration without calling external CLIs or writing state:
+
+```bash
+curupira validate
+```
+
+Drain currently available tasks through the shared scheduler:
+
+```bash
+curupira run
+curupira run --size 5
+```
+
+Preview one selected task without reserving, persisting, cloning, or executing:
+
+```bash
+curupira run --dry-run
+```
+
+Poll all automations with the shared bounded scheduler until interrupted:
+
+```bash
+curupira run --watch
+```
+
+Run the same continuous scheduler inside an interactive Textual dashboard:
+
+```bash
+curupira tui
+```
+
+The short alias `curu` accepts the same subcommands (`curu validate`, `curu run`,
+`curu run --watch`, `curu tui`).
+
+`validate` exits `0` when the configuration is valid and `2` on configuration errors.
+`run`, `run --watch`, and `tui` exit `1` when any executed task failed, otherwise `0`.
+`run --dry-run` never reserves or persists cron occurrences and does not perform checkout,
+worktree, or setup operations.
+
+`run --watch` runs every CLI non-interactively so concurrent workers never contend for the
+terminal UI. `tui` is the interactive alternative. Editing the configuration file while
+either is running hot-reloads settings after in-flight tasks finish. Transient `gh`
+failures are retried with backoff; authentication, configuration, output-format, and
+agent-task failures are not retried automatically.
+
+## Public interface
+
+Curupira is CLI-first. The only supported programmatic surface is
+`curupira.__version__`; all other modules are internal implementation details that
+may change without notice.
+
+## Development and validation
+
+```bash
+uv sync --dev
+uv run --no-sync prek install
+uv run --no-sync pytest
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check .
+uv run --no-sync pyrefly check
+uv build
+uv run --no-sync twine check dist/*
+```
+
+`uv sync` installs the pure-Python package. `uv run --no-sync prek install` registers
+Git pre-commit hooks; Ruff and Pyrefly run through `uv` so they use the locked project
+environment. `uv build` produces a `py3-none-any` wheel and sdist with no compiler
+toolchain required.
+
+To inspect branch coverage locally, run `uv run --no-sync pytest --cov --cov-report=term-missing`;
+the configured minimum is 85%.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup and the exact verification
+commands, and [CHANGELOG.md](CHANGELOG.md) for release notes.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

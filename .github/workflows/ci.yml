@@ -34,38 +34,38 @@ jobs:
         with:
           filters: |
             rust:
-              - 'packages/curupira-core/**'
-              - 'packages/curupira-js-sdk/**'
+              - 'packages/curupira-cli/**'
+              - 'packages/curupira-sdk-js/**'
               - '.github/workflows/ci.yml'
               - '.github/scripts/**'
               - 'uv.lock'
             sdk:
-              - 'packages/curupira-python-sdk/**'
+              - 'packages/curupira-sdk-py/**'
               - '.github/workflows/ci.yml'
               - 'uv.lock'
               - 'pyproject.toml'
             js_sdk:
-              - 'packages/curupira-js-sdk/**'
-              - 'packages/curupira-core/tests/js_sdk_npx.rs'
-              - 'packages/curupira-core/tests/fixtures/js-sdk-ext/**'
+              - 'packages/curupira-sdk-js/**'
+              - 'packages/curupira-cli/tests/js_sdk_npx.rs'
+              - 'packages/curupira-cli/tests/fixtures/js-sdk-ext/**'
               - '.github/workflows/ci.yml'
             npm_cli:
-              - 'packages/curupira-npm/**'
-              - 'packages/curupira-core/**'
+              - 'packages/curupira-cli-js/**'
+              - 'packages/curupira-cli/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/publish.yml'
               - '.github/scripts/**'
             plugins:
-              - 'packages/curupira-python-plugins/**'
-              - 'packages/curupira-python-sdk/**'
+              - 'packages/curupira-plugins-py/**'
+              - 'packages/curupira-sdk-py/**'
               - '.github/workflows/ci.yml'
               - 'uv.lock'
               - 'pyproject.toml'
             python:
-              - 'packages/curupira-python/**'
-              - 'packages/curupira-python-sdk/**'
-              - 'packages/curupira-python-plugins/**'
-              - 'packages/curupira-core/**'
+              - 'packages/curupira-cli-py/**'
+              - 'packages/curupira-sdk-py/**'
+              - 'packages/curupira-plugins-py/**'
+              - 'packages/curupira-cli/**'
               - '.github/workflows/ci.yml'
               - 'uv.lock'
               - 'pyproject.toml'
@@ -94,26 +94,26 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/curupira-core
+          workspaces: packages/curupira-cli
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
         with:
           python-version: "3.11"
           enable-cache: true
       - run: uv sync --frozen --all-packages --dev
-      - run: cargo fmt --manifest-path packages/curupira-core/Cargo.toml --all -- --check
-      - run: cargo clippy --manifest-path packages/curupira-core/Cargo.toml -- -D warnings
-      - run: uv run --no-sync cargo test --manifest-path packages/curupira-core/Cargo.toml
+      - run: cargo fmt --manifest-path packages/curupira-cli/Cargo.toml --all -- --check
+      - run: cargo clippy --manifest-path packages/curupira-cli/Cargo.toml -- -D warnings
+      - run: uv run --no-sync cargo test --manifest-path packages/curupira-cli/Cargo.toml
       - name: Validate example configuration
         run: |
           # example.toml uses uvx --from curupira-plugins for end users; rewrite to
           # the checkout path so CI does not need the package on PyPI yet.
-          plugins_path="$(cd packages/curupira-python-plugins && pwd)"
+          plugins_path="$(cd packages/curupira-plugins-py && pwd)"
           tmp_config="$(mktemp)"
           sed "s|--from\", \"curupira-plugins\"|--from\", \"${plugins_path}\"|" \
-            packages/curupira-core/curupira.example.toml > "$tmp_config"
-          CURUPIRA_EXTENSIONS_PATH=packages/curupira-python-plugins \
-            CURUPIRA_PYTHONPATH="$(ls -d packages/curupira-python-sdk/src packages/curupira-python-plugins/src | paste -sd: -)" \
-            uv run --no-sync cargo run --manifest-path packages/curupira-core/Cargo.toml --bin curupira -- \
+            packages/curupira-cli/curupira.example.toml > "$tmp_config"
+          CURUPIRA_EXTENSIONS_PATH=packages/curupira-plugins-py \
+            CURUPIRA_PYTHONPATH="$(ls -d packages/curupira-sdk-py/src packages/curupira-plugins-py/src | paste -sd: -)" \
+            uv run --no-sync cargo run --manifest-path packages/curupira-cli/Cargo.toml --bin curupira -- \
             --config "$tmp_config" validate
 
   js-sdk:
@@ -127,13 +127,13 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: packages/curupira-js-sdk/package-lock.json
+          cache-dependency-path: packages/curupira-sdk-js/package-lock.json
       - run: npm install
-        working-directory: packages/curupira-js-sdk
+        working-directory: packages/curupira-sdk-js
       - run: npm test
-        working-directory: packages/curupira-js-sdk
+        working-directory: packages/curupira-sdk-js
       - run: npm run typecheck
-        working-directory: packages/curupira-js-sdk
+        working-directory: packages/curupira-sdk-js
 
   npm-cli:
     name: npm CLI tests
@@ -145,12 +145,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/curupira-core
+          workspaces: packages/curupira-cli
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
       - run: npm test
-        working-directory: packages/curupira-npm
+        working-directory: packages/curupira-cli-js
 
   python-sdk:
     name: Python SDK tests (Python ${{ matrix.python-version }})
@@ -165,14 +165,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/curupira-core
+          workspaces: packages/curupira-cli
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       - run: uv sync --frozen --all-packages --dev
-      - run: uv run --no-sync ruff check packages/curupira-python-sdk
-      - run: uv run --no-sync pytest packages/curupira-python-sdk/tests
+      - run: uv run --no-sync ruff check packages/curupira-sdk-py
+      - run: uv run --no-sync pytest packages/curupira-sdk-py/tests
 
   python-plugins:
     name: Python plugins tests (Python ${{ matrix.python-version }})
@@ -187,14 +187,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/curupira-core
+          workspaces: packages/curupira-cli
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       - run: uv sync --frozen --all-packages --dev
-      - run: uv run --no-sync ruff check packages/curupira-python-plugins
-      - run: uv run --no-sync pytest packages/curupira-python-plugins/tests
+      - run: uv run --no-sync ruff check packages/curupira-plugins-py
+      - run: uv run --no-sync pytest packages/curupira-plugins-py/tests
 
   python-packaging:
     name: Python packaging tests (Python ${{ matrix.python-version }})
@@ -209,7 +209,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/curupira-core
+          workspaces: packages/curupira-cli
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
         with:
           python-version: ${{ matrix.python-version }}
@@ -243,7 +243,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: packages/curupira-core
+          workspaces: packages/curupira-cli
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78
         with:
           python-version: "3.11"

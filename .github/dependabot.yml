@@ -6,7 +6,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
   - package-ecosystem: cargo
-    directory: /packages/curupira-core
+    directory: /packages/curupira-cli
     schedule:
       interval: weekly
     open-pull-requests-limit: 5

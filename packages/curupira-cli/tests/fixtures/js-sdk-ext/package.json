@@ -1,0 +1,12 @@
+{
+  "name": "curupira-js-sdk-ext-fixture",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "curupira-js-sdk-ext-fixture": "./bin.js"
+  },
+  "dependencies": {
+    "@caipora-labs/curupira-sdk": "file:../../../../curupira-sdk-js"
+  }
+}

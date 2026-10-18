@@ -138,6 +138,6 @@ normal cache applies. If `npx` is missing, `curupira validate` says to install N
 
 Examples in the repository:
 
-- `packages/curupira-js-sdk/examples/`: complete SDK examples.
-- `packages/curupira-core/tests/fixtures/node-ext/` and `ts-ext/`: protocol fixtures
+- `packages/curupira-sdk-js/examples/`: complete SDK examples.
+- `packages/curupira-cli/tests/fixtures/node-ext/` and `ts-ext/`: protocol fixtures
   without the SDK.

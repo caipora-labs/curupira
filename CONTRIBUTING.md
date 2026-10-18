@@ -4,13 +4,13 @@
 
 ## Environment setup
 
-Requirements: a Rust toolchain (see `packages/curupira-core/rust-toolchain.toml`), Python 3.11+, and
+Requirements: a Rust toolchain (see `packages/curupira-cli/rust-toolchain.toml`), Python 3.11+, and
 [`uv`](https://docs.astral.sh/uv/). `gh` is needed only for live GitHub discovery.
 Tests use fixtures and must not call real forge or coding-agent CLIs.
 
 ```bash
 uv sync --all-packages --dev
-cargo test --manifest-path packages/curupira-core/Cargo.toml
+cargo test --manifest-path packages/curupira-cli/Cargo.toml
 ```
 
 [AGENTS.md](AGENTS.md) is the single source for verification commands, the repository
@@ -19,8 +19,8 @@ map, and security boundaries. Install the documentation tools with
 
 ## Packaging
 
-**Maturin** builds the Rust binary (`packages/curupira-core`) into the platform wheel of
-`packages/curupira-python` (`bindings = "bin"`). That wheel has no Python package
+**Maturin** builds the Rust binary (`packages/curupira-cli`) into the platform wheel of
+`packages/curupira-cli-py` (`bindings = "bin"`). That wheel has no Python package
 dependencies. Official triggers are one pure-Python wheel (`curupira-plugins`, depends on
 `curupira-sdk`), exposed as optional extras on `curupira` (`extensions`, or forge-named
 alias `github` that installs the same package).
@@ -31,11 +31,11 @@ Console scripts `curupira` and `curu` point at the binary. Build with:
 uv build --all-packages --out-dir dist
 ```
 
-The Node.js extension SDK (`packages/curupira-js-sdk/`, npm
+The Node.js extension SDK (`packages/curupira-sdk-js/`, npm
 `@caipora-labs/curupira-sdk`) is outside the uv workspace. Build and test it with
 `npm install` / `npm test` in that directory.
 
-The npm CLI (`packages/curupira-npm/`, `curupira`) is also outside the uv
+The npm CLI (`packages/curupira-cli-js/`, `curupira`) is also outside the uv
 workspace. It wraps the Rust binaries; it is not a second implementation. Test it with
 `npm test` in that directory. A release of `curupira` packs one optional npm package per
 platform from the maturin wheel (Linux glibc and musl, macOS, and Windows, each for x64
@@ -49,17 +49,17 @@ provider CLIs and the user's environment do.
 
 ### Task sources (process extensions)
 
-Official triggers live under `packages/curupira-python-plugins/` (PyPI `curupira-plugins`). Third-party
-task sources speak the [extension protocol](packages/curupira-core/PROTOCOL.md) as a separate process
+Official triggers live under `packages/curupira-plugins-py/` (PyPI `curupira-plugins`). Third-party
+task sources speak the [extension protocol](packages/curupira-cli/PROTOCOL.md) as a separate process
 (`kind = "trigger"`). They discover tasks, validate configuration, and receive lifecycle
 events. They must **not** build coding-agent argv, clone repositories, or manage
 worktrees. See [Process extensions](docs/en/extensions.md).
 
 ### Coding agents (Rust core)
 
-Built-in adapters live in `packages/curupira-core/src/agents/`. To add a provider:
+Built-in adapters live in `packages/curupira-cli/src/agents/`. To add a provider:
 
-1. Add a module under `packages/curupira-core/src/agents/` and register it on `AgentProvider`.
+1. Add a module under `packages/curupira-cli/src/agents/` and register it on `AgentProvider`.
 2. Map only documented native CLI flags; omit unset optional fields.
 3. Add unit tests for argv presence/absence and a page under `docs/en/providers/`.
 4. Update the README provider list and `docs/mkdocs.yml` nav alphabetically by display name.
@@ -69,7 +69,7 @@ Do not reintroduce coding agents as process extensions or Pluggy entry points.
 ### Git / worktrees
 
 Clone, shared checkout, deterministic worktrees, and `setup_script` are implemented in
-`packages/curupira-core/src/vcs.rs`. Extensions never perform Git operations.
+`packages/curupira-cli/src/vcs.rs`. Extensions never perform Git operations.
 
 ## Documentation translations
 
@@ -210,28 +210,31 @@ permanent ignore.
 ## Releases
 
 Each package has its own version and is released by its own git tag,
-`publish/<project>/<version>`, where `<project>` is `curupira`, `curupira-sdk`,
-`curupira-plugins`, or `curupira-js-sdk`, and `<version>` is a PEP 440 version such as
+`publish/<project>/<version>`, where `<project>` is `curupira-cli`, `curupira-sdk-py`,
+`curupira-plugins-py`, or `curupira-sdk-js`, and `<version>` is a PEP 440 version such as
 `0.3.0dev0`. The tag is the only source of a release version, and
-[AGENTS.md](AGENTS.md#versions) lists how each package reads it:
+[AGENTS.md](AGENTS.md#versions) lists how each package reads it. Those names are the
+checkout directories and the tag ids. The published names stay `curupira`, `curupira-sdk`,
+`curupira-plugins`, `@caipora-labs/curupira`, and `@caipora-labs/curupira-sdk`.
 
-- `curupira-sdk` and `curupira-plugins` read the tag through hatch-vcs.
-- `curupira-js-sdk` stamps `@caipora-labs/curupira-sdk` from its own tag; it is independent
-  of the Python SDK and Curupira CLI versions.
+- `curupira-sdk` and `curupira-plugins` read `publish/curupira-sdk-py/<version>` and
+  `publish/curupira-plugins-py/<version>` through hatch-vcs.
+- `curupira-sdk-js` stamps `@caipora-labs/curupira-sdk` from `publish/curupira-sdk-js/<version>`;
+  it is independent of the Python SDK and Curupira CLI versions.
 - `curupira` takes its version from the Rust crate's `Cargo.toml`, which the release
-  workflow stamps from the tag before building. The Rust crate, the npm CLI manifest, and
-  the plugin manifest cannot read git, so their checked-in versions are placeholders.
-  `curupira` is released by the `curupira` tag, using the Cargo semver form of
-  that version. It is not a fourth project name in the tag.
+  workflow stamps from the `publish/curupira-cli/<version>` tag before building. The Rust crate,
+  the npm CLI manifest, and the plugin manifest cannot read git, so their checked-in versions
+  are placeholders. That one tag releases PyPI `curupira` and npm `@caipora-labs/curupira`,
+  using the Cargo semver form of the version.
 
 One workflow, `.github/workflows/publish.yml`, releases every project: it resolves the tag,
 builds and verifies the tagged project's versions, publishes Python packages to PyPI
 (environment `pypi`, Trusted Publishing), and attaches a GitHub Release for stable
-versions only. A `publish/curupira/<version>` tag publishes the PyPI distribution and the one
-npm CLI package `@caipora-labs/curupira`, which bundles all platform binaries built from those
-same Rust wheels, at the Curupira release version. Both registries are published by Actions
-using OIDC.
-A `publish/curupira-js-sdk/<version>` tag builds and publishes only the JavaScript SDK
+versions only. A `publish/curupira-cli/<version>` tag publishes the PyPI distribution `curupira`
+and the one npm CLI package `@caipora-labs/curupira`, which bundles all platform binaries built
+from those same Rust wheels, at the Curupira release version. Both registries are published by
+Actions using OIDC.
+A `publish/curupira-sdk-js/<version>` tag builds and publishes only the JavaScript SDK
 (`@caipora-labs/curupira-sdk`) at its independent version, also through npm OIDC. Release tags
 are the only publish trigger. Before anything is uploaded, the
 tag must name a known project, the built artifacts must carry the tag's version, and the
@@ -240,18 +243,19 @@ commit must have green CI (`require_ci_checks.py`).
 ### Cutting a release
 
 1. Make sure CI is green on the commit to release. Run the verification suite from
-   [AGENTS.md](AGENTS.md) and `packages/curupira-python/scripts/check_packaged_readme.py`.
+   [AGENTS.md](AGENTS.md) and `packages/curupira-cli-py/scripts/check_packaged_readme.py`.
 2. Move the `Unreleased` entries in `CHANGELOG.md` into a version section if the release
    needs one.
 3. Tag the commit and push the tag:
 
 ```bash
-git tag publish/curupira-sdk/0.1.0dev0
-git push origin publish/curupira-sdk/0.1.0dev0
+git tag publish/curupira-sdk-py/0.1.0dev0
+git push origin publish/curupira-sdk-py/0.1.0dev0
 ```
 
-Publish in dependency order: `curupira-sdk`, then `curupira-plugins` (it depends on the SDK),
-then `curupira` (its extras depend on `curupira-plugins`). PyPI never accepts the same file
+Publish in dependency order: `curupira-sdk` (`publish/curupira-sdk-py`), then `curupira-plugins`
+(`publish/curupira-plugins-py`; it depends on the SDK), then `curupira` (`publish/curupira-cli`;
+its extras depend on `curupira-plugins`). PyPI never accepts the same file
 twice, so a fix needs a new version.
 
 ### Trusted Publishing

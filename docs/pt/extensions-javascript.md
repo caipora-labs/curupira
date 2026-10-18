@@ -138,6 +138,6 @@ cache normal do npm se aplica. Se o `npx` estiver ausente, `curupira validate` p
 
 Exemplos no repositório:
 
-- `packages/curupira-js-sdk/examples/`: exemplos completos do SDK.
-- `packages/curupira-core/tests/fixtures/node-ext/` e `ts-ext/`: fixtures do protocolo
+- `packages/curupira-sdk-js/examples/`: exemplos completos do SDK.
+- `packages/curupira-cli/tests/fixtures/node-ext/` e `ts-ext/`: fixtures do protocolo
   sem o SDK.
