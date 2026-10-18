@@ -50,11 +50,11 @@ test("installs the local npm packages and runs the Rust CLI", { timeout: 600_000
       "--prefix",
       prefix,
       "--main",
-      mainTarball,
+      path.relative(stage, mainTarball),
       "--platform",
-      platformTarball,
+      path.relative(stage, platformTarball),
     ],
-    { stdio: "inherit" },
+    { cwd: stage, stdio: "inherit" },
   );
 
   const curupira = path.join(prefix, "node_modules", ".bin", "curupira");
