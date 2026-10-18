@@ -32,7 +32,7 @@ function target(key, osName, cpu, libc, label) {
     cpu,
     libc,
     label,
-    packageName: `@caipora/curupira-${key}`,
+    packageName: `@caipora-labs/curupira-${key}`,
     description: `Prebuilt Curupira CLI for ${label}.`,
   });
 }

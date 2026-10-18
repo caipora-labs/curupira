@@ -7,6 +7,6 @@
     "curupira-js-sdk-ext-fixture": "./bin.js"
   },
   "dependencies": {
-    "@caipora/curupira-sdk": "file:../../../../curupira-js-sdk"
+    "@caipora-labs/curupira-sdk": "file:../../../../curupira-js-sdk"
   }
 }

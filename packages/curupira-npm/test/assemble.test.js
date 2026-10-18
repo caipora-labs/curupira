@@ -112,9 +112,9 @@ test("verify-tarballs checks the packed package version", () => {
   fs.mkdirSync(packed);
   fs.writeFileSync(
     path.join(packed, "package.json"),
-    JSON.stringify({ name: "@caipora/curupira-linux-x64", version: "1.2.3" }),
+    JSON.stringify({ name: "@caipora-labs/curupira-linux-x64", version: "1.2.3" }),
   );
-  execFileSync("tar", ["-czf", path.join(root, "caipora-curupira-linux-x64-1.2.3.tgz"), "-C", root, "package"]);
+  execFileSync("tar", ["-czf", path.join(root, "caipora-labs-curupira-linux-x64-1.2.3.tgz"), "-C", root, "package"]);
   assert.throws(() => verifyTarballs(root, "1.2.3"), /Expected 9 npm tarballs/);
   verifyTarballs(root, "1.2.3", "1");
   assert.throws(() => verifyTarballs(root, "9.9.9", "1"), /1\.2\.3/);

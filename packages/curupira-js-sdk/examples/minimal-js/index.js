@@ -1,4 +1,4 @@
-import { defineTriggers } from "@caipora/curupira-sdk";
+import { defineTriggers } from "@caipora-labs/curupira-sdk";
 
 /**
  * Example trigger documented with JSDoc for editor autocomplete.

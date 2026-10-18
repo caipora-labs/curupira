@@ -24,7 +24,7 @@ and no FFI is involved.
 
     ---
 
-    `@caipora/curupira-sdk`: `defineTriggers` and an npm `bin`, launched with `npx`.
+    `@caipora-labs/curupira-sdk`: `defineTriggers` and an npm `bin`, launched with `npx`.
 
     [Write a Node.js extension](extensions-javascript.md)
 

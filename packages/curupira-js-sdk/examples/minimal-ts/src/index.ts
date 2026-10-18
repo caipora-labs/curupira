@@ -1,4 +1,4 @@
-import { defineTriggers } from "@caipora/curupira-sdk";
+import { defineTriggers } from "@caipora-labs/curupira-sdk";
 
 export default defineTriggers({
   githubIssue: async (params: { repo: string; labels?: string[] }) => {

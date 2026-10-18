@@ -1,4 +1,4 @@
-import { defineTriggers } from "@caipora/curupira-sdk";
+import { defineTriggers } from "@caipora-labs/curupira-sdk";
 
 async function sampleTrigger({ note = "hi" }) {
   if (note === "skip") {

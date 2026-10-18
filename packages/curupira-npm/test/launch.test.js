@@ -20,7 +20,7 @@ function tempRoot() {
 
 test("selects the host platform package and forwards argv0 without a shell", () => {
   const root = tempRoot();
-  const fixture = installFixture(root);
+  const fixture = installFixture(root, { platform: "linux", arch: "x64", libc: "glibc" });
   const prepared = prepare({
     packageRoot: fixture.mainDir,
     platform: "linux",
@@ -44,7 +44,7 @@ test("selects the host platform package and forwards argv0 without a shell", () 
 test("resolves a binary path that contains spaces", () => {
   const root = tempRoot();
   const spaced = path.join(root, "dir with spaces");
-  const fixture = installFixture(spaced);
+  const fixture = installFixture(spaced, { platform: "linux", arch: "x64", libc: "glibc" });
   const prepared = prepare({
     packageRoot: fixture.mainDir,
     platform: "linux",
@@ -81,7 +81,7 @@ test("forwards arguments, stdio, and the exit code", () => {
 
 test("curu and curupira are both installed commands", () => {
   const root = tempRoot();
-  const fixture = installFixture(root);
+  const fixture = installFixture(root, { platform: "linux", arch: "x64", libc: "glibc" });
   const manifest = JSON.parse(fs.readFileSync(path.join(fixture.mainDir, "package.json"), "utf8"));
   assert.equal(manifest.bin.curupira, "./bin/curupira.js");
   assert.equal(manifest.bin.curu, "./bin/curu.js");
@@ -162,12 +162,12 @@ test("reports a missing platform package for a supported target", () => {
   });
   assert.equal("error" in prepared, true);
   if (!("error" in prepared)) return;
-  assert.match(prepared.error, /@caipora\/curupira-darwin-arm64 is not installed/);
+  assert.match(prepared.error, /@caipora-labs\/curupira-darwin-arm64 is not installed/);
 });
 
 test("reports a missing binary inside the platform package", () => {
   const root = tempRoot();
-  const fixture = installFixture(root);
+  const fixture = installFixture(root, { platform: "linux", arch: "x64", libc: "glibc" });
   fs.rmSync(path.join(fixture.platformDir, "bin", "curupira"));
   const prepared = prepare({
     packageRoot: fixture.mainDir,
@@ -184,7 +184,13 @@ test("reports a missing binary inside the platform package", () => {
 
 test("reports a wrapper and platform version mismatch", () => {
   const root = tempRoot();
-  const fixture = installFixture(root, { mainVersion: "0.2.0", platformVersion: "0.9.0" });
+  const fixture = installFixture(root, {
+    platform: "linux",
+    arch: "x64",
+    libc: "glibc",
+    mainVersion: "0.2.0",
+    platformVersion: "0.9.0",
+  });
   const prepared = prepare({
     packageRoot: fixture.mainDir,
     platform: "linux",
@@ -195,7 +201,7 @@ test("reports a wrapper and platform version mismatch", () => {
   });
   assert.equal("error" in prepared, true);
   if (!("error" in prepared)) return;
-  assert.match(prepared.error, /wrapper 0\.2\.0 does not match @caipora\/curupira-linux-x64 0\.9\.0/);
+  assert.match(prepared.error, /wrapper 0\.2\.0 does not match @caipora-labs\/curupira-linux-x64 0\.9\.0/);
 });
 
 test("reports a failure to execute the binary", () => {
@@ -231,11 +237,11 @@ test("uses the Windows executable name", () => {
 test("distinguishes glibc and musl packages", () => {
   assert.equal(
     require("../lib/targets.js").selectTarget("linux", "x64", "musl")?.packageName,
-    "@caipora/curupira-linux-x64-musl",
+    "@caipora-labs/curupira-linux-x64-musl",
   );
   assert.equal(
     require("../lib/targets.js").selectTarget("linux", "arm64", "glibc")?.packageName,
-    "@caipora/curupira-linux-arm64",
+    "@caipora-labs/curupira-linux-arm64",
   );
   assert.equal(require("../lib/targets.js").selectTarget("linux", "ia32", "glibc"), null);
   assert.equal(detectLibc("darwin"), null);
@@ -260,5 +266,5 @@ test("distinguishes glibc and musl packages", () => {
 test("every published target has a distinct package name", () => {
   const names = new Set(TARGETS.map((target) => target.packageName));
   assert.equal(names.size, TARGETS.length);
-  assert.equal(names.has("@caipora/curupira"), false);
+  assert.equal(names.has("curupira"), false);
 });

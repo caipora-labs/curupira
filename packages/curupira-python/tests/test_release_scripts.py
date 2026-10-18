@@ -39,6 +39,12 @@ def test_parse_tag_reads_project_and_pep440_version() -> None:
     assert version == Version("0.1.0.dev0")
 
 
+def test_parse_tag_accepts_the_independent_javascript_sdk() -> None:
+    project, version = publish_tag.parse_tag("publish/curupira-js-sdk/0.2.0")
+    assert project == "curupira-js-sdk"
+    assert version == Version("0.2.0")
+
+
 @pytest.mark.parametrize(
     "tag",
     [
@@ -77,11 +83,11 @@ def test_stamp_writes_crate_and_npm_versions(tmp_path: Path) -> None:
     npm.write_text(
         json.dumps(
             {
-                "name": "@caipora/curupira",
+                "name": "curupira",
                 "version": "0.2.0",
                 "optionalDependencies": {
-                    "@caipora/curupira-linux-x64": "0.2.0",
-                    "@caipora/curupira-win32-arm64": "0.2.0",
+                    "@caipora-labs/curupira-linux-x64": "0.2.0",
+                    "@caipora-labs/curupira-win32-arm64": "0.2.0",
                 },
             }
         ),
@@ -94,8 +100,8 @@ def test_stamp_writes_crate_and_npm_versions(tmp_path: Path) -> None:
     manifest = json.loads(npm.read_text(encoding="utf-8"))
     assert manifest["version"] == "0.3.0-dev0"
     assert manifest["optionalDependencies"] == {
-        "@caipora/curupira-linux-x64": "0.3.0-dev0",
-        "@caipora/curupira-win32-arm64": "0.3.0-dev0",
+        "@caipora-labs/curupira-linux-x64": "0.3.0-dev0",
+        "@caipora-labs/curupira-win32-arm64": "0.3.0-dev0",
     }
 
 
@@ -108,6 +114,34 @@ def test_stamp_writes_every_plugin_manifest_version(tmp_path: Path) -> None:
     )
     stamp_release_version.stamp("curupira-plugins", Version("0.1.0.dev0"), tmp_path)
     assert manifest.read_text(encoding="utf-8").count('version = "0.1.0.dev0"') == 2
+
+
+def test_stamp_writes_independent_javascript_sdk_version(tmp_path: Path) -> None:
+    manifest = tmp_path / "packages/curupira-js-sdk/package.json"
+    lockfile = manifest.with_name("package-lock.json")
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        json.dumps({"name": "@caipora-labs/curupira-sdk", "version": "0.1.0-dev.0"}),
+        encoding="utf-8",
+    )
+    lockfile.write_text(
+        json.dumps(
+            {
+                "name": "@caipora-labs/curupira-sdk",
+                "version": "0.1.0-dev.0",
+                "packages": {"": {"name": "@caipora-labs/curupira-sdk", "version": "0.1.0-dev.0"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    stamp_release_version.stamp("curupira-js-sdk", Version("0.2.0.dev1"), tmp_path)
+
+    stamped = json.loads(manifest.read_text(encoding="utf-8"))
+    assert stamped == {"name": "@caipora-labs/curupira-sdk", "version": "0.2.0-dev1"}
+    locked = json.loads(lockfile.read_text(encoding="utf-8"))
+    assert locked["version"] == "0.2.0-dev1"
+    assert locked["packages"][""]["version"] == "0.2.0-dev1"
 
 
 def _wheel(path: Path, name: str, version: str) -> Path:

@@ -33,17 +33,17 @@ ou `npx` não estiver disponível, a validação informa que o launcher não foi
 ## Instalar com Node.js
 
 ```bash
-npm install -g @caipora/curupira
+npm install -g curupira
 ```
 
 Execute uma vez sem instalação global:
 
 ```bash
-npx @caipora/curupira --help
+npx curupira --help
 ```
 
 O npm instala o pacote opcional que corresponde a este sistema operacional, CPU e biblioteca C
-(`@caipora/curupira-linux-x64` e os demais pacotes de plataforma listados no
+(`@caipora-labs/curupira-linux-x64` e os demais pacotes de plataforma listados no
 [README do pacote](https://github.com/caipora-labs/curupira/blob/main/packages/curupira-npm/README.md)).
 Os conectores não estão incluídos: você os registra em `[plugins.<alias>]` nas suas
 configurações, veja [Plugins e conectores](plugins.md).

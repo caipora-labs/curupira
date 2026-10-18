@@ -1,4 +1,4 @@
-# `@caipora/curupira-sdk`
+# `@caipora-labs/curupira-sdk`
 
 Declarative Node.js SDK for [Curupira](https://github.com/caipora-labs/curupira)
 process extensions. Register trigger functions with a plain object, return a
@@ -8,7 +8,7 @@ over length-prefixed stdin/stdout) with the Rust CLI.
 ## Install
 
 ```bash
-npm install @caipora/curupira-sdk
+npm install @caipora-labs/curupira-sdk
 ```
 
 Requires **Node.js 20+**. The Curupira CLI launches published plugins with
@@ -19,7 +19,7 @@ Requires **Node.js 20+**. The Curupira CLI launches published plugins with
 ### JavaScript + JSDoc
 
 ```js
-import { defineTriggers } from "@caipora/curupira-sdk";
+import { defineTriggers } from "@caipora-labs/curupira-sdk";
 
 /**
  * @typedef {Object} GitHubIssueParams
@@ -44,7 +44,7 @@ JSDoc is for editors only. It is not validated at runtime.
 ### TypeScript
 
 ```ts
-import { defineTriggers } from "@caipora/curupira-sdk";
+import { defineTriggers } from "@caipora-labs/curupira-sdk";
 
 export default defineTriggers({
   githubIssue: async (params: { repo: string; labels?: string[] }) => ({
@@ -65,7 +65,7 @@ Ship a `package.json` `bin` that starts the protocol runtime:
 
 ```js
 #!/usr/bin/env node
-import { runExtension } from "@caipora/curupira-sdk";
+import { runExtension } from "@caipora-labs/curupira-sdk";
 import triggers from "./index.js";
 
 await runExtension(triggers, {

@@ -32,7 +32,7 @@ function isTriggerMap(value: unknown): value is TriggerMap {
  *
  * @example
  * ```js
- * import { defineTriggers } from "@caipora/curupira-sdk";
+ * import { defineTriggers } from "@caipora-labs/curupira-sdk";
  *
  * async function githubIssue({ repository, labels = [] }) {
  *   return { repository, labels };

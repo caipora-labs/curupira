@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runExtension } from "@caipora/curupira-sdk";
+import { runExtension } from "@caipora-labs/curupira-sdk";
 import triggers from "./index.js";
 
 const MANIFEST = `

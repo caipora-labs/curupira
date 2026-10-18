@@ -7,7 +7,7 @@ Install the Rust CLI with npm or from PyPI. Both provide `curupira` and `curu` a
 share `~/.curupira/`:
 
 ```bash
-npm install -g @caipora/curupira
+npm install -g curupira
 pip install curupira
 ```
 

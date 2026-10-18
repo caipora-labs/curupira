@@ -51,7 +51,7 @@ fn ensure_js_sdk_built() {
 fn ensure_fixture_installed() {
     ensure_js_sdk_built();
     let fixture = fixture_dir();
-    let node_modules = fixture.join("node_modules/@caipora/curupira-sdk");
+    let node_modules = fixture.join("node_modules/@caipora-labs/curupira-sdk");
     if node_modules.is_dir() {
         return;
     }

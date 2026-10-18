@@ -1,5 +1,5 @@
 {
-  "name": "@caipora/curupira",
+  "name": "curupira",
   "version": "0.2.0",
   "description": "Dispatch local automations to coding-agent CLIs",
   "license": "MIT",
@@ -31,14 +31,14 @@
     "test": "node --test --test-reporter=spec"
   },
   "optionalDependencies": {
-    "@caipora/curupira-linux-x64": "0.2.0",
-    "@caipora/curupira-linux-arm64": "0.2.0",
-    "@caipora/curupira-linux-x64-musl": "0.2.0",
-    "@caipora/curupira-linux-arm64-musl": "0.2.0",
-    "@caipora/curupira-darwin-x64": "0.2.0",
-    "@caipora/curupira-darwin-arm64": "0.2.0",
-    "@caipora/curupira-win32-x64": "0.2.0",
-    "@caipora/curupira-win32-arm64": "0.2.0"
+    "@caipora-labs/curupira-linux-x64": "0.2.0",
+    "@caipora-labs/curupira-linux-arm64": "0.2.0",
+    "@caipora-labs/curupira-linux-x64-musl": "0.2.0",
+    "@caipora-labs/curupira-linux-arm64-musl": "0.2.0",
+    "@caipora-labs/curupira-darwin-x64": "0.2.0",
+    "@caipora-labs/curupira-darwin-arm64": "0.2.0",
+    "@caipora-labs/curupira-win32-x64": "0.2.0",
+    "@caipora-labs/curupira-win32-arm64": "0.2.0"
   },
   "publishConfig": {
     "access": "public"

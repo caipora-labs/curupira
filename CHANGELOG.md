@@ -57,14 +57,14 @@ All notable changes to this project are documented here. The format follows
 - **Breaking:** the Azure DevOps (`azure-cli-pull-requests`), Trello (`trello-cli-cards`), and
   monday.com (`monday-items`) triggers, their docs, and the `azure`, `trello`, and `monday`
   extras of `curupira`. The plugin package is GitHub-only for now.
-- **`@caipora/curupira` (npm CLI).** `packages/curupira-npm/` installs the existing Rust
+- **`curupira` (npm CLI).** `packages/curupira-npm/` installs the existing Rust
   `curupira` and `curu` binaries through Node.js, without Python, pip, uv, or a Rust
-  toolchain. Platform packages (`@caipora/curupira-linux-x64`, musl, macOS, and Windows,
+  toolchain. Platform packages (`@caipora-labs/curupira-linux-x64`, musl, macOS, and Windows,
   including ARM64) are optional dependencies built from the same maturin wheels as the
   PyPI release. Configuration, state, extensions, and the dispatch lock stay in
   `~/.curupira/`. A `publish/curupira/<version>` tag builds and, on push, publishes the
   npm packages with the Cargo form of that version. Docs: `docs/en/installation.md`.
-- **`@caipora/curupira-sdk` (Node.js).** New package under `packages/curupira-js-sdk/`
+- **`@caipora-labs/curupira-sdk` (Node.js).** New package under `packages/curupira-js-sdk/`
   provides a declarative `defineTriggers({ ... })` API for JavaScript and TypeScript
   extensions, protocol-2 serialization to string key/value pairs (or `null`), and a
   stdio runtime so a package `bin` can speak JSON-RPC without hand-rolling framing.
@@ -91,12 +91,17 @@ All notable changes to this project are documented here. The format follows
 - **Clearer missing-`npx` errors.** Config validation and Node extension launch report
   that Node.js must be installed so `npx` is on `PATH`.
 
-- **One publish pipeline, versioned per package.** `curupira`, `curupira-sdk`, and
-  `curupira-plugins` each have their own version, released by a git tag
-  `publish/<project>/<version>`. The tag supplies the version: hatch-vcs reads it for the
-  SDK and plugins, and `publish.yml` stamps it into the Rust crate and the plugin manifest.
+- **One publish pipeline, versioned per package.** `curupira`, `curupira-sdk`,
+  `curupira-plugins`, and `curupira-js-sdk` each have their own version, released by a git
+  tag `publish/<project>/<version>`. The tag supplies the version: hatch-vcs reads it for
+  the Python SDK and plugins, while `publish.yml` stamps it into the Rust crate, npm
+  manifests, and plugin manifest.
   `publish.yml` replaces the former `v*` publish and release workflows and the TestPyPI
   rehearsal workflow, which are removed.
+- **Independent npm SDK release.** A `publish/curupira-js-sdk/<version>` tag tests and
+  publishes `@caipora-labs/curupira-sdk` at its own version. A `publish/curupira/<version>`
+  tag still publishes the CLI package `curupira` and its platform packages with the
+  Curupira release version; Python SDK and plugin versions remain independent.
 - **Official triggers ship as one optional package.** `packages/curupira-python-plugins/`
   publishes PyPI `curupira-plugins` (import `curupira_plugins`) and depends on
   `curupira-sdk`. It replaces the former `curupira-github` / `curupira-azure` /
