@@ -115,11 +115,6 @@ class Issue:
     number: int
     title: str
     url: str
-    id: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.id:
-            self.id = str(self.number)
 
 
 @app.trigger
@@ -128,8 +123,8 @@ async def github_issues(
     labels: list[str] | None = None,
     state: str = "open",
 ) -> Issue | None:
-    """Return the next eligible issue, or None when the round is empty."""
-    # Select exactly one next item from the external API (never a list).
+    """Return the next issue, or None when nothing was found."""
+    # Select exactly one object (never a list). None means nothing was found.
     return None
 
 
@@ -151,10 +146,16 @@ Rules:
   `plugins-py/github-issues`).
 - Function parameters are the source of truth for TOML extras. Required /
   optional / defaults / `None` come from the signature and type hints.
-- Return **one** object or `None`. Lists, tuples, and iterators are rejected.
-- Sync `def` and `async def` share the same decorator.
-- Dataclasses and TypedDict work out of the box. Pydantic v2 models need
-  `curupira-sdk[pydantic]`.
+- Return **one** object or `None`. `None` means nothing was found and becomes
+  JSON `null`. Lists, tuples, sets, and iterators are rejected, including a
+  hand-built list of pairs. An empty mapping becomes an empty pair list, which
+  is an item with no data, not "nothing found".
+- Sync `def` and `async def` share the same decorator. The host does not pass
+  `preview` or `limit` into the function.
+- Mappings, dataclasses, and TypedDicts work out of the box. Pydantic v2 models
+  need `curupira-sdk[pydantic]`. The SDK converts that object to a list of
+  `{ "key", "value" }` string pairs. It does not add `id`, `title`, `url`, or
+  any other field.
 - The Rust host owns polling, concurrency, Git, worktrees, and coding agents.
   The SDK never schedules or retries dispatcher work.
 
@@ -183,15 +184,59 @@ ${url}
 
 `repository`, `prompt`, `profile`, and `checkout` are core fields — do not
 declare them as function parameters (use `repo` or another name for forge ids).
+The names in the prompt are whatever fields the trigger returns. This example
+uses `number`, `title`, and `url` only because `Issue` declares those fields.
 
-### How the host polls
+### How a return value becomes pairs
+
+The SDK converts the object before it reaches the host. Top-level keys stay in
+declaration or insertion order. Each value becomes a string:
+
+| Python value | Pair `value` |
+| --- | --- |
+| `str` | the same string, without extra quotes |
+| `bool` | `true` or `false` |
+| `int` | decimal text (`1` and `1.0` stay distinct) |
+| `float` | the same text `json.dumps` would emit |
+| `None` | `null` (this is a field value, not "nothing found") |
+| nested mapping, list, tuple, dataclass, or model | compact JSON (`sort_keys=True`, no extra spaces) |
+
+Rejected with `SerializationError` (surfaced as a JSON-RPC error, not as `null`):
+
+- a top-level list, tuple, set, generator, or other collection
+- a top-level string, number, or boolean
+- a key that is not a string (keys are not coerced with `str`)
+- an empty key, or a key containing `}` or `${`
+- a duplicate key
+- a non-finite float, `bytes`, `set`, `datetime`, or any other value that cannot be serialized
+
+`describe` may still list `prompt_fields` taken from the declared return type.
+That list is a hint. It is not part of the result and it does not make any key
+required.
+
+### How the host polls and interpolates
 
 1. The host picks an enabled automation and validates configuration via
    `trigger/validate` (defaults applied from the signature).
 2. It calls `trigger/poll` repeatedly, up to `settings.polling.batch_size`.
-3. Each call must return `{ "task": <object> }` or `{ "task": null }`.
-4. `null` ends the current round; the trigger stays enabled for the next poll
-   interval. Errors use JSON-RPC error codes and are not the same as `null`.
+   Polling arguments are not passed to the trigger function.
+3. Each call returns `{ "values": [ {"key", "value"}, ... ] }`,
+   `{ "values": [] }`, or `{ "values": null }`.
+4. `null` ends the current round. An empty list is still a result. Errors use
+   JSON-RPC error codes and are not the same as `null`.
+
+The CLI substitutes `${key}` with the pair's string value in one pass. Text
+that a value inserts is not scanned again, so a value of `${other}` stays
+literal. A placeholder with no matching key is left unchanged. `${repository}`
+(the forge identity derived from the Git remote) and `${automation}` (the
+automation name) are supplied by the host. A result key with either of those
+names is an error. Keys that are not ordinary identifiers are still written as
+`${issue-number}`, `${foo.bar}`, `${123}`, or `${a b}`.
+
+The host does not know which keys a plugin uses. Two identical lists are the
+same task; the identity is a hash of the list in the order the extension sent
+it, stored with completion and resume state. Completed tasks from protocol v1
+do not match these keys.
 
 ### Manifest
 
@@ -212,8 +257,9 @@ protocol on stdio. TypeScript packages should compile to JS or run under
 `packages/curupira-core/tests/fixtures/node-ext/` and
 `packages/curupira-core/tests/fixtures/ts-ext/`.
 
-Poll results must use `{ "task": null }` or a single task object — never a task
-array.
+Poll results must use `{ "values": null }`, `{ "values": [] }`, or
+`{ "values": [{ "key": "...", "value": "..." }] }`. Do not return a task object
+or an array of items.
 
 ## Security
 

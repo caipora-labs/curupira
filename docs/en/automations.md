@@ -22,9 +22,8 @@ registered type and its prompt fields.
 
 Titles and bodies from GitHub issues and pull requests, Azure DevOps pull requests, Trello
 cards, and monday.com items are untrusted input. Curupira puts them into the coding-agent
-prompt (`${issue_title}`, `${issue_body}`, `${pull_request_title}`,
-`${pull_request_body}`, `${card_title}`, `${card_body}`, `${item_name}`,
-`${item_columns}`, and shared `${task_title}` / `${task_body}`). A hostile author or board
+prompt when the plugin returns those strings (`${issue_title}`, `${issue_body}`,
+`${pull_request_title}`, `${pull_request_body}`, `${name}`, `${desc}`). A hostile author or board
 editor can try to steer the agent. Restrict what reaches the agent with `labels`,
 `author`, or `assignee` (GitHub), `list_ids` (Trello), or `group_ids` (monday.com). Review
 what the agent profile is allowed to run in the repository. Only run automations on
@@ -97,14 +96,13 @@ linked_pull_request = false
 prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 ```
 
-**Placeholders:** common fields
-(`${repo}`, `${repository}`, `${automation_id}`, `${task_type}`, `${task_number}`,
-`${task_title}`, `${task_body}`, `${task_url}`) plus
-`${issue_number}`, `${issue_title}`, `${issue_body}`, `${issue_url}`.
+**Placeholders:** `${repository}` and `${automation}` from the host, plus the keys
+this trigger returns, including `${repo}`, `${issue_number}`, `${issue_title}`,
+`${issue_body}`, and `${issue_url}`.
 
 **What the agent receives:** the rendered `prompt` string, with the agent working in the
-Git repository named by `repository`. `${repo}` is the GitHub identity in TOML;
-`${repository}` is the local repository alias.
+Git repository named by `repository`. `${repo}` is a key the GitHub trigger returns;
+`${repository}` is the forge identity derived from the Git remote.
 
 ## GitHub pull requests
 
@@ -136,14 +134,15 @@ Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
 """
 ```
 
-**Placeholders:** common fields plus
-`${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
-`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`,
+**Placeholders:** `${repository}` and `${automation}` from the host, plus the keys
+this trigger returns, including `${pull_request_number}`,
+`${pull_request_title}`, `${pull_request_body}`, `${pull_request_url}`,
+`${pull_request_is_draft}`, `${pull_request_head_ref}`, and
 `${pull_request_base_ref}`.
 
 **What the agent receives:** the rendered review prompt in the Git repository named by
-`repository`. Booleans render as `true` / `false`; missing optional values render as empty
-strings.
+`repository`. Booleans render as `true` / `false`. A field whose value is `None`
+renders as `null`. A `${key}` the result does not contain is left unchanged.
 
 ## Azure DevOps pull requests
 
@@ -172,7 +171,6 @@ Review pull request ${pull_request_number}: ${pull_request_title}
 
 ${pull_request_body}
 
-Repository: ${repo}
 URL: ${pull_request_url}
 Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
 """
@@ -183,10 +181,10 @@ Optional `status` (default `active`), `source_branch`, and `target_branch` filte
 Azure list. The agent still works in the Git repository from the `remote` (or `path`) on
 the repository alias.
 
-**Placeholders:** common fields plus the same pull-request fields as GitHub
-(`${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
-`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`,
-`${pull_request_base_ref}`).
+**Placeholders:** `${repository}` and `${automation}` from the host, plus the keys
+this trigger returns: `${pull_request_number}`, `${pull_request_title}`,
+`${pull_request_body}`, `${pull_request_url}`, `${pull_request_head_ref}`, and
+`${pull_request_base_ref}`.
 
 **What the agent receives:** the rendered prompt in the Git repository named by
 `repository`. `${pull_request_title}` and `${pull_request_body}` are untrusted text, as
@@ -212,11 +210,11 @@ trigger_type = "plugins-py/trello-cli-cards"
 repository = "product"
 board_id = "66f6b55a1a2b3c4d5e6f7788"
 list_ids = ["66f6b55a1a2b3c4d5e6f7790"]
-prompt = "Handle Trello card ${card_id}: ${card_title}\n\n${card_body}\n\n${card_url}"
+prompt = "Handle Trello card ${id}: ${name}\n\n${desc}\n\n${url}"
 ```
 
-**Placeholders:** common fields plus
-`${card_id}`, `${card_title}`, `${card_body}`, `${card_url}`, `${card_list_id}`.
+**Placeholders:** `${repository}` and `${automation}` from the host, plus the keys
+this trigger returns: `${id}`, `${name}`, `${url}`, `${desc}`, and `${list_name}`.
 
 **What the agent receives:** the rendered card prompt in the Git repository named by
 `repository`. `list_ids` is optional; when set, only cards in those lists are scheduled.
@@ -245,20 +243,17 @@ board_id = "1234567890"
 group_ids = ["topics"]
 # token_env = "MONDAY_API_TOKEN"
 prompt = """
-Handle monday.com item ${item_id}: ${item_name}
+Handle monday.com item ${id}: ${name}
 
-Group: ${item_group_title} (${item_group_id})
+Group: ${group_title}
 Board: ${board_id}
-State: ${item_state}
-URL: ${item_url}
-
-${item_columns}
+URL: ${url}
 """
 ```
 
-**Placeholders:** common fields plus
-`${item_id}`, `${item_name}`, `${item_url}`, `${item_group_id}`, `${item_group_title}`,
-`${board_id}`, `${item_state}`, `${item_columns}`.
+**Placeholders:** `${repository}` and `${automation}` from the host, plus the keys
+this trigger returns: `${id}`, `${name}`, `${url}`, `${board_id}`, and
+`${group_title}`.
 
 **What the agent receives:** the rendered item prompt in the Git repository named by
 `repository`. `group_ids` is optional; when set, only items in those groups are scheduled.
@@ -285,11 +280,11 @@ provider = "opencode"
 trigger_type = "cron"
 repository = "api"
 schedule = "0 9 * * 1"
-prompt = "Perform weekly maintenance for ${repository} (run time ${task_number})."
+prompt = "Perform weekly maintenance for ${repository} (${automation})."
 ```
 
-**Placeholders:** common fields only. For cron tasks, `${task_number}` is the scheduled
-run time. Optional `timezone` overrides `[agents.defaults].timezone`; optional
+**Placeholders:** `${repository}` and `${automation}` only. Cron does not return
+trigger pairs. Optional `timezone` overrides `[agents.defaults].timezone`; optional
 `start_date` / `end_date` bound the inclusive window.
 
 **What the agent receives:** the rendered maintenance prompt in the Git repository named
@@ -302,15 +297,16 @@ and the same automation never runs twice at the same time.
 | --- | --- | --- |
 | `unknown trigger type: …` | Typo or plugin not installed | Check `trigger_type` against `curu plugins list` |
 | Repository alias errors / missing repository | `repository` does not match a `[repositories.<alias>]` key | Align the alias and ensure `remote` is a full Git URL |
-| Unknown prompt placeholder | `${name}` not in the common set or the trigger's item fields | Fix the placeholder; `curu plugins list` shows trigger fields |
+| Placeholder left unchanged in the prompt | `${name}` is not a host variable and the trigger did not return that key | Use a key the trigger returns; `curu plugins list` shows declared prompt fields |
 | `Required executable not found: gh` / `az` / `trello` | CLI missing from `PATH` | Install and authenticate the CLI for that trigger |
 | `monday.com API token is missing…` | `token_env` variable unset or empty | Export `MONDAY_API_TOKEN` (or your custom `token_env`) |
 | `schedule must be a valid five-field cron expression` | Six-field cron or invalid expression | Use five fields (`minute hour day-of-month month day-of-week`) |
 | `repo must use the owner/repository format` | GitHub `repo` not `owner/name` | Use `acme/api`, not a URL |
 | `repo must use the organization/project/repository format` | Azure `repo` not three segments | Use `contoso/api-project/api` |
 | No tasks scheduled | Filters match nothing | Widen or drop labels / `list_ids` / `group_ids` / branch filters; empty cycles are not an error |
-| `validate` exits `2` | TOML shape, unknown keys, or placeholder errors | Read the validation message; models reject unknown keys |
+| `validate` exits `2` | TOML shape or unknown configuration keys | Read the validation message; models reject unknown keys |
 
-`curu validate` checks TOML shape and prompt placeholders without calling external APIs.
+`curu validate` checks TOML shape and trigger configuration without calling external APIs.
+It does not require prompt placeholders to match a fixed field list.
 `curu run` and `curu run --watch` need the CLIs (or monday.com token) for your triggers
 and the chosen agent CLI installed and authenticated.

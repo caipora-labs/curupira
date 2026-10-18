@@ -1,6 +1,6 @@
 # Curupira extension protocol
 
-Version **1**. Transport: **JSON-RPC 2.0** over **stdin/stdout** with
+Version **2**. Transport: **JSON-RPC 2.0** over **stdin/stdout** with
 **length-prefixed frames** (never newline-delimited JSON).
 
 Extensions contribute **task sources** (triggers) only. Coding-agent adapters are
@@ -27,7 +27,8 @@ The host sends `initialize` with `protocol_version`. The extension must reply
 with the same major protocol version it implements. The host rejects incompatible
 versions with a clear error (never silently).
 
-Current version: `1`. Compatible range for this host: `1..=1`.
+Current version: `2`. Compatible range for this host: `2..=2`.
+Version 1 extensions are rejected at `initialize`.
 
 ## Methods
 
@@ -37,9 +38,9 @@ Current version: `1`. Compatible range for this host: `1..=1`.
 | `describe` | host → ext | List triggers (and an empty `agents` array for wire compatibility) |
 | `trigger/schema` | host → ext | JSON Schema + prompt fields |
 | `trigger/validate` | host → ext | Validate an automation table |
-| `trigger/poll` | host → ext | Discover the next available task (`task` object or JSON `null`). `null` ends the round; never return a task array. |
-| `trigger/onStarted` | host → ext | Lifecycle before coding agent |
-| `trigger/onFinished` | host → ext | Lifecycle after coding agent |
+| `trigger/poll` | host → ext | Discover the next result (`values`: JSON `null` or a list of string pairs) |
+| `trigger/onStarted` | host → ext | Lifecycle before coding agent; receives the result pairs |
+| `trigger/onFinished` | host → ext | Lifecycle after coding agent; receives the result pairs |
 | `shutdown` | host → ext | Graceful exit |
 
 ### Error codes
@@ -56,6 +57,52 @@ Current version: `1`. Compatible range for this host: `1..=1`.
 | `-32002` | Command execution failure |
 | `-32003` | Configuration validation failure |
 | `-32004` | Timeout |
+
+## Trigger result
+
+`trigger/poll` returns one logical result. The method result is always a JSON
+object so a JSON-RPC `result` of `null` is not used:
+
+```json
+{ "values": null }
+```
+
+```json
+{ "values": [] }
+```
+
+```json
+{ "values": [{ "key": "issue-number", "value": "42" }] }
+```
+
+| `values` | Meaning |
+| --- | --- |
+| `null` | No item was found. The host stops the current poll round. |
+| `[]` | An item was found and it has no pairs. |
+| a list | The pairs that represent the item. |
+
+`values` is required. Omitting it is a protocol error, distinct from `null`.
+Each element is an object with string fields `key` and `value` only. The
+protocol does not require `id`, `number`, `title`, `url`, `item`, or any other
+name, and it does not interpret the pairs.
+
+`trigger/onStarted` and `trigger/onFinished` receive
+`{ "trigger_type": "<local>", "values": [ ... ] }` for the result that is
+running. They do not receive host state such as the rendered prompt, repository
+checkout, or worktree path.
+
+Configuration (`trigger/validate`, `trigger/schema`) is a separate contract.
+Generalizing the result does not remove typed validation of automation
+parameters.
+
+The host turns the list into a task identity by hashing the canonical JSON of
+the pairs in the order received. The same list is not executed again after it
+completes. A different list, including the same pairs in another order, is a
+different task. That identity is not a field the extension sends.
+
+Prompt placeholders are `${key}` for each pair, plus the host variables
+`${repository}` and `${automation}`. See the extension guide for conversion
+and interpolation rules.
 
 ## Manifest
 

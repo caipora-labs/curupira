@@ -180,7 +180,7 @@ schedule = "0 9 * * 1"
 # timezone = "Europe/Rome" # overrides agents.defaults.timezone
 # start_date = 2026-10-05T00:00:00+02:00
 # end_date = 2026-12-31T23:59:00+01:00
-prompt = "Perform weekly maintenance for ${repository} (occurrence ${task_number})."
+prompt = "Perform weekly maintenance for ${repository} (${automation})."
 
 # monday.com GraphQL discovery (read-only). Requires MONDAY_API_TOKEN (or token_env).
 # [automations.board-items]
@@ -190,12 +190,9 @@ prompt = "Perform weekly maintenance for ${repository} (occurrence ${task_number
 # group_ids = ["topics"]
 # # token_env = "MONDAY_API_TOKEN"
 # prompt = """
-# Handle monday.com item ${item_id}: ${item_name}
+# Handle monday.com item ${id}: ${name}
 #
-# Group: ${item_group_title} (${item_group_id})
+# Group: ${group_title}
 # Board: ${board_id}
-# State: ${item_state}
-# URL: ${item_url}
-#
-# ${item_columns}
+# URL: ${url}
 # """

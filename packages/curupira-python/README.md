@@ -166,15 +166,14 @@ arguments is documented on the
 
 ### Prompts and placeholders
 
-Placeholders use `${name}` syntax and are validated when the configuration loads.
-Common fields: `${repo}`, `${repository}`, `${automation_id}`, `${task_type}`,
-`${task_number}`, `${task_title}`, `${task_body}`, `${task_url}`. Trello cards add `${card_id}`,
-`${card_title}`, `${card_body}`, `${card_url}`, `${card_list_id}`. monday.com items add
-`${item_id}`, `${item_name}`, `${item_url}`, and related fields listed in the
-[monday.com task source guide](https://caipora-labs.github.io/curupira/monday/).
-GitHub issue and pull-request placeholders are listed in the
+Placeholders use `${name}` syntax. The host provides `${repository}` and
+`${automation}`. Every other name is a key from the trigger result, substituted
+as a string. A missing name is left unchanged. Official plugins choose their own
+keys: Trello cards use `id`, `name`, `url`, `desc`, and `list_name`; monday.com
+items use `id`, `name`, `url`, `board_id`, and `group_title`. GitHub issue and
+pull-request keys are listed in the
 [GitHub task source guide](https://caipora-labs.github.io/curupira/github/).
-For cron tasks, `${task_number}` is the occurrence timestamp.
+Cron prompts receive only the host variables.
 
 ### Discovery, concurrency, and cron semantics
 

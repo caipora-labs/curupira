@@ -1,5 +1,6 @@
 //! JSON-RPC method names and payload types for Curupira extensions.
 
+use serde::de::{self, Deserializer, MapAccess, Visitor};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -44,9 +45,9 @@ pub const METHOD_DESCRIBE: &str = "describe";
 pub const METHOD_TRIGGER_SCHEMA: &str = "trigger/schema";
 /// Method: validate an automation configuration object.
 pub const METHOD_TRIGGER_VALIDATE: &str = "trigger/validate";
-/// Method: discover the next available task (poll). Returns at most one item.
+/// Method: discover the next result (poll). Returns one key/value list or null.
 pub const METHOD_TRIGGER_POLL: &str = "trigger/poll";
-/// Method: lifecycle — task about to start coding agent.
+/// Method: lifecycle — coding agent about to start.
 pub const METHOD_TRIGGER_ON_STARTED: &str = "trigger/onStarted";
 /// Method: lifecycle — coding agent finished.
 pub const METHOD_TRIGGER_ON_FINISHED: &str = "trigger/onFinished";
@@ -130,52 +131,155 @@ pub struct TriggerPollParams {
     pub limit: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TriggerPollResult {
-    /// Next task payload, or `null` when no item is available this call.
-    #[serde(default, deserialize_with = "deserialize_optional_task")]
-    pub task: Option<Value>,
+/// One string pair from a trigger result. The protocol assigns no meaning to either side.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KeyValue {
+    pub key: String,
+    pub value: String,
 }
 
-fn deserialize_optional_task<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = Option::<Value>::deserialize(deserializer)?;
-    match value {
-        None | Some(Value::Null) => Ok(None),
-        Some(other) => Ok(Some(other)),
+/// `trigger/poll` success payload.
+///
+/// `values: null` means no item was found. An empty list is an item with no pairs.
+/// A filled list is the item. The field is required: omitting it is a protocol error.
+///
+/// `Option` would otherwise accept a missing field as `None`. The manual
+/// deserializer keeps that case distinct from JSON `null`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TriggerPollResult {
+    pub values: Option<Vec<KeyValue>>,
+}
+
+impl<'de> Deserialize<'de> for TriggerPollResult {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ResultVisitor;
+
+        impl<'de> Visitor<'de> for ResultVisitor {
+            type Value = TriggerPollResult;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an object with a values field")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+                let mut values = None;
+                while let Some(key) = map.next_key::<String>()? {
+                    if key != "values" {
+                        return Err(de::Error::unknown_field(&key, &["values"]));
+                    }
+                    if values.is_some() {
+                        return Err(de::Error::duplicate_field("values"));
+                    }
+                    values = Some(map.next_value::<Option<Vec<KeyValue>>>()?);
+                }
+                Ok(TriggerPollResult {
+                    values: values.ok_or_else(|| de::Error::missing_field("values"))?,
+                })
+            }
+        }
+
+        deserializer.deserialize_struct("TriggerPollResult", &["values"], ResultVisitor)
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Lifecycle payload. Carries the trigger result only, not host execution state.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TriggerLifecycleParams {
     pub trigger_type: String,
-    pub task: Value,
+    pub values: Vec<KeyValue>,
 }
 
 #[cfg(test)]
 mod tests {
     use serde_json::json;
 
-    use super::TriggerPollResult;
+    use super::{KeyValue, TriggerPollResult};
 
     #[test]
-    fn poll_result_accepts_null_task() {
-        let parsed: TriggerPollResult = serde_json::from_value(json!({"task": null})).unwrap();
-        assert!(parsed.task.is_none());
+    fn poll_result_null_means_no_item() {
+        let parsed: TriggerPollResult = serde_json::from_value(json!({"values": null})).unwrap();
+        assert!(parsed.values.is_none());
     }
 
     #[test]
-    fn poll_result_accepts_missing_task_as_none() {
-        let parsed: TriggerPollResult = serde_json::from_value(json!({})).unwrap();
-        assert!(parsed.task.is_none());
+    fn poll_result_empty_list_is_an_item() {
+        let parsed: TriggerPollResult = serde_json::from_value(json!({"values": []})).unwrap();
+        assert_eq!(parsed.values, Some(vec![]));
     }
 
     #[test]
-    fn poll_result_accepts_object_task() {
-        let parsed: TriggerPollResult =
-            serde_json::from_value(json!({"task": {"id": "1", "title": "t"}})).unwrap();
-        assert_eq!(parsed.task.unwrap()["id"], "1");
+    fn poll_result_accepts_string_pairs() {
+        let parsed: TriggerPollResult = serde_json::from_value(json!({
+            "values": [{"key": "issue-number", "value": "42"}]
+        }))
+        .unwrap();
+        assert_eq!(
+            parsed.values.unwrap(),
+            vec![KeyValue {
+                key: "issue-number".into(),
+                value: "42".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn poll_result_rejects_missing_values() {
+        assert!(serde_json::from_value::<TriggerPollResult>(json!({})).is_err());
+    }
+
+    #[test]
+    fn poll_result_rejects_legacy_task_object() {
+        let legacy = json!({"task": {"id": "1", "title": "t", "url": "u", "item": {}}});
+        assert!(serde_json::from_value::<TriggerPollResult>(legacy).is_err());
+    }
+
+    #[test]
+    fn poll_result_rejects_non_string_pair() {
+        let parsed = serde_json::from_value::<TriggerPollResult>(json!({
+            "values": [{"key": "n", "value": 1}]
+        }));
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn poll_result_rejects_unknown_pair_field() {
+        let parsed = serde_json::from_value::<TriggerPollResult>(json!({
+            "values": [{"key": "n", "value": "1", "id": "1"}]
+        }));
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn shared_fixtures_round_trip() {
+        for raw in [
+            include_str!("../../tests/fixtures/protocol/poll-values.json"),
+            include_str!("../../tests/fixtures/protocol/poll-null.json"),
+            include_str!("../../tests/fixtures/protocol/poll-empty.json"),
+        ] {
+            let parsed: TriggerPollResult = serde_json::from_str(raw).unwrap();
+            let again = serde_json::to_value(&parsed).unwrap();
+            let original: serde_json::Value = serde_json::from_str(raw).unwrap();
+            assert_eq!(again, original);
+        }
+        let parsed: TriggerPollResult = serde_json::from_str(include_str!(
+            "../../tests/fixtures/protocol/poll-values.json"
+        ))
+        .unwrap();
+        let values = parsed.values.unwrap();
+        assert_eq!(values[0].key, "issue-number");
+        assert_eq!(values[0].value, "42");
+        assert!(values
+            .iter()
+            .any(|pair| pair.key == "ready" && pair.value == "true"));
+        assert!(values
+            .iter()
+            .any(|pair| pair.key == "note" && pair.value == "null"));
+        assert!(!values.iter().any(|pair| {
+            matches!(
+                pair.key.as_str(),
+                "id" | "title" | "url" | "number" | "item"
+            )
+        }));
     }
 }

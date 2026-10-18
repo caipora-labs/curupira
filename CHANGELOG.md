@@ -7,6 +7,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Breaking: trigger results are generic key/value pairs (protocol 2).** The host
+  accepts protocol version `2` only. `trigger/poll` returns `{ "values": null }`
+  when nothing was found, `{ "values": [] }` for an item with no pairs, or
+  `{ "values": [{ "key", "value" }, ...] }` of strings. Omitting `values` is an
+  error. The protocol no longer reads `id`, `title`, `url`, `number`, or `item`.
+  The Python SDK converts one mapping, dataclass, or Pydantic model into those
+  pairs (`None` stays null; a field `None` becomes the string `null`; nested
+  objects become compact JSON). Scalars, collections, non-string keys, duplicate
+  keys, and unaddressable keys (`}`, `${`, empty) are errors. The CLI
+  interpolates `${key}` literally, including keys that are not identifiers, leaves
+  unknown placeholders unchanged, and reserves `${repository}` and `${automation}`
+  for the host. Task identity is a hash of the pair list; previously completed
+  keys do not match. `trigger/onStarted` and `trigger/onFinished` receive the
+  pairs, not the host task. Dry-run and success lines print the task key only.
+
 - **One publish pipeline, versioned per package.** `curupira`, `curupira-sdk`, and
   `curupira-plugins` each have their own version, released by a git tag
   `publish/<project>/<version>`. The tag supplies the version: hatch-vcs reads it for the

@@ -4,7 +4,7 @@
  * or compile/run under Node after transpile. The published pattern is
  * a package "bin" pointing at a JS entry compiled from TypeScript.
  */
-const PROTOCOL = 1;
+const PROTOCOL = 2;
 
 function writeFrame(obj: unknown): void {
   const body = Buffer.from(JSON.stringify(obj), "utf8");
@@ -44,12 +44,12 @@ async function* frames(stream: NodeJS.ReadStream): AsyncGenerator<any> {
         jsonrpc: "2.0",
         id,
         result: {
-          triggers: [{ trigger_type: "ts-test", prompt_fields: ["id"] }],
+          triggers: [{ trigger_type: "ts-test", prompt_fields: [] }],
           agents: [],
         },
       });
     } else if (req.method === "trigger/poll") {
-      writeFrame({ jsonrpc: "2.0", id, result: { task: null } });
+      writeFrame({ jsonrpc: "2.0", id, result: { values: null } });
     } else if (req.method === "shutdown") {
       writeFrame({ jsonrpc: "2.0", id, result: {} });
       return;

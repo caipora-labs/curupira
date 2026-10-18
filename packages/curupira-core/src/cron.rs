@@ -98,14 +98,15 @@ pub fn poll_cron(
         id,
     };
 
+    let prompt =
+        crate::dispatch::render_prompt(&automation.prompt, &[], &automation.identity_repo, name)?
+            .replace("$automation", name);
     Ok(vec![Task {
-        identity: identity.clone(),
+        identity,
         automation_id: name.clone(),
-        title: name.clone(),
-        url: format!("cron://{name}"),
-        item: serde_json::json!({}),
+        values: Vec::new(),
         scheduled_for: Some(occurrence),
-        prompt: render_prompt(&automation.prompt, name),
+        prompt,
         trigger_type: "cron".into(),
         profile_name: automation.profile_name.clone(),
         provider: automation.profile.provider.clone(),
@@ -187,12 +188,6 @@ fn parse_boundary(raw: &str, tz: Tz) -> Result<DateTime<Tz>, CurupiraError> {
             .ok_or_else(|| CurupiraError::Config(format!("ambiguous date {raw}")));
     }
     Err(CurupiraError::Config(format!("invalid date {raw:?}")))
-}
-
-fn render_prompt(template: &str, automation_id: &str) -> String {
-    template
-        .replace("${automation}", automation_id)
-        .replace("$automation", automation_id)
 }
 
 /// Mark cron lifecycle after agent start.

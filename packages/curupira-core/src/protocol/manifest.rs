@@ -155,7 +155,7 @@ mod tests {
 manifest_version = 1
 name = "curupira-plugins"
 version = "0.2.0"
-protocol_version = 1
+protocol_version = 2
 runtime = "python"
 kind = "trigger"
 trigger_types = ["github-issues", "github-pull-requests"]
