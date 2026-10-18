@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import json
 import sys
 import tarfile
 import zipfile
@@ -64,17 +65,38 @@ def test_cargo_version_is_semver(version: str, expected: str) -> None:
     assert publish_tag.cargo_version(Version(version)) == expected
 
 
-def test_stamp_writes_only_the_crate_package_version(tmp_path: Path) -> None:
+def test_stamp_writes_crate_and_npm_versions(tmp_path: Path) -> None:
     cargo = tmp_path / "packages/curupira-core/Cargo.toml"
     cargo.parent.mkdir(parents=True)
     cargo.write_text(
         '[package]\nname = "curupira"\nversion = "0.2.0"\n\n[dependencies.serde]\nversion = "1"\n',
         encoding="utf-8",
     )
+    npm = tmp_path / "packages/curupira-npm/package.json"
+    npm.parent.mkdir(parents=True)
+    npm.write_text(
+        json.dumps(
+            {
+                "name": "@caipora/curupira",
+                "version": "0.2.0",
+                "optionalDependencies": {
+                    "@caipora/curupira-linux-x64": "0.2.0",
+                    "@caipora/curupira-win32-arm64": "0.2.0",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     stamp_release_version.stamp("curupira", Version("0.3.0.dev0"), tmp_path)
     text = cargo.read_text(encoding="utf-8")
     assert 'version = "0.3.0-dev0"' in text
     assert 'version = "1"' in text
+    manifest = json.loads(npm.read_text(encoding="utf-8"))
+    assert manifest["version"] == "0.3.0-dev0"
+    assert manifest["optionalDependencies"] == {
+        "@caipora/curupira-linux-x64": "0.3.0-dev0",
+        "@caipora/curupira-win32-arm64": "0.3.0-dev0",
+    }
 
 
 def test_stamp_writes_every_plugin_manifest_version(tmp_path: Path) -> None:

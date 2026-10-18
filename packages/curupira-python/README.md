@@ -31,11 +31,16 @@ scheduling, and execution pipeline: `run` drains currently available tasks, whil
 
 ## Installation
 
-Install the published package from PyPI (ships the Rust CLI only):
+Install the Rust CLI from npm or PyPI. Both ship the same executable and use
+`~/.curupira/` for configuration and state. The npm install does not need Python.
 
 ```bash
+npm install -g @caipora/curupira
+# or, without a global install:
+npx @caipora/curupira --help
+
+# Python
 uv tool install curupira
-# or
 pip install curupira
 ```
 

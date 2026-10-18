@@ -2,6 +2,9 @@
 range = ">=3.11"
 platforms = "Linux, macOS, and Windows"
 
+[node]
+range = "20 or newer"
+
 [[required_tools]]
 name = "Git"
 url = "https://git-scm.com/"

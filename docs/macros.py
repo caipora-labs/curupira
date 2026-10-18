@@ -78,7 +78,17 @@ def define_env(env: MacroEnvironment) -> None:
     @env.macro
     def requirements_list() -> str:
         python = _REQUIREMENTS["python"]
-        lines = [f"- Python {python['range']} on {python['platforms']}."]
+        node = _REQUIREMENTS["node"]
+        lines = [
+            (
+                f"- Python {python['range']} on {python['platforms']}, only for the PyPI "
+                "install and for extensions launched with `uvx`."
+            ),
+            (
+                f"- Node.js {node['range']}, only for the npm install (`@caipora/curupira`) "
+                "and for extensions launched with `npx`."
+            ),
+        ]
         for tool in _REQUIREMENTS["required_tools"]:
             lines.append(f"- [{tool['name']}]({tool['url']}): {tool['detail']}")
         for tool in _REQUIREMENTS["optional_tools"]:

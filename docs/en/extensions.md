@@ -12,16 +12,23 @@ and do not use the extension protocol.
 ## Install the CLI
 
 ```bash
+# Node.js
+npm install -g @caipora/curupira
+
+# Python
 pip install curupira
 # or
 uv tool install curupira
 ```
 
-`curupira` and `curu` are the same binary. The base wheel ships only that Rust CLI
-(plus a thin `curupira.__version__` shim). Official triggers ship as one optional
-package (`curupira-plugins`, which depends on `curupira-sdk`): install with extras or
-`curupira plugins install`. Built-in **cron** needs no extension package. Node.js is
-required only when you install a Node-based third-party trigger extension.
+`curupira` and `curu` run the same Rust binary either way, and both use
+`~/.curupira/`. The npm package does not change extension launchers and does not
+install a Python or Node.js environment of its own. The PyPI wheel also ships a thin
+`curupira.__version__` shim. Official triggers ship as one optional package
+(`curupira-plugins`, which depends on `curupira-sdk`): install with extras or
+`curupira plugins install`. Built-in **cron** needs no extension package. `uvx`
+extensions need `uvx` on `PATH`; `npx` extensions need `npx` on `PATH`. If the
+configured launcher is missing, validation says so.
 
 ```bash
 # official triggers (pulls curupira-sdk transitively)

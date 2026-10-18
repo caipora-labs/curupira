@@ -36,8 +36,9 @@ repositories and boards where you trust everyone who can write text.
    your profile:
 
    ```bash
-   uv tool install curupira
-   # forge triggers are optional extras, for example:
+   npm install -g @caipora/curupira
+   # or: uv tool install curupira
+   # forge triggers are optional PyPI extras, for example:
    # uv tool install 'curupira[github]'
    ```
 
