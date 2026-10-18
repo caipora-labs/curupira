@@ -45,7 +45,10 @@ test("publish workflow targets match the npm platform list", () => {
   }
   assert.match(workflow, /npm pack --pack-destination dist-npm \.\/npm-stage\/curupira/);
   assert.match(workflow, /dist-npm\/caipora-labs-curupira-\$\{VERSION\}\.tgz/);
-  assert.match(workflow, /npm publish dist-npm\/caipora-labs-curupira-\*\.tgz/);
+  // A bare `dir/file.tgz` is parsed by npm as a GitHub `user/repo` shorthand.
+  assert.match(workflow, /npm publish \.\/dist-npm\/caipora-labs-curupira-\*\.tgz/);
+  assert.match(workflow, /npm publish "\.\/\$\{tarballs\[0\]\}"/);
+  assert.doesNotMatch(workflow, /npm publish (dist-npm|"\$\{tarballs)/);
   assert.doesNotMatch(workflow, /dist-npm\/platform|Publish platform packages/);
   assert.doesNotMatch(workflow, /vars\.NPM_|NPM_OIDC_READY|NPM_MANUAL_BOOTSTRAP_VERSION/);
   assert.doesNotMatch(workflow, /NPM_BOOTSTRAP_TOKEN|NODE_AUTH_TOKEN|workflow_dispatch/);
