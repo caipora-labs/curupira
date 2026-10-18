@@ -72,7 +72,9 @@ esperando aprovação. Veja [Providers e agentes](providers.md).
 
 ## Tratar o feedback de revisão
 
-Pegue pull requests em que um revisor pediu mudanças e mostre a conversa ao agente.
+Pegue pull requests em que um revisor pediu mudanças. A conversa de revisão não é um campo do prompt
+(veja [Deixado de fora de propósito](prompt-fields.md#left-out-on-purpose)), então o prompt diz ao
+agente onde lê-la.
 
 ```toml
 [automations.address-feedback]
@@ -84,12 +86,9 @@ draft = false
 prompt = """
 O pull request #${pull_request_number} precisa de mudanças: ${pull_request_title}
 
-Últimos comentários:
-{% for c in pull_request_comments | fromjson %}
-- {{ c.author }}: {{ c.body | truncate(400) }}
-{% endfor %}
-
-Faça as mudanças solicitadas na branch ${pull_request_head_ref}.
+Leia a revisão com `gh pr view ${pull_request_number} --repo ${repo} --comments` e
+`gh api repos/${repo}/pulls/${pull_request_number}/comments`, depois faça as mudanças solicitadas na
+branch ${pull_request_head_ref}.
 """
 ```
 
@@ -127,9 +126,9 @@ labels = ["agent-ready"]
 prompt = """
 Resolva a issue #${issue_number}: ${issue_title}
 
-{% if "security" in issue_labels %}
+{% if "security" in issue_labels | fromjson %}
 Esta issue está relacionada à segurança. Mantenha a mudança mínima e descreva o risco na mensagem de commit.
-{% elif "bug" in issue_labels %}
+{% elif "bug" in issue_labels | fromjson %}
 Isto é um bug. Escreva primeiro um teste que falhe e depois corrija.
 {% else %}
 Implemente o pedido e adicione testes.
@@ -167,6 +166,6 @@ repository = "api"
 schedule = "0 9 * * 1"        # toda segunda-feira às 09:00 no fuso horário configurado
 prompt = """
 Verifique as dependências e a configuração de CI de ${repository}. Abra um pull request com
-as atualizações seguras. Número da execução: ${task_number}.
+as atualizações seguras. Automação: ${automation}.
 """
 ```

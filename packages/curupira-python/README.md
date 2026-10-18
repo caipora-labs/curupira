@@ -26,11 +26,16 @@ scheduling, and execution pipeline: `run` drains currently available tasks, whil
 
 ## Installation
 
-Install the published package from PyPI (ships the Rust CLI only):
+Install the Rust CLI from npm or PyPI. Both ship the same executable and use
+`~/.curupira/` for configuration and state. The npm install does not need Python.
 
 ```bash
+npm install -g @caipora/curupira
+# or, without a global install:
+npx @caipora/curupira --help
+
+# Python
 uv tool install curupira
-# or
 pip install curupira
 ```
 
@@ -151,12 +156,13 @@ arguments is documented on the
 
 ### Prompts and placeholders
 
-Placeholders use `${name}` syntax and are validated when the configuration loads.
-Common fields: `${repo}`, `${repository}`, `${automation_id}`, `${task_type}`,
-`${task_number}`, `${task_title}`, `${task_body}`, `${task_url}`.
-GitHub issue and pull-request placeholders are listed in the
+Placeholders use `${name}` syntax. The host provides `${repository}` and
+`${automation}`. Every other name is a key from the trigger result, substituted
+as a string. A missing name is left unchanged. For dynamic prompts, Jinja syntax
+(`{{ name }}`, `{% if %}`, `{% for %}`) works next to `${name}`; the keys of the
+GitHub triggers are listed in the
 [GitHub task source guide](https://caipora-labs.github.io/curupira/github/).
-For cron tasks, `${task_number}` is the occurrence timestamp.
+Cron prompts receive only the host variables.
 
 ### Discovery, concurrency, and cron semantics
 

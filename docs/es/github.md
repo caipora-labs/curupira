@@ -157,7 +157,7 @@ curupira --config path/to/settings.toml run --watch --size 12
    ```
 
 `--dry-run` no se puede combinar con `--watch` ni con `--size`. `validate` comprueba la
-estructura del TOML y los placeholders del prompt sin llamar a GitHub; `run` y
+estructura del TOML y la configuración del trigger sin llamar a GitHub; `run` y
 `run --watch` necesitan `gh` y la CLI del agente elegido instaladas y autenticadas.
 
 ## Campos de configuración { #configuration-fields }
@@ -243,24 +243,29 @@ tipado.
 
 ### Deduplicación { #deduplication }
 
-Una tarea se identifica por `[automation_id, repo, task_type, id]`. Curupira mantiene dos
+El host identifica un resultado calculando un hash de la lista de pares clave/valor que devolvió el
+trigger, en ese orden, junto con la automatización, el repositorio y el tipo de trigger. Curupira mantiene dos
 registros:
 
-- **Las tareas completadas se recuerdan entre reinicios.** Cuando el agente termina con
-  éxito, la tarea se guarda en la base de datos de estado (`state_db_path`) y nunca
-  vuelve a ejecutarse para esa automatización, aunque el elemento siga coincidiendo con
-  tus filtros.
+- **Las tareas completadas se recuerdan entre reinicios.** Cuando el agente termina con éxito, la
+  clave se guarda en la base de datos de estado (`state_db_path`), y un poll posterior que devuelva los mismos
+  pares se omite, incluso después de un reinicio.
 - **Las tareas fallidas se reintentan.** Una tarea cuya ejecución del agente falló no se
   guarda como completada. Se omite durante el resto del proceso actual y se intenta de
   nuevo tras un reinicio.
 
-La deduplicación es por automatización, así que dos automatizaciones pueden procesar el
-mismo issue o pull request con prompts distintos. `run --dry-run` previsualiza sin
-registrar nada.
+Cambiar cualquier valor devuelto, incluidos el título, el cuerpo o los labels, crea una tarea distinta. Por
+eso los triggers oficiales no devuelven valores que cambian por sí solos o porque el
+agente trabajó en el elemento (comentarios, hora de actualización, estado de CI y de revisión, pull requests vinculados):
+el agente se iniciaría de nuevo para el mismo issue. Cuando el agente los necesite, indícale que los lea,
+por ejemplo con `gh issue view ${issue_number} --comments`.
+
+La clave es por automatización, así que dos automatizaciones pueden procesar el mismo issue o pull request con
+prompts distintos. `run --dry-run` previsualiza sin registrar la finalización.
 
 !!! tip "Ejecutar un elemento otra vez"
-    Para ejecutar de nuevo un elemento completado, usa un nombre de automatización
-    distinto (una automatización nueva tiene su propio historial) o elimina la fila de la
+    Para ejecutar de nuevo un elemento completado, edítalo (basta con un label o el título), usa un nombre de
+    automatización distinto (una automatización nueva tiene su propio historial) o elimina la fila de la
     base de datos de estado. Cambiar solo los filtros no vuelve a hacer elegible un
     elemento completado.
 
@@ -271,15 +276,13 @@ cinco minutos (`300` segundos). Cualquier descubrimiento exitoso restablece el i
 ## Qué recibe el prompt del agente { #what-the-agent-prompt-receives }
 
 El prompt puede usar `${field}` o sintaxis Jinja; consulta [Escribir prompts](prompts.md).
-Todos los campos de issues y pull requests (título, cuerpo, labels, asignados,
-comentarios, estado de revisión, estado de CI y más) están listados en la
+Todos los campos de issues y pull requests (título, cuerpo, labels, asignados, hito, tamaño del diff y más) están listados en la
 [Referencia de campos del prompt](prompt-fields.md).
 
 ## Seguridad: el texto de issues y pull requests no es confiable { #security }
 
-Los títulos, cuerpos y comentarios (`${issue_title}`, `${issue_body}`, `${issue_comments}`,
-`${pull_request_title}`, `${pull_request_body}`, `${pull_request_comments}`, `${item_body}`,
-`${item_comments}`) vienen de cualquier persona que pueda abrir un issue o pull request y
+Los títulos y cuerpos (`${issue_title}`, `${issue_body}`, `${pull_request_title}`,
+`${pull_request_body}`, `${item_body}`) vienen de cualquier persona que pueda abrir un issue o pull request y
 se colocan en el prompt del agente de código, así que un autor hostil puede intentar
 dirigir al agente (prompt injection). El agente puede ejecutar acciones destructivas en el
 checkout donde trabaja, por lo que el riesgo depende de lo que permitas en el perfil del
@@ -325,6 +328,6 @@ configuración global y las credenciales de OpenCode, sigue compartido.
 | `GitHub GraphQL temporarily failed with status 429` (o similar) | Límite de tasa o fallo transitorio de la API | Curupira reintenta los errores transitorios unas cuantas veces; espera o reduce la frecuencia de polling / `batch_size` |
 | Advertencias de descubrimiento en `run --watch` | Un fallo de GraphQL o de la CLI se trata como ciclo vacío | Revisa los logs en busca de `Discovery failed for …`; corrige la autenticación o la red y espera al siguiente poll |
 
-`curupira validate` comprueba la estructura del TOML y los placeholders del prompt sin
+`curupira validate` comprueba la estructura del TOML y la configuración del trigger sin
 llamar a GitHub. `curupira run` y `curupira run --watch` necesitan `gh` instalado y
 autenticado.

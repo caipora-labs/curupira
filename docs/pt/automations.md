@@ -22,8 +22,7 @@ mostra todos os tipos registrados e seus campos de prompt.
 
 Títulos e corpos de issues e pull requests do GitHub são entrada não confiável. O Curupira
 os coloca no prompt do agente de código (`${issue_title}`, `${issue_body}`,
-`${pull_request_title}`, `${pull_request_body}` e os campos compartilhados `${task_title}` /
-`${task_body}`). Um autor hostil pode tentar manipular o agente. Restrinja o que chega ao
+`${pull_request_title}`, `${pull_request_body}`, `${item_body}`). Um autor hostil pode tentar manipular o agente. Restrinja o que chega ao
 agente com `labels`, `author` ou `assignee`. Revise o que o perfil do agente tem permissão
 para executar no repositório. Só execute automações em repositórios nos quais você confia em
 todas as pessoas que podem escrever texto.
@@ -35,8 +34,9 @@ todas as pessoas que podem escrever texto.
    do seu perfil:
 
    ```bash
-   uv tool install curupira
-   # os triggers de forge são extras opcionais, por exemplo:
+   npm install -g @caipora/curupira
+   # ou: uv tool install curupira
+   # os triggers de forge são extras opcionais do PyPI, por exemplo:
    # uv tool install 'curupira[github]'
    ```
 
@@ -96,14 +96,13 @@ linked_pull_request = false
 prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 ```
 
-**Placeholders:** campos comuns
-(`${repo}`, `${repository}`, `${automation_id}`, `${task_type}`, `${task_number}`,
-`${task_title}`, `${task_body}`, `${task_url}`) mais
-`${issue_number}`, `${issue_title}`, `${issue_body}`, `${issue_url}`.
+**Placeholders:** `${repository}` e `${automation}` vindos do host, mais as chaves
+que este trigger retorna, incluindo `${repo}`, `${issue_number}`, `${issue_title}`,
+`${issue_body}` e `${issue_url}`.
 
 **O que o agente recebe:** a string `prompt` renderizada, com o agente trabalhando no
-repositório Git indicado por `repository`. `${repo}` é a identidade no GitHub definida no
-TOML; `${repository}` é o alias do repositório local.
+repositório Git indicado por `repository`. `${repo}` é uma chave retornada pelo trigger do GitHub;
+`${repository}` é a identidade do forge derivada do remote Git.
 
 ## Pull requests do GitHub { #github-pull-requests }
 
@@ -135,14 +134,15 @@ Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
 """
 ```
 
-**Placeholders:** campos comuns mais
-`${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
-`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`,
+**Placeholders:** `${repository}` e `${automation}` vindos do host, mais as chaves
+que este trigger retorna, incluindo `${pull_request_number}`,
+`${pull_request_title}`, `${pull_request_body}`, `${pull_request_url}`,
+`${pull_request_is_draft}`, `${pull_request_head_ref}` e
 `${pull_request_base_ref}`.
 
 **O que o agente recebe:** o prompt de revisão renderizado no repositório Git indicado por
-`repository`. Valores booleanos são renderizados como `true` / `false`; valores opcionais
-ausentes são renderizados como strings vazias.
+`repository`. Valores booleanos são renderizados como `true` / `false`. Um campo cujo valor é `None`
+é renderizado como `null`. Um `${key}` que o resultado não contém é deixado inalterado.
 
 ## Cron { #cron }
 
@@ -166,11 +166,11 @@ provider = "opencode"
 trigger_type = "cron"
 repository = "api"
 schedule = "0 9 * * 1"
-prompt = "Perform weekly maintenance for ${repository} (run time ${task_number})."
+prompt = "Perform weekly maintenance for ${repository} (${automation})."
 ```
 
-**Placeholders:** apenas os campos comuns. Em tarefas de cron, `${task_number}` é o horário
-da execução agendada. O `timezone` opcional sobrescreve `[agents.defaults].timezone`;
+**Placeholders:** apenas `${repository}` e `${automation}`. O cron não retorna
+pares do trigger. O `timezone` opcional sobrescreve `[agents.defaults].timezone`;
 `start_date` / `end_date` opcionais delimitam a janela inclusiva.
 
 **O que o agente recebe:** o prompt de manutenção renderizado no repositório Git indicado
@@ -183,13 +183,15 @@ execução pendente, e a mesma automação nunca roda duas vezes ao mesmo tempo.
 | --- | --- | --- |
 | `unknown trigger type: …` | Erro de digitação ou plugin não instalado | Confira o `trigger_type` com `curu plugins list` |
 | Erros de alias de repositório / repositório ausente | `repository` não corresponde a uma chave `[repositories.<alias>]` | Alinhe o alias e garanta que `remote` seja uma URL Git completa |
-| Placeholder de prompt desconhecido | `${name}` não está no conjunto comum nem nos campos de item do trigger | Corrija o placeholder; `curu plugins list` mostra os campos do trigger |
+| Placeholder deixado inalterado no prompt | `${name}` não é uma variável do host e o trigger não retornou essa chave | Use uma chave que o trigger retorna; veja a [Referência de campos do prompt](prompt-fields.md). O `validate` sugere a chave mais próxima |
+| `prompt uses unknown field(s)` no `validate` | Um `{{ name }}` (ou um `${name}` que parece um erro de digitação) não é uma chave deste trigger | Corrija o nome; a mensagem lista os campos disponíveis |
+| Erro de template do prompt com número de linha | Sintaxe Jinja inválida, por exemplo um bloco `if` sem o `endif` | Corrija a linha indicada. Para imprimir chaves duplas literais, use um bloco `raw`, veja [Escrevendo prompts](prompts.md#values-are-text) |
 | `Required executable not found: gh` | CLI ausente do `PATH` | Instale e autentique a CLI desse trigger |
 | `schedule must be a valid five-field cron expression` | Cron de seis campos ou expressão inválida | Use cinco campos (`minute hour day-of-month month day-of-week`) |
 | `repo must use the owner/repository format` | `repo` do GitHub não está no formato `owner/name` | Use `acme/api`, não uma URL |
 | No tasks scheduled | Os filtros não encontram nada | Amplie ou remova os filtros de labels / branch; ciclos vazios não são um erro |
-| `validate` termina com `2` | Estrutura do TOML, chaves desconhecidas ou erros de placeholder | Leia a mensagem de validação; os modelos rejeitam chaves desconhecidas |
+| `validate` termina com `2` | Estrutura do TOML, chaves de configuração desconhecidas ou erros de prompt | Leia a mensagem de validação; os modelos rejeitam chaves desconhecidas |
 
-`curu validate` verifica a estrutura do TOML e os placeholders do prompt sem chamar APIs
-externas. `curu run` e `curu run --watch` exigem que as CLIs dos seus triggers
+`curu validate` verifica a estrutura do TOML, a configuração dos triggers e o prompt (sintaxe e nomes de campos)
+sem chamar APIs externas. `curu run` e `curu run --watch` exigem que as CLIs dos seus triggers
 e a CLI do agente escolhido estejam instaladas e autenticadas.

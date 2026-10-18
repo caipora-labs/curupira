@@ -14,7 +14,6 @@ from pydantic import ValidationError
 from curupira_plugins.github.client import Discovery, GitHubClient, GitHubCliToken, parse_nodes
 from curupira_plugins.github.filters import IssueFilters, ProjectFilters, PullRequestFilters
 from curupira_plugins.github.models import (
-    CommentConnection,
     IssueItem,
     IssueNode,
     ProjectItem,
@@ -49,17 +48,6 @@ def _check_pull_request_filters(kwargs: dict[str, object]) -> None:
         raise RpcError(-32003, _validation_message(exc)) from exc
 
 
-def _comments_json(comments: CommentConnection) -> str:
-    """Render the latest comments as JSON; their text is untrusted, like the issue body."""
-    return json.dumps(
-        [
-            {"author": comment.author.login if comment.author else "", "body": comment.body}
-            for comment in comments.nodes
-        ],
-        ensure_ascii=False,
-    )
-
-
 def _reference_urls(references: ReferenceConnection) -> list[str]:
     return [reference.url for reference in references.nodes]
 
@@ -87,11 +75,7 @@ def _issue_item(repo: str, node: IssueNode) -> IssueItem:
         issue_assignees=[actor.login for actor in node.assignees.nodes],
         issue_milestone=node.milestone.title if node.milestone else "",
         issue_created_at=node.created_at,
-        issue_updated_at=node.updated_at,
         issue_state_reason=node.state_reason or "",
-        issue_linked_pull_requests=_reference_urls(node.closed_by_pull_requests_references),
-        issue_comment_count=node.comments.total_count,
-        issue_comments=_comments_json(node.comments),
     )
 
 
@@ -116,16 +100,10 @@ def _pull_request_item(repo: str, node: PullRequestNode) -> PullRequestItem:
         pull_request_assignees=[actor.login for actor in node.assignees.nodes],
         pull_request_milestone=node.milestone.title if node.milestone else "",
         pull_request_created_at=node.created_at,
-        pull_request_updated_at=node.updated_at,
-        pull_request_review_decision=node.review_decision or "",
-        pull_request_ci_status=node.ci_status,
         pull_request_changed_files=node.changed_files,
         pull_request_additions=node.additions,
         pull_request_deletions=node.deletions,
         pull_request_closing_issues=_reference_urls(node.closing_issues_references),
-        pull_request_requested_reviewers=node.requested_reviewers,
-        pull_request_comment_count=node.comments.total_count,
-        pull_request_comments=_comments_json(node.comments),
     )
 
 
@@ -202,7 +180,7 @@ def _project_item(
         project_title=project_title,
         project_url=project_url,
         project_column=fields.get(filters.status_field, ""),
-        project_fields=json.dumps(fields, ensure_ascii=False),
+        project_fields=json.dumps(fields, ensure_ascii=False, sort_keys=True),
         item_type=item_type,
         item_number=base.number,
         item_title=base.title,
@@ -214,15 +192,10 @@ def _project_item(
         item_assignees=assignees,
         item_milestone=base.milestone.title if base.milestone else "",
         item_created_at=base.created_at,
-        item_updated_at=base.updated_at,
-        item_comment_count=base.comments.total_count,
-        item_comments=_comments_json(base.comments),
         pull_request_head_ref=pull_request.head_ref_name if pull_request else "",
         pull_request_base_ref=pull_request.base_ref_name if pull_request else "",
         pull_request_head_sha=pull_request.head_ref_oid if pull_request else "",
         pull_request_is_draft=pull_request.is_draft if pull_request else False,
-        pull_request_review_decision=(pull_request.review_decision or "") if pull_request else "",
-        pull_request_ci_status=pull_request.ci_status if pull_request else "",
     )
 
 

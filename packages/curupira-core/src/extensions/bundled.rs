@@ -12,7 +12,7 @@ pub fn official_manifests() -> Vec<ExtensionManifest> {
         manifest_version: 1,
         name: "curupira-plugins".into(),
         version: VERSION.into(),
-        protocol_version: 1,
+        protocol_version: 2,
         runtime: ExtensionRuntime::Python,
         kind: ExtensionKind::Trigger,
         launch: LaunchSpec::Executable {

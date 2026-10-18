@@ -9,7 +9,8 @@ All notable changes to this project are documented here. The format follows
 
 - **Dynamic prompts.** Prompts accept Jinja syntax (`{{ field }}`, `{% if %}`, `{% for %}`,
   filters such as `default`, `truncate`, and `fromjson`) next to the existing `${field}`,
-  which keeps working. Item text is never interpreted as a template. `validate` now checks
+  which keeps working (an unknown `${name}` is still left unchanged). Field text is never
+  interpreted as a template. `validate` now checks
   prompt syntax and unknown fields (with "did you mean" hints), and `run --dry-run` prints the
   rendered prompt. See `docs/en/prompts.md`.
 - **GitHub Projects trigger.** `plugins-py/github-project-items` finds issues and pull
@@ -24,23 +25,49 @@ All notable changes to this project are documented here. The format follows
   languages drift apart (`.github/scripts/check_docs_parity.py`).
 - **Friendlier GitHub filters.** `labels`, `exclude_labels`, `merge_state`, and `column` accept a
   single string as well as a list.
-- **Richer prompt fields for issues and pull requests.** Assignees, milestone, timestamps,
-  the latest comments (as JSON), linked pull requests / closing issues, review decision, CI
-  status, diff size, and requested reviewers.
-
-### Fixed
-
-- The documented common prompt fields (`repo`, `repository`, `automation_id`, `task_type`,
-  `task_number`, `task_title`, `task_body`, `task_url`) are now provided. `${repository}` is the
-  checkout alias, as documented; it used to be the forge identity.
+- **Richer prompt fields for issues and pull requests.** Assignees, milestone, creation time,
+  close reason, and, for pull requests, diff size and the issues they close. Fields that change
+  without the item being edited (comments, update time, CI and review state) are left out on
+  purpose, because the task identity is a hash of every returned field.
 
 ### Removed
 
 - **Breaking:** the Azure DevOps (`azure-cli-pull-requests`), Trello (`trello-cli-cards`), and
   monday.com (`monday-items`) triggers, their docs, and the `azure`, `trello`, and `monday`
   extras of `curupira`. The plugin package is GitHub-only for now.
+- **`@caipora/curupira` (npm CLI).** `packages/curupira-npm/` installs the existing Rust
+  `curupira` and `curu` binaries through Node.js, without Python, pip, uv, or a Rust
+  toolchain. Platform packages (`@caipora/curupira-linux-x64`, musl, macOS, and Windows,
+  including ARM64) are optional dependencies built from the same maturin wheels as the
+  PyPI release. Configuration, state, extensions, and the dispatch lock stay in
+  `~/.curupira/`. A `publish/curupira/<version>` tag builds and, on push, publishes the
+  npm packages with the Cargo form of that version. Docs: `docs/en/installation.md`.
+- **`@caipora/curupira-sdk` (Node.js).** New package under `packages/curupira-js-sdk/`
+  provides a declarative `defineTriggers({ ... })` API for JavaScript and TypeScript
+  extensions, protocol-2 serialization to string key/value pairs (or `null`), and a
+  stdio runtime so a package `bin` can speak JSON-RPC without hand-rolling framing.
+  Register npm plugins with `[plugins.<alias>] type = "npx"` and
+  `args = ["--yes", "@scope/pkg@version"]`. Docs: `docs/en/extensions.md` and the
+  package README. Examples: `packages/curupira-js-sdk/examples/`.
 
 ### Changed
+
+- **Breaking: trigger results are generic key/value pairs (protocol 2).** The host
+  accepts protocol version `2` only. `trigger/poll` returns `{ "values": null }`
+  when nothing was found, `{ "values": [] }` for an item with no pairs, or
+  `{ "values": [{ "key", "value" }, ...] }` of strings. Omitting `values` is an
+  error. The protocol no longer reads `id`, `title`, `url`, `number`, or `item`.
+  The Python SDK converts one mapping, dataclass, or Pydantic model into those
+  pairs (`None` stays null; a field `None` becomes the string `null`; nested
+  objects become compact JSON). Scalars, collections, non-string keys, duplicate
+  keys, and unaddressable keys (`}`, `${`, empty) are errors. The CLI
+  interpolates `${key}` literally, including keys that are not identifiers, leaves
+  unknown placeholders unchanged, and reserves `${repository}` and `${automation}`
+  for the host. Task identity is a hash of the pair list; previously completed
+  keys do not match. `trigger/onStarted` and `trigger/onFinished` receive the
+  pairs, not the host task. Dry-run and success lines print the task key only.
+- **Clearer missing-`npx` errors.** Config validation and Node extension launch report
+  that Node.js must be installed so `npx` is on `PATH`.
 
 - **One publish pipeline, versioned per package.** `curupira`, `curupira-sdk`, and
   `curupira-plugins` each have their own version, released by a git tag

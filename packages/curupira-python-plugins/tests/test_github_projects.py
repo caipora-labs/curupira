@@ -96,8 +96,6 @@ def test_item_in_column_maps_prompt_fields() -> None:
     assert item.project_title == "Board"
     assert '"Priority": "P1"' in item.project_fields
     assert item.item_labels == ["agent-ready"]
-    assert item.item_comment_count == 1
-    assert '"author": "bob"' in item.item_comments
 
 
 def test_pull_request_content_exposes_branch_and_review_fields() -> None:
@@ -108,8 +106,6 @@ def test_pull_request_content_exposes_branch_and_review_fields() -> None:
     assert item is not None
     assert item.item_type == "pull_request"
     assert item.pull_request_head_ref == "feat"
-    assert item.pull_request_review_decision == "APPROVED"
-    assert item.pull_request_ci_status == "SUCCESS"
 
 
 def test_column_match_is_case_insensitive_and_accepts_a_list() -> None:
@@ -239,7 +235,7 @@ def test_validate_rpc_requires_column() -> None:
 def test_project_trigger_prompt_fields_are_declared() -> None:
     spec = next(s for s in plugins_main.app.triggers() if s.name == "github-project-items")
 
-    assert {"item_title", "project_column", "item_comments"} <= set(spec.prompt_fields)
+    assert {"item_title", "project_column", "project_fields"} <= set(spec.prompt_fields)
 
 
 def test_trigger_accepts_single_strings_where_lists_are_expected() -> None:

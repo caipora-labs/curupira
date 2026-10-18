@@ -93,10 +93,12 @@ você (ou uma automação posterior) move o card:
 | `Ready` | `column = "Ready"` | Implementa a issue e abre um pull request |
 | `Review` | `column = "Review"`, `content = "pull_request"` | Revisa o pull request e comenta |
 
-Cada item é tratado uma vez: quando o agente termina com sucesso, essa issue ou esse pull request
-é lembrado e não é executado novamente pela mesma automação, mesmo que você arraste o card de volta para
-a coluna. Veja [Deduplicação](github.md#deduplication). Cards cuja execução do agente falhou são tentados
-novamente após uma reinicialização.
+Uma tarefa é identificada pelos valores exatos do card. Quando o agente termina com sucesso, esses
+valores são lembrados, então a mesma issue ou o mesmo pull request na mesma coluna, com o mesmo título,
+labels e campos, não é executado novamente pela mesma automação, mesmo após uma reinicialização ou se você arrastar
+o card para fora e de volta. Editar o item (ou movê-lo para outra coluna) o torna uma nova
+tarefa. Veja [Deduplicação](github.md#deduplication). Cards cuja execução do agente falhou são tentados novamente
+após uma reinicialização.
 
 ## O que o prompt pode usar
 

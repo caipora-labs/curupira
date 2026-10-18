@@ -109,7 +109,7 @@ type = "uvx"
 args = ["--from", "curupira-plugins", "curupira-plugins"]
 tools = ["*"]
 
-# Node example:
+# Node example (package bin speaks the extension protocol; SDK is a dependency):
 # [plugins.acme-node]
 # type = "npx"
 # args = ["--yes", "@acme/curupira-ext@1.2.3"]
@@ -167,7 +167,7 @@ Review pull request #{{ item_number }}: {{ item_title }}
 {% else %}
 Resolve issue #{{ item_number }}: {{ item_title }}
 {% endif %}
-{% if "security" in item_labels %}
+{% if "security" in item_labels | fromjson %}
 This is security related: keep the change minimal.
 {% endif %}
 
@@ -184,4 +184,4 @@ schedule = "0 9 * * 1"
 # timezone = "Europe/Rome" # overrides agents.defaults.timezone
 # start_date = 2026-10-05T00:00:00+02:00
 # end_date = 2026-12-31T23:59:00+01:00
-prompt = "Perform weekly maintenance for ${repository} (occurrence ${task_number})."
+prompt = "Perform weekly maintenance for ${repository} (${automation})."

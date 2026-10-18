@@ -4,6 +4,11 @@ platforms = "Linux, macOS, and Windows"
 platforms_pt = "Linux, macOS e Windows"
 platforms_es = "Linux, macOS y Windows"
 
+[node]
+range = "20 or newer"
+range_pt = "20 ou superior"
+range_es = "20 o superior"
+
 [[required_tools]]
 name = "Git"
 url = "https://git-scm.com/"

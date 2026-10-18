@@ -149,7 +149,7 @@ fn validate_accepts_jinja_and_dollar_prompts() {
     let dir = tempfile::tempdir().expect("tempdir");
     let config = cron_config(
         dir.path(),
-        "{% if repository == 'api' %}API{% endif %} ${automation} {{ task_number }}",
+        "{% if repository == 'acme/api' %}API{% endif %} ${automation} {{ automation }} ${HOME}",
     );
 
     cargo_bin_cmd!("curupira")

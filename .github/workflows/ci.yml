@@ -22,6 +22,8 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
       python: ${{ steps.filter.outputs.python }}
       sdk: ${{ steps.filter.outputs.sdk }}
+      js_sdk: ${{ steps.filter.outputs.js_sdk }}
+      npm_cli: ${{ steps.filter.outputs.npm_cli }}
       plugins: ${{ steps.filter.outputs.plugins }}
       package: ${{ steps.filter.outputs.package }}
       docs: ${{ steps.filter.outputs.docs }}
@@ -33,6 +35,7 @@ jobs:
           filters: |
             rust:
               - 'packages/curupira-core/**'
+              - 'packages/curupira-js-sdk/**'
               - '.github/workflows/ci.yml'
               - '.github/scripts/**'
               - 'uv.lock'
@@ -41,6 +44,17 @@ jobs:
               - '.github/workflows/ci.yml'
               - 'uv.lock'
               - 'pyproject.toml'
+            js_sdk:
+              - 'packages/curupira-js-sdk/**'
+              - 'packages/curupira-core/tests/js_sdk_npx.rs'
+              - 'packages/curupira-core/tests/fixtures/js-sdk-ext/**'
+              - '.github/workflows/ci.yml'
+            npm_cli:
+              - 'packages/curupira-npm/**'
+              - 'packages/curupira-core/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/publish.yml'
+              - '.github/scripts/**'
             plugins:
               - 'packages/curupira-python-plugins/**'
               - 'packages/curupira-python-sdk/**'
@@ -101,6 +115,42 @@ jobs:
             CURUPIRA_PYTHONPATH="$(ls -d packages/curupira-python-sdk/src packages/curupira-python-plugins/src | paste -sd: -)" \
             uv run --no-sync cargo run --manifest-path packages/curupira-core/Cargo.toml --bin curupira -- \
             --config "$tmp_config" validate
+
+  js-sdk:
+    name: JavaScript SDK tests
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.js_sdk == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/curupira-js-sdk/package-lock.json
+      - run: npm install
+        working-directory: packages/curupira-js-sdk
+      - run: npm test
+        working-directory: packages/curupira-js-sdk
+      - run: npm run typecheck
+        working-directory: packages/curupira-js-sdk
+
+  npm-cli:
+    name: npm CLI tests
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.npm_cli == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/curupira-core
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+      - run: npm test
+        working-directory: packages/curupira-npm
 
   python-sdk:
     name: Python SDK tests (Python ${{ matrix.python-version }})
@@ -205,7 +255,7 @@ jobs:
   docs:
     name: Deploy documentation
     # Only main deploys, and only after every other job has passed.
-    needs: [rust, python-sdk, python-plugins, python-packaging, package]
+    needs: [rust, js-sdk, npm-cli, python-sdk, python-plugins, python-packaging, package]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

@@ -2,73 +2,86 @@
 //!
 //! A prompt is plain text with two kinds of markup, both optional:
 //!
-//! * `${name}` inserts a field. This is the simple form and covers most prompts.
+//! * `${name}` inserts a field. This is the simple form and covers most prompts. A name the
+//!   trigger does not provide is left as written, so shell text such as `${HOME}` is safe.
 //! * Jinja syntax (`{{ name }}`, `{% if %}`, `{% for %}`, filters) makes a prompt dynamic.
 //!
-//! Item fields come from the trigger. Their values are data: a title or body that contains
-//! `{{` or `{%` is inserted as-is and never interpreted, because the template is compiled
-//! once and rendered once with the item as the context.
+//! Every field is a string, exactly as the trigger sent it. Lists and objects arrive as compact
+//! JSON text; use `| fromjson` to loop over them. Field values are data: a title or body that
+//! contains `{{` or `{%` is inserted as-is and never interpreted, because the template is
+//! compiled once and rendered once with the fields as the context.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use minijinja::{Environment, Error, ErrorKind, UndefinedBehavior, Value};
-use serde_json::{Map, Value as Json};
 
 use crate::error::CurupiraError;
+use crate::protocol::KeyValue;
 
-/// Names the host provides for every automation, in addition to the trigger's item fields.
-pub const COMMON_FIELDS: &[&str] = &[
-    "repo",
-    "repository",
-    "automation",
-    "automation_id",
-    "task_type",
-    "task_number",
-    "task_title",
-    "task_body",
-    "task_url",
-];
+/// Fields the host adds to every task, besides the ones the trigger returns.
+pub const HOST_FIELDS: &[&str] = &["repository", "automation"];
 
-/// Common fields followed by the trigger's own, for error messages and checks.
+/// Name of the map holding every field, used for `${name}` (so any key works, even `a-b`).
+const RAW: &str = "_fields";
+
+/// Host fields followed by the trigger's own, sorted, for messages and checks.
 pub fn available_fields(trigger_fields: &[String]) -> Vec<String> {
-    let mut names: BTreeSet<String> = COMMON_FIELDS.iter().map(|s| (*s).to_string()).collect();
+    let mut names: BTreeSet<String> = HOST_FIELDS.iter().map(|s| (*s).to_string()).collect();
     names.extend(trigger_fields.iter().cloned());
     names.into_iter().collect()
 }
 
-/// Render `template` with `vars` (a JSON object). `label` names the automation in errors.
-pub fn render(label: &str, template: &str, vars: &Json) -> Result<String, CurupiraError> {
-    let source = legacy_to_jinja(template);
-    let env = environment();
-    env.render_str(&source, Value::from_serialize(vars))
-        .map_err(|e| {
-            let names: Vec<String> = vars
-                .as_object()
-                .map(|o| o.keys().cloned().collect())
-                .unwrap_or_default();
-            CurupiraError::Dispatch(describe(label, template, &e, &names))
-        })
+/// Render `template` for one task. `automation_id` also labels errors.
+pub fn render(
+    template: &str,
+    values: &[KeyValue],
+    repository: &str,
+    automation_id: &str,
+) -> Result<String, CurupiraError> {
+    let mut fields: BTreeMap<&str, &str> = BTreeMap::new();
+    fields.insert("repository", repository);
+    fields.insert("automation", automation_id);
+    for pair in values {
+        fields.insert(&pair.key, &pair.value);
+    }
+    let source = legacy_to_jinja(template, |name| fields.contains_key(name));
+    let mut context = BTreeMap::new();
+    for (name, value) in &fields {
+        if is_identifier(name) {
+            context.insert((*name).to_string(), Value::from(*value));
+        }
+    }
+    context.insert(RAW.to_string(), Value::from_serialize(&fields));
+    let names: Vec<String> = fields.keys().map(|k| (*k).to_string()).collect();
+    environment()
+        .render_str(&source, Value::from_serialize(&context))
+        .map_err(|e| CurupiraError::Dispatch(describe(automation_id, template, &e, &names)))
 }
 
 /// Check a prompt at `validate` time: syntax, and that every field it uses exists.
 ///
 /// `known` is `None` when the trigger does not declare its fields; only syntax is checked then.
 pub fn check(label: &str, template: &str, known: Option<&[String]>) -> Result<(), CurupiraError> {
-    let source = legacy_to_jinja(template);
+    let allowed: Vec<String> = available_fields(known.unwrap_or(&[]));
+    let source = legacy_to_jinja(template, |name| allowed.iter().any(|a| a == name));
     let env = environment();
     let compiled = env
         .template_from_str(&source)
         .map_err(|e| CurupiraError::Config(describe(label, template, &e, &[])))?;
-    let Some(known) = known else {
+    if known.is_none() {
         return Ok(());
-    };
-    let allowed = available_fields(known);
-    let mut unknown: Vec<String> = compiled
+    }
+    let mut unknown: BTreeSet<String> = compiled
         .undeclared_variables(false)
         .into_iter()
-        .filter(|name| !allowed.contains(name))
+        .filter(|name| name != RAW && !allowed.contains(name))
         .collect();
-    unknown.sort();
+    // `${name}` is left alone when unknown (it may be shell text), unless it looks like a typo.
+    for name in legacy_names(template) {
+        if !allowed.contains(&name) && closest(&name, &allowed).is_some() {
+            unknown.insert(name);
+        }
+    }
     if unknown.is_empty() {
         return Ok(());
     }
@@ -86,20 +99,6 @@ pub fn check(label: &str, template: &str, known: Option<&[String]>) -> Result<()
     )))
 }
 
-/// Build the variables for one task: common fields first, then the item (which wins).
-pub fn task_vars(common: &[(&str, String)], item: &Json) -> Json {
-    let mut map = Map::new();
-    for (name, value) in common {
-        map.insert((*name).to_string(), Json::String(value.clone()));
-    }
-    if let Some(object) = item.as_object() {
-        for (name, value) in object {
-            map.insert(name.clone(), value.clone());
-        }
-    }
-    Json::Object(map)
-}
-
 fn environment() -> Environment<'static> {
     let mut env = Environment::new();
     // A typo should fail loudly instead of silently producing an empty string.
@@ -110,28 +109,13 @@ fn environment() -> Environment<'static> {
     env.set_keep_trailing_newline(true);
     // Prompts are plain text, not HTML.
     env.set_auto_escape_callback(|_| minijinja::AutoEscape::None);
-    env.add_filter("legacy", legacy_filter);
     env.add_filter("fromjson", fromjson_filter);
     env
 }
 
-/// `${name}` rendering: strings as-is, everything else as compact JSON.
-fn legacy_filter(value: Value) -> Result<Value, Error> {
-    if let Some(text) = value.as_str() {
-        return Ok(Value::from(text.to_string()));
-    }
-    let json = serde_json::to_string(&value).map_err(|e| {
-        Error::new(
-            ErrorKind::InvalidOperation,
-            format!("cannot render value: {e}"),
-        )
-    })?;
-    Ok(Value::from(json))
-}
-
 /// Parse a JSON string (for example `item_comments`) into a value the template can loop over.
 fn fromjson_filter(text: String) -> Result<Value, Error> {
-    let parsed: Json = serde_json::from_str(&text).map_err(|e| {
+    let parsed: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
         Error::new(
             ErrorKind::InvalidOperation,
             format!("fromjson: invalid JSON: {e}"),
@@ -140,22 +124,23 @@ fn fromjson_filter(text: String) -> Result<Value, Error> {
     Ok(Value::from_serialize(&parsed))
 }
 
-/// Rewrite `${name}` (and the old bare `$automation`) into `{{ name | legacy }}`.
+/// Rewrite `${name}` into a lookup of the raw field text, for names that exist.
 ///
-/// Only the template is rewritten, never item values.
-fn legacy_to_jinja(template: &str) -> String {
+/// Unknown names stay as written. Only the template is rewritten, never field values.
+fn legacy_to_jinja(template: &str, exists: impl Fn(&str) -> bool) -> String {
     let mut out = String::with_capacity(template.len());
-    let bytes = template.as_bytes();
     let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'$' {
+    while i < template.len() {
+        if template.as_bytes()[i] == b'$' {
             if let Some((name, end)) = braced_name(template, i) {
-                out.push_str(&format!("{{{{ {name} | legacy }}}}"));
-                i = end;
-                continue;
+                if exists(name) {
+                    out.push_str(&format!("{{{{ {RAW}[{name:?}] }}}}"));
+                    i = end;
+                    continue;
+                }
             }
             if let Some(end) = bare_automation(template, i) {
-                out.push_str("{{ automation | legacy }}");
+                out.push_str(&format!("{{{{ {RAW}[\"automation\"] }}}}"));
                 i = end;
                 continue;
             }
@@ -168,11 +153,29 @@ fn legacy_to_jinja(template: &str) -> String {
     out
 }
 
+/// Every `${name}` in the template (names that are identifiers or other keys).
+fn legacy_names(template: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut i = 0;
+    while let Some(offset) = template[i..].find("${") {
+        let start = i + offset;
+        match braced_name(template, start) {
+            Some((name, end)) => {
+                names.push(name.to_string());
+                i = end;
+            }
+            None => i = start + 2,
+        }
+    }
+    names
+}
+
 fn braced_name(template: &str, start: usize) -> Option<(&str, usize)> {
     let rest = template.get(start..)?.strip_prefix("${")?;
     let close = rest.find('}')?;
     let name = &rest[..close];
-    is_identifier(name).then_some((name, start + 2 + close + 1))
+    let usable = !name.is_empty() && !name.contains("${") && !name.contains(['\n', '"', '\\']);
+    usable.then_some((name, start + 2 + close + 1))
 }
 
 fn bare_automation(template: &str, start: usize) -> Option<usize> {
@@ -213,8 +216,8 @@ fn describe(label: &str, template: &str, error: &Error, fields: &[String]) -> St
 fn brief(error: &Error) -> String {
     match error.kind() {
         ErrorKind::UndefinedError => {
-            "a field used by the prompt has no value for this item (use {{ name | default(\"\") }} \
-             for optional fields)"
+            "a field used by the prompt has no value for this task (use {{ name | default(\"\") }} \
+             for optional fields; if the braces are literal text, wrap it in {% raw %}...{% endraw %})"
                 .to_string()
         }
         ErrorKind::SyntaxError => format!(
@@ -256,70 +259,69 @@ fn distance(a: &str, b: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
-    fn vars() -> Json {
-        task_vars(
-            &[
-                ("automation", "fix".to_string()),
-                ("repo", "acme/api".to_string()),
-            ],
-            &json!({
-                "item_number": 7,
-                "item_title": "Crash {{ boom }} {% if x %}",
-                "item_labels": ["bug", "security"],
-                "item_type": "issue",
-                "item_comments": "[{\"author\":\"ana\",\"body\":\"hi\"}]",
-                "flag": true,
-            }),
-        )
+    fn pair(key: &str, value: &str) -> KeyValue {
+        KeyValue {
+            key: key.into(),
+            value: value.into(),
+        }
+    }
+
+    fn values() -> Vec<KeyValue> {
+        vec![
+            pair("item_number", "7"),
+            pair("item_title", "Crash {{ boom }} {% if x %}"),
+            pair("item_labels", r#"["bug","security"]"#),
+            pair("item_type", "issue"),
+            pair("item_comments", r#"[{"author":"ana","body":"hi"}]"#),
+            pair("flag", "true"),
+            pair("issue-number", "42"),
+            pair("project_fields", r#"{"Status":"Ready"}"#),
+        ]
     }
 
     fn render_ok(template: &str) -> String {
-        render("t", template, &vars()).expect("render")
+        render(template, &values(), "acme/api", "fix").expect("render")
     }
 
     #[test]
     fn dollar_placeholders_still_work() {
         assert_eq!(
-            render_ok("Fix ${item_number} in ${repo} by $automation / ${automation}"),
-            "Fix 7 in acme/api by fix / fix"
+            render_ok("Fix ${item_number} in ${repository} by ${automation}"),
+            "Fix 7 in acme/api by fix"
         );
     }
 
     #[test]
-    fn dollar_renders_lists_and_bools_as_json() {
+    fn dollar_placeholders_accept_any_key_and_keep_raw_text() {
         assert_eq!(
-            render_ok("${item_labels} ${flag}"),
-            r#"["bug","security"] true"#
+            render_ok("${issue-number} ${item_labels}"),
+            r#"42 ["bug","security"]"#
         );
     }
 
     #[test]
-    fn item_text_is_never_interpreted_as_a_template() {
+    fn unknown_dollar_placeholders_and_shell_text_are_left_alone() {
+        assert_eq!(
+            render_ok("cost $5 and ${HOME} and ${not valid} and ${ and $"),
+            "cost $5 and ${HOME} and ${not valid} and ${ and $"
+        );
+    }
+
+    #[test]
+    fn field_text_is_never_interpreted_as_a_template() {
         assert_eq!(render_ok("${item_title}"), "Crash {{ boom }} {% if x %}");
         assert_eq!(render_ok("{{ item_title }}"), "Crash {{ boom }} {% if x %}");
     }
 
     #[test]
-    fn conditionals_and_lists() {
-        let template =
-            "{% if 'security' in item_labels %}\nSECURITY\n{% else %}\nplain\n{% endif %}\nend";
+    fn conditionals_and_lists_use_fromjson() {
+        let template = "{% if 'security' in item_labels | fromjson %}\nSECURITY\n{% else %}\nplain\n{% endif %}\nend";
         assert_eq!(render_ok(template), "\nSECURITY\n\nend");
         assert_eq!(
-            render_ok("{% if flag %}yes{% endif %}\nnext"),
-            "yes\nnext",
-            "the newline after a block tag is kept"
-        );
-        assert_eq!(render_ok("a\n{%- if flag %}b{% endif -%}\nc"), "abc");
-        assert_eq!(
-            render_ok("{% for l in item_labels %}- {{ l }}\n{% endfor %}"),
+            render_ok("{% for l in item_labels | fromjson %}- {{ l }}\n{% endfor %}"),
             "- bug\n- security\n"
         );
-    }
-
-    #[test]
-    fn fromjson_filter_unpacks_comment_json() {
         assert_eq!(
             render_ok(
                 "{% for c in item_comments | fromjson %}{{ c.author }}:{{ c.body }}{% endfor %}"
@@ -329,35 +331,71 @@ mod tests {
     }
 
     #[test]
-    fn missing_field_is_an_error_with_available_names() {
-        let err = render("fix", "{{ nope }}", &vars())
+    fn newline_after_a_block_tag_is_kept() {
+        assert_eq!(
+            render_ok("{% if flag == 'true' %}yes{% endif %}\nnext"),
+            "yes\nnext"
+        );
+        assert_eq!(render_ok("a\n{%- if flag %}b{% endif -%}\nc"), "abc");
+    }
+
+    #[test]
+    fn numbers_compare_after_int_filter() {
+        assert_eq!(
+            render_ok("{% if item_number | int > 5 %}big{% endif %}"),
+            "big"
+        );
+    }
+
+    #[test]
+    fn missing_jinja_field_is_an_error_with_available_names() {
+        let err = render("{{ nope }}", &values(), "acme/api", "fix")
             .unwrap_err()
             .to_string();
         assert!(err.contains("fix"), "{err}");
         assert!(err.contains("item_number"), "{err}");
+        assert!(err.contains("raw"), "{err}");
     }
 
     #[test]
     fn default_filter_makes_optional_fields_safe() {
         assert_eq!(render_ok("[{{ nope | default('n/a') }}]"), "[n/a]");
+        let fields = pair("project_fields", r#"{"Status":"Ready"}"#);
+        let template = "{% set f = project_fields | fromjson %}{{ f.Priority | default('none') }}/{{ f.Status }}";
+        assert_eq!(render(template, &[fields], "r", "a").unwrap(), "none/Ready");
     }
 
     #[test]
-    fn check_suggests_close_names() {
+    fn raw_block_keeps_literal_braces() {
+        assert_eq!(
+            render_ok("{% raw %}${{ secrets.TOKEN }}{% endraw %}"),
+            "${{ secrets.TOKEN }}"
+        );
+    }
+
+    #[test]
+    fn check_suggests_close_names_for_jinja_and_dollar() {
         let known = vec!["item_title".to_string(), "item_body".to_string()];
-        let err = check("a", "${item_titel}", Some(&known))
-            .unwrap_err()
-            .to_string();
-        assert!(err.contains("did you mean \"item_title\""), "{err}");
-        assert!(err.contains("Available fields"), "{err}");
+        for template in ["${item_titel}", "{{ item_titel }}"] {
+            let err = check("a", template, Some(&known)).unwrap_err().to_string();
+            assert!(err.contains("did you mean \"item_title\""), "{err}");
+            assert!(err.contains("Available fields"), "{err}");
+        }
     }
 
     #[test]
-    fn check_accepts_loop_variables_and_common_fields() {
+    fn check_ignores_unrelated_dollar_names_but_not_jinja_ones() {
+        let known = vec!["item_title".to_string()];
+        check("a", "${HOME} ${PATH}", Some(&known)).expect("shell text is fine");
+        assert!(check("a", "{{ HOME }}", Some(&known)).is_err());
+    }
+
+    #[test]
+    fn check_accepts_loop_variables_and_host_fields() {
         let known = vec!["item_labels".to_string()];
         check(
             "a",
-            "{% for l in item_labels %}{{ l }} {{ repo }}{% endfor %}",
+            "{% for l in item_labels | fromjson %}{{ l }} {{ repository }} ${automation}{% endfor %}",
             Some(&known),
         )
         .expect("valid");
@@ -374,22 +412,6 @@ mod tests {
 
     #[test]
     fn without_declared_fields_only_syntax_is_checked() {
-        check("a", "${whatever}", None).expect("syntax only");
-    }
-
-    #[test]
-    fn missing_map_key_can_be_defaulted() {
-        let vars = task_vars(&[], &json!({"project_fields": "{\"Status\":\"Ready\"}"}));
-        let template = "{% set f = project_fields | fromjson %}{{ f.Priority | default('none') }}/{{ f.Status }}";
-        check("t", template, Some(&["project_fields".to_string()])).expect("valid");
-        assert_eq!(render("t", template, &vars).unwrap(), "none/Ready");
-    }
-
-    #[test]
-    fn plain_dollar_text_is_untouched() {
-        assert_eq!(
-            render_ok("cost $5 and ${not valid} and $"),
-            "cost $5 and ${not valid} and $"
-        );
+        check("a", "${whatever} {{ anything }}", None).expect("syntax only");
     }
 }

@@ -29,6 +29,8 @@ from curupira_plugins.github.client import (
 )
 from curupira_plugins.github.filters import IssueFilters, PullRequestFilters
 from curupira_plugins.github.models import (
+    IssueItem,
+    ProjectItem,
     PullRequestItem,
     PullRequestNode,
     SearchConnection,
@@ -303,27 +305,18 @@ def test_search_response_without_data_is_reported() -> None:
     assert response.errors == []
 
 
-def test_pull_request_item_maps_review_ci_and_diff_fields() -> None:
+def test_pull_request_item_maps_diff_and_people_fields() -> None:
     node = parse_nodes(
         _connection(
             [
                 _pr_node(
                     5,
-                    reviewDecision="CHANGES_REQUESTED",
                     changedFiles=3,
                     additions=10,
                     deletions=2,
                     assignees={"nodes": [{"login": "mario"}]},
                     milestone={"title": "v1"},
-                    commits={"nodes": [{"commit": {"statusCheckRollup": {"state": "FAILURE"}}}]},
                     closingIssuesReferences={"nodes": [{"number": 1, "url": "https://x/1"}]},
-                    reviewRequests={
-                        "nodes": [
-                            {"requestedReviewer": {"login": "ana"}},
-                            {"requestedReviewer": {"name": "core-team"}},
-                        ]
-                    },
-                    comments={"totalCount": 2, "nodes": [{"author": None, "body": "ghost"}]},
                 )
             ],
             has_next=False,
@@ -334,15 +327,18 @@ def test_pull_request_item_maps_review_ci_and_diff_fields() -> None:
 
     item = _pull_request_item("acme/api", node).model_dump()
 
-    assert item["pull_request_review_decision"] == "CHANGES_REQUESTED"
-    assert item["pull_request_ci_status"] == "FAILURE"
     assert (item["pull_request_changed_files"], item["pull_request_additions"]) == (3, 10)
     assert item["pull_request_assignees"] == ["mario"]
     assert item["pull_request_milestone"] == "v1"
     assert item["pull_request_closing_issues"] == ["https://x/1"]
-    assert item["pull_request_requested_reviewers"] == ["ana", "core-team"]
-    assert item["pull_request_comment_count"] == 2
-    assert "ghost" in item["pull_request_comments"]
+
+
+def test_items_leave_out_values_that_change_on_their_own() -> None:
+    """The host hashes every returned field into the task identity, so volatile ones are omitted."""
+    volatile = ("comment", "updated_at", "ci_status", "review_decision", "linked_pull_requests")
+    for model in (IssueItem, PullRequestItem, ProjectItem):
+        leaked = [name for name in model.model_fields if any(word in name for word in volatile)]
+        assert not leaked, (model.__name__, leaked)
 
 
 def test_single_string_labels_and_merge_state_are_accepted() -> None:

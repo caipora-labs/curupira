@@ -1,25 +1,70 @@
 # Installation
 
+Curupira is a Rust command-line program. Install that same program with npm or from
+PyPI. Both commands are `curupira` and `curu`, and both use `~/.curupira/` for
+`settings.toml`, the SQLite state file, workspaces, worktrees, logs, telemetry, and
+extensions. Moving from pip to npm keeps that directory; the npm package does not
+create a second configuration path.
+
+The source repository is [caipora-labs/curupira](https://github.com/caipora-labs/curupira).
+
 ## Requirements
 
 {{ requirements_list() }}
 
-- [`uv`](https://docs.astral.sh/uv/) to install the application.
+Published binaries cover:
 
-## Install
+- Linux x64 and ARM64 with glibc
+- Linux x64 and ARM64 with musl (Alpine)
+- macOS x64 (Intel) and ARM64 (Apple Silicon)
+- Windows x64 and ARM64
 
-Install the published package from PyPI. The source repository is
-[caipora-labs/curupira](https://github.com/caipora-labs/curupira).
-The package is pure Python (`py3-none-any`), so installation needs no compiler
-toolchain on any supported platform.
+32-bit systems and other operating systems are not published. Installation does not
+compile Rust and does not need a Rust toolchain. The npm command is a small Node.js
+wrapper that executes the prebuilt binary directly: it does not change the working
+directory, environment, or configuration, and it exits with the Rust process status.
+A process listing shows Node.js as the parent of that process. The Rust process is
+the one that holds `~/.curupira/dispatch.lock`.
+
+`import curupira` and `curupira.__version__` exist only in the PyPI install. PyPI
+extras such as `curupira[extensions]` are not npm features. Extensions keep using the
+launcher in `settings.toml` (`uvx` or `npx`). The npm package does not install Python
+or a private Node.js environment for them. If `uvx` or `npx` is missing, validation
+reports that the launcher was not found on `PATH`.
+
+## Install with Node.js
+
+```bash
+npm install -g @caipora/curupira
+```
+
+Run it once without a global install:
+
+```bash
+npx @caipora/curupira --help
+```
+
+npm installs the optional package that matches this operating system, CPU, and C
+library (`@caipora/curupira-linux-x64`, and the other platform packages listed in the
+[package README](https://github.com/caipora-labs/curupira/blob/main/packages/curupira-npm/README.md)).
+Official Python triggers are not included. Install them later with
+`curupira plugins install`, or configure `[plugins.<alias>]` yourself.
+
+## Install with Python
+
+[`uv`](https://docs.astral.sh/uv/) installs the platform wheel from PyPI. The wheel
+contains the Rust CLI. Python is used for packaging and for optional `uvx` extensions,
+not to interpret the CLI.
 
 ```bash
 uv tool install curupira
+# or
+pip install curupira
 ```
 
-That installs the Rust CLI only. Built-in cron works out of the box. For forge task
-sources, add an optional extra (or use `curupira plugins install`). Extras install the
-consolidated `curupira-plugins` package:
+Built-in cron works out of the box. For forge task sources, add an optional extra (or
+use `curupira plugins install`). Extras install the consolidated `curupira-plugins`
+package:
 
 ```bash
 uv tool install 'curupira[extensions]'
@@ -29,7 +74,10 @@ uv tool install 'curupira[github]'
 
 To pin a specific version, use `uv tool install "curupira==X.Y.Z"`.
 
-Confirm the command is available with `curupira --version`. The short alias `curu --version` runs the same program. Validate a configuration without calling agent CLIs:
+## Check the install
+
+`curupira --version` and `curu --version` print the installed version. Validate a
+configuration without calling agent CLIs:
 
 ```bash
 curupira --config curupira.example.toml validate

@@ -93,10 +93,12 @@ you (or a later automation) move the card:
 | `Ready` | `column = "Ready"` | Implements the issue and opens a pull request |
 | `Review` | `column = "Review"`, `content = "pull_request"` | Reviews the pull request and comments |
 
-Each item is handled once: when the agent finishes successfully, that issue or pull request
-is remembered and is not run again by the same automation, even if you drag the card back into
-the column. See [Deduplication](github.md#deduplication). Cards whose agent run failed are tried
-again after a restart.
+A task is identified by the exact values of the card. When the agent finishes successfully, those
+values are remembered, so the same issue or pull request in the same column with the same title,
+labels, and fields is not run again by the same automation, even after a restart or if you drag
+the card away and back. Editing the item (or moving it to a different column) makes it a new
+task. See [Deduplication](github.md#deduplication). Cards whose agent run failed are tried again
+after a restart.
 
 ## What the prompt can use
 

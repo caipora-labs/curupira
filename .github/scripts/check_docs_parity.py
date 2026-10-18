@@ -19,7 +19,7 @@ FENCE = re.compile(r"^\s*(```|~~~)")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*(?:\{\s*#([\w-]+)\s*\})?\s*$")
 LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+")
 LINK = re.compile(r"\]\(([^)\s]+)\)")
-PLACEHOLDER = re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*\}|\{\{.*?\}\}|\{%.*?%\}")
+PLACEHOLDER = re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*\}|\{\{[^{}`\n]*\}\}|\{%[^{}`\n]*%\}")
 MACRO_CALL = re.compile(r"\{\{\s*(\w+)\(.*?\)\s*\}\}")
 ADMONITION = re.compile(r"^\s*!!!\s+\w+")
 

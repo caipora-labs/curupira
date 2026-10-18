@@ -72,7 +72,9 @@ approval. See [Providers and agents](providers.md).
 
 ## Address review feedback
 
-Pick up pull requests where a reviewer asked for changes and show the agent the conversation.
+Pick up pull requests where a reviewer asked for changes. The review conversation is not a prompt
+field (see [Left out on purpose](prompt-fields.md#left-out-on-purpose)), so the prompt tells the
+agent where to read it.
 
 ```toml
 [automations.address-feedback]
@@ -84,12 +86,9 @@ draft = false
 prompt = """
 Pull request #${pull_request_number} needs changes: ${pull_request_title}
 
-Latest comments:
-{% for c in pull_request_comments | fromjson %}
-- {{ c.author }}: {{ c.body | truncate(400) }}
-{% endfor %}
-
-Make the requested changes on branch ${pull_request_head_ref}.
+Read the review with `gh pr view ${pull_request_number} --repo ${repo} --comments` and
+`gh api repos/${repo}/pulls/${pull_request_number}/comments`, then make the requested changes on
+branch ${pull_request_head_ref}.
 """
 ```
 
@@ -127,9 +126,9 @@ labels = ["agent-ready"]
 prompt = """
 Resolve issue #${issue_number}: ${issue_title}
 
-{% if "security" in issue_labels %}
+{% if "security" in issue_labels | fromjson %}
 This issue is security related. Keep the change minimal and describe the risk in the commit message.
-{% elif "bug" in issue_labels %}
+{% elif "bug" in issue_labels | fromjson %}
 This is a bug. Write a failing test first, then fix it.
 {% else %}
 Implement the request and add tests.
@@ -167,6 +166,6 @@ repository = "api"
 schedule = "0 9 * * 1"        # every Monday at 09:00 in the configured timezone
 prompt = """
 Check dependencies and the CI configuration of ${repository}. Open a pull request with any
-safe updates. Run number: ${task_number}.
+safe updates. Automation: ${automation}.
 """
 ```

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 
-const PROTOCOL = 1;
+const PROTOCOL = 2;
 
 function writeFrame(obj) {
   const body = Buffer.from(JSON.stringify(obj), "utf8");
@@ -35,13 +35,13 @@ async function* frames(stream) {
       };
     } else if (req.method === "describe") {
       result = {
-        triggers: [{ trigger_type: "node-test", prompt_fields: ["id"] }],
+        triggers: [{ trigger_type: "node-test", prompt_fields: [] }],
         agents: [],
       };
     } else if (req.method === "trigger/validate") {
       result = { ok: true, configuration: (req.params || {}).configuration };
     } else if (req.method === "trigger/poll") {
-      result = { task: null };
+      result = { values: null };
     } else if (req.method === "shutdown") {
       writeFrame({ jsonrpc: "2.0", id, result: {} });
       return;

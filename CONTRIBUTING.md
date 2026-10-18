@@ -31,6 +31,17 @@ Console scripts `curupira` and `curu` point at the binary. Build with:
 uv build --all-packages --out-dir dist
 ```
 
+The Node.js extension SDK (`packages/curupira-js-sdk/`, npm
+`@caipora/curupira-sdk`) is outside the uv workspace. Build and test it with
+`npm install` / `npm test` in that directory.
+
+The npm CLI (`packages/curupira-npm/`, `@caipora/curupira`) is also outside the uv
+workspace. It wraps the Rust binaries; it is not a second implementation. Test it with
+`npm test` in that directory. A release of `curupira` packs one optional npm package per
+platform from the maturin wheel (Linux glibc and musl, macOS, and Windows, each for x64
+and ARM64). Users do not compile Rust, and the installer does not download binaries from
+a URL.
+
 ## Extending Curupira
 
 See the repository map in [AGENTS.md](AGENTS.md). Curupira does not manage authentication:
@@ -197,15 +208,21 @@ package reads it:
 
 - `curupira-sdk` and `curupira-plugins` read the tag through hatch-vcs.
 - `curupira` takes its version from the Rust crate's `Cargo.toml`, which the release
-  workflow stamps from the tag before building. The Rust crate and the plugin manifest
-  cannot read git, so their checked-in versions are placeholders.
+  workflow stamps from the tag before building. The Rust crate, the npm CLI manifest, and
+  the plugin manifest cannot read git, so their checked-in versions are placeholders.
+  `@caipora/curupira` is released by the `curupira` tag, using the Cargo semver form of
+  that version. It is not a fourth project name in the tag.
 
 One workflow, `.github/workflows/publish.yml`, releases every project: it resolves the tag,
 builds all distributions, verifies the tagged project's versions, publishes it to PyPI
 (environment `pypi`, Trusted Publishing), and attaches a GitHub Release for stable
-versions only. Before anything is uploaded, the tag must name a known project, the
-distributions of that project must carry the tag's version (`verify_dist_version.py`), and
-the commit must have green CI (`require_ci_checks.py`).
+versions only. A `publish/curupira/<version>` tag also packs the npm CLI and its platform
+packages from those wheels, smoke-tests each native binary, installs the Linux x64
+tarball, and publishes them to npm (environment `npm`, Trusted Publishing) before the
+GitHub Release. `workflow_dispatch` rehearses the build and does not publish. Before
+anything is uploaded, the tag must name a known project, the distributions of that
+project must carry the tag's version (`verify_dist_version.py`, and the npm tarball
+check in `publish.yml`), and the commit must have green CI (`require_ci_checks.py`).
 
 ### Cutting a release
 
@@ -230,3 +247,8 @@ PyPI accepts an upload only from a trusted publisher registered for the project:
 `caipora-labs`, repository `curupira`, workflow `publish.yml`, and environment `pypi`. A
 project that does not exist on PyPI yet, such as `curupira-sdk` before its first release,
 must be registered as a pending publisher with those values before its tag is pushed.
+
+npm accepts `@caipora/curupira` and each `@caipora/curupira-<platform>` package from the
+same workflow and the `npm` environment. Register a trusted publisher for every package
+before the first `publish/curupira/<version>` tag. Platform packages are published
+first, then the CLI that depends on them.

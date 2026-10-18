@@ -16,6 +16,11 @@ repo-level config stay at the root.
 - **`packages/curupira-python-plugins/`** — PyPI distribution `curupira-plugins` (import
   `curupira_plugins`). Official trigger extensions in one package; depends on `curupira-sdk`.
   Install via `curupira[extensions]` (or forge-named extras) / `curupira plugins install`.
+- **`packages/curupira-js-sdk/`** — npm package `@caipora/curupira-sdk` (ESM). Declarative
+  `defineTriggers` API and protocol runtime for Node.js plugins launched with `npx`.
+- **`packages/curupira-npm/`** — npm package `@caipora/curupira`. Thin wrapper that runs the
+  prebuilt Rust CLI (`curupira` and `curu`). Optional platform packages ship the same binary
+  as the PyPI wheel. No second config directory and no FFI.
 
 Automations are configured in TOML (`~/.curupira/settings.toml`). Register packages under
 `[plugins.<alias>]` with `type = "uvx"` or `"npx"` and `args` for that launcher (for
@@ -42,6 +47,10 @@ triggers (GitHub and third-party sources) are
   native argv and runs the CLI with `process::run_process`. No extension RPC.
 - **Python packages:** thin `curupira.__version__`, declarative `curupira_sdk`, and
   `curupira_plugins` trigger modules. No Pluggy. No in-process plugin import API.
+- **Node.js packages:** declarative `@caipora/curupira-sdk` (`defineTriggers` + stdio
+  runtime). Third-party npm plugins declare a `bin` and depend on the SDK; the host
+  starts them with `npx` (no global install, no Curupira-managed Node env).
+  `@caipora/curupira` is only a distribution of the Rust CLI, not an SDK.
 
 ```
 CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_plugins)
@@ -66,6 +75,8 @@ CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_plugins)
 | `packages/curupira-python/scripts/` | Release scripts (`publish_tag.py`, `stamp_release_version.py`, `verify_dist_version.py`, `check_packaged_readme.py`) |
 | `packages/curupira-python-sdk/` | Declarative extension SDK (`curupira-sdk`) |
 | `packages/curupira-python-plugins/` | Official triggers (`curupira-plugins`): source, manifest, tests |
+| `packages/curupira-js-sdk/` | Declarative Node.js SDK (`@caipora/curupira-sdk`) |
+| `packages/curupira-npm/` | npm CLI distribution (`@caipora/curupira` plus platform packages) |
 | `.github/scripts/` | CI gate (`require_ci_checks.py`) |
 | `docs/en/` | Canonical docs |
 
@@ -79,6 +90,10 @@ Each package has its own version and is released by its own git tag,
 - `curupira`: `dynamic = ["version"]`, so maturin takes it from `packages/curupira-core/Cargo.toml`.
   `publish.yml` stamps that from the tag before building (`scripts/stamp_release_version.py`).
   Its checked-in version is a placeholder; do not bump it by hand for a release.
+- `@caipora/curupira` and its platform packages use that same tag. The stamp script writes the
+  Cargo semver form (`0.3.0.dev0` → `0.3.0-dev0`) into `packages/curupira-npm/package.json`.
+  Do not publish them under a separate project name. Platform tarballs are built from the
+  maturin wheels, not from a second compile.
 - `curupira-extension.toml` version fields are stamped the same way; the checked-in values are placeholders.
 - `__version__` comes from `importlib.metadata`; never hard-code it.
 - The only static versions are the pre-release lower bounds `curupira-sdk[pydantic]>=0.1.0.dev0` in
@@ -114,10 +129,15 @@ uv sync --all-packages --dev
 uv run --no-sync cargo test --manifest-path packages/curupira-core/Cargo.toml
 uv run --no-sync ruff check packages
 uv run --no-sync pytest
+npm --prefix packages/curupira-js-sdk install
+npm --prefix packages/curupira-js-sdk test
+npm --prefix packages/curupira-npm test
 uv run --no-sync cargo run --manifest-path packages/curupira-core/Cargo.toml --bin curupira -- \
-  --config packages/curupira-core/curupira.example.toml validate
+ --config packages/curupira-core/curupira.example.toml validate
 uv build --all-packages --out-dir dist
 ```
 
 Each package keeps its own tests (`packages/*/tests/`, Rust tests in
-`packages/curupira-core/tests/`).
+`packages/curupira-core/tests/`). The Node.js SDK uses `npm test` under
+`packages/curupira-js-sdk/`. The npm CLI wrapper is tested with
+`npm test` under `packages/curupira-npm/`.

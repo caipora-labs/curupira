@@ -3,10 +3,10 @@
 use serde::{Deserialize, Serialize};
 
 /// Current protocol version implemented by this crate.
-pub const CURRENT_PROTOCOL_VERSION: u32 = 1;
+pub const CURRENT_PROTOCOL_VERSION: u32 = 2;
 
 /// Oldest protocol version this host will accept.
-pub const MIN_PROTOCOL_VERSION: u32 = 1;
+pub const MIN_PROTOCOL_VERSION: u32 = 2;
 
 /// Negotiated protocol version pair.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,7 +39,13 @@ mod tests {
     #[test]
     fn accepts_current() {
         assert!(is_compatible(CURRENT_PROTOCOL_VERSION));
-        assert!(negotiate(1).is_ok());
+        assert!(negotiate(2).is_ok());
+    }
+
+    #[test]
+    fn rejects_previous() {
+        assert!(!is_compatible(1));
+        assert!(negotiate(1).is_err());
     }
 
     #[test]

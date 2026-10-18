@@ -112,7 +112,7 @@ pub fn install_extension(source: &ExtensionSource) -> Result<ExtensionManifest, 
                 manifest_version: 1,
                 name: name.clone(),
                 version: version.clone().unwrap_or_else(|| "*".into()),
-                protocol_version: 1,
+                protocol_version: 2,
                 runtime: ExtensionRuntime::Python,
                 kind: ExtensionKind::Trigger,
                 launch: LaunchSpec::Uvx {
@@ -260,7 +260,9 @@ fn ensure_uvx() -> Result<PathBuf, CurupiraError> {
 fn ensure_npx() -> Result<PathBuf, CurupiraError> {
     which::which("npx").map_err(|_| {
         CurupiraError::Plugin(
-            "npx not found on PATH (install Node.js to use npm: extensions)".into(),
+            "npx not found on PATH; install Node.js from https://nodejs.org/ \
+             to use npm: extensions (the npx command must be available)"
+                .into(),
         )
     })
 }

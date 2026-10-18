@@ -146,7 +146,11 @@ tools = ["*", "!internal-*"]
 - `type` (obligatorio): `uvx` o `npx`.
 - `args` (obligatorio, no vacío): argumentos que van después del binario del lanzador. Los plugins
   oficiales de Python exponen un script de consola `curupira-plugins`, así que los usuarios finales ejecutan
-  `uvx --from curupira-plugins curupira-plugins` (sin `python -m`).
+  `uvx --from curupira-plugins curupira-plugins` (sin `python -m`). Los plugins de Node publican
+  un paquete npm cuyo `bin` habla el protocolo (normalmente construido con
+  [`@caipora/curupira-sdk`](extensions.md#javascript-extension));
+  fija la versión en `args` (por ejemplo `@acme/curupira-ext@1.2.3`). `npx` debe estar en
+  el `PATH` (instala [Node.js](https://nodejs.org/)).
 - `tools` (opcional): lista de globs que selecciona qué nombres de triggers locales se exponen. Vacía u
   omitida, conserva todos los triggers de `describe`. Los patrones positivos (`github-*`, `*`) son
   inclusiones; los patrones que empiezan con `!` (`!github-project-*`) son exclusiones. Un nombre debe coincidir con una
@@ -193,17 +197,19 @@ La autenticación de la API de GitHub usa `gh auth token` de una CLI de GitHub y
 La autenticación del clon usa las credenciales nativas de Git para el `remote` configurado.
 
 Los placeholders usan la sintaxis `${name}` (también están disponibles condicionales y bucles de Jinja; consulta
-[Cómo escribir prompts](prompts.md)) y se validan cuando se carga la configuración. Entre los
-placeholders comunes están `${repo}`, `${repository}`, `${automation_id}`, `${task_type}`,
-`${task_number}`, `${task_title}`, `${task_body}` y `${task_url}`. `${repo}` es la identidad del forge
-cuando el trigger tiene una; `${repository}` es el alias del checkout. Cada trigger también
-expone los campos de su modelo de elemento tipado: los issues aportan `${issue_number}`,
-`${issue_title}`, `${issue_body}` y `${issue_url}`; los pull requests aportan
-`${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
-`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`,
-`${pull_request_base_ref}` y metadatos opcionales actualizados como
-`${pull_request_head_sha}` y `${pull_request_mergeable}`. En las tareas de cron,
-`${task_number}` es la marca de tiempo de la ocurrencia.
+[Cómo escribir prompts](prompts.md)). El host siempre proporciona `${repository}` (la
+identidad del forge derivada del remote de Git) y `${automation}` (el nombre de la
+automatización). Cualquier otro `${key}` proviene del resultado del trigger: el SDK convierte el
+objeto devuelto en pares de cadenas, y cada clave se sustituye tal como está escrita,
+incluidas las claves que no son identificadores comunes (`${issue-number}`). Un
+placeholder sin coincidencia se deja sin cambios (puede ser texto de shell como `${HOME}`);
+`validate` solo se queja cuando un `${name}` o `{{ name }}` parece un error tipográfico de una clave real. Los plugins oficiales eligen sus propias claves. Los issues de GitHub
+incluyen `issue_number`, `issue_title`, `issue_body` e `issue_url`;
+los pull requests incluyen `pull_request_number`, `pull_request_title`,
+`pull_request_body`, `pull_request_url`, `pull_request_is_draft`,
+`pull_request_head_ref`, `pull_request_base_ref`, `pull_request_head_sha` y
+`pull_request_mergeable`, entre los demás campos de ese modelo. Los prompts de cron
+solo reciben las dos variables del host (y la forma heredada `$automation`).
 
 ## Checkout y preparación
 

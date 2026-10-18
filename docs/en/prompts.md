@@ -36,11 +36,11 @@ For anything beyond inserting values, use Jinja syntax. You can mix it freely wi
 | --- | --- |
 | A value | `{{ issue_title }}` |
 | A fallback for an empty or optional value | `{{ issue_milestone \| default("none") }}` |
-| Text only in some cases | `{% if "security" in issue_labels %}...{% endif %}` |
+| Text only in some cases | `{% if "security" in issue_labels \| fromjson %}...{% endif %}` |
 | Two alternatives | `{% if item_type == "pull_request" %}...{% else %}...{% endif %}` |
-| Repeat for each item of a list | `{% for label in issue_labels %}- {{ label }}\n{% endfor %}` |
+| Repeat for each item of a list | `{% for label in issue_labels \| fromjson %}- {{ label }}\n{% endfor %}` |
 | Shorten long text | `{{ issue_body \| truncate(2000) }}` |
-| Loop over the latest comments | `{% for c in issue_comments \| fromjson %}{{ c.author }}: {{ c.body }}{% endfor %}` |
+| Compare a number | `{% if pull_request_changed_files \| int > 20 %}...{% endif %}` |
 
 Example, one automation that adapts to what it receives (more in [Recipes](recipes.md)):
 
@@ -54,12 +54,12 @@ column = ["Ready"]
 prompt = """
 {% if item_type == "pull_request" %}
 Review pull request #{{ item_number }} ({{ pull_request_head_ref }} -> {{ pull_request_base_ref }}).
-CI is {{ pull_request_ci_status | default("unknown") }}.
+Draft: {{ pull_request_is_draft }}.
 {% else %}
 Resolve issue #{{ item_number }}: {{ item_title }}
 {% endif %}
 
-{% if "security" in item_labels %}
+{% if "security" in item_labels | fromjson %}
 This is a security issue. Keep the change minimal and explain the risk in the commit message.
 {% endif %}
 
@@ -74,21 +74,35 @@ Notes:
 - Jinja has many more [built-in filters and tests](https://docs.rs/minijinja/latest/minijinja/filters/index.html)
   (`upper`, `join`, `length`, `first`, `selectattr`, ...).
 
+## Every value is text { #values-are-text }
+
+The trigger hands Curupira plain text for each field, so a few conversions are explicit:
+
+- **Lists and objects** (labels, assignees, project fields) arrive as JSON text, for example
+  `["bug","security"]`. Use `| fromjson` to test or loop over them:
+  `{% if "bug" in issue_labels | fromjson %}`.
+- **Numbers** are text too. Use `| int` to compare: `{% if item_number | int > 100 %}`.
+- **Booleans** are `true` or `false`: `{% if pull_request_is_draft == "true" %}`.
+- **`${name}` and `{{ name }}` differ on a missing field.** `${name}` that matches no field is
+  left as written, so shell text such as `${HOME}` is safe. `{{ name }}` is an error, which
+  catches typos. Use `{{ name | default("") }}` for fields that may be absent.
+- **Literal braces.** To print `{{` or `{%` (for example a GitHub Actions `${{ secrets.X }}`),
+  wrap the text in `{% raw %}...{% endraw %}`.
+
 ## Fields
 
-Every automation gets these:
-
-`${repo}` (the GitHub `owner/name`), `${repository}` (the checkout alias), `${automation_id}`
-(also `${automation}`), `${task_type}`, `${task_number}`, `${task_title}`, `${task_body}`,
-`${task_url}`. For cron tasks `${task_number}` is the scheduled time.
+The host adds two fields to every task: `${repository}` (the GitHub `owner/name` of the
+automation's repository) and `${automation}` (the automation name). In a cron prompt these are
+the only fields.
 
 Each trigger adds its own fields. The full list is in the [Prompt field reference](prompt-fields.md),
 and [Recipes](recipes.md) has complete automations to copy.
 
 ## Checking your prompt
 
-1. `curupira --config settings.toml validate` checks syntax and that every field you use
-   exists. A typo gets a suggestion:
+1. `curupira --config settings.toml validate` checks syntax and that every `{{ field }}` you use
+   exists. A `${field}` is checked only when it looks like a typo of a real field, because
+   other names may be shell text. A typo gets a suggestion:
 
    ```text
    automation "work-ready-column": prompt uses unknown field(s) "item_titel"
@@ -99,13 +113,13 @@ and [Recipes](recipes.md) has complete automations to copy.
    prompt, without cloning or starting an agent. This is the quickest way to see what the
    agent will get.
 
-A field that exists but has no value for a given task (for example a pull-request field on
+A `{{ field }}` that has no value for a given task (for example a pull-request field on
 an issue) is an error when the task runs, not an empty string. Guard it with `default("")` or
 an `{% if %}`.
 
 ## Security
 
-Titles, bodies, and comments come from other people. Their text is inserted as plain text
+Titles and bodies come from other people. Their text is inserted as plain text
 and is never interpreted as a template, so `{{ ... }}` inside an issue body does nothing. It can
 still try to steer the agent, so follow the advice in
 [the security notes](github.md#security).

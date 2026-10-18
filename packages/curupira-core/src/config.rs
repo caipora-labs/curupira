@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::agents::AgentProvider;
 use crate::error::CurupiraError;
 use crate::extensions::host::ExtensionHost;
+use crate::protocol::KeyValue;
 
 /// Process log level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,7 +127,8 @@ impl PluginConfiguration {
                 }
                 let npx = which::which("npx").map_err(|_| {
                     CurupiraError::Config(
-                        "npx is required for plugins with type = \"npx\" but was not found on PATH"
+                        "npx is required for plugins with type = \"npx\" but was not found on PATH; \
+                         install Node.js from https://nodejs.org/ so the npx command is available"
                             .into(),
                     )
                 })?;
@@ -663,9 +665,8 @@ fn forge_identity(remote: &str) -> String {
 pub struct Task {
     pub identity: TaskIdentity,
     pub automation_id: String,
-    pub title: String,
-    pub url: String,
-    pub item: serde_json::Value,
+    /// Trigger result. Empty for cron and for an extension item that returned no pairs.
+    pub values: Vec<KeyValue>,
     #[serde(default)]
     pub scheduled_for: Option<DateTime<Utc>>,
     pub prompt: String,

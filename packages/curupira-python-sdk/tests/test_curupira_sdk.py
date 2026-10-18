@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 import asyncio
+import collections.abc
 import inspect
+import json
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 from typing import Any, TypedDict
 
 import pytest
 from curupira_sdk import Curupira, RegistrationError, SerializationError
 from curupira_sdk.serialize import serialize_trigger_result
 from curupira_sdk.signature import bind_arguments, build_trigger_spec, normalize_configuration
+
+_FIXTURES = (
+    Path(__file__).resolve().parents[2] / "curupira-core" / "tests" / "fixtures" / "protocol"
+)
 
 
 def test_trigger_decorator_without_parens_uses_kebab_case() -> None:
@@ -138,71 +146,161 @@ class Issue:
     number: int
     title: str
     url: str
-    id: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.id:
-            self.id = str(self.number)
 
 
 class IssueDict(TypedDict):
-    id: str
+    number: int
     title: str
     url: str
 
 
-def test_serialize_dataclass_and_none() -> None:
-    env = serialize_trigger_result(
-        Issue(1, "t", "http://x"), Issue | None, trigger_name="github_issues"
+class Bag(collections.abc.Mapping[str, Any]):
+    def __init__(self, data: dict[str, Any]) -> None:
+        self._data = data
+
+    def __getitem__(self, key: str) -> Any:
+        return self._data[key]
+
+    def __iter__(self) -> Any:
+        return iter(self._data)
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+
+class Dup(collections.abc.Mapping[str, str]):
+    def __getitem__(self, key: str) -> str:
+        return "1"
+
+    def __iter__(self) -> Any:
+        return iter(("a", "a"))
+
+    def __len__(self) -> int:
+        return 2
+
+
+def _pairs(value: Any, annotation: Any = Any) -> list[dict[str, str]] | None:
+    return serialize_trigger_result(value, annotation, trigger_name="t")
+
+
+def test_none_is_protocol_null_and_empty_mapping_is_empty_list() -> None:
+    assert _pairs(None, Issue | None) is None
+    assert _pairs({}, dict[str, Any] | None) == []
+
+
+def test_serialize_dataclass_mapping_and_typed_dict() -> None:
+    pairs = _pairs(Issue(1, "t", "http://x"), Issue | None)
+    assert pairs == [
+        {"key": "number", "value": "1"},
+        {"key": "title", "value": "t"},
+        {"key": "url", "value": "http://x"},
+    ]
+    assert _pairs({"number": 9, "title": "hi", "url": "u"}, IssueDict | None) == [
+        {"key": "number", "value": "9"},
+        {"key": "title", "value": "hi"},
+        {"key": "url", "value": "u"},
+    ]
+    assert _pairs(Bag({"note": "ok"}), Any) == [{"key": "note", "value": "ok"}]
+
+
+def test_serialize_value_conversions() -> None:
+    @dataclass
+    class Nested:
+        z: int
+        a: str | None
+
+    pairs = _pairs(
+        {
+            "text": "as-is",
+            "flag": False,
+            "count": 1,
+            "ratio": 1.0,
+            "empty": None,
+            "labels": ["bug", "p1"],
+            "meta": {"b": 1, "a": "x"},
+            "child": Nested(2, None),
+        },
+        Any,
     )
-    assert env is not None
-    assert env["id"] == "1"
-    assert env["item"]["title"] == "t"
-    assert serialize_trigger_result(None, Issue | None, trigger_name="github_issues") is None
+    assert pairs == [
+        {"key": "text", "value": "as-is"},
+        {"key": "flag", "value": "false"},
+        {"key": "count", "value": "1"},
+        {"key": "ratio", "value": "1.0"},
+        {"key": "empty", "value": "null"},
+        {"key": "labels", "value": '["bug","p1"]'},
+        {"key": "meta", "value": '{"a":"x","b":1}'},
+        {"key": "child", "value": '{"a":null,"z":2}'},
+    ]
 
 
-def test_serialize_typed_dict() -> None:
-    env = serialize_trigger_result(
-        {"id": "9", "title": "hi", "url": "u"},
-        IssueDict | None,
-        trigger_name="t",
-    )
-    assert env is not None
-    assert env["id"] == "9"
-
-
-def test_serialize_rejects_list_tuple_generator() -> None:
+def test_serialize_rejects_incompatible_returns() -> None:
     with pytest.raises(SerializationError, match="collection"):
-        serialize_trigger_result([{"id": "1"}], Any, trigger_name="t")
+        _pairs([{"key": "a", "value": "b"}], Any)
     with pytest.raises(SerializationError, match="collection"):
-        serialize_trigger_result(({"id": "1"},), Any, trigger_name="t")
+        _pairs(({"a": "b"},), Any)
 
     def gen():
-        yield {"id": "1"}
+        yield {"a": "b"}
 
     with pytest.raises(SerializationError, match="collection"):
-        serialize_trigger_result(gen(), Any, trigger_name="t")
+        _pairs(gen(), Any)
+    with pytest.raises(SerializationError, match="not"):
+        _pairs(42, int | None)
+    with pytest.raises(SerializationError, match="not a string"):
+        _pairs({1: "a"}, Any)
+    with pytest.raises(SerializationError, match="not a string"):
+        _pairs({"outer": {1: "a"}}, Any)
+    with pytest.raises(SerializationError, match="placeholder"):
+        _pairs({"": "a"}, Any)
+    with pytest.raises(SerializationError, match="placeholder"):
+        _pairs({"a}": "b"}, Any)
+    with pytest.raises(SerializationError, match="placeholder"):
+        _pairs({"${a": "b"}, Any)
+    with pytest.raises(SerializationError, match="duplicate"):
+        _pairs(Dup(), Any)
+    with pytest.raises(SerializationError, match="not serializable"):
+        _pairs({"blob": b"hi"}, Any)
+    with pytest.raises(SerializationError, match="not serializable"):
+        _pairs({"when": datetime(2020, 1, 1)}, Any)
+    with pytest.raises(SerializationError, match="not serializable"):
+        _pairs({"tags": {"a", "b"}}, Any)
+    with pytest.raises(SerializationError, match="non-finite"):
+        _pairs({"n": float("nan")}, Any)
 
 
 def test_serialize_unannotated_runtime() -> None:
-    env = serialize_trigger_result({"id": "a", "title": "t"}, Any, trigger_name="t")
-    assert env is not None
-    assert env["id"] == "a"
+    pairs = _pairs({"note": "a"}, Any)
+    assert pairs == [{"key": "note", "value": "a"}]
 
 
-def test_serialize_scalar() -> None:
-    env = serialize_trigger_result(42, int | None, trigger_name="t")
-    assert env is not None
-    assert env["id"] == "42"
-    assert env["item"]["value"] == 42
+def test_serialize_matches_shared_protocol_fixtures() -> None:
+    payload = {
+        "issue-number": 42,
+        "ready": True,
+        "count": 1,
+        "ratio": 1.0,
+        "note": None,
+        "labels": ["bug", "p1"],
+        "meta": {"b": 1, "a": "x"},
+    }
+    assert {"values": _pairs(payload, dict[str, Any] | None)} == json.loads(
+        (_FIXTURES / "poll-values.json").read_text()
+    )
+    assert {"values": _pairs(None, dict[str, Any] | None)} == json.loads(
+        (_FIXTURES / "poll-null.json").read_text()
+    )
+    assert {"values": _pairs({}, dict[str, Any] | None)} == json.loads(
+        (_FIXTURES / "poll-empty.json").read_text()
+    )
 
 
 def test_pydantic_optional_dependency() -> None:
     pydantic = pytest.importorskip("pydantic")
 
     class Model(pydantic.BaseModel):
-        id: str
-        title: str
+        note: str
+        ready: bool
 
     def t(repo: str) -> Model | None:
         return None
@@ -210,10 +308,12 @@ def test_pydantic_optional_dependency() -> None:
     # The module uses postponed annotations, so the local `Model` cannot be resolved from a string.
     t.__annotations__ = {"repo": str, "return": Model | None}
     spec = build_trigger_spec(t)
-    assert "id" in spec.prompt_fields
-    env = serialize_trigger_result(Model(id="1", title="x"), Model | None, trigger_name="t")
-    assert env is not None
-    assert env["title"] == "x"
+    assert spec.prompt_fields == ("note", "ready")
+    pairs = serialize_trigger_result(Model(note="x", ready=True), Model | None, trigger_name="t")
+    assert pairs == [
+        {"key": "note", "value": "x"},
+        {"key": "ready", "value": "true"},
+    ]
 
 
 def test_pydantic_missing_dependency_message(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -255,24 +355,40 @@ def test_invoke_sync_and_async() -> None:
     assert invoke(async_fn, {"x": 1}, is_async=True) == 3
 
 
-def test_poll_handler_none_vs_item() -> None:
+def test_poll_handler_none_vs_pairs_without_polling_params() -> None:
     app = Curupira(name="t", version="0")
+    seen: dict[str, Any] = {}
 
     @app.trigger
     def once(repo: str) -> Issue | None:
+        seen["repo"] = repo
         if repo == "empty/repo":
             return None
         return Issue(7, "title", "http://example")
 
     none_result = app._handle_poll(
-        {"trigger_type": "once", "automation": {"repo": "empty/repo"}, "preview": False, "limit": 1}
+        {
+            "trigger_type": "once",
+            "automation": {"repo": "empty/repo"},
+            "preview": False,
+            "limit": 1,
+        }
     )
-    assert none_result == {"task": None}
+    assert none_result == {"values": None}
+    assert seen["repo"] == "empty/repo"
 
     item_result = app._handle_poll(
-        {"trigger_type": "once", "automation": {"repo": "a/b"}, "preview": False, "limit": 1}
+        {"trigger_type": "once", "automation": {"repo": "a/b"}, "preview": True, "limit": 9}
     )
-    assert item_result["task"]["id"] == "7"
+    assert item_result == {
+        "values": [
+            {"key": "number", "value": "7"},
+            {"key": "title", "value": "title"},
+            {"key": "url", "value": "http://example"},
+        ]
+    }
+    assert "preview" not in seen
+    assert "limit" not in seen
 
     err = app._handle_validate({"trigger_type": "once", "configuration": {}})
     assert err["ok"] is False

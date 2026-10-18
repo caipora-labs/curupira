@@ -12,16 +12,23 @@ e não usam o protocolo de extensões.
 ## Instale a CLI { #install-the-cli }
 
 ```bash
+# Node.js
+npm install -g @caipora/curupira
+
+# Python
 pip install curupira
 # or
 uv tool install curupira
 ```
 
-`curupira` e `curu` são o mesmo binário. O wheel base traz apenas essa CLI em Rust
-(mais um shim fino `curupira.__version__`). Os triggers oficiais vêm em um único pacote
-opcional (`curupira-plugins`, que depende de `curupira-sdk`): instale com extras ou com
-`curupira plugins install`. O **cron** embutido não precisa de nenhum pacote de extensão. O
-Node.js só é necessário quando você instala uma extensão de trigger de terceiros baseada em Node.
+`curupira` e `curu` executam o mesmo binário Rust nos dois casos, e ambos usam
+`~/.curupira/`. O pacote npm não altera os launchers de extensões e não instala um
+ambiente Python ou Node.js próprio. O wheel do PyPI também traz um shim fino
+`curupira.__version__`. Os triggers oficiais vêm em um único pacote opcional
+(`curupira-plugins`, que depende de `curupira-sdk`): instale com extras ou com
+`curupira plugins install`. O **cron** embutido não precisa de nenhum pacote de extensão. As
+extensões `uvx` precisam de `uvx` no `PATH`; as extensões `npx` precisam de `npx` no `PATH`. Se o
+launcher configurado não existir, a validação informa isso.
 
 ```bash
 # triggers oficiais (instala o curupira-sdk como dependência)
@@ -115,11 +122,6 @@ class Issue:
     number: int
     title: str
     url: str
-    id: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.id:
-            self.id = str(self.number)
 
 
 @app.trigger
@@ -128,8 +130,8 @@ async def github_issues(
     labels: list[str] | None = None,
     state: str = "open",
 ) -> Issue | None:
-    """Return the next eligible issue, or None when the round is empty."""
-    # Selecione exatamente o próximo item da API externa (nunca uma lista).
+    """Return the next issue, or None when nothing was found."""
+    # Selecione exatamente um objeto (nunca uma lista). None significa que nada foi encontrado.
     return None
 
 
@@ -151,10 +153,16 @@ Regras:
   `plugins-py/github-issues`).
 - Os parâmetros da função são a fonte da verdade para os extras do TOML. Obrigatório /
   opcional / valores padrão / `None` vêm da assinatura e das type hints.
-- Retorne **um** objeto ou `None`. Listas, tuplas e iteradores são rejeitados.
-- `def` síncrono e `async def` usam o mesmo decorator.
-- Dataclasses e TypedDict funcionam sem configuração. Modelos Pydantic v2 exigem
-  `curupira-sdk[pydantic]`.
+- Retorne **um** objeto ou `None`. `None` significa que nada foi encontrado e vira
+  `null` em JSON. Listas, tuplas, sets e iteradores são rejeitados, inclusive uma
+  lista de pares montada manualmente. Um mapeamento vazio vira uma lista de pares
+  vazia, que é um item sem dados, não "nada encontrado".
+- `def` síncrono e `async def` usam o mesmo decorator. O host não passa
+  `preview` nem `limit` para a função.
+- Mapeamentos, dataclasses e TypedDicts funcionam sem configuração. Modelos Pydantic v2
+  exigem `curupira-sdk[pydantic]`. O SDK converte esse objeto em uma lista de pares de
+  strings `{ "key", "value" }`. Ele não adiciona `id`, `title`, `url` nem
+  qualquer outro campo.
 - O host em Rust cuida de polling, concorrência, Git, worktrees e agentes de código.
   O SDK nunca agenda nem repete o trabalho do dispatcher.
 
@@ -183,15 +191,59 @@ ${url}
 
 `repository`, `prompt`, `profile` e `checkout` são campos centrais — não os declare
 como parâmetros da função (use `repo` ou outro nome para identificadores de forge).
+Os nomes no prompt são os campos que o trigger retorna. Este exemplo
+usa apenas `number`, `title` e `url` porque `Issue` declara esses campos.
 
-### Como o host consulta { #how-the-host-polls }
+### Como um valor de retorno vira pares { #how-a-return-value-becomes-pairs }
+
+O SDK converte o objeto antes que ele chegue ao host. As chaves de nível superior mantêm a
+ordem de declaração ou de inserção. Cada valor vira uma string:
+
+| Valor em Python | `value` do par |
+| --- | --- |
+| `str` | a mesma string, sem aspas extras |
+| `bool` | `true` ou `false` |
+| `int` | texto decimal (`1` e `1.0` continuam distintos) |
+| `float` | o mesmo texto que `json.dumps` emitiria |
+| `None` | `null` (isto é um valor de campo, não "nada encontrado") |
+| mapeamento aninhado, lista, tupla, dataclass ou modelo | JSON compacto (`sort_keys=True`, sem espaços extras) |
+
+Rejeitados com `SerializationError` (exibido como erro JSON-RPC, não como `null`):
+
+- uma lista, tupla, set, gerador ou outra coleção no nível superior
+- uma string, número ou booleano no nível superior
+- uma chave que não é string (as chaves não são convertidas com `str`)
+- uma chave vazia, ou uma chave contendo `}` ou `${`
+- uma chave duplicada
+- um float não finito, `bytes`, `set`, `datetime` ou qualquer outro valor que não possa ser serializado
+
+O `describe` ainda pode listar `prompt_fields` tirados do tipo de retorno declarado.
+Essa lista é uma dica. Ela não faz parte do resultado e não torna nenhuma chave
+obrigatória.
+
+### Como o host consulta e interpola { #how-the-host-polls-and-interpolates }
 
 1. O host escolhe uma automação habilitada e valida a configuração via
    `trigger/validate` (com os padrões aplicados a partir da assinatura).
 2. Ele chama `trigger/poll` repetidamente, até `settings.polling.batch_size`.
-3. Cada chamada deve retornar `{ "task": <object> }` ou `{ "task": null }`.
-4. `null` encerra a rodada atual; o trigger continua habilitado para o próximo intervalo de
-   polling. Erros usam códigos de erro do JSON-RPC e não são o mesmo que `null`.
+   Os argumentos de polling não são passados para a função do trigger.
+3. Cada chamada retorna `{ "values": [ {"key", "value"}, ... ] }`,
+   `{ "values": [] }` ou `{ "values": null }`.
+4. `null` encerra a rodada atual. Uma lista vazia ainda é um resultado. Erros usam
+   códigos de erro do JSON-RPC e não são o mesmo que `null`.
+
+A CLI substitui `${key}` pelo valor string do par em uma única passagem. O texto
+que um valor insere não é examinado de novo, então um valor `${other}` permanece
+literal. Um placeholder sem chave correspondente é deixado como está. `${repository}`
+(a identidade da forge derivada do remote do Git) e `${automation}` (o nome da
+automação) são fornecidos pelo host. Uma chave de resultado com qualquer um desses
+nomes é um erro. Chaves que não são identificadores comuns continuam sendo escritas como
+`${issue-number}`, `${foo.bar}`, `${123}` ou `${a b}`.
+
+O host não sabe quais chaves um plugin usa. Duas listas idênticas são a
+mesma tarefa; a identidade é um hash da lista na ordem em que a extensão a enviou,
+armazenado junto com o estado de conclusão e de retomada. Tarefas concluídas do protocolo v1
+não correspondem a essas chaves.
 
 ### Manifesto { #manifest }
 
@@ -204,16 +256,142 @@ As extensões descobrem e normalizam tarefas, validam sua configuração e receb
 eventos de ciclo de vida. Elas não devem escolher agentes de código, montar o argv do agente, clonar
 repositórios nem gerenciar worktrees — o host em Rust cuida dessas etapas.
 
-## Escreva uma extensão em JavaScript / TypeScript { #write-a-javascript-typescript-extension }
+## Escreva uma extensão em JavaScript / TypeScript com `@caipora/curupira-sdk` { #javascript-extension }
 
-Use o mesmo enquadramento e os mesmos métodos. Publique um pacote npm cujo `bin` fale o
-protocolo via stdio. Pacotes em TypeScript devem ser compilados para JS ou rodar com
-`tsx`/`node`, conforme documentado no pacote. Veja
-`packages/curupira-core/tests/fixtures/node-ext/` e
-`packages/curupira-core/tests/fixtures/ts-ext/`.
+Instale o SDK no seu pacote npm (Node.js 20+). A CLI inicia o pacote publicado
+com `npx`; você não precisa de uma instalação global do plugin nem do SDK.
 
-Os resultados do poll devem usar `{ "task": null }` ou um único objeto de tarefa — nunca um
-array de tarefas.
+```bash
+npm install @caipora/curupira-sdk
+```
+
+### Trigger mínimo em JavaScript (JSDoc opcional) { #minimal-javascript-trigger-jsdoc-optional }
+
+```js
+import { defineTriggers } from "@caipora/curupira-sdk";
+
+/**
+ * @typedef {Object} GitHubIssueParams
+ * @property {string} repo
+ * @property {string[]} [labels]
+ */
+
+/**
+ * @param {GitHubIssueParams} params
+ */
+async function githubIssue({ repo, labels = [] }) {
+  // Retorne um objeto, ou null quando nada foi encontrado.
+  return { repo, labels, title: "Fix authentication" };
+}
+
+export default defineTriggers({
+  githubIssue,
+});
+```
+
+O JSDoc é documentação para editores. Ele não é lido em tempo de execução.
+
+### Trigger mínimo em TypeScript { #minimal-typescript-trigger }
+
+```ts
+import { defineTriggers } from "@caipora/curupira-sdk";
+
+export default defineTriggers({
+  githubIssue: async (params: { repo: string; labels?: string[] }) => ({
+    repo: params.repo,
+    labels: params.labels ?? [],
+    title: "Fix authentication",
+  }),
+});
+```
+
+Compile o TypeScript para ESM JavaScript puro antes de publicar. O Curupira não
+transpila TypeScript arbitrário quando inicia o plugin.
+
+### Entrypoint `bin` do plugin { #plugin-bin-entrypoint }
+
+```js
+#!/usr/bin/env node
+import { runExtension } from "@caipora/curupira-sdk";
+import triggers from "./index.js";
+
+await runExtension(triggers, {
+  name: "@acme/curupira-ext",
+  version: "1.2.0",
+  // Opcional: exibido por `curupira plugins install npm:…`
+  manifestTemplate: `manifest_version = 1
+name = "acme-curupira-ext"
+version = "{version}"
+protocol_version = 2
+runtime = "node"
+kind = "trigger"
+trigger_types = ["github-issue"]
+
+[launch]
+type = "npx"
+package = "@acme/curupira-ext"
+version = "{version}"
+`,
+});
+```
+
+Declare o executável no `package.json`:
+
+```json
+{
+  "name": "@acme/curupira-ext",
+  "version": "1.2.0",
+  "type": "module",
+  "bin": {
+    "curupira-acme-ext": "./bin.js"
+  },
+  "dependencies": {
+    "@caipora/curupira-sdk": "^0.1.0"
+  }
+}
+```
+
+Publique no npm. Registre o launcher nas configurações (fixe a versão em `args`):
+
+```toml
+[plugins.acme]
+type = "npx"
+args = ["--yes", "@acme/curupira-ext@1.2.0"]
+tools = ["*"]
+
+[automations.demo]
+trigger_type = "acme/github-issue"
+repository = "api"
+repo = "acme/api"
+labels = ["bug"]
+prompt = """
+Resolve ${title} in ${repo}
+"""
+```
+
+A CLI executa `npx --yes @acme/curupira-ext@1.2.0` como argv (nunca como string de shell),
+encaminha stdin/stdout para os frames do protocolo e deixa o stderr para logs. O cache
+normal do npm é usado. Se o `npx` não existir, o validate falha com uma mensagem que
+indica a instalação do Node.js.
+
+### Regras do SDK de JS/TS { #rules-for-the-jsts-sdk }
+
+- O nome da propriedade do objeto é o id local do trigger, convertido para kebab-case
+  (`githubIssue` → `github-issue`).
+- Funções síncronas e assíncronas são suportadas.
+- Retorne **um** objeto simples ou `null`. O SDK converte o objeto em pares de strings
+  `{ "values": [{ "key", "value" }, ...] }`. `null` vira
+  `{ "values": null }`. Um objeto vazio vira `{ "values": [] }`.
+- Não monte a lista de pares manualmente. Não retorne um array de itens de negócio.
+- Valores aninhados usam as mesmas regras de serialização do SDK de Python (veja acima).
+- Os campos centrais da automação (`trigger_type`, `repository`, `prompt`, `profile`,
+  `checkout`) não são parâmetros da função — use `repo` (ou similar) para identificadores de forge.
+- As flags de polling (`preview`, `limit`) não são passadas para a função do trigger.
+- O pacote é ESM. Prefira publicar JavaScript compilado junto com arquivos `.d.ts`.
+
+Os fixtures de protocolo de baixo nível, sem o SDK, continuam em
+`packages/curupira-core/tests/fixtures/node-ext/` e `ts-ext/`. Exemplos completos
+estão em `packages/curupira-js-sdk/examples/`.
 
 ## Segurança { #security }
 

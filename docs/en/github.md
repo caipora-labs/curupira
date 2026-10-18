@@ -155,7 +155,7 @@ curupira --config path/to/settings.toml run --watch --size 12
    ```
 
 `--dry-run` cannot be combined with `--watch` or `--size`. `validate` checks TOML shape
-and prompt placeholders without calling GitHub; `run` and `run --watch` need `gh` and the
+and trigger configuration without calling GitHub; `run` and `run --watch` need `gh` and the
 chosen agent CLI installed and authenticated.
 
 ## Configuration fields
@@ -239,21 +239,28 @@ There is no free-form `query` field: filters are typed TOML only.
 
 ### Deduplication { #deduplication }
 
-A task is identified by `[automation_id, repo, task_type, id]`. Curupira keeps two records:
+The host identifies a result by hashing the key/value list the trigger returned, in that
+order, together with the automation, repository, and trigger type. Curupira keeps two records:
 
-- **Completed tasks are remembered across restarts.** When the agent finishes successfully,
-  the task is stored in the state database (`state_db_path`) and is never run again for that
-  automation, even if the item still matches your filters.
+- **Completed tasks are remembered across restarts.** When the agent finishes successfully, the
+  key is stored in the state database (`state_db_path`), and a later poll that returns the same
+  pairs is skipped, even after a restart.
 - **Failed tasks are retried.** A task whose agent run failed is not stored as completed. It is
   skipped for the rest of the current process and tried again after a restart.
 
-Deduplication is per automation, so two automations may process the same issue or pull request
-with different prompts. `run --dry-run` previews without recording anything.
+Changing any returned value, including the title, body, or labels, makes a different task. For
+that reason the official triggers do not return values that change by themselves or because the
+agent worked on the item (comments, update time, CI and review state, linked pull requests):
+the agent would be started again for the same issue. When the agent needs them, tell it to read
+them, for example with `gh issue view ${issue_number} --comments`.
+
+The key is per automation, so two automations may process the same issue or pull request with
+different prompts. `run --dry-run` previews without recording completion.
 
 !!! tip "Running an item again"
-    To run a completed item again, use a different automation name (a new automation has its own
-    history) or remove the row from the state database. Changing the filters alone does not
-    make a completed item eligible again.
+    To run a completed item again, edit it (a label or the title is enough), use a different
+    automation name (a new automation has its own history), or remove the row from the state
+    database. Changing the filters alone does not make a completed item eligible again.
 
 When a full cycle finds nothing (or discovery fails), the feed waits
 `poll_interval_seconds`, then doubles the wait on consecutive empty cycles up to five
@@ -262,14 +269,12 @@ minutes (`300` seconds). Any successful discovery resets the interval.
 ## What the agent prompt receives
 
 The prompt can use `${field}` or Jinja syntax, see [Writing prompts](prompts.md). Every field
-of issues and pull requests (title, body, labels, assignees, comments, review state, CI status,
-and more) is listed in the [Prompt field reference](prompt-fields.md).
+of issues and pull requests (title, body, labels, assignees, milestone, diff size, and more) is listed in the [Prompt field reference](prompt-fields.md).
 
 ## Security: issue and pull-request text is untrusted { #security }
 
-Titles, bodies, and comments (`${issue_title}`, `${issue_body}`, `${issue_comments}`,
-`${pull_request_title}`, `${pull_request_body}`, `${pull_request_comments}`, `${item_body}`,
-`${item_comments}`) come from anyone who can open an issue or pull request and are
+Titles and bodies (`${issue_title}`, `${issue_body}`, `${pull_request_title}`,
+`${pull_request_body}`, `${item_body}`) come from anyone who can open an issue or pull request and are
 placed in the coding agent's prompt, so a hostile author can try to steer the agent
 (prompt injection). The agent can run destructive actions in the checkout it works in,
 so the risk depends on what you allow in the agent profile. Restrict what reaches the
@@ -314,5 +319,5 @@ the global OpenCode configuration and credentials, is still shared.
 | `GitHub GraphQL temporarily failed with status 429` (or similar) | Rate limit or transient API failure | Curupira retries transient errors a few times; back off or reduce poll frequency / `batch_size` |
 | Discovery warnings in `run --watch` | GraphQL or CLI failure treated as an empty cycle | Check logs for `Discovery failed for …`; fix auth or network, then wait for the next poll |
 
-`curupira validate` checks TOML shape and prompt placeholders without calling GitHub.
+`curupira validate` checks TOML shape and trigger configuration without calling GitHub.
 `curupira run` and `curupira run --watch` need `gh` installed and authenticated.

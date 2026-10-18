@@ -103,11 +103,41 @@ _AGENT_HEADERS: dict[str, tuple[str, str, str]] = {
     "es": ("Proveedor", "Ejecutable", "Guía"),
 }
 
-_REQUIREMENT_TEXT: dict[str, tuple[str, str]] = {
-    # (Python line, prefix of optional tools)
-    "en": ("Python {range} on {platforms}.", "Optional, "),
-    "pt": ("Python {range} em {platforms}.", "Opcional, "),
-    "es": ("Python {range} en {platforms}.", "Opcional, "),
+_REQUIREMENT_TEXT: dict[str, tuple[str, str, str]] = {
+    # (Python line, Node.js line, prefix of optional tools)
+    "en": (
+        (
+            "Python {range} on {platforms}, only for the PyPI install and for extensions launched "
+            "with `uvx`."
+        ),
+        (
+            "Node.js {range}, only for the npm install (`@caipora/curupira`) and for extensions "
+            "launched with `npx`."
+        ),
+        "Optional, ",
+    ),
+    "pt": (
+        (
+            "Python {range} em {platforms}, apenas para a instalação pelo PyPI e para extensões "
+            "iniciadas com `uvx`."
+        ),
+        (
+            "Node.js {range}, apenas para a instalação pelo npm (`@caipora/curupira`) e para "
+            "extensões iniciadas com `npx`."
+        ),
+        "Opcional, ",
+    ),
+    "es": (
+        (
+            "Python {range} en {platforms}, solo para la instalación desde PyPI y para extensiones "
+            "iniciadas con `uvx`."
+        ),
+        (
+            "Node.js {range}, solo para la instalación desde npm (`@caipora/curupira`) y para "
+            "extensiones iniciadas con `npx`."
+        ),
+        "Opcional, ",
+    ),
 }
 
 _AGENT_ROWS: tuple[tuple[str, str, str], ...] = (
@@ -144,9 +174,14 @@ def define_env(env: MacroEnvironment) -> None:
     def requirements_list(lang: str = "en") -> str:
         lang = _lang(lang)
         python = _REQUIREMENTS["python"]
-        line, optional = _REQUIREMENT_TEXT[lang]
+        node = _REQUIREMENTS["node"]
+        python_line, node_line, optional = _REQUIREMENT_TEXT[lang]
         platforms = _localized(python, "platforms", lang)
-        lines = [f"- {line.format(range=python['range'], platforms=platforms)}"]
+        node_range = _localized(node, "range", lang)
+        lines = [
+            f"- {python_line.format(range=python['range'], platforms=platforms)}",
+            f"- {node_line.format(range=node_range)}",
+        ]
         for tool in _REQUIREMENTS["required_tools"]:
             detail = _localized(tool, "detail", lang)
             lines.append(f"- [{tool['name']}]({tool['url']}): {detail}")

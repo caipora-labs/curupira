@@ -1,7 +1,7 @@
 manifest_version = 1
 name = "node-test-ext"
 version = "0.0.1"
-protocol_version = 1
+protocol_version = 2
 runtime = "node"
 kind = "trigger"
 trigger_types = ["node-test"]

@@ -22,8 +22,7 @@ registered type and its prompt fields.
 
 Titles and bodies from GitHub issues and pull requests are untrusted input. Curupira puts
 them into the coding-agent prompt (`${issue_title}`, `${issue_body}`,
-`${pull_request_title}`, `${pull_request_body}`, and shared `${task_title}` /
-`${task_body}`). A hostile author can try to steer the agent. Restrict what reaches the
+`${pull_request_title}`, `${pull_request_body}`, `${item_body}`). A hostile author can try to steer the agent. Restrict what reaches the
 agent with `labels`, `author`, or `assignee`. Review what the agent profile is allowed to
 run in the repository. Only run automations on repositories where you trust everyone who
 can write text.
@@ -35,8 +34,9 @@ can write text.
    your profile:
 
    ```bash
-   uv tool install curupira
-   # forge triggers are optional extras, for example:
+   npm install -g @caipora/curupira
+   # or: uv tool install curupira
+   # forge triggers are optional PyPI extras, for example:
    # uv tool install 'curupira[github]'
    ```
 
@@ -95,14 +95,13 @@ linked_pull_request = false
 prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 ```
 
-**Placeholders:** common fields
-(`${repo}`, `${repository}`, `${automation_id}`, `${task_type}`, `${task_number}`,
-`${task_title}`, `${task_body}`, `${task_url}`) plus
-`${issue_number}`, `${issue_title}`, `${issue_body}`, `${issue_url}`.
+**Placeholders:** `${repository}` and `${automation}` from the host, plus the keys
+this trigger returns, including `${repo}`, `${issue_number}`, `${issue_title}`,
+`${issue_body}`, and `${issue_url}`.
 
 **What the agent receives:** the rendered `prompt` string, with the agent working in the
-Git repository named by `repository`. `${repo}` is the GitHub identity in TOML;
-`${repository}` is the local repository alias.
+Git repository named by `repository`. `${repo}` is a key the GitHub trigger returns;
+`${repository}` is the forge identity derived from the Git remote.
 
 ## GitHub pull requests
 
@@ -134,14 +133,15 @@ Branch: ${pull_request_head_ref} -> ${pull_request_base_ref}
 """
 ```
 
-**Placeholders:** common fields plus
-`${pull_request_number}`, `${pull_request_title}`, `${pull_request_body}`,
-`${pull_request_url}`, `${pull_request_is_draft}`, `${pull_request_head_ref}`,
+**Placeholders:** `${repository}` and `${automation}` from the host, plus the keys
+this trigger returns, including `${pull_request_number}`,
+`${pull_request_title}`, `${pull_request_body}`, `${pull_request_url}`,
+`${pull_request_is_draft}`, `${pull_request_head_ref}`, and
 `${pull_request_base_ref}`.
 
 **What the agent receives:** the rendered review prompt in the Git repository named by
-`repository`. Booleans render as `true` / `false`; missing optional values render as empty
-strings.
+`repository`. Booleans render as `true` / `false`. A field whose value is `None`
+renders as `null`. A `${key}` the result does not contain is left unchanged.
 
 ## Cron
 
@@ -164,11 +164,11 @@ provider = "opencode"
 trigger_type = "cron"
 repository = "api"
 schedule = "0 9 * * 1"
-prompt = "Perform weekly maintenance for ${repository} (run time ${task_number})."
+prompt = "Perform weekly maintenance for ${repository} (${automation})."
 ```
 
-**Placeholders:** common fields only. For cron tasks, `${task_number}` is the scheduled
-run time. Optional `timezone` overrides `[agents.defaults].timezone`; optional
+**Placeholders:** `${repository}` and `${automation}` only. Cron does not return
+trigger pairs. Optional `timezone` overrides `[agents.defaults].timezone`; optional
 `start_date` / `end_date` bound the inclusive window.
 
 **What the agent receives:** the rendered maintenance prompt in the Git repository named
@@ -181,13 +181,16 @@ and the same automation never runs twice at the same time.
 | --- | --- | --- |
 | `unknown trigger type: …` | Typo or plugin not installed | Check `trigger_type` against `curu plugins list` |
 | Repository alias errors / missing repository | `repository` does not match a `[repositories.<alias>]` key | Align the alias and ensure `remote` is a full Git URL |
-| Unknown prompt placeholder | `${name}` not in the common set or the trigger's item fields | Fix the placeholder; `curu plugins list` shows trigger fields |
+| Placeholder left unchanged in the prompt | `${name}` is not a host variable and the trigger did not return that key | Use a key the trigger returns; see the [Prompt field reference](prompt-fields.md). `validate` suggests the closest key |
+| `prompt uses unknown field(s)` from `validate` | A `{{ name }}` (or a `${name}` that looks like a typo) is not a key of this trigger | Fix the name; the message lists the available fields |
+| Prompt template error with a line number | Invalid Jinja syntax, for example an `if` block without its `endif` | Fix the line shown. To print literal double braces, use a `raw` block, see [Writing prompts](prompts.md#values-are-text) |
 | `Required executable not found: gh` | CLI missing from `PATH` | Install and authenticate the CLI for that trigger |
 | `schedule must be a valid five-field cron expression` | Six-field cron or invalid expression | Use five fields (`minute hour day-of-month month day-of-week`) |
 | `repo must use the owner/repository format` | GitHub `repo` not `owner/name` | Use `acme/api`, not a URL |
 | No tasks scheduled | Filters match nothing | Widen or drop labels / branch filters; empty cycles are not an error |
-| `validate` exits `2` | TOML shape, unknown keys, or placeholder errors | Read the validation message; models reject unknown keys |
+| `validate` exits `2` | TOML shape, unknown configuration keys, or prompt errors | Read the validation message; models reject unknown keys |
 
-`curu validate` checks TOML shape and prompt placeholders without calling external APIs.
+`curu validate` checks TOML shape, trigger configuration, and the prompt (syntax and field names)
+without calling external APIs.
 `curu run` and `curu run --watch` need the CLIs for your triggers
 and the chosen agent CLI installed and authenticated.

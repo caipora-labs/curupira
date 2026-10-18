@@ -32,19 +32,17 @@ _GH_TIMEOUT_SECONDS = 30
 _HTTP_TIMEOUT_SECONDS = 30
 
 COMMON_FIELDS = """
-  id number title body url state createdAt updatedAt
+  id number title body url state createdAt
   author { login }
   labels(first: 50) { nodes { name } }
   assignees(first: 20) { nodes { login } }
   milestone { title }
-  comments(last: 10) { totalCount nodes { author { login } body } }
 """
 
 ISSUE_FIELDS = (
     COMMON_FIELDS
     + """
   stateReason
-  closedByPullRequestsReferences(first: 10) { nodes { number url } }
 """
 )
 
@@ -52,12 +50,8 @@ PULL_REQUEST_FIELDS = (
     COMMON_FIELDS
     + """
   headRefName baseRefName headRefOid isDraft mergeable mergeStateStatus
-  reviewDecision changedFiles additions deletions
-  commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+  changedFiles additions deletions
   closingIssuesReferences(first: 10) { nodes { number url } }
-  reviewRequests(first: 20) {
-    nodes { requestedReviewer { ... on User { login } ... on Team { name } } }
-  }
 """
 )
 

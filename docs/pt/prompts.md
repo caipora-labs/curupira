@@ -36,11 +36,11 @@ Para qualquer coisa além de inserir valores, use a sintaxe Jinja. Você pode mi
 | --- | --- |
 | Um valor | `{{ issue_title }}` |
 | Um valor reserva para um campo vazio ou opcional | `{{ issue_milestone \| default("none") }}` |
-| Texto apenas em alguns casos | `{% if "security" in issue_labels %}...{% endif %}` |
+| Texto apenas em alguns casos | `{% if "security" in issue_labels \| fromjson %}...{% endif %}` |
 | Duas alternativas | `{% if item_type == "pull_request" %}...{% else %}...{% endif %}` |
-| Repetir para cada item de uma lista | `{% for label in issue_labels %}- {{ label }}\n{% endfor %}` |
+| Repetir para cada item de uma lista | `{% for label in issue_labels \| fromjson %}- {{ label }}\n{% endfor %}` |
 | Encurtar um texto longo | `{{ issue_body \| truncate(2000) }}` |
-| Percorrer os comentários mais recentes | `{% for c in issue_comments \| fromjson %}{{ c.author }}: {{ c.body }}{% endfor %}` |
+| Comparar um número | `{% if pull_request_changed_files \| int > 20 %}...{% endif %}` |
 
 Exemplo: uma automação que se adapta ao que recebe (mais exemplos em [Receitas](recipes.md)):
 
@@ -54,12 +54,12 @@ column = ["Ready"]
 prompt = """
 {% if item_type == "pull_request" %}
 Revise o pull request #{{ item_number }} ({{ pull_request_head_ref }} -> {{ pull_request_base_ref }}).
-O CI está {{ pull_request_ci_status | default("unknown") }}.
+Rascunho: {{ pull_request_is_draft }}.
 {% else %}
 Resolva a issue #{{ item_number }}: {{ item_title }}
 {% endif %}
 
-{% if "security" in item_labels %}
+{% if "security" in item_labels | fromjson %}
 Esta é uma issue de segurança. Mantenha a mudança mínima e explique o risco na mensagem de commit.
 {% endif %}
 
@@ -74,21 +74,35 @@ Observações:
 - O Jinja tem muitos outros [filtros e testes embutidos](https://docs.rs/minijinja/latest/minijinja/filters/index.html)
   (`upper`, `join`, `length`, `first`, `selectattr`, ...).
 
+## Todo valor é texto { #values-are-text }
+
+O trigger entrega ao Curupira texto simples para cada campo, então algumas conversões são explícitas:
+
+- **Listas e objetos** (labels, responsáveis, campos do projeto) chegam como texto JSON, por exemplo
+  `["bug","security"]`. Use `| fromjson` para testá-los ou percorrê-los:
+  `{% if "bug" in issue_labels | fromjson %}`.
+- **Números** também são texto. Use `| int` para comparar: `{% if item_number | int > 100 %}`.
+- **Booleanos** são `true` ou `false`: `{% if pull_request_is_draft == "true" %}`.
+- **`${name}` e `{{ name }}` diferem quando falta um campo.** Um `${name}` que não corresponde a nenhum campo é
+  deixado como escrito, então texto de shell como `${HOME}` é seguro. Um `{{ name }}` é um erro, o que
+  pega erros de digitação. Use `{{ name | default("") }}` para campos que podem estar ausentes.
+- **Chaves literais.** Para imprimir `{{` ou `{%` (por exemplo um `${{ secrets.X }}` do GitHub Actions),
+  envolva o texto em `{% raw %}...{% endraw %}`.
+
 ## Campos
 
-Toda automação recebe estes:
-
-`${repo}` (o `owner/name` do GitHub), `${repository}` (o alias do checkout), `${automation_id}`
-(também `${automation}`), `${task_type}`, `${task_number}`, `${task_title}`, `${task_body}`,
-`${task_url}`. Em tarefas cron, `${task_number}` é o horário agendado.
+O host adiciona dois campos a toda tarefa: `${repository}` (o `owner/name` do GitHub do
+repositório da automação) e `${automation}` (o nome da automação). Em um prompt de cron esses são
+os únicos campos.
 
 Cada trigger adiciona seus próprios campos. A lista completa está na [Referência de campos do prompt](prompt-fields.md),
 e [Receitas](recipes.md) traz automações completas para copiar.
 
 ## Verificando o seu prompt
 
-1. `curupira --config settings.toml validate` verifica a sintaxe e se todos os campos que você usa
-   existem. Um erro de digitação recebe uma sugestão:
+1. `curupira --config settings.toml validate` verifica a sintaxe e se todo `{{ field }}` que você usa
+   existe. Um `${field}` só é verificado quando parece um erro de digitação de um campo real, porque
+   outros nomes podem ser texto de shell. Um erro de digitação recebe uma sugestão:
 
    ```text
    automation "work-ready-column": prompt uses unknown field(s) "item_titel"
@@ -99,13 +113,13 @@ e [Receitas](recipes.md) traz automações completas para copiar.
    final, sem fazer clone nem iniciar um agente. Esta é a forma mais rápida de ver o que o
    agente vai receber.
 
-Um campo que existe, mas não tem valor para uma determinada tarefa (por exemplo, um campo de pull request em
+Um `{{ field }}` que não tem valor para uma determinada tarefa (por exemplo, um campo de pull request em
 uma issue), é um erro quando a tarefa roda, e não uma string vazia. Proteja-se com `default("")` ou
 com um `{% if %}`.
 
 ## Segurança
 
-Títulos, corpos e comentários vêm de outras pessoas. O texto deles é inserido como texto simples
+Títulos e corpos vêm de outras pessoas. O texto deles é inserido como texto simples
 e nunca é interpretado como template, então `{{ ... }}` dentro do corpo de uma issue não faz nada. Mesmo assim, ele pode
 tentar direcionar o agente, então siga os conselhos das
 [notas de segurança](github.md#security).

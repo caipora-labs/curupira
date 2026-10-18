@@ -92,10 +92,12 @@ tú (o una automatización posterior) mueves la tarjeta:
 | `Ready` | `column = "Ready"` | Implementa la issue y abre un pull request |
 | `Review` | `column = "Review"`, `content = "pull_request"` | Revisa el pull request y comenta |
 
-Cada elemento se procesa una sola vez: cuando el agente termina con éxito, esa issue o ese pull request
-se recuerda y la misma automatización no lo vuelve a ejecutar, incluso si arrastras la tarjeta de vuelta a
-la columna. Consulta [Deduplicación](github.md#deduplication). Las tarjetas cuya ejecución del agente falló se
-intentan de nuevo después de un reinicio.
+Una tarea se identifica por los valores exactos de la tarjeta. Cuando el agente termina con éxito, esos
+valores se recuerdan, así que el mismo issue o pull request en la misma columna con el mismo título,
+labels y campos no lo vuelve a ejecutar la misma automatización, ni siquiera después de un reinicio o si arrastras
+la tarjeta fuera y de vuelta. Editar el elemento (o moverlo a otra columna) lo convierte en una nueva
+tarea. Consulta [Deduplicación](github.md#deduplication). Las tarjetas cuya ejecución del agente falló se intentan de nuevo
+después de un reinicio.
 
 ## Qué puede usar el prompt
 

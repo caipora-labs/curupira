@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use chrono::Utc;
 use futures::stream::{FuturesUnordered, StreamExt};
-use serde_json::json;
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::agents::{self, AgentProvider, AgentRequest};
@@ -18,6 +18,7 @@ use crate::error::CurupiraError;
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::namespace::PluginNamespaceIndex;
 use crate::process::run_process;
+use crate::protocol::KeyValue;
 use crate::storage::{
     open_db, CompletedTaskRepository, CronScheduleRepository, RunningCodingSession,
     RunningSessionRepository,
@@ -40,12 +41,7 @@ pub async fn run_command(
     if dry_run {
         let tasks = poll_all(settings, &automations, &conn, &namespace, true).await?;
         if let Some(task) = tasks.into_iter().next() {
-            println!(
-                "dry-run\t{}\t{}\t{}",
-                task.identity.key(),
-                task.title,
-                task.url
-            );
+            println!("dry-run\t{}", task.identity.key());
             // The rendered prompt is what the agent would receive: check templates here.
             println!(
                 "--- prompt ---\n{}\n--- end prompt ---",
@@ -123,12 +119,12 @@ pub async fn run_command(
             running.next().await
         };
         let Some(outcome) = next else { continue };
-        let TaskOutcome { key, title, result } = outcome;
+        let TaskOutcome { key, result } = outcome;
         in_flight.remove(&key);
         match result {
             Ok(()) => {
                 completed.mark(&key, Utc::now())?;
-                println!("ok\t{key}\t{title}");
+                println!("ok\t{key}");
             }
             Err(err) => {
                 failed += 1;
@@ -146,7 +142,6 @@ pub async fn run_command(
 /// Result of one worker, returned to the dispatch loop when it finishes.
 struct TaskOutcome {
     key: String,
-    title: String,
     result: Result<(), CurupiraError>,
 }
 
@@ -158,9 +153,8 @@ async fn run_task(
     namespace: &PluginNamespaceIndex,
 ) -> TaskOutcome {
     let key = task.identity.key();
-    let title = task.title.clone();
     let result = execute_task(settings, &task, conn, vcs, namespace).await;
-    TaskOutcome { key, title, result }
+    TaskOutcome { key, result }
 }
 
 async fn poll_all(
@@ -211,10 +205,10 @@ async fn poll_all(
                 preview,
                 batch_size,
             )?;
-            match result.task {
+            match result.values {
                 None => break,
-                Some(value) => {
-                    tasks.push(task_from_extension_value(settings, automation, value)?);
+                Some(values) => {
+                    tasks.push(task_from_values(settings, automation, values)?);
                 }
             }
         }
@@ -226,42 +220,18 @@ async fn poll_all(
     Ok(tasks)
 }
 
-fn task_from_extension_value(
+fn task_from_values(
     settings: &ApplicationSettings,
     automation: &ResolvedAutomation,
-    value: serde_json::Value,
+    values: Vec<KeyValue>,
 ) -> Result<Task, CurupiraError> {
-    let id = value
-        .get("id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| CurupiraError::Plugin("extension task missing id".into()))?
-        .to_string();
-    let title = value
-        .get("title")
-        .and_then(|v| v.as_str())
-        .unwrap_or(&id)
-        .to_string();
-    let url = value
-        .get("url")
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
-    let item = value.get("item").cloned().unwrap_or_else(|| json!({}));
-    let vars = crate::prompt::task_vars(
-        &[
-            ("repo", automation.identity_repo.clone()),
-            ("repository", automation.repository_alias.clone()),
-            ("automation", automation.automation_id.clone()),
-            ("automation_id", automation.automation_id.clone()),
-            ("task_type", automation.trigger_type.clone()),
-            ("task_number", id.clone()),
-            ("task_title", title.clone()),
-            ("task_body", task_body(&item)),
-            ("task_url", url.clone()),
-        ],
-        &item,
-    );
-    let prompt = crate::prompt::render(&automation.automation_id, &automation.prompt, &vars)?;
+    let prompt = render_prompt(
+        &automation.prompt,
+        &values,
+        &automation.identity_repo,
+        &automation.automation_id,
+    )?;
+    let id = content_id(&values);
     Ok(Task {
         identity: crate::config::TaskIdentity {
             automation_id: automation.automation_id.clone(),
@@ -270,9 +240,7 @@ fn task_from_extension_value(
             id,
         },
         automation_id: automation.automation_id.clone(),
-        title,
-        url,
-        item,
+        values,
         scheduled_for: None,
         prompt,
         trigger_type: automation.trigger_type.clone(),
@@ -289,13 +257,49 @@ fn task_from_extension_value(
     })
 }
 
-/// The item's main text for `${task_body}`, whichever trigger produced it.
-fn task_body(item: &serde_json::Value) -> String {
-    ["issue_body", "pull_request_body", "item_body"]
-        .iter()
-        .find_map(|key| item.get(*key).and_then(|v| v.as_str()))
-        .unwrap_or("")
-        .to_string()
+/// Stable identity for a trigger result. Order is significant; no field is injected.
+fn content_id(values: &[KeyValue]) -> String {
+    let canonical = serde_json::to_string(values).expect("key-value list is JSON");
+    hex::encode(Sha256::digest(canonical.as_bytes()))
+}
+
+fn validate_pairs(values: &[KeyValue]) -> Result<(), CurupiraError> {
+    let mut seen = HashSet::new();
+    for pair in values {
+        if pair.key.is_empty() || pair.key.contains('}') || pair.key.contains("${") {
+            return Err(CurupiraError::Plugin(format!(
+                "trigger result key {:?} cannot be used as a template placeholder",
+                pair.key
+            )));
+        }
+        if pair.key == "repository" || pair.key == "automation" {
+            return Err(CurupiraError::Plugin(format!(
+                "trigger result key {:?} collides with a host template variable",
+                pair.key
+            )));
+        }
+        if !seen.insert(pair.key.clone()) {
+            return Err(CurupiraError::Plugin(format!(
+                "trigger result has duplicate key {:?}",
+                pair.key
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Render a prompt: `${key}` substitution and Jinja. Inserted text is never scanned again.
+///
+/// `${repository}` and `${automation}` come from the automation, not the trigger
+/// result. A placeholder with no match is left unchanged.
+pub(crate) fn render_prompt(
+    template: &str,
+    values: &[KeyValue],
+    repository: &str,
+    automation_id: &str,
+) -> Result<String, CurupiraError> {
+    validate_pairs(values)?;
+    crate::prompt::render(template, values, repository, automation_id)
 }
 
 async fn execute_task(
@@ -312,9 +316,7 @@ async fn execute_task(
         cron::on_task_started(&repo, task)?;
     } else if let Some(binding) = namespace.resolve(&task.trigger_type) {
         let mut host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
-        let task_json =
-            serde_json::to_value(task).map_err(|e| CurupiraError::Plugin(e.to_string()))?;
-        host.on_started(&binding.local_trigger, &task_json)?;
+        host.on_started(&binding.local_trigger, &task.values)?;
         host.shutdown()?;
     }
 
@@ -325,9 +327,7 @@ async fn execute_task(
         cron::on_task_finished(&repo, task)?;
     } else if let Some(binding) = namespace.resolve(&task.trigger_type) {
         let mut host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
-        let task_json =
-            serde_json::to_value(task).map_err(|e| CurupiraError::Plugin(e.to_string()))?;
-        let _ = host.on_finished(&binding.local_trigger, &task_json);
+        let _ = host.on_finished(&binding.local_trigger, &task.values);
         let _ = host.shutdown();
     }
 
@@ -436,4 +436,141 @@ async fn run_agent(
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::config::{
+        AgentDefaults, AgentProfile, AgentsSettings, ApplicationSettings, ExecutionSettings,
+        RepositoryConfiguration, ResolvedAutomation,
+    };
+
+    fn pair(key: &str, value: &str) -> KeyValue {
+        KeyValue {
+            key: key.into(),
+            value: value.into(),
+        }
+    }
+
+    fn settings() -> ApplicationSettings {
+        ApplicationSettings {
+            settings: ExecutionSettings::default(),
+            repositories: BTreeMap::new(),
+            agents: AgentsSettings {
+                defaults: AgentDefaults {
+                    profile: "p".into(),
+                    timezone: "UTC".into(),
+                },
+                profiles: BTreeMap::new(),
+            },
+            plugins: BTreeMap::new(),
+            automations: BTreeMap::new(),
+            assistant: Default::default(),
+        }
+    }
+
+    fn automation(prompt: &str) -> ResolvedAutomation {
+        ResolvedAutomation {
+            automation_id: "weekly".into(),
+            identity_repo: "acme/api".into(),
+            repository_alias: "api".into(),
+            configuration: serde_json::json!({}),
+            trigger_type: "plugins-py/example".into(),
+            repository: RepositoryConfiguration {
+                remote: "https://example.test/acme/api.git".into(),
+                path: None,
+                setup_script: None,
+            },
+            profile: AgentProfile {
+                provider: "opencode".into(),
+                extra: serde_json::Map::new(),
+            },
+            profile_name: "p".into(),
+            prompt: prompt.into(),
+            checkout: "worktree".into(),
+        }
+    }
+
+    #[test]
+    fn interpolates_generic_keys_including_non_identifiers() {
+        let rendered = render_prompt(
+            "n=${issue-number} dot=${foo.bar} num=${123} spaced=${a b} host=${repository}/${automation}",
+            &[
+                pair("issue-number", "42"),
+                pair("foo.bar", "x"),
+                pair("123", "n"),
+                pair("a b", "s"),
+            ],
+            "acme/api",
+            "weekly",
+        )
+        .unwrap();
+        assert_eq!(rendered, "n=42 dot=x num=n spaced=s host=acme/api/weekly");
+    }
+
+    #[test]
+    fn missing_placeholder_stays_and_values_are_not_reexpanded() {
+        let rendered = render_prompt(
+            "keep ${missing}; value=${name}; bare ${",
+            &[pair("name", "${other}"), pair("other", "nope")],
+            "acme/api",
+            "weekly",
+        )
+        .unwrap();
+        assert_eq!(rendered, "keep ${missing}; value=${other}; bare ${");
+    }
+
+    #[test]
+    fn rejects_duplicate_reserved_and_unaddressable_keys() {
+        let err = render_prompt("x", &[pair("a", "1"), pair("a", "2")], "r", "a").unwrap_err();
+        assert!(err.to_string().contains("duplicate"));
+        let err = render_prompt("x", &[pair("repository", "1")], "r", "a").unwrap_err();
+        assert!(err.to_string().contains("collides"));
+        let err = render_prompt("x", &[pair("automation", "1")], "r", "a").unwrap_err();
+        assert!(err.to_string().contains("collides"));
+        let err = render_prompt("x", &[pair("a}", "1")], "r", "a").unwrap_err();
+        assert!(err.to_string().contains("placeholder"));
+        let err = render_prompt("x", &[pair("${a", "1")], "r", "a").unwrap_err();
+        assert!(err.to_string().contains("placeholder"));
+        let err = render_prompt("x", &[pair("", "1")], "r", "a").unwrap_err();
+        assert!(err.to_string().contains("placeholder"));
+    }
+
+    #[test]
+    fn content_id_is_stable_and_order_sensitive() {
+        let first = vec![pair("b", "1"), pair("a", "2")];
+        let same = vec![pair("b", "1"), pair("a", "2")];
+        let swapped = vec![pair("a", "2"), pair("b", "1")];
+        assert_eq!(content_id(&first), content_id(&same));
+        assert_ne!(content_id(&first), content_id(&swapped));
+        assert_eq!(content_id(&[]), hex::encode(Sha256::digest(b"[]")));
+        let canonical = serde_json::to_string(&first).unwrap();
+        assert_eq!(
+            canonical,
+            r#"[{"key":"b","value":"1"},{"key":"a","value":"2"}]"#
+        );
+    }
+
+    #[test]
+    fn empty_list_is_a_task_without_provider_fields() {
+        let task =
+            task_from_values(&settings(), &automation("see ${note} ${missing}"), vec![]).unwrap();
+        assert!(task.values.is_empty());
+        assert_eq!(task.prompt, "see ${note} ${missing}");
+        assert_eq!(task.identity.id, content_id(&[]));
+        assert!(!task.identity.key().contains("title"));
+
+        let task = task_from_values(
+            &settings(),
+            &automation("${issue-number}"),
+            vec![pair("issue-number", "7")],
+        )
+        .unwrap();
+        assert_eq!(task.prompt, "7");
+        assert_eq!(task.values.len(), 1);
+        assert_eq!(task.identity.id, content_id(&task.values));
+    }
 }

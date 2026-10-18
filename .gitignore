@@ -16,6 +16,10 @@ eggs/
 .eggs/
 lib/
 lib64/
+# The npm CLI wrapper lives in packages/curupira-npm/lib/. The rule above is the
+# Python packaging ignore and would hide those sources.
+!packages/curupira-npm/lib/
+!packages/curupira-npm/lib/**
 parts/
 sdist/
 var/
@@ -188,3 +192,7 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Node.js (JS/TS SDK and fixtures)
+node_modules/
+

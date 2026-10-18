@@ -1,0 +1,11 @@
+{
+  "values": [
+    {"key": "issue-number", "value": "42"},
+    {"key": "ready", "value": "true"},
+    {"key": "count", "value": "1"},
+    {"key": "ratio", "value": "1.0"},
+    {"key": "note", "value": "null"},
+    {"key": "labels", "value": "[\"bug\",\"p1\"]"},
+    {"key": "meta", "value": "{\"a\":\"x\",\"b\":1}"}
+  ]
+}
