@@ -51,6 +51,12 @@ test("publish workflow targets match the npm platform list", () => {
   assert.doesNotMatch(workflow, /npm publish (dist-npm|"\$\{tarballs)/);
   assert.doesNotMatch(workflow, /dist-npm\/platform|Publish platform packages/);
   assert.doesNotMatch(workflow, /vars\.NPM_|NPM_OIDC_READY|NPM_MANUAL_BOOTSTRAP_VERSION/);
+  // build-curupira is skipped for the pure-Python projects; without always() the PyPI
+  // publish job is skipped with it and nothing is uploaded.
+  const publishPypi = workflow.match(/\n  publish:\n([\s\S]*?)\n    runs-on:/)?.[1];
+  assert.ok(publishPypi);
+  assert.match(publishPypi, /always\(\)/);
+  assert.match(publishPypi, /needs\.verify\.result == 'success'/);
   assert.doesNotMatch(workflow, /NPM_BOOTSTRAP_TOKEN|NODE_AUTH_TOKEN|workflow_dispatch/);
 });
 
