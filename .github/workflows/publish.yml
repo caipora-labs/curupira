@@ -358,13 +358,10 @@ jobs:
 
   publish-npm:
     name: Publish npm packages
-    # Skip the exact first version, which is manually published once from this artifact.
-    # Every later version is published via npm OIDC.
+    # Published through npm OIDC trusted publishing; no token is stored in GitHub.
     if: |
       github.event_name == 'push' &&
-      needs.resolve.outputs.project == 'curupira' &&
-      vars.NPM_OIDC_READY == 'true' &&
-      needs.resolve.outputs.cargo_version != vars.NPM_MANUAL_BOOTSTRAP_VERSION
+      needs.resolve.outputs.project == 'curupira'
     needs: [resolve, pack-npm]
     runs-on: ubuntu-latest
     environment: npm
@@ -452,8 +449,7 @@ jobs:
     name: Publish JavaScript SDK to npm
     if: |
       github.event_name == 'push' &&
-      needs.resolve.outputs.project == 'curupira-js-sdk' &&
-      vars.NPM_SDK_OIDC_READY == 'true'
+      needs.resolve.outputs.project == 'curupira-js-sdk'
     needs: [resolve, pack-npm-sdk]
     runs-on: ubuntu-latest
     environment: npm
@@ -489,8 +485,7 @@ jobs:
 
   release:
     name: Attach GitHub release
-    # Pre-releases (dev, alpha, beta, rc) stay off GitHub Releases; PyPI still gets them.
-    # npm publishes are gated until OIDC trusted publishing is configured for that package.
+    # Pre-releases (dev, alpha, beta, rc) stay off GitHub Releases; PyPI and npm still get them.
     if: |
       always() &&
       github.event_name == 'push' &&

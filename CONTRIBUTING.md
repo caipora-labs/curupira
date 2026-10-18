@@ -230,12 +230,10 @@ builds and verifies the tagged project's versions, publishes Python packages to 
 versions only. A `publish/curupira/<version>` tag publishes the PyPI distribution and the one
 npm CLI package `@caipora-labs/curupira`, which bundles all platform binaries built from those
 same Rust wheels, at the Curupira release version. Both registries are published by Actions
-using OIDC after their initial registry setup.
+using OIDC.
 A `publish/curupira-js-sdk/<version>` tag builds and publishes only the JavaScript SDK
 (`@caipora-labs/curupira-sdk`) at its independent version, also through npm OIDC. Release tags
-are the only publish trigger. npm requires each package to exist before its Trusted Publisher
-can be configured; after that initial registry setup, subsequent versions publish through OIDC
-from tags. Before anything is uploaded, the
+are the only publish trigger. Before anything is uploaded, the
 tag must name a known project, the built artifacts must carry the tag's version, and the
 commit must have green CI (`require_ci_checks.py`).
 
@@ -264,20 +262,11 @@ project that does not exist on PyPI yet, such as `curupira-sdk` before its first
 must be registered as a pending publisher with those values before its tag is pushed.
 
 npm accepts the single CLI package `@caipora-labs/curupira` and the independent
-`@caipora-labs/curupira-sdk` from the same workflow and the `npm` environment. npm only allows
-a Trusted Publisher to be configured after a package exists. For the CLI's one-time initial
-version, set the repository variable `NPM_MANUAL_BOOTSTRAP_VERSION` to its Cargo-form version
-(for example `0.3.0-dev2`) and push its matching, unused
-`publish/curupira/0.3.0dev2` tag. Use a version not already published to PyPI and preferably
-a `dev` pre-release for this bootstrap. The tag workflow builds and verifies the single-package
-artifact, publishes the Python distribution to PyPI via OIDC, and skips npm OIDC for exactly
-that version. Manually publish only the downloaded `dist-npm` tarball using the maintainer's
-interactive npm login/2FA; do not add credentials to GitHub. Publish it with the `latest`
-dist-tag so users can install without specifying a version. Then configure npm Trusted
-Publisher below and set the repository variable `NPM_OIDC_READY=true`. All later CLI release
-tags publish both PyPI and the one npm package via OIDC. Keep the bootstrap version variable
-set so the workflow will never attempt to republish that same npm version. The JavaScript SDK
-is separate and uses `NPM_SDK_OIDC_READY=true` only after its package and publisher are ready:
-organization `caipora-labs`, repository `curupira`, workflow `publish.yml`, environment
-`npm`, with direct publishing allowed. Complete the first OIDC publish within two days of
-adding each trusted publisher.
+`@caipora-labs/curupira-sdk` from the same workflow and the `npm` environment. Configure a
+Trusted Publisher for each package on npm with organization `caipora-labs`, repository
+`curupira`, workflow `publish.yml`, and environment `npm`. The first OIDC publish validates
+the configuration, and npm expects it within two days of adding the publisher. Publishing is
+driven only by the release tag: there are no repository variables, feature flags, or stored
+npm credentials. A pre-release publishes to the `next` dist-tag and a stable version to
+`latest`. Because a pre-release never moves `latest`, the stable release is what makes a plain
+`npm install @caipora-labs/curupira` resolve to the new version.
