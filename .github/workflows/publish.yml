@@ -396,7 +396,7 @@ jobs:
         env:
           NPM_TAG: ${{ needs.resolve.outputs.prerelease == 'true' && 'next' || 'latest' }}
         run: |
-          npm publish dist-npm/caipora-labs-curupira-*.tgz --access public --tag "$NPM_TAG" --provenance
+          npm publish ./dist-npm/caipora-labs-curupira-*.tgz --access public --tag "$NPM_TAG" --provenance
 
   pack-npm-sdk:
     name: Pack JavaScript SDK
@@ -481,7 +481,7 @@ jobs:
           test "${#tarballs[@]}" -eq 1
           tar -xOzf "${tarballs[0]}" package/package.json | node -e 'const fs = require("node:fs"); const pkg = JSON.parse(fs.readFileSync(0, "utf8")); if (pkg.name !== "@caipora-labs/curupira-sdk" || pkg.version !== process.env.VERSION) throw new Error(`Unexpected tarball manifest: ${JSON.stringify(pkg)}`);'
           npm install -g npm@11
-          npm publish "${tarballs[0]}" --access public --tag "$NPM_TAG" --provenance
+          npm publish "./${tarballs[0]}" --access public --tag "$NPM_TAG" --provenance
 
   release:
     name: Attach GitHub release
