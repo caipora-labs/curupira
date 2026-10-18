@@ -26,7 +26,7 @@ todas as plataformas e opções.
 === "npm"
 
     ```sh
-    npm install -g @caipora/curupira
+    npm install -g curupira
     gh auth login
     ```
 

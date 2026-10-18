@@ -1,4 +1,4 @@
-# `@caipora/curupira`
+# `curupira`
 
 npm distribution of the [Curupira](https://github.com/caipora-labs/curupira) command-line
 interface. The package installs the same Rust executable published on PyPI and exposes
@@ -10,11 +10,11 @@ compile Rust on install.
 Node.js 20 or newer:
 
 ```bash
-npm install -g @caipora/curupira
+npm install -g curupira
 ```
 
 ```bash
-npx @caipora/curupira --help
+npx curupira --help
 ```
 
 Python, pip, uv, and Rust are not required to install or run the CLI.
@@ -35,14 +35,14 @@ npm publishes a prebuilt binary for:
 
 | Package | System |
 | --- | --- |
-| `@caipora/curupira-linux-x64` | Linux x64, glibc |
-| `@caipora/curupira-linux-arm64` | Linux ARM64, glibc |
-| `@caipora/curupira-linux-x64-musl` | Linux x64, musl (Alpine) |
-| `@caipora/curupira-linux-arm64-musl` | Linux ARM64, musl (Alpine) |
-| `@caipora/curupira-darwin-x64` | macOS Intel |
-| `@caipora/curupira-darwin-arm64` | macOS Apple Silicon |
-| `@caipora/curupira-win32-x64` | Windows x64 |
-| `@caipora/curupira-win32-arm64` | Windows ARM64 |
+| `@caipora-labs/curupira-linux-x64` | Linux x64, glibc |
+| `@caipora-labs/curupira-linux-arm64` | Linux ARM64, glibc |
+| `@caipora-labs/curupira-linux-x64-musl` | Linux x64, musl (Alpine) |
+| `@caipora-labs/curupira-linux-arm64-musl` | Linux ARM64, musl (Alpine) |
+| `@caipora-labs/curupira-darwin-x64` | macOS Intel |
+| `@caipora-labs/curupira-darwin-arm64` | macOS Apple Silicon |
+| `@caipora-labs/curupira-win32-x64` | Windows x64 |
+| `@caipora-labs/curupira-win32-arm64` | Windows ARM64 |
 
 The main package depends on these as optional dependencies. npm installs the one that
 matches the current operating system, CPU, and C library. Other systems and 32-bit

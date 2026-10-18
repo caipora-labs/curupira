@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
 
+const { detectLibc } = require("../lib/launch.js");
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 
 const FAKE_BINARY = `#!/usr/bin/env node
@@ -50,14 +51,14 @@ process.exit(2);
  * @returns {{ mainDir: string, wrapper: string, alias: string, platformDir: string | null }}
  */
 function installFixture(root, options = {}) {
-  const platform = options.platform ?? "linux";
-  const arch = options.arch ?? "x64";
-  const libc = options.libc === undefined ? "glibc" : options.libc;
+  const platform = options.platform ?? process.platform;
+  const arch = options.arch ?? process.arch;
+  const libc = options.libc === undefined ? detectLibc(platform) : options.libc;
   const mainVersion = options.mainVersion ?? "0.2.0";
   const platformVersion = options.platformVersion ?? mainVersion;
   const { selectTarget, packageDirectory, binaryFileName } = require("../lib/targets.js");
   const target = selectTarget(platform, arch, libc);
-  const mainDir = path.join(root, "node_modules", "@caipora", "curupira");
+  const mainDir = path.join(root, "node_modules", "curupira");
   fs.mkdirSync(mainDir, { recursive: true });
   fs.cpSync(path.join(PACKAGE_ROOT, "bin"), path.join(mainDir, "bin"), { recursive: true });
   fs.cpSync(path.join(PACKAGE_ROOT, "lib"), path.join(mainDir, "lib"), { recursive: true });
@@ -74,7 +75,8 @@ function installFixture(root, options = {}) {
       platformDir: null,
     };
   }
-  const platformDir = path.join(root, "node_modules", "@caipora", packageDirectory(target.packageName));
+  const scope = target.packageName.split("/")[0];
+  const platformDir = path.join(root, "node_modules", scope, packageDirectory(target.packageName));
   const binDir = path.join(platformDir, "bin");
   fs.mkdirSync(binDir, { recursive: true });
   const binary = path.join(binDir, binaryFileName(platform));

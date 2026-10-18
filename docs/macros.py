@@ -111,7 +111,7 @@ _REQUIREMENT_TEXT: dict[str, tuple[str, str, str]] = {
             "with `uvx`."
         ),
         (
-            "Node.js {range}, only for the npm install (`@caipora/curupira`) and for extensions "
+            "Node.js {range}, only for the npm install (`curupira`) and for extensions "
             "launched with `npx`."
         ),
         "Optional, ",
@@ -122,7 +122,7 @@ _REQUIREMENT_TEXT: dict[str, tuple[str, str, str]] = {
             "iniciadas com `uvx`."
         ),
         (
-            "Node.js {range}, apenas para a instalação pelo npm (`@caipora/curupira`) e para "
+            "Node.js {range}, apenas para a instalação pelo npm (`curupira`) e para "
             "extensões iniciadas com `npx`."
         ),
         "Opcional, ",
@@ -133,7 +133,7 @@ _REQUIREMENT_TEXT: dict[str, tuple[str, str, str]] = {
             "iniciadas con `uvx`."
         ),
         (
-            "Node.js {range}, solo para la instalación desde npm (`@caipora/curupira`) y para "
+            "Node.js {range}, solo para la instalación desde npm (`curupira`) y para "
             "extensiones iniciadas con `npx`."
         ),
         "Opcional, ",

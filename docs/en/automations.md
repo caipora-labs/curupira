@@ -35,7 +35,7 @@ can write text.
    your profile:
 
    ```bash
-   npm install -g @caipora/curupira
+   npm install -g curupira
    # or: uv tool install curupira
    ```
 

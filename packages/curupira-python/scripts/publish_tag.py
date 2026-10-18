@@ -13,7 +13,7 @@ import re
 
 from packaging.version import InvalidVersion, Version
 
-PROJECTS = frozenset({"curupira", "curupira-sdk", "curupira-plugins"})
+PROJECTS = frozenset({"curupira", "curupira-sdk", "curupira-plugins", "curupira-js-sdk"})
 TAG = re.compile(r"publish/(?P<project>[a-z0-9-]+)/(?P<version>[^/\s]+)")
 CARGO_PRE_RELEASE = {"a": "alpha", "b": "beta", "rc": "rc"}
 

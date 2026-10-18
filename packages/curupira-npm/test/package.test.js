@@ -10,9 +10,9 @@ const { PACKAGE_ROOT } = require("../scripts/layout.js");
 
 const REPO_ROOT = path.resolve(PACKAGE_ROOT, "../..");
 
-test("the wrapper package is @caipora/curupira and has no install-time compiler", () => {
+test("the wrapper package is curupira and has no install-time compiler", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, "package.json"), "utf8"));
-  assert.equal(manifest.name, "@caipora/curupira");
+  assert.equal(manifest.name, "curupira");
   assert.equal(manifest.dependencies, undefined);
   assert.equal(manifest.scripts.preinstall, undefined);
   assert.equal(manifest.scripts.install, undefined);

@@ -182,8 +182,8 @@ function platformReadme(target) {
   return (
     `# ${target.packageName}\n\n` +
     `${target.description}\n\n` +
-    "This package is an optional dependency of [`@caipora/curupira`](https://www.npmjs.com/package/@caipora/curupira). " +
-    "Install the CLI with `npm install -g @caipora/curupira`. Do not depend on this package directly.\n"
+    "This package is an optional dependency of [`curupira`](https://www.npmjs.com/package/curupira). " +
+    "Install the CLI with `npm install -g curupira`. Do not depend on this package directly.\n"
   );
 }
 
@@ -196,7 +196,7 @@ function verifyAll(root, version) {
   const stage = requirePath(root, "--dir");
   const main = readManifest(path.join(stage, MAIN_DIRECTORY, "package.json"));
   assertVersion(main, expected, MAIN_DIRECTORY);
-  if (main.name !== "@caipora/curupira") {
+  if (main.name !== "curupira") {
     throw new Error(`Main package name is ${main.name}`);
   }
   const dependencies = main.optionalDependencies ?? {};

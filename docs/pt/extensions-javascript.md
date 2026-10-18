@@ -1,13 +1,13 @@
 # SDK JavaScript e TypeScript
 
-O `@caipora/curupira-sdk` transforma funções comuns em triggers do Curupira para Node.js 20+.
+O `@caipora-labs/curupira-sdk` transforma funções comuns em triggers do Curupira para Node.js 20+.
 O seu pacote declara um `bin` do npm, e o Curupira inicia o pacote publicado com `npx`:
 ninguém instala o seu plugin nem o SDK globalmente.
 
 ## Instalação { #install }
 
 ```sh
-npm install @caipora/curupira-sdk
+npm install @caipora-labs/curupira-sdk
 ```
 
 O pacote é ESM. Publique JavaScript compilado, mais os arquivos `.d.ts` se você escrever
@@ -18,7 +18,7 @@ TypeScript; o Curupira não transpila TypeScript quando inicia um plugin.
 === "JavaScript"
 
     ```js
-    import { defineTriggers } from "@caipora/curupira-sdk";
+    import { defineTriggers } from "@caipora-labs/curupira-sdk";
 
     /**
      * @typedef {Object} GitHubIssueParams
@@ -42,7 +42,7 @@ TypeScript; o Curupira não transpila TypeScript quando inicia um plugin.
 === "TypeScript"
 
     ```ts
-    import { defineTriggers } from "@caipora/curupira-sdk";
+    import { defineTriggers } from "@caipora-labs/curupira-sdk";
 
     export default defineTriggers({
       githubIssue: async (params: { repo: string; labels?: string[] }) => ({
@@ -60,7 +60,7 @@ O nome da propriedade é o nome local do trigger em kebab-case: `githubIssue` vi
 
 ```js
 #!/usr/bin/env node
-import { runExtension } from "@caipora/curupira-sdk";
+import { runExtension } from "@caipora-labs/curupira-sdk";
 import triggers from "./index.js";
 
 await runExtension(triggers, {
@@ -94,7 +94,7 @@ Declare o executável no `package.json`:
     "curupira-acme-ext": "./bin.js"
   },
   "dependencies": {
-    "@caipora/curupira-sdk": "^0.1.0"
+    "@caipora-labs/curupira-sdk": "^0.1.0"
   }
 }
 ```

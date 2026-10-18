@@ -223,8 +223,8 @@ function unsupportedPlatformMessage(platform, arch) {
 function missingPackageMessage(target) {
   return (
     `Curupira platform package ${target.packageName} is not installed. ` +
-    `npm installs it as an optional dependency of @caipora/curupira on ${target.key}. ` +
-    "Reinstall with `npm install -g @caipora/curupira`. " +
+    `npm installs it as an optional dependency of curupira on ${target.key}. ` +
+    "Reinstall with `npm install -g curupira`. " +
     `If optional dependencies were skipped, install ${target.packageName} at the same version.`
   );
 }
@@ -237,7 +237,7 @@ function missingPackageMessage(target) {
 function missingBinaryMessage(target, binPath) {
   return (
     `Curupira binary is missing from ${target.packageName} (expected ${binPath}). ` +
-    `Reinstall @caipora/curupira and ${target.packageName} at the same version.`
+    `Reinstall curupira and ${target.packageName} at the same version.`
   );
 }
 

@@ -1,5 +1,5 @@
 {
-  "name": "@caipora/curupira-example-ts",
+  "name": "@caipora-labs/curupira-example-ts",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@caipora/curupira-sdk": "file:../.."
+    "@caipora-labs/curupira-sdk": "file:../.."
   },
   "devDependencies": {
     "typescript": "^5.8.2"

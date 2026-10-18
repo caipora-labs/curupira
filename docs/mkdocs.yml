@@ -184,8 +184,8 @@ extra:
       link: https://pypi.org/project/curupira/
       name: curupira on PyPI
     - icon: fontawesome/brands/npm
-      link: https://www.npmjs.com/package/@caipora/curupira
-      name: "@caipora/curupira on npm"
+      link: https://www.npmjs.com/package/curupira
+      name: "curupira on npm"
 extra_css:
   - stylesheets/extra.css
 nav:

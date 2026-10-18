@@ -108,7 +108,7 @@ test("installs the local npm packages and runs the Rust CLI", { timeout: 600_000
     PATH: empty,
     SystemRoot: process.env.SystemRoot,
   };
-  const wrapper = path.join(prefix, "node_modules", "@caipora", "curupira", "bin", "curupira.js");
+  const wrapper = path.join(prefix, "node_modules", "curupira", "bin", "curupira.js");
   const direct = spawnSync(process.execPath, [wrapper, "--version"], { env: stripped, encoding: "utf8" });
   assert.equal(direct.status, 0, direct.stderr);
   assert.equal(direct.stdout.trim(), `curupira ${version}`);

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runExtension } from "@caipora/curupira-sdk";
+import { runExtension } from "@caipora-labs/curupira-sdk";
 
 import triggers from "./index.js";
 
@@ -23,12 +23,12 @@ trigger_types = ["github-issue"]
 
 [launch]
 type = "npx"
-package = "@caipora/curupira-example-ts"
+package = "@caipora-labs/curupira-example-ts"
 version = "{version}"
 
 [package]
 source = "npm"
-name = "@caipora/curupira-example-ts"
+name = "@caipora-labs/curupira-example-ts"
 version = "{version}"
 `.trim();
 

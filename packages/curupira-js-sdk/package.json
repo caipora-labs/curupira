@@ -1,5 +1,5 @@
 {
-  "name": "@caipora/curupira-sdk",
+  "name": "@caipora-labs/curupira-sdk",
   "version": "0.1.0-dev.0",
   "description": "Declarative SDK for Curupira JSON-RPC process extensions (Node.js)",
   "type": "module",

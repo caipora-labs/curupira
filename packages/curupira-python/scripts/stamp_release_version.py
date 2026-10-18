@@ -1,7 +1,7 @@
 """Write a release version into the files that cannot read the git tag themselves.
 
 hatch-vcs gives the Python packages their version from the tag. The Rust crate reads its
-version from Cargo.toml, the npm CLI reads ``package.json``, and the official plugin
+version from Cargo.toml, npm packages read ``package.json``, and the official plugin
 manifest is a static TOML file, so the release workflow stamps those before building.
 Only the publish workflow runs this. The npm version uses the Cargo semver form
 (``0.3.0.dev0`` becomes ``0.3.0-dev0``).
@@ -18,7 +18,7 @@ from packaging.version import Version
 from publish_tag import cargo_version
 
 VERSION_LINE = re.compile(r'^version = "[^"]*"$', re.MULTILINE)
-# Files stamped per project. The SDK needs none: hatch-vcs reads its tag directly.
+# Files stamped per Python project. The Python SDK packages use hatch-vcs and need no stamp.
 STAMPED = {
     "curupira": (Path("packages/curupira-core/Cargo.toml"), 1, cargo_version),
     "curupira-plugins": (
@@ -29,6 +29,8 @@ STAMPED = {
 }
 # The npm CLI ships the same Rust binary, so it takes the Cargo form of the tag.
 NPM_MANIFEST = Path("packages/curupira-npm/package.json")
+NPM_SDK_MANIFEST = Path("packages/curupira-js-sdk/package.json")
+NPM_SDK_LOCKFILE = Path("packages/curupira-js-sdk/package-lock.json")
 
 
 def stamp(project: str, version: Version, root: Path = Path()) -> list[Path]:
@@ -38,6 +40,8 @@ def stamp(project: str, version: Version, root: Path = Path()) -> list[Path]:
         changed.append(_stamp_version_line(project, version, root))
     if project == "curupira":
         changed.append(_stamp_npm_manifest(root, cargo_version(version)))
+    if project == "curupira-js-sdk":
+        changed.extend(_stamp_npm_sdk_manifests(root, cargo_version(version)))
     return changed
 
 
@@ -68,6 +72,24 @@ def _stamp_npm_manifest(root: Path, version: str) -> Path:
             optional[name] = version
     path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def _stamp_npm_sdk_manifests(root: Path, version: str) -> list[Path]:
+    """Write the version into both npm manifests for the JavaScript SDK."""
+    manifest_path = root / NPM_SDK_MANIFEST
+    lockfile_path = root / NPM_SDK_LOCKFILE
+    for path in (manifest_path, lockfile_path):
+        if not path.is_file():
+            message = f"Missing npm manifest {path}"
+            raise SystemExit(message)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["version"] = version
+    lockfile = json.loads(lockfile_path.read_text(encoding="utf-8"))
+    lockfile["version"] = version
+    lockfile["packages"][""]["version"] = version
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    lockfile_path.write_text(json.dumps(lockfile, indent=2) + "\n", encoding="utf-8")
+    return [manifest_path, lockfile_path]
 
 
 def main(argv: list[str] | None = None) -> None:
