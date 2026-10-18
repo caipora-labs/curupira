@@ -1,47 +1,93 @@
-# Operaciones
+# Ejecutar Curupira
 
-Todos los comandos usan el mismo archivo de configuración y el mismo pipeline de ejecución. El alias corto `curu` acepta los mismos comandos.
+Todos los comandos leen el mismo archivo de configuración y usan el mismo flujo de despacho.
+El alias corto `curu` acepta todos los comandos.
 
-```bash
-curupira validate
-curupira run
-curupira run --dry-run
-curupira run --size N
-curupira run --watch
-curupira tui
-curupira --log-level DEBUG run --watch
-```
+## Comandos { #commands }
 
-- `validate` comprueba el TOML y las referencias sin ejecutar una automatización, llamar a CLI externas ni escribir estado. Termina con `0` si la configuración es válida y con `2` si hay errores de configuración.
-- `run` vacía las tareas de automatización disponibles en ese momento a través del planificador compartido. Termina con `1` si una tarea ejecutada falló y con `0` en caso contrario. Antes de admitir una tarea, los elementos de GitHub se revalidan contra el estado actual del repositorio, de modo que el trabajo cerrado, los issues con un PR vinculado abierto y las sesiones recuperadas obsoletas no invocan la CLI del agente de código. `run` en modo de una sola pasada consulta juntos todos los feeds de las automatizaciones (si un feed falla, se registra en el log y los demás siguen aportando) y prueba el siguiente candidato cuando la revalidación descarta uno.
-- `run --size N` limita un vaciado finito a un máximo de N tareas admitidas tras la revalidación. Las sesiones recuperadas cuentan para N; los candidatos descartados durante la revalidación no.
-- `run --dry-run` previsualiza una tarea seleccionada sin reservar ni persistir ocurrencias de cron, sin hacer checkout de un repositorio y sin ejecutar nada.
-- `run --watch` consulta todas las automatizaciones de forma continua hasta que lo interrumpas. Termina con `1` si una tarea ejecutada falló y con `0` en caso contrario.
-- `tui` ejecuta el mismo planificador continuo que `run --watch` dentro de un panel interactivo de Textual (métricas, agentes activos y logs). Atajos: `Ctrl+G` abre o cierra el panel lateral del [asistente integrado](assistant.md), `F6` alterna el foco entre el asistente y el panel principal (el panel sigue abierto), `F1` ayuda, `F2` pausa o reanuda las admisiones, `F3` resumen de la configuración, `F5` actualiza las métricas, `Ctrl+C` sale desde la TUI principal (o interrumpe al agente cuando el PTY del asistente tiene el foco).
-- El panel aloja al asistente en un panel lateral de medio ancho, respaldado por el widget reutilizable
-  `PtyTerminal` (`curupira.tui.pty_terminal.PtyTerminal`). Compatibilidad de plataformas en
-  la v1: Linux y macOS; Windows muestra un marcador de posición de no compatible. La emulación usa `pyte`
-  (LGPL-3.0) como dependencia dinámica. Consulta [Asistente de la TUI](assistant.md) para el
-  flujo de Ctrl+G y CONTRIBUTING.md para las tablas de rendimiento del PTY y las salvedades del ciclo de vida.
+| Comando | Qué hace |
+| --- | --- |
+| `curupira validate` | Verifica el TOML, las referencias, los plugins y los prompts. No ejecuta ninguna automatización ni escribe estado. |
+| `curupira run` | Ejecuta las tareas disponibles en este momento y luego sale. |
+| `curupira run --size N` | Lo mismo, pero admite como máximo `N` tareas. |
+| `curupira run --dry-run` | Imprime la primera tarea que se ejecutaría y su prompt renderizado. No clona nada ni inicia ningún agente. |
+| `curupira run --watch` | Sigue consultando y ejecutando tareas hasta que lo interrumpas. |
+| `curupira tui` | El ciclo continuo desde el punto de entrada del [panel en la terminal](tui.md). |
+| `curupira plugins …` | Lista e inspecciona los [plugins y triggers](extensions.md#manage) disponibles. |
 
-Mientras `run --watch` o `tui` están en ejecución, editar el archivo de configuración recarga los ajustes en caliente sin reiniciar el proceso. Se dejan de admitir tareas nuevas en cuanto el archivo cambia; las tareas que ya están en ejecución conservan sus snapshots resueltos y terminan. Cuando todas las tareas en curso se completan, Curupira recarga el TOML, reconstruye los feeds de descubrimiento y reanuda la consulta con la configuración más reciente. Si el archivo actualizado no es válido, las admisiones permanecen en pausa hasta que se guarde una configuración válida.
+`--dry-run`, `--watch` y `--size` no se pueden combinar; si lo intentas, Curupira sale con
+el código `2`.
 
-Selecciona otro TOML o cambia el nivel de log colocando las opciones globales antes del comando:
+Las opciones globales van antes del comando:
 
-```bash
+```sh
 curupira --config ./settings-dev.toml validate
 curupira --config ./settings-dev.toml run --watch
 curupira --log-level DEBUG run --watch
+curupira --version
 ```
 
-`[settings].log_level` (valor predeterminado `INFO`) controla el nivel de detalle de la consola, del archivo y de la TUI
-(`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). La opción global `--log-level` reemplaza
-ese valor para un proceso y prevalece sobre los cambios del TOML recargados en caliente.
+`--config` usa `~/.curupira/settings.toml` por defecto. `--log-level` reemplaza
+`[settings].log_level` para un proceso (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`).
 
-`run` y `run --watch` añaden registros de tareas a `~/.curupira/logs/curupira.log`. Los
-fallos no capturados también escriben un informe detallado en `~/.curupira/logs/crashes/` (versión, plataforma,
-traceback y contexto del comando) y habilitan volcados de `faulthandler` en
-`~/.curupira/logs/faulthandler.log`, sin importar `log_level`. Las sesiones interrumpidas por
-reinicios del proceso se guardan en la base de datos de estado; `run --watch` reanuda las sesiones guardadas
-tras el reinicio. Los fallos transitorios de `gh` se reintentan con backoff. Los fallos de autenticación, configuración,
-formato de salida y tareas del agente no se reintentan automáticamente.
+## Salida { #output }
+
+`run` imprime una línea por cada tarea terminada, separada por un tabulador:
+
+```text
+ok      resolve-ready-issues:acme/api:plugins-py/github-issues:9c1e…
+fail    review-ready-prs:acme/api:plugins-py/github-pull-requests:41ad…  agent exited 1: …
+```
+
+La segunda columna es la identidad de la tarea: automatización, repositorio, trigger y un
+hash de los campos del elemento. Las líneas `ok` van a stdout y las líneas `fail` a stderr,
+así que puedes redirigirlas por separado.
+
+`run --dry-run` imprime la identidad y el prompt exacto que recibiría el agente:
+
+```text
+dry-run resolve-ready-issues:acme/api:plugins-py/github-issues:9c1e…
+--- prompt ---
+Resolve issue #128: Retry flaky webhook deliveries
+…
+--- end prompt ---
+```
+
+## Códigos de salida { #exit-codes }
+
+| Código | Significado |
+| --- | --- |
+| `0` | Éxito. Para `run`, cada tarea ejecutada terminó `ok`. |
+| `1` | Al menos una tarea falló, o un error de plugin o de ejecución detuvo la ejecución. |
+| `2` | Error de configuración (TOML inválido, referencia desconocida, flags en conflicto). |
+| `130` | Interrumpido con ++ctrl+c++. |
+
+## Planificación { #scheduling }
+
+- Hasta `[settings].max_active_tasks` tareas se ejecutan al mismo tiempo (por defecto `1`).
+- En el modo `--watch`, Curupira consulta cada automatización cada
+  `[settings.polling].poll_interval_seconds` (por defecto `30`).
+- Una tarea que terminó `ok` queda registrada en la base de datos de estado y nunca vuelve
+  a ejecutarse.
+- Una tarea que falla no se reintenta en el mismo proceso. El siguiente `run` (o un
+  `--watch` reiniciado) la intenta de nuevo.
+- Cada ejecución del agente está limitada por `[settings].task_timeout_minutes` (por defecto `20`).
+
+## Un proceso a la vez { #lock }
+
+`run` y `tui` mantienen `~/.curupira/dispatch.lock` mientras trabajan. Un segundo proceso
+que intenta despachar falla de inmediato en lugar de competir con el primero. `validate`,
+`run --dry-run` y `plugins` no toman el lock.
+
+## Reanudar sesiones { #resume }
+
+Cuando un agente anuncia un id de sesión (o Curupira asigna uno), se guarda con la tarea.
+Si el proceso se detiene antes de que la tarea termine, la siguiente ejecución reanuda esa
+sesión y le pide al agente que continúe el trabajo anterior en lugar de empezar de nuevo.
+La sesión se elimina cuando la tarea termina `ok`.
+
+## Cambiar la configuración { #reload }
+
+Curupira lee la configuración una vez cuando empieza un comando. Después de editar
+`settings.toml`, ejecuta `curupira validate` y luego reinicia `run --watch` o `tui` para
+aplicar el cambio. Las tareas en ejecución terminan con los ajustes con los que empezaron.

@@ -255,7 +255,7 @@ registros:
   nuevo tras un reinicio.
 
 Cambiar cualquier valor devuelto, incluidos el título, el cuerpo o los labels, crea una tarea distinta. Por
-eso los triggers oficiales no devuelven valores que cambian por sí solos o porque el
+eso los triggers de GitHub no devuelven valores que cambian por sí solos o porque el
 agente trabajó en el elemento (comentarios, hora de actualización, estado de CI y de revisión, pull requests vinculados):
 el agente se iniciaría de nuevo para el mismo issue. Cuando el agente los necesite, indícale que los lea,
 por ejemplo con `gh issue view ${issue_number} --comments`.

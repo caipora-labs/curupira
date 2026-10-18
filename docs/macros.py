@@ -91,16 +91,16 @@ _TRIGGER_ROWS: tuple[tuple[str, str, dict[str, tuple[str, str]]], ...] = (
     ),
 )
 
-_TRIGGER_HEADERS: dict[str, tuple[str, str, str, str]] = {
-    "en": ("Trigger", "Guide", "Prerequisites", "Summary"),
-    "pt": ("Trigger", "Guia", "Pré-requisitos", "Resumo"),
-    "es": ("Trigger", "Guía", "Requisitos previos", "Resumen"),
+_TRIGGER_HEADERS: dict[str, tuple[str, str, str]] = {
+    "en": ("Trigger", "Prerequisites", "Summary"),
+    "pt": ("Trigger", "Pré-requisitos", "Resumo"),
+    "es": ("Trigger", "Requisitos previos", "Resumen"),
 }
 
-_AGENT_HEADERS: dict[str, tuple[str, str, str]] = {
-    "en": ("Provider", "Executable", "Guide"),
-    "pt": ("Provider", "Executável", "Guia"),
-    "es": ("Proveedor", "Ejecutable", "Guía"),
+_AGENT_HEADERS: dict[str, tuple[str, str, str, str, str]] = {
+    "en": ("Agent", "`provider`", "Command", "`agent` option", "`effort` option"),
+    "pt": ("Agente", "`provider`", "Comando", "Opção `agent`", "Opção `effort`"),
+    "es": ("Agente", "`provider`", "Comando", "Opción `agent`", "Opción `effort`"),
 }
 
 _REQUIREMENT_TEXT: dict[str, tuple[str, str, str]] = {
@@ -140,16 +140,24 @@ _REQUIREMENT_TEXT: dict[str, tuple[str, str, str]] = {
     ),
 }
 
-_AGENT_ROWS: tuple[tuple[str, str, str], ...] = (
-    ("claude", "claude", "providers/claude.md"),
-    ("codex", "codex", "providers/codex.md"),
-    ("cursor", "agent", "providers/cursor.md"),
-    ("gemini", "gemini", "providers/gemini.md"),
-    ("copilot", "copilot", "providers/copilot.md"),
-    ("kilo", "kilo", "providers/kilo.md"),
-    ("opencode", "opencode", "providers/opencode.md"),
-    ("pi", "pi", "providers/pi.md"),
-    ("qwen", "qwen", "providers/qwen.md"),
+# (name, provider, executable, guide, native flag for `agent`, native flag for `effort`).
+_AGENT_ROWS: tuple[tuple[str, str, str, str, str | None, str | None], ...] = (
+    ("Claude Code", "claude", "claude", "providers/claude.md", "--agent", "--effort"),
+    ("Codex", "codex", "codex", "providers/codex.md", "--profile", "model_reasoning_effort"),
+    ("Cursor", "cursor", "agent", "providers/cursor.md", "--mode", None),
+    ("Gemini CLI", "gemini", "gemini", "providers/gemini.md", None, None),
+    (
+        "GitHub Copilot CLI",
+        "copilot",
+        "copilot",
+        "providers/copilot.md",
+        "--agent",
+        "--reasoning-effort",
+    ),
+    ("Kilo CLI", "kilo", "kilo", "providers/kilo.md", "--agent", "--variant"),
+    ("OpenCode", "opencode", "opencode", "providers/opencode.md", "--agent", "--variant"),
+    ("pi", "pi", "pi", "providers/pi.md", None, "--thinking"),
+    ("Qwen Code", "qwen", "qwen", "providers/qwen.md", None, None),
 )
 
 
@@ -196,11 +204,11 @@ def define_env(env: MacroEnvironment) -> None:
         header = _TRIGGER_HEADERS[lang]
         lines = [
             "| " + " | ".join(header) + " |",
-            "| --- | --- | --- | --- |",
+            "| --- | --- | --- |",
         ]
         for trigger, guide, texts in _TRIGGER_ROWS:
             prereq, summary = texts[lang]
-            lines.append(f"| `{trigger}` | [{guide}]({guide}) | {prereq} | {summary} |")
+            lines.append(f"| [`{trigger}`]({guide}) | {prereq} | {summary} |")
         return "\n".join(lines)
 
     @env.macro
@@ -209,8 +217,13 @@ def define_env(env: MacroEnvironment) -> None:
         header = _AGENT_HEADERS[lang]
         lines = [
             "| " + " | ".join(header) + " |",
-            "| --- | --- | --- |",
+            "| --- | --- | --- | --- | --- |",
         ]
-        for provider, executable, guide in _AGENT_ROWS:
-            lines.append(f"| `{provider}` | `{executable}` | [{guide}]({guide}) |")
+        # An em dash marks an option the agent rejects; each agent page explains why.
+        for name, provider, executable, guide, agent, effort in _AGENT_ROWS:
+            agent_cell = f"`{agent}`" if agent else "—"
+            effort_cell = f"`{effort}`" if effort else "—"
+            lines.append(
+                f"| [{name}]({guide}) | `{provider}` | `{executable}` | {agent_cell} | {effort_cell} |"
+            )
         return "\n".join(lines)

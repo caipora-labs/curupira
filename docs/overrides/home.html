@@ -1,0 +1,47 @@
+{% extends "main.html" %}
+
+{#- Landing page. Copy comes from the page front matter (hero.*) so each language translates it. -#}
+{% block tabs %}
+  {{ super() }}
+  {% set hero = page.meta.hero %}
+  <section class="cp-hero">
+    <div class="cp-hero__inner md-grid">
+      <div class="cp-hero__copy">
+        <p class="cp-hero__eyebrow">{{ hero.eyebrow }}</p>
+        <h1 class="cp-hero__title">{{ hero.title }}</h1>
+        <p class="cp-hero__lead">{{ hero.lead }}</p>
+        <div class="cp-hero__actions md-typeset">
+          <a href="{{ hero.primary.href }}" class="md-button md-button--primary">{{ hero.primary.text }}</a>
+          <a href="{{ hero.secondary.href }}" class="md-button">{{ hero.secondary.text }}</a>
+        </div>
+        <p class="cp-hero__install">
+          <span class="cp-hero__install-label">{{ hero.install_label }}</span>
+          <code>uv tool install curupira</code>
+        </p>
+      </div>
+      <figure class="cp-trace" aria-label="{{ hero.trace_label }}">
+        <div class="cp-trace__bar" aria-hidden="true">
+          <span></span><span></span><span></span>
+          <em>~/code/api</em>
+        </div>
+        <pre class="cp-trace__body"><code><span class="cp-l"><b class="cp-ps">$</b> curupira validate</span>
+<span class="cp-l cp-dim">Configuration is valid: ~/.curupira/settings.toml</span>
+<span class="cp-l"><b class="cp-ps">$</b> curupira run --dry-run</span>
+<span class="cp-l"><i class="cp-tag">dry-run</i> resolve-ready-issues:acme/api:plugins-py/github-issues:9c1e…</span>
+<span class="cp-l cp-dim">--- prompt ---</span>
+<span class="cp-l cp-prompt">Resolve issue #128: Retry flaky webhook deliveries</span>
+<span class="cp-l cp-dim">--- end prompt ---</span>
+<span class="cp-l"><b class="cp-ps">$</b> curupira run --watch</span>
+<span class="cp-l"><i class="cp-ok">ok</i> resolve-ready-issues:acme/api:plugins-py/github-issues:9c1e…</span>
+<span class="cp-l"><i class="cp-ok">ok</i> review-ready-prs:acme/api:plugins-py/github-pull-requests:41ad…</span>
+<span class="cp-l cp-cursor"><b class="cp-ps">$</b> </span></code></pre>
+        <figcaption>{{ hero.trace_caption }}</figcaption>
+      </figure>
+    </div>
+  </section>
+{% endblock %}
+
+{#- No page title or edit button: the hero is the title. -#}
+{% block content %}
+  {{ page.content }}
+{% endblock %}

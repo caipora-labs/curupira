@@ -103,11 +103,20 @@ Do not add other brand colors without a new decision. The Material overrides liv
 | `neutral-0` | `#FEFDFC` | background |
 | `neutral-900` | `#1A1A1A` | text |
 
-On the light scheme, the header uses `primary` with `neutral-900` text, and primary
-buttons use `primary-deep`. Body links use `skin`, which stays readable on `neutral-0`.
-The leaf `accent` is the hover color. The dark scheme swaps the neutrals and uses
-`primary` for links. The optional product accent (`#014FC9` / `#011E58`) is not
-applied on the docs theme.
+The chrome stays neutral and orange marks what is active. The header and tabs use
+`neutral-0` (light) or `neutral-900` (dark) with a hairline rule. `primary` is the logo
+flame, the active-tab underline, the table-of-contents rail, and the primary button
+(`primary-deep` on hover); the active sidebar item is `primary` at 13% behind `skin` text.
+Body links use `skin` on the light scheme and `primary` on the dark one, with
+`primary-deep` on hover. `accent` (leaf) marks tips and success. Admonitions, syntax
+colors, and the home-page terminal use mixes of these tokens only, each checked for 4.5:1
+contrast. The optional product accent (`#014FC9` / `#011E58`) is not applied on the docs
+theme.
+
+Type: Bricolage Grotesque for `h1`/`h2` and the home hero, Figtree for text, and JetBrains
+Mono for code, loaded in `docs/overrides/main.html`. The home page is
+`docs/overrides/home.html`; its copy lives in the front matter of each language's
+`index.md`. The logo and favicon are `docs/assets/curupira-mark.svg`.
 
 ## PtyTerminal manual checks
 

@@ -1,45 +1,51 @@
 # Gemini CLI
 
-Curupira ejecuta Gemini CLI en modo `stream-json` no interactivo y reanuda las sesiones
-con la opción nativa de Gemini `--resume <session_id>`.
+Curupira ejecuta [Gemini CLI](https://github.com/google-gemini/gemini-cli) en modo no
+interactivo con salida JSON en streaming:
 
-## Instalación
-
-Gemini CLI requiere Node.js 20 o superior. Instálalo globalmente con npm:
-
-```bash
-npm install -g @google/gemini-cli
+```text
+gemini --output-format stream-json [options] --prompt=<prompt>
 ```
 
-## Autenticación
+## Instalar e iniciar sesión { #install }
 
-La autenticación corre por cuenta de Gemini CLI. Inicia sesión mediante su flujo de cuenta de Google, define
-`GEMINI_API_KEY` o configura el entorno para Vertex AI. Curupira no lee,
-guarda ni gestiona las credenciales del proveedor.
+Gemini CLI necesita Node.js 20 o posterior.
 
-## Opciones de Curupira
+```sh
+npm install -g @google/gemini-cli
+gemini   # inicia sesión una vez con tu cuenta de Google
+```
 
-Curupira traduce los campos del perfil de Gemini a estos argumentos nativos:
+También puedes definir `GEMINI_API_KEY` o configurar Vertex AI. Gemini CLI se encarga de la
+autenticación; Curupira nunca lee ni guarda credenciales.
 
-| Opción | Argumento nativo |
-| --- | --- |
-| `model` | `--model <model>` opcional |
-| `approval_mode` | `--approval-mode <mode>` opcional: `default`, `auto_edit`, `yolo` o `plan` |
-| `skip_trust` | `--skip-trust` cuando es `true` |
-| `agent` | No compatible; se rechaza |
-| `effort` | No compatible; se rechaza |
+## Opciones del perfil { #options }
 
-Cuando `approval_mode` no está definido, las ejecuciones sin interfaz usan la política de aprobación nativa de Gemini CLI.
-Al definirlo se selecciona uno de los modos de aprobación explícitos de Gemini. **Advertencia:** definir
-`approval_mode = "yolo"` desactiva las solicitudes de aprobación; úsalo solo cuando ese comportamiento sea
-intencional. Curupira usa el valor `--approval-mode yolo` en lugar del flag obsoleto
-`--yolo`.
+| Opción | Argumento nativo | Notas |
+| --- | --- | --- |
+| `model` | `--model <model>` | `auto` deja que Gemini elija. |
+| `approval_mode` | `--approval-mode <mode>` | `default`, `auto_edit`, `yolo` o `plan`. Sin definir, se conserva la política de Gemini. |
+| `skip_trust = true` | `--skip-trust` | Omite la verificación de confianza de la carpeta. |
+| `agent` | — | No se admite; se rechaza. |
+| `effort` | — | No se admite; se rechaza. |
 
-El prompt se pasa como `--prompt=<message>`, de modo que los mensajes que empiezan con `-` se conservan como
-texto del prompt. El identificador de sesión nativo de Gemini se captura de su evento `init`.
+!!! warning "`yolo` lo aprueba todo"
+    `approval_mode = "yolo"` desactiva las solicitudes de aprobación. Curupira pasa
+    `--approval-mode yolo` en lugar del flag obsoleto `--yolo`.
 
-## Referencia del perfil
+El prompt se pasa como `--prompt=<prompt>`, así que un prompt que empieza con `-` sigue
+siendo texto.
 
-{% if page.url == "providers/gemini/" %}
-::: curupira.agents.gemini.GeminiCliProfile
-{% endif %}
+## Ejemplo { #example }
+
+```toml
+[agents.profiles.gemini]
+provider = "gemini"
+model = "auto"
+approval_mode = "auto_edit"
+```
+
+## Sesiones { #sessions }
+
+El id de sesión viene del evento `init` de Gemini y se guarda con la tarea. Una tarea
+interrumpida se reanuda con `--resume <session_id>`.

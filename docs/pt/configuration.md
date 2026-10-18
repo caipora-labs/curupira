@@ -1,61 +1,20 @@
 # Configuração
 
-## Referência gerada dos modelos
+O Curupira lê um único arquivo TOML, `~/.curupira/settings.toml` por padrão (`--config` escolhe
+outro). Ele tem cinco tipos de tabela:
 
-A referência dos modelos abaixo é gerada a partir dos modelos Pydantic públicos. Os tipos dos campos,
-os valores padrão e as restrições vêm diretamente dos modelos de origem; atualize esses modelos em vez de
-manter aqui uma tabela de campos paralela.
+| Tabela | O que declara |
+| --- | --- |
+| `[settings]` | Limites de execução, caminhos e consultas |
+| `[repositories.<alias>]` | Remotes Git em que os agentes trabalham |
+| `[agents]` | O perfil padrão e uma tabela por perfil de agente |
+| `[plugins.<alias>]` | Pacotes de fontes de tarefas e como iniciá-los |
+| `[automations.<name>]` | O que observar, onde trabalhar, qual agente e o prompt |
 
-### Configurações de execução
+Os nomes depois do ponto (`api`, `claude`, `plugins-py`, `resolve-ready-issues`) são
+escolhidos por você. Execute `curupira validate` depois de cada mudança.
 
-::: curupira.models.configuration.ExecutionSettings
-    options:
-      members:
-        - max_active_tasks
-        - max_pending_tasks
-        - workspace_dir
-        - state_db_path
-        - otlp_endpoint
-        - log_level
-        - task_timeout_minutes
-        - max_output_bytes
-        - polling
-
-::: curupira.models.configuration.PollingSettings
-    options:
-      show_root_heading: true
-
-### Repositórios, agentes e automações
-
-::: curupira.models.configuration.RepositoryConfiguration
-
-::: curupira.models.configuration.AgentDefaults
-
-::: curupira.models.configuration.AgentsSettings
-
-::: curupira.models.configuration.AssistantSettings
-
-::: curupira.models.configuration.IssueAutomationConfiguration
-
-::: curupira.models.configuration.PullRequestAutomationConfiguration
-
-::: curupira.models.configuration.CronAutomationConfiguration
-
-### Profiles de CLI
-
-::: curupira.models.profiles.OpenCodeCliProfile
-
-::: curupira.models.profiles.CodexCliProfile
-
-::: curupira.models.profiles.ClaudeCodeCliProfile
-
-::: curupira.models.profiles.CursorCliProfile
-
-O profile da GitHub Copilot CLI está documentado na sua [página do provider](providers/copilot.md#configuration-reference).
-
-Um único arquivo TOML separa os limites de execução, os repositórios Git, os profiles de agentes de código e
-as automações. Uma automação observa issues, pull requests, cards ou um agendamento cron, e
-aponta para um alias de repositório para o checkout.
+## Um arquivo completo { #example }
 
 ```toml
 [settings]
@@ -68,7 +27,6 @@ task_timeout_minutes = 20
 [settings.polling]
 poll_interval_seconds = 30
 batch_size = 100
-cron_poll_interval_seconds = 1
 
 [repositories.api]
 remote = "https://github.com/acme/api.git"
@@ -96,40 +54,67 @@ linked_pull_request = false
 prompt = "Resolve issue ${issue_number}: ${issue_title}\n\n${issue_body}"
 ```
 
-Salve isto como `~/.curupira/settings.toml`. As chaves sob `repositories`, `profiles`,
-`plugins` e `automations` são identificadores escolhidos por você; `repository` liga uma
-automação a um alias de checkout, `profile` a liga a um profile de agente de código, e
-`[plugins.<alias>]` registra um lançador de triggers para que as automações possam usar
-`<alias>/<local-trigger>` (por exemplo `plugins-py/github-issues`).
+## Settings { #settings }
 
-O `provider` de cada profile seleciona um agente de código **embutido**: `claude`, `codex`, `copilot`,
-`cursor`, `gemini`, `kilo`, `opencode`, `pi` ou `qwen`. Os agentes de código fazem parte da CLI
-em Rust (não são extensões de processo). `curu plugins list` mostra esses providers como
-`agent:<name>` com origem `built-in`, junto com as extensões de trigger.
+Todas as chaves são opcionais.
+
+| Chave | Padrão | Significado |
+| --- | --- | --- |
+| `max_active_tasks` | `1` | Agentes que podem rodar ao mesmo tempo. |
+| `workspace_dir` | `~/.curupira/workspaces` | Onde os repositórios são clonados. |
+| `state_db_path` | `~/.curupira/state.sqlite3` | Tarefas concluídas, ocorrências do cron e sessões retomáveis. |
+| `log_level` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` ou `CRITICAL`. `--log-level` o substitui. |
+| `task_timeout_minutes` | `20` | Prazo de uma execução do agente e do `setup_script`. |
+| `max_output_bytes` | `1000000` | Saída mantida de cada execução do agente e do script de setup. |
+| `polling.poll_interval_seconds` | `30` | Pausa entre consultas em `run --watch` e `tui`. |
+| `polling.batch_size` | `100` | Itens solicitados a cada trigger por consulta. |
+
+Caminhos relativos são resolvidos a partir do diretório do arquivo de configuração.
+
+## Repositórios { #repositories }
+
+`[repositories.<alias>]` é um checkout Git em que uma ou mais automações trabalham.
+
+| Chave | Obrigatória | Significado |
+| --- | --- | --- |
+| `remote` | sim | A URL para o `git clone`: HTTPS, SSH ou `user@host:path`. |
+| `path` | não | Usa ou cria o checkout aqui em vez de `workspace_dir/<alias>`. |
+| `setup_script` | não | Um executável relativo ao repositório, executado uma vez logo após um clone novo. |
+
+O remote não precisa estar no GitHub: o filtro `repo` do trigger decide o que é
+observado, e `remote` decide onde o agente trabalha. Os clones usam as suas credenciais Git
+normais.
+
+## Agentes { #agents }
+
+```toml
+[agents.defaults]
+profile = "claude"    # usado pelas automações que não definem um perfil
+timezone = "UTC"      # fuso horário padrão das automações cron
+
+[agents.profiles.claude]
+provider = "claude"
+model = "sonnet"
+```
+
+Cada perfil define um `provider`: `claude`, `codex`, `copilot`, `cursor`, `gemini`, `kilo`,
+`opencode`, `pi` ou `qwen`. As outras chaves são opções desse agente; veja
+[Agentes de código](providers.md) para todas as opções e a flag nativa em que cada uma se transforma.
 
 ## Assistente { #assistant }
 
-`[assistant]` é opcional. Ele registra qual provider de agente de código embutido deve executar
-o assistente de configuração interativo e qual model essa CLI deve usar:
+`[assistant]` é opcional e reservada para o assistente interativo do
+[painel no terminal](tui.md#assistant).
 
-- `agent`: o nome de um provider embutido (os mesmos identificadores usados nos valores
-  de `provider` dos profiles). Deixe sem definir até escolher um.
-- `model`: o id de um model concreto, ou omita-o para preferir a seleção automática nativa do
-  provider quando o adaptador a documentar (`auto` para Cursor, Gemini CLI e GitHub
-  Copilot CLI). O valor literal `auto` é rejeitado para providers sem essa capacidade.
+| Chave | Significado |
+| --- | --- |
+| `agent` | Um nome de provider embutido. `curupira validate` rejeita nomes desconhecidos. |
+| `model` | Um id de modelo para esse agente. Omita para usar o padrão do agente. |
 
-Arquivos TOML existentes sem `[assistant]` mantêm os padrões não definidos.
+## Plugins { #plugins }
 
-Atualmente o `curu tui` executa o dispatch contínuo com linhas de status; um painel completo de assistente
-embutido é trabalho futuro. As receitas de execução interativa de cada provider embutido ainda estão
-implementadas no core em Rust para essa superfície futura.
-
-## Plugins
-
-`[plugins.<alias>]` registra um trigger sob um alias das configurações e declara como lançá-lo.
-`uvx` e `npx` são lançadores independentes; `args` são passados a essa ferramenta como argv
-(nunca como uma string de shell). O host descobre os tipos de trigger iniciando o processo e
-chamando `describe`, e então aplica um filtro opcional `tools`:
+`[plugins.<alias>]` registra um pacote de triggers e como iniciá-lo. As automações então
+usam `trigger_type = "<alias>/<trigger>"`.
 
 ```toml
 [plugins.plugins-py]
@@ -143,141 +128,65 @@ args = ["--yes", "@acme/curupira-ext@1.2.3"]
 tools = ["*", "!internal-*"]
 ```
 
-- `type` (obrigatório): `uvx` ou `npx`.
-- `args` (obrigatório, não vazio): argumentos depois do binário do lançador. Os plugins Python
-  oficiais expõem um script de console `curupira-plugins`, então os usuários finais executam
-  `uvx --from curupira-plugins curupira-plugins` (sem `python -m`). Plugins Node publicam
-  um pacote npm cujo `bin` fala o protocolo (normalmente construído com
-  [`@caipora/curupira-sdk`](extensions.md#javascript-extension));
-  fixe a versão em `args` (por exemplo `@acme/curupira-ext@1.2.3`). O `npx` precisa estar no
-  `PATH` (instale o [Node.js](https://nodejs.org/)).
-- `tools` (opcional): lista de globs que seleciona quais nomes locais de trigger expor. Vazia ou
-  omitida, mantém todos os triggers de `describe`. Padrões positivos (`github-*`, `*`) são
-  inclusões; padrões que começam com `!` (`!github-project-*`) são exclusões. Um nome deve casar com uma
-  inclusão quando houver inclusões definidas e não pode casar com nenhuma exclusão.
+| Chave | Obrigatória | Significado |
+| --- | --- | --- |
+| `type` | sim | `uvx` ou `npx`. Esse launcher precisa estar no `PATH`. |
+| `args` | sim | Argumentos depois do launcher, passados como lista e nunca por um shell. Fixe as versões. |
+| `tools` | não | Padrões glob que selecionam triggers. `!` exclui. Vazio mantém todos os triggers. |
 
-As automações então definem `trigger_type = "<alias>/<local-trigger>"`. Os nomes locais de trigger são
-nomes em kebab-case declarados pela extensão (por exemplo `github-issues`). A distribuição oficial
-`curupira-plugins` costuma ser registrada como `plugins-py` com `type = "uvx"`.
+Conectores como o do GitHub, e os que estão em desenvolvimento, estão listados em
+[Plugins e conectores](plugins.md). Para escrever o seu, veja
+[Desenvolver extensões](extensions.md) e o [SDK JavaScript](extensions-javascript.md).
 
-## Repositórios
+## Automações { #automations }
 
-`[repositories.<alias>]` é dono das configurações de checkout do Git compartilhadas por uma ou mais automações:
+`[automations.<name>]` liga um trigger a um repositório, a um agente e a um prompt.
 
-- `remote` (obrigatório): URL Git completa usada pelo `git clone` (HTTPS, SSH ou `user@host:path`).
-- `path` (opcional): checkout existente ou destino alternativo do clone.
-- `setup_script` (opcional): executável relativo ao repositório, executado somente após um clone novo.
+| Chave | Obrigatória | Significado |
+| --- | --- | --- |
+| `trigger_type` | sim | `<alias>/<trigger>` de um plugin, ou `cron`. |
+| `repository` | sim | Um nome de `[repositories.<alias>]`. |
+| `prompt` | sim | A mensagem para o agente. Veja [Escrevendo prompts](prompts.md). |
+| `profile` | não | Um nome de perfil. O padrão é `[agents.defaults].profile`. |
+| `checkout` | não | `worktree` (padrão) ou `main`. Veja [Checkout e setup](#checkout). |
 
-A descoberta no forge é independente da URL de checkout. Um padrão comum é um `remote`
-em um host diferente do GitHub com issues públicas do GitHub: defina `repositories.api.remote` com
-essa URL Git e defina o `repo` do GitHub da automação como `owner/name`.
+Todas as outras chaves são passadas ao trigger como as configurações dele. O trigger do GitHub
+recebe `repo`, `labels` e outros filtros, documentados em [Issues e pull requests](github.md) e
+[Projects](github-projects.md). O cron recebe `schedule` e as chaves descritas em
+[Cron](automations.md#cron).
 
-## Automações
+As automações são consultadas na ordem do arquivo. Placeholders e condições de prompt são tratados em
+[Escrevendo prompts](prompts.md); a [Referência de campos do prompt](prompt-fields.md) lista o que cada
+trigger fornece.
 
-`trigger_type` seleciona a fonte:
+## Checkout e setup { #checkout }
 
-- `plugins-py/github-issues` descobre issues do GitHub pela GraphQL Search usando filtros tipados
-  (`labels`, `exclude_labels`, `assignee`, `linked_pull_request`, `sort`, …). Defina
-  `linked_pull_request = false` para que a descoberta compile `-linked:pr` e ignore issues que
-  já têm um pull request vinculado. Esse filtro vale apenas para a descoberta em tempo de configuração;
-  veja [Agendamento e estado](#scheduling-and-state) para a revalidação das sessões recuperadas pelo scheduler.
-- `plugins-py/github-pull-requests` descobre pull requests do GitHub da mesma forma, com filtros de PR como
-  `draft`, `review`, `ci_status`, além dos pós-filtros `mergeable` / `merge_state`.
-- `cron` produz ocorrências a partir de um `schedule` de cinco campos em vez de consultar um forge.
-- As [extensões de trigger](extensions.md) instaladas adicionam seus próprios tipos de trigger;
-  `curu plugins list` mostra todos os tipos disponíveis.
+Por padrão, cada tarefa recebe o seu próprio worktree e branch ao lado do clone
+(`<clone>.worktrees/<automation>/…`, branch `curupira/<automation>/…`). O worktree é
+removido quando a tarefa termina, então as tarefas nunca compartilham arquivos.
 
-Cada automação exige `repository` (alias) e `prompt`. Os triggers do GitHub também
-exigem a identidade `repo` do forge (`owner/name`). O cron exige `schedule`. O `profile` opcional
-seleciona um profile de CLI. Aliases de repositório diferentes não podem compartilhar o mesmo caminho de workspace. As automações mantêm
-a ordem do arquivo, e a seleção de execução única segue essa ordem.
+`checkout = "main"` executa o agente no clone compartilhado. Nesse modo, o Curupira não faz fetch,
+pull nem troca de branch; use-o para jobs somente leitura ou agendados que devem
+ver o clone como ele está.
 
-A autenticação na API do GitHub usa `gh auth token`, de uma GitHub CLI já autenticada.
-A autenticação do clone usa as credenciais nativas do Git para o `remote` configurado.
-
-Os placeholders usam a sintaxe `${name}` (condicionais e laços do Jinja também estão disponíveis; veja
-[Escrevendo prompts](prompts.md)). O host sempre fornece `${repository}` (a
-identidade do forge derivada do remote Git) e `${automation}` (o nome da
-automação). Toda outra `${key}` vem do resultado do trigger: o SDK transforma o
-objeto retornado em pares de strings, e cada chave é substituída como foi escrita,
-inclusive chaves que não são identificadores comuns (`${issue-number}`). Um
-placeholder sem correspondência é deixado inalterado (pode ser texto de shell, como `${HOME}`);
-o `validate` só reclama quando um `${name}` ou `{{ name }}` parece um erro de digitação de uma chave real. Os plugins oficiais escolhem suas próprias chaves. As issues
-do GitHub incluem `issue_number`, `issue_title`, `issue_body` e `issue_url`;
-os pull requests incluem `pull_request_number`, `pull_request_title`,
-`pull_request_body`, `pull_request_url`, `pull_request_is_draft`,
-`pull_request_head_ref`, `pull_request_base_ref`, `pull_request_head_sha` e
-`pull_request_mergeable`, entre os outros campos desse modelo. Os prompts de cron
-recebem apenas as duas variáveis do host (e a forma legada `$automation`).
-
-## Checkout e setup
-
-Cada tarefa usa seu próprio worktree por padrão, criado a partir do branch padrão do remote buscado.
-Defina `checkout = "main"` para usar o checkout compartilhado como está; o Curupira não faz fetch, pull nem
-troca de branch nesse modo. O `path` do alias do repositório seleciona o checkout base.
-Os clones usam `git clone <remote>`.
-
-`setup_script` fica no alias do repositório. Ele roda diretamente somente depois que um checkout base
-é clonado do zero, não para um checkout existente nem em um worktree de tarefa. Uma saída diferente de zero
-impede o agente de iniciar e remove o checkout recém-clonado. A validação verifica a
-sintaxe do caminho, mas não exige que o script exista. `run --dry-run` não faz fetch, clone,
-não cria worktrees nem executa o setup.
+O `setup_script` roda apenas após um clone novo, no clone, nunca em um worktree. Uma
+saída diferente de zero interrompe a tarefa. `run --dry-run` nunca clona nem executa o setup.
 
 ## Agendamento e estado { #scheduling-and-state }
 
-Cada consulta busca até `batch_size` itens (padrão 100, máximo 1000). Ciclos de consulta vazios aumentam o intervalo
-a partir de `poll_interval_seconds` (padrão 30 segundos) até cinco minutos; uma descoberta zera
-a espera. As automações fazem a deduplicação de forma independente.
+Cada consulta pede ao trigger de cada automação até `batch_size` itens. Os campos de
+cada item geram um hash que vira a identidade da tarefa:
 
-Filtros de descoberta como `linked_pull_request = false` (`-linked:pr`) afetam apenas o que
-a busca do GitHub devolve para trabalho novo. Eles não protegem sessões recuperadas que foram salvas
-antes de uma issue ganhar um PR vinculado. A aplicação pelo scheduler é separada: antes de uma nova tarefa ou
-sessão salva ser admitida, o Curupira busca o estado atual da issue ou do pull request uma vez,
-descarta itens fechados ou com merge feito, rejeita uma issue que já tenha um PR de fechamento aberto ou
-vinculado em Development (via GraphQL `closedByPullRequestsReferences`, incluindo formas no corpo
-como `Fixes: #N`), aposenta a sessão obsoleta dessa issue e reinicia uma sessão de PR quando o
-SHA do head, o flag de draft, o título ou o corpo não correspondem mais ao snapshot salvo. As sessões
-de pull request recuperadas de um banco de estado gravado antes de o SHA do head ser persistido
-reiniciam uma vez quando o snapshot atualizado fornece um head. Se o GitHub informar mais referências
-de PR de fechamento do que cabem em uma página GraphQL, a admissão falha de forma fechada para esse candidato (sem agente). Um erro
-transitório de revalidação adia esse candidato, mantém qualquer sessão salva e não interrompe o
-scheduler.
+- Uma tarefa que terminou `ok` é armazenada em `state_db_path` e nunca roda de novo.
+- O mesmo item com um campo alterado (um novo título, um novo commit no head) é uma nova identidade,
+  então pode rodar de novo.
+- Uma tarefa que falhou não é repetida no mesmo processo; o próximo `run` tenta de novo.
 
-As consultas de execução única e as iniciais chamam todos os feeds de automação juntos. Um `DispatchError` de um
-feed é registrado no log e esse feed não contribui com tarefas; os outros feeds ainda devolvem candidatos.
-O `run` (execução única) então tenta os candidatos em ordem e passa ao próximo quando a revalidação
-descarta um. O `run --watch` / `tui` contínuo já registra em log os erros de descoberta por feed
-da mesma forma.
+Filtros como `linked_pull_request = false` decidem o que o trigger do GitHub retorna; veja
+[Deduplicação](github.md#deduplication) para saber como os triggers do GitHub mantêm a sua saída
+estável. Automações cron produzem uma ocorrência quando o agendamento vence e nunca rodam
+duas vezes ao mesmo tempo.
 
-Depois de uma execução bem-sucedida do agente (a CLI do agente de código realmente executou), o Curupira armazena
-a impressão digital da fonte concluída mais uma próxima ação explícita em `state_db_path`. Um snapshot
-concluído e inalterado é ignorado entre ciclos de dispatch. As impressões digitais usam o SHA do head, o flag de draft,
-o título e o corpo — não a mergeability, o status de merge-state nem as conclusões dos checks — então
-transições de checks ou de conflitos, por si só, não readmitem o trabalho. Um head, flag de draft,
-título ou corpo alterado pode ser admitido novamente. Se a própria verificação de conclusão falhar, o Curupira limpa qualquer registro
-concluído desse item para que o próximo ciclo tente verificar de novo em vez de ignorá-lo para sempre.
-Snapshots ignorados como obsoletos antes de o agente iniciar não são registrados como concluídos.
-
-Os esgotamentos finitos com `run --size N` admitem no máximo `N` tarefas após a revalidação. As sessões recuperadas
-contam para `N`; os candidatos descartados durante a revalidação não.
-
-`max_active_tasks` limita os agentes concorrentes (slots de worker). Quando uma tarefa termina, o seu slot é
-reabastecido imediatamente pela próxima consulta. As tarefas que compartilham um checkout base serializam o clone
-e a preparação do worktree, mas seus agentes rodam em paralelo. Uma tarefa que falha não é repetida dentro
-da mesma invocação de `run`; ela é retomada pela próxima.
-As automações de cron unem os ticks atrasados em uma única ocorrência pendente e nunca rodam
-concorrentemente consigo mesmas. `schedule` usa cinco campos de cron; `timezone` é uma zona IANA (padrão UTC),
-e `start_date`/`end_date` opcionais definem uma janela inclusiva. Sem `start_date`, a
-janela começa quando a automação é registrada pela primeira vez. `task_timeout_minutes` (padrão 20) é
-o prazo para uma execução do agente de código e seu script de setup opcional.
-
-O estado é armazenado em `state_db_path` (padrão `~/.curupira/state.sqlite3`), o lock de dispatch
-em `~/.curupira/dispatch.lock` e os logs em `~/.curupira/logs`. Um banco incompatível
-causa um erro em vez de uma exclusão automática. Somente um processo `run` ou `tui` pode fazer dispatch
-por vez.
-
-## Telemetria
-
-Defina `settings.otlp_endpoint` como um endpoint de traces OTLP/HTTP (por exemplo,
-`http://localhost:4318/v1/traces`) para exportar um span por tarefa despachada. Se omitido, nenhuma
-telemetria é exportada.
+Apenas um processo `run` ou `tui` despacha por vez; ele mantém o
+`~/.curupira/dispatch.lock`. Um banco de estado incompatível é um erro e nunca é apagado
+automaticamente.

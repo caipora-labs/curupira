@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{#- Display (Bricolage Grotesque), text (Figtree), and code (JetBrains Mono) in one request. -#}
+{% block fonts %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:ital,wght@0,400..700;1,400&display=swap">
+  <style>:root{--md-text-font:"Figtree";--md-code-font:"JetBrains Mono";--cp-display-font:"Bricolage Grotesque"}</style>
+{% endblock %}

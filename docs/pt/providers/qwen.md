@@ -1,27 +1,50 @@
 # Qwen Code
 
-Instale o Qwen Code com Node.js 22 ou superior:
+O Curupira executa o [Qwen Code](https://github.com/QwenLM/qwen-code) de forma não interativa com
+saída JSON em streaming:
 
-```bash
-npm install -g @qwen-code/qwen-code@latest
+```text
+qwen --output-format stream-json [options] --prompt=<prompt>
 ```
 
-O Curupira executa `qwen --output-format stream-json --prompt=<message>`. Ele retoma uma
-sessão conhecida com `--resume <session_id>`. O Qwen Code é responsável pela autenticação; o Curupira não
-lida com credenciais de providers.
+## Instale e faça login { #install }
 
-| Opção do profile | Argumento nativo |
-| --- | --- |
-| `model` | `--model` opcional |
-| `approval_mode` | `--approval-mode` opcional (`plan`, `default`, `auto-edit`, `auto` ou `yolo`) |
-| `max_session_turns` | `--max-session-turns` opcional (inteiro ≥ 1) |
-| `agent` | Não suportado; rejeitado |
-| `effort` | Não suportado; rejeitado |
+O Qwen Code precisa do Node.js 22 ou mais recente.
 
-`approval_mode = "yolo"` habilita a aprovação automática. A documentação do Qwen Code alerta
-que o modo YOLO “não habilita um sandbox”.
+```sh
+npm install -g @qwen-code/qwen-code@latest
+qwen   # faça login uma vez
+```
 
-As opções `--max-wall-time` e `--max-tool-calls` não são expostas; o timeout de tarefa do Curupira
+O Qwen Code cuida da autenticação. O Curupira nunca lê nem armazena credenciais.
+
+## Opções do perfil { #options }
+
+| Opção | Argumento nativo | Observações |
+| --- | --- | --- |
+| `model` | `--model <model>` | |
+| `approval_mode` | `--approval-mode <mode>` | `plan`, `default`, `auto-edit`, `auto` ou `yolo`. |
+| `max_session_turns` | `--max-session-turns <n>` | Um inteiro de pelo menos `1`. |
+| `agent` | — | Não suportado; rejeitado. |
+| `effort` | — | Não suportado; rejeitado. |
+
+!!! warning "`yolo` não é um sandbox"
+    `approval_mode = "yolo"` aprova todas as ações automaticamente. A documentação do Qwen Code
+    avisa que ele "não ativa um sandbox".
+
+`--max-wall-time` e `--max-tool-calls` não são expostos; o `task_timeout_minutes` do Curupira
 limita cada execução.
 
-::: curupira.agents.qwen.QwenCodeCliProfile
+## Exemplo { #example }
+
+```toml
+[agents.profiles.qwen]
+provider = "qwen"
+approval_mode = "auto-edit"
+max_session_turns = 40
+```
+
+## Sessões { #sessions }
+
+O id de sessão do stream JSON é salvo com a tarefa. Uma tarefa interrompida é retomada
+com `--resume <session_id>`.

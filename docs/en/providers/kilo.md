@@ -1,32 +1,44 @@
 # Kilo CLI
 
-Install Kilo with npm:
+Curupira runs the [Kilo CLI](https://kilocode.ai/cli) in `run` mode with JSON output:
 
-```bash
-npm install -g @kilocode/cli
+```text
+kilo run --format json [options] -- <prompt>
 ```
 
-Authenticate with `kilo auth login` or configure credentials for a supported model
-provider in Kilo. Curupira does not store, request, or manage credentials; Kilo and its
-provider integrations own authentication.
+## Install and sign in { #install }
 
-Curupira invokes `kilo run --format json` and sends the task message after `--`. Kilo's
-JSONL events include a session ID on each record, and text parts use the same
-`text`/`part.text` shape as OpenCode. Curupira therefore uses the shared session parser and
-renderer, and resumes a saved session with `--session <session_id>`.
+```sh
+npm install -g @kilocode/cli
+kilo auth login
+```
 
-| Profile option | Native argument | Notes |
+Kilo and its provider integrations own authentication. Curupira never reads or stores
+credentials.
+
+## Profile options { #options }
+
+| Option | Native argument | Notes |
 | --- | --- | --- |
-| `model` | `--model <provider/model>` | Use Kilo's `provider/model` identifier. |
-| `agent` | `--agent <agent>` | Name of an existing Kilo agent. |
-| `effort` | `--variant <effort>` | Provider-specific reasoning variant such as `high`, `max`, or `minimal`. |
-| `auto_approve` | `--auto` when `true` | Dangerous: auto-approves permissions that are not explicitly denied. |
-| Session ID | `--session <session_id>` | Added by Curupira when resuming a task. |
-| Task message | `-- <message>` | The separator keeps messages beginning with `-` from being parsed as flags. |
+| `model` | `--model <provider/model>` | Must use the `provider/model` form; anything else is a configuration error. |
+| `agent` | `--agent <agent>` | An existing Kilo agent. |
+| `effort` | `--variant <variant>` | Provider-specific reasoning variant such as `high`, `max`, or `minimal`. |
+| `auto_approve = true` | `--auto` | Approves permissions that are not explicitly denied. Use with care. |
 
-`effort` maps to `--variant`; Kilo's `--thinking` only displays thinking blocks and is not
-used as a reasoning-effort option. Without `auto_approve`, Kilo rejects permission
-requests during headless runs instead of waiting for interactive input. Leave
-`auto_approve` disabled unless that broader permission behavior is intended.
+Kilo's `--thinking` only displays thinking blocks, so it is not used for `effort`.
+Without `auto_approve`, Kilo rejects permission requests in headless runs instead of
+waiting for input.
 
-::: curupira.agents.kilo.KiloCliProfile
+## Example { #example }
+
+```toml
+[agents.profiles.kilo]
+provider = "kilo"
+model = "anthropic/claude-sonnet-4"
+effort = "high"
+```
+
+## Sessions { #sessions }
+
+Every JSON record carries the session id, which is saved with the task. An interrupted
+task resumes with `--session <session_id>`.

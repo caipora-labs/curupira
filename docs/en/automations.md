@@ -15,8 +15,9 @@ and execution pipeline.
 
 {{ triggers_table() }}
 
-Installed [plugins](plugins.md) can add more trigger types. `curu plugins list` shows every
-registered type and its prompt fields.
+Connectors registered under `[plugins.<alias>]` add more trigger types, see
+[Plugins and connectors](plugins.md). `curu plugins list` shows every available type and its
+prompt fields.
 
 ## Security: task text is untrusted
 
@@ -36,8 +37,6 @@ can write text.
    ```bash
    npm install -g @caipora/curupira
    # or: uv tool install curupira
-   # forge triggers are optional PyPI extras, for example:
-   # uv tool install 'curupira[github]'
    ```
 
 2. Copy a minimal settings file (or start from `curupira.example.toml`), then validate
@@ -143,7 +142,7 @@ this trigger returns, including `${pull_request_number}`,
 `repository`. Booleans render as `true` / `false`. A field whose value is `None`
 renders as `null`. A `${key}` the result does not contain is left unchanged.
 
-## Cron
+## Cron { #cron }
 
 Runs on a local schedule you set with a five-field `schedule`. No external board or issue
 tracker CLI is required. Schedule options (timezone, start/end dates) are in
@@ -179,7 +178,7 @@ and the same automation never runs twice at the same time.
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `unknown trigger type: …` | Typo or plugin not installed | Check `trigger_type` against `curu plugins list` |
+| `unknown trigger type: …` | Typo, or the plugin is not registered | Check `trigger_type` against `curu plugins list` |
 | Repository alias errors / missing repository | `repository` does not match a `[repositories.<alias>]` key | Align the alias and ensure `remote` is a full Git URL |
 | Placeholder left unchanged in the prompt | `${name}` is not a host variable and the trigger did not return that key | Use a key the trigger returns; see the [Prompt field reference](prompt-fields.md). `validate` suggests the closest key |
 | `prompt uses unknown field(s)` from `validate` | A `{{ name }}` (or a `${name}` that looks like a typo) is not a key of this trigger | Fix the name; the message lists the available fields |
