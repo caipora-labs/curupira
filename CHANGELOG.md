@@ -73,6 +73,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **npm publishing uses OIDC only.** Every `publish/curupira/<version>` and
+  `publish/curupira-js-sdk/<version>` tag publishes to npm through trusted publishing, without
+  the `NPM_OIDC_READY`, `NPM_SDK_OIDC_READY`, and `NPM_MANUAL_BOOTSTRAP_VERSION` repository
+  variables. Pre-releases go to the `next` dist-tag.
 - **npm CLI package name.** Install the npm CLI as `@caipora-labs/curupira`; the unscoped
   `curupira` name is unavailable on npm. The installed commands remain `curupira` and `curu`.
 - **Breaking: trigger results are generic key/value pairs (protocol 2).** The host

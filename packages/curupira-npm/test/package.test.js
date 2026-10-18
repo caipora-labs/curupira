@@ -47,11 +47,7 @@ test("publish workflow targets match the npm platform list", () => {
   assert.match(workflow, /dist-npm\/caipora-labs-curupira-\$\{VERSION\}\.tgz/);
   assert.match(workflow, /npm publish dist-npm\/caipora-labs-curupira-\*\.tgz/);
   assert.doesNotMatch(workflow, /dist-npm\/platform|Publish platform packages/);
-  assert.match(workflow, /vars\.NPM_OIDC_READY == 'true'/);
-  assert.match(workflow, /NPM_MANUAL_BOOTSTRAP_VERSION/);
-  const publishPython = workflow.match(/  publish:\n([\s\S]*?)\n  pack-npm:/)?.[1];
-  assert.ok(publishPython);
-  assert.doesNotMatch(publishPython, /NPM_OIDC_READY|NPM_MANUAL_BOOTSTRAP_VERSION/);
+  assert.doesNotMatch(workflow, /vars\.NPM_|NPM_OIDC_READY|NPM_MANUAL_BOOTSTRAP_VERSION/);
   assert.doesNotMatch(workflow, /NPM_BOOTSTRAP_TOKEN|NODE_AUTH_TOKEN|workflow_dispatch/);
 });
 
