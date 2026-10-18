@@ -340,9 +340,9 @@ jobs:
         run: |
           mkdir -p dist-npm/platform
           for dir in npm-stage/curupira-*; do
-            npm pack --pack-destination dist-npm/platform "$dir"
+            npm pack --pack-destination dist-npm/platform "./$dir"
           done
-          npm pack --pack-destination dist-npm npm-stage/curupira
+          npm pack --pack-destination dist-npm ./npm-stage/curupira
       - name: Install the Linux x64 package and run the CLI
         if: needs.resolve.outputs.project == 'curupira'
         env:
