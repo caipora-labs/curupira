@@ -28,10 +28,15 @@ pub struct PluginNamespaceIndex {
 
 impl PluginNamespaceIndex {
     /// Build the namespaced index by spawning each registered plugin and calling `describe`.
-    pub fn build(plugins: &BTreeMap<String, PluginConfiguration>) -> Result<Self, CurupiraError> {
+    ///
+    /// `env_vars` are the `[environment.vars]` overwrites applied to each plugin process.
+    pub fn build(
+        plugins: &BTreeMap<String, PluginConfiguration>,
+        env_vars: &BTreeMap<String, String>,
+    ) -> Result<Self, CurupiraError> {
         let mut by_full: BTreeMap<String, TriggerBinding> = BTreeMap::new();
         for (alias, config) in plugins {
-            let mut host = ExtensionHost::spawn_plugin(alias, config)?;
+            let mut host = ExtensionHost::spawn_plugin(alias, config, env_vars)?;
             let described = host.describe().map_err(|err| {
                 CurupiraError::Config(format!("plugins.{alias}: describe failed: {err}"))
             })?;

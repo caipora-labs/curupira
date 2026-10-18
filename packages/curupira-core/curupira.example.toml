@@ -15,6 +15,11 @@ poll_interval_seconds = 30
 batch_size = 100
 cron_poll_interval_seconds = 1
 
+# Copied into every spawned process (agents, git, setup scripts, extensions), then
+# these keys replace the same names from Curupira's own environment. Values are literal.
+# [environment.vars]
+# HTTPS_PROXY = "http://proxy.internal:8080"
+
 # Git checkouts are independent from forge discovery. Automations reference these aliases.
 [repositories.api]
 remote = "https://github.com/acme/api.git"

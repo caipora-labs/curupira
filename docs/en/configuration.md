@@ -1,11 +1,12 @@
 # Configuration
 
 Curupira reads one TOML file, `~/.curupira/settings.toml` by default (`--config` picks
-another). It has five kinds of tables:
+another). It has six kinds of tables:
 
 | Table | What it declares |
 | --- | --- |
 | `[settings]` | Runtime limits, paths, and polling |
+| `[environment]` | Variables copied into every process Curupira starts |
 | `[repositories.<alias>]` | Git remotes the agents work in |
 | `[agents]` | The default profile and one table per agent profile |
 | `[plugins.<alias>]` | Task-source packages and how to launch them |
@@ -27,6 +28,9 @@ task_timeout_minutes = 20
 [settings.polling]
 poll_interval_seconds = 30
 batch_size = 100
+
+[environment.vars]
+# HTTPS_PROXY = "http://proxy.internal:8080"
 
 [repositories.api]
 remote = "https://github.com/acme/api.git"
@@ -70,6 +74,24 @@ Every key is optional.
 | `polling.batch_size` | `100` | Items requested from each trigger per poll. |
 
 Relative paths are resolved against the directory of the settings file.
+
+## Environment { #environment }
+
+Every process Curupira starts — coding agents, Git, `setup_script`, and extensions — receives a copy of every environment variable the Curupira process can see. `[environment.vars]` replaces those values. Omit the table to pass the process environment through unchanged.
+
+Values are literal strings. `$VAR` and `${VAR}` are not expanded.
+
+Curupira still sets the working directory (`PWD`) and removes repository-binding variables (`GIT_DIR` and the other `GIT_*` bindings) after these overwrites, and a coding agent's own variables (for example `OPENCODE_DB`) are applied after `[environment.vars]`.
+
+```toml
+[environment.vars]
+HTTPS_PROXY = "http://proxy.internal:8080"
+GITHUB_TOKEN = "ghp_..."
+```
+
+| Key | Meaning |
+| --- | --- |
+| `vars` | Environment variable names and the values that replace them. Empty when omitted. Names match `[A-Za-z_][A-Za-z0-9_]*`. |
 
 ## Repositories { #repositories }
 

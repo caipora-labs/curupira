@@ -4,6 +4,7 @@
 
 #![cfg(unix)]
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -44,6 +45,7 @@ async fn opencode_task_runs_in_its_worktree_with_its_own_database() {
         &launch.args,
         Some(&worktree),
         &launch.env,
+        &BTreeMap::new(),
         Duration::from_secs(10),
         4096,
     )

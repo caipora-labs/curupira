@@ -1,6 +1,6 @@
 //! Git checkout, worktree, and setup-script management owned by the Rust core.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -58,7 +58,8 @@ impl VersionControl {
         let lock = self.lock_for(&base).await;
         let _guard = lock.lock().await;
 
-        let checkout = ensure_checkout(&task.repository_remote, &base).await?;
+        let env_vars = &settings.environment.vars;
+        let checkout = ensure_checkout(&task.repository_remote, &base, env_vars).await?;
         if checkout.cloned {
             if let Some(script) = &task.setup_script {
                 run_setup_script(&checkout.path, script, settings).await?;
@@ -78,6 +79,7 @@ impl VersionControl {
             &task.automation_id,
             &task.identity.task_type,
             &task.identity.id,
+            env_vars,
         )
         .await?;
         Ok(PreparedWorkspace {
@@ -88,13 +90,19 @@ impl VersionControl {
     }
 
     /// Remove a task worktree and its local branch (best-effort errors surface).
-    pub async fn cleanup(&self, prepared: &PreparedWorkspace) -> Result<(), CurupiraError> {
+    ///
+    /// `env_vars` are the `[environment.vars]` overwrites used for the git processes.
+    pub async fn cleanup(
+        &self,
+        env_vars: &BTreeMap<String, String>,
+        prepared: &PreparedWorkspace,
+    ) -> Result<(), CurupiraError> {
         let Some(worktree) = &prepared.worktree else {
             return Ok(());
         };
         let lock = self.lock_for(&prepared.base_checkout).await;
         let _guard = lock.lock().await;
-        remove_worktree(&prepared.base_checkout, worktree).await
+        remove_worktree(&prepared.base_checkout, worktree, env_vars).await
     }
 }
 
@@ -112,7 +120,11 @@ fn base_checkout_path(settings: &ApplicationSettings, task: &Task) -> PathBuf {
     root.join(&task.repository_alias)
 }
 
-async fn ensure_checkout(remote: &str, destination: &Path) -> Result<Checkout, CurupiraError> {
+async fn ensure_checkout(
+    remote: &str,
+    destination: &Path,
+    env_vars: &BTreeMap<String, String>,
+) -> Result<Checkout, CurupiraError> {
     if is_git_checkout(destination) {
         return Ok(Checkout {
             path: destination.to_path_buf(),
@@ -133,7 +145,7 @@ async fn ensure_checkout(remote: &str, destination: &Path) -> Result<Checkout, C
             ))
         })?;
     }
-    match clone_repo(remote, destination).await {
+    match clone_repo(remote, destination, env_vars).await {
         Ok(()) => {
             if !is_git_checkout(destination) {
                 let _ = remove_tree(destination);
@@ -154,15 +166,27 @@ async fn ensure_checkout(remote: &str, destination: &Path) -> Result<Checkout, C
     }
 }
 
-async fn clone_repo(remote: &str, dest: &Path) -> Result<(), CurupiraError> {
+async fn clone_repo(
+    remote: &str,
+    dest: &Path,
+    env_vars: &BTreeMap<String, String>,
+) -> Result<(), CurupiraError> {
     let args = vec![
         "clone".into(),
         remote.into(),
         dest.to_string_lossy().into_owned(),
     ];
-    let result = run_process("git", &args, None, &[], Duration::from_secs(600), 1_000_000)
-        .await
-        .map_err(CurupiraError::Dispatch)?;
+    let result = run_process(
+        "git",
+        &args,
+        None,
+        &[],
+        env_vars,
+        Duration::from_secs(600),
+        1_000_000,
+    )
+    .await
+    .map_err(CurupiraError::Dispatch)?;
     if result.exit_code != 0 {
         return Err(CurupiraError::Dispatch(format!(
             "git clone failed: {}",
@@ -181,6 +205,7 @@ async fn ensure_worktree(
     automation_id: &str,
     task_type: &str,
     task_id: &str,
+    env_vars: &BTreeMap<String, String>,
 ) -> Result<WorktreeHandle, CurupiraError> {
     let safe_task_id = hex_encode(Sha256::digest(task_id.as_bytes()));
     let safe_task_type = sanitize_path_component(task_type);
@@ -202,11 +227,18 @@ async fn ensure_worktree(
         });
     }
 
-    git_ok(base, &["fetch".into(), "origin".into()], "git fetch").await?;
+    git_ok(
+        base,
+        &["fetch".into(), "origin".into()],
+        "git fetch",
+        env_vars,
+    )
+    .await?;
     let default_ref = git_stdout(
         base,
         &["symbolic-ref".into(), "refs/remotes/origin/HEAD".into()],
         "git symbolic-ref",
+        env_vars,
     )
     .await?;
     if let Some(parent) = target.parent() {
@@ -223,6 +255,7 @@ async fn ensure_worktree(
             default_ref,
         ],
         "git worktree add",
+        env_vars,
     )
     .await?;
     Ok(WorktreeHandle {
@@ -232,7 +265,11 @@ async fn ensure_worktree(
     })
 }
 
-async fn remove_worktree(base: &Path, worktree: &WorktreeHandle) -> Result<(), CurupiraError> {
+async fn remove_worktree(
+    base: &Path,
+    worktree: &WorktreeHandle,
+    env_vars: &BTreeMap<String, String>,
+) -> Result<(), CurupiraError> {
     git_ok(
         base,
         &[
@@ -242,12 +279,14 @@ async fn remove_worktree(base: &Path, worktree: &WorktreeHandle) -> Result<(), C
             worktree.path.to_string_lossy().into_owned(),
         ],
         "git worktree remove",
+        env_vars,
     )
     .await?;
     git_ok(
         base,
         &["branch".into(), "-D".into(), worktree.branch.clone()],
         "git branch",
+        env_vars,
     )
     .await?;
     Ok(())
@@ -265,6 +304,7 @@ async fn run_setup_script(
         &[],
         Some(checkout),
         &[],
+        &settings.environment.vars,
         timeout,
         settings.settings.max_output_bytes as usize,
     )
@@ -284,12 +324,18 @@ async fn run_setup_script(
     Ok(())
 }
 
-async fn git_ok(cwd: &Path, args: &[String], label: &str) -> Result<(), CurupiraError> {
+async fn git_ok(
+    cwd: &Path,
+    args: &[String],
+    label: &str,
+    env_vars: &BTreeMap<String, String>,
+) -> Result<(), CurupiraError> {
     let result = run_process(
         "git",
         args,
         Some(cwd),
         &[],
+        env_vars,
         Duration::from_secs(600),
         1_000_000,
     )
@@ -304,12 +350,18 @@ async fn git_ok(cwd: &Path, args: &[String], label: &str) -> Result<(), Curupira
     Ok(())
 }
 
-async fn git_stdout(cwd: &Path, args: &[String], label: &str) -> Result<String, CurupiraError> {
+async fn git_stdout(
+    cwd: &Path,
+    args: &[String],
+    label: &str,
+    env_vars: &BTreeMap<String, String>,
+) -> Result<String, CurupiraError> {
     let result = run_process(
         "git",
         args,
         Some(cwd),
         &[],
+        env_vars,
         Duration::from_secs(120),
         1_000_000,
     )
@@ -369,6 +421,7 @@ mod tests {
             plugins: BTreeMap::new(),
             automations: BTreeMap::new(),
             assistant: Default::default(),
+            environment: Default::default(),
         }
     }
 
@@ -473,7 +526,9 @@ mod tests {
         let prepared2 = vcs.prepare(&settings, &task).await.unwrap();
         assert_eq!(prepared.base_checkout, prepared2.base_checkout);
 
-        vcs.cleanup(&prepared).await.unwrap();
+        vcs.cleanup(&settings.environment.vars, &prepared)
+            .await
+            .unwrap();
         assert!(!prepared.cwd.exists());
     }
 

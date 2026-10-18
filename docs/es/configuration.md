@@ -1,11 +1,12 @@
 # Configuración
 
 Curupira lee un único archivo TOML, `~/.curupira/settings.toml` por defecto (`--config`
-elige otro). Tiene cinco tipos de tablas:
+elige otro). Tiene seis tipos de tablas:
 
 | Tabla | Qué declara |
 | --- | --- |
 | `[settings]` | Límites de ejecución, rutas y polling |
+| `[environment]` | Variables copiadas a cada proceso que Curupira inicia |
 | `[repositories.<alias>]` | Los remotos de Git donde trabajan los agentes |
 | `[agents]` | El perfil predeterminado y una tabla por cada perfil de agente |
 | `[plugins.<alias>]` | Paquetes de fuentes de tareas y cómo iniciarlos |
@@ -27,6 +28,9 @@ task_timeout_minutes = 20
 [settings.polling]
 poll_interval_seconds = 30
 batch_size = 100
+
+[environment.vars]
+# HTTPS_PROXY = "http://proxy.internal:8080"
 
 [repositories.api]
 remote = "https://github.com/acme/api.git"
@@ -70,6 +74,24 @@ Todas las claves son opcionales.
 | `polling.batch_size` | `100` | Elementos pedidos a cada trigger por consulta. |
 
 Las rutas relativas se resuelven respecto al directorio del archivo de configuración.
+
+## Entorno { #environment }
+
+Todo proceso que Curupira inicia — agentes de código, Git, `setup_script` y extensiones — recibe una copia de cada variable de entorno que el proceso Curupira puede ver. `[environment.vars]` sustituye esos valores. Omite la tabla para pasar el entorno del proceso sin cambios.
+
+Los valores son cadenas literales. `$VAR` y `${VAR}` no se expanden.
+
+Curupira sigue fijando el directorio de trabajo (`PWD`) y quitando las variables que atan un repositorio (`GIT_DIR` y los demás vínculos `GIT_*`) después de esas sobrescrituras, y las variables propias de un agente (por ejemplo `OPENCODE_DB`) se aplican después de `[environment.vars]`.
+
+```toml
+[environment.vars]
+HTTPS_PROXY = "http://proxy.internal:8080"
+GITHUB_TOKEN = "ghp_..."
+```
+
+| Clave | Significado |
+| --- | --- |
+| `vars` | Nombres de variables de entorno y los valores que las sustituyen. Vacío cuando se omite. Los nombres siguen `[A-Za-z_][A-Za-z0-9_]*`. |
 
 ## Repositorios { #repositories }
 

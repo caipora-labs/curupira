@@ -171,7 +171,7 @@ where
             cmd_run(&config, root.log_level, dry_run, watch, size, &interrupted)
         }
         Command::Tui => cmd_tui(&config, root.log_level, &interrupted),
-        Command::Plugins(sub) => cmd_plugins(sub),
+        Command::Plugins(sub) => cmd_plugins(&config, sub),
     };
 
     if interrupted.load(Ordering::SeqCst) {
@@ -254,7 +254,7 @@ fn cmd_tui(
     outcome
 }
 
-fn cmd_plugins(command: PluginsCommand) -> Result<(), CurupiraError> {
+fn cmd_plugins(config: &Path, command: PluginsCommand) -> Result<(), CurupiraError> {
     ensure_runtime_directories()?;
     let registry = ExtensionRegistry::load()?;
     match command {
@@ -287,7 +287,8 @@ fn cmd_plugins(command: PluginsCommand) -> Result<(), CurupiraError> {
                     return Err(CurupiraError::Message("installation cancelled".into()));
                 }
             }
-            let installed = install_extension(&parsed)?;
+            let env_vars = crate::config::environment_vars_from_config(config)?;
+            let installed = install_extension(&parsed, &env_vars)?;
             println!("Installed extension {}", installed.name);
             Ok(())
         }

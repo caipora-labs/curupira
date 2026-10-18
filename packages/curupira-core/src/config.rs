@@ -53,6 +53,9 @@ pub struct ApplicationSettings {
     pub automations: BTreeMap<String, AutomationTable>,
     #[serde(default)]
     pub assistant: AssistantSettings,
+    /// Variables copied into every spawned process, then overwritten by `[environment.vars]`.
+    #[serde(default)]
+    pub environment: EnvironmentSettings,
 }
 
 /// One `[plugins.<alias>]` entry: launcher (`uvx` / `npx`) plus argv after it.
@@ -269,6 +272,70 @@ pub struct AssistantSettings {
     pub model: Option<String>,
 }
 
+/// `[environment]` — baseline for every child process Curupira spawns.
+///
+/// Children receive a copy of the Curupira process environment. Keys in [`Self::vars`]
+/// replace the copied values. Call-site variables (working directory, agent databases)
+/// are applied after that.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnvironmentSettings {
+    /// Environment variable overwrites (`[environment.vars]`).
+    #[serde(default)]
+    pub vars: BTreeMap<String, String>,
+}
+
+/// `name` matches `[A-Za-z_][A-Za-z0-9_]*`.
+fn is_env_var_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(first) if first.is_ascii_alphabetic() || first == '_' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+fn validate_environment(settings: &ApplicationSettings) -> Result<(), CurupiraError> {
+    validate_environment_vars(&settings.environment.vars)
+}
+
+fn validate_environment_vars(vars: &BTreeMap<String, String>) -> Result<(), CurupiraError> {
+    for key in vars.keys() {
+        if !is_env_var_name(key) {
+            return Err(CurupiraError::Config(format!(
+                "environment.vars key {key:?} is not a valid environment variable name \
+                 (expected [A-Za-z_][A-Za-z0-9_]*)"
+            )));
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct EnvironmentFile {
+    #[serde(default)]
+    environment: EnvironmentSettings,
+}
+
+/// Read `[environment.vars]` when `path` parses as TOML.
+///
+/// A missing, unreadable, or invalid file yields an empty map so callers that only
+/// need the overwrites (plugin install) still replicate the process environment.
+/// A parsed table with an invalid variable name is an error.
+pub fn environment_vars_from_config(
+    path: &Path,
+) -> Result<BTreeMap<String, String>, CurupiraError> {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(_) => return Ok(BTreeMap::new()),
+    };
+    let parsed: EnvironmentFile = match toml::from_str(&text) {
+        Ok(parsed) => parsed,
+        Err(_) => return Ok(BTreeMap::new()),
+    };
+    validate_environment_vars(&parsed.environment.vars)?;
+    Ok(parsed.environment.vars)
+}
+
 /// Raw automation table before trigger-specific validation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationTable {
@@ -348,6 +415,7 @@ pub fn load_settings(
         )));
     }
 
+    validate_environment(&settings)?;
     validate_identifier_keys(&settings)?;
     validate_setup_scripts(&settings)?;
     validate_cross_references(&settings)?;
@@ -459,7 +527,10 @@ fn validate_agent_providers(settings: &ApplicationSettings) -> Result<(), Curupi
 }
 
 fn validate_automations(settings: &ApplicationSettings) -> Result<(), CurupiraError> {
-    let namespace = crate::extensions::namespace::PluginNamespaceIndex::build(&settings.plugins)?;
+    let namespace = crate::extensions::namespace::PluginNamespaceIndex::build(
+        &settings.plugins,
+        &settings.environment.vars,
+    )?;
     let mut host_cache: BTreeMap<String, ExtensionHost> = BTreeMap::new();
 
     for (name, auto) in &settings.automations {
@@ -481,7 +552,11 @@ fn validate_automations(settings: &ApplicationSettings) -> Result<(), CurupiraEr
         let host = if let Some(h) = host_cache.get_mut(&cache_key) {
             h
         } else {
-            let host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
+            let host = ExtensionHost::spawn_plugin(
+                &binding.alias,
+                &binding.launch,
+                &settings.environment.vars,
+            )?;
             host_cache.insert(cache_key.clone(), host);
             host_cache.get_mut(&cache_key).unwrap()
         };
@@ -571,7 +646,10 @@ pub fn expand_user(path: &str) -> PathBuf {
 pub fn resolve_automations(
     settings: &ApplicationSettings,
 ) -> Result<Vec<ResolvedAutomation>, CurupiraError> {
-    let namespace = crate::extensions::namespace::PluginNamespaceIndex::build(&settings.plugins)?;
+    let namespace = crate::extensions::namespace::PluginNamespaceIndex::build(
+        &settings.plugins,
+        &settings.environment.vars,
+    )?;
     let mut host_cache: BTreeMap<String, ExtensionHost> = BTreeMap::new();
     let mut out = Vec::new();
     for (name, auto) in &settings.automations {
@@ -609,7 +687,11 @@ pub fn resolve_automations(
             let host = if let Some(h) = host_cache.get_mut(&cache_key) {
                 h
             } else {
-                let host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
+                let host = ExtensionHost::spawn_plugin(
+                    &binding.alias,
+                    &binding.launch,
+                    &settings.environment.vars,
+                )?;
                 host_cache.insert(cache_key.clone(), host);
                 host_cache.get_mut(&cache_key).unwrap()
             };
@@ -697,5 +779,112 @@ impl TaskIdentity {
             "{}:{}:{}:{}",
             self.automation_id, self.repo, self.task_type, self.id
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MINIMAL: &str = r#"
+[repositories.api]
+remote = "https://example.com/api.git"
+
+[agents.defaults]
+profile = "p"
+
+[agents.profiles.p]
+provider = "opencode"
+
+[automations.job]
+repository = "api"
+prompt = "hi"
+"#;
+
+    #[test]
+    fn environment_vars_default_empty_and_parse() {
+        let settings: ApplicationSettings = toml::from_str(MINIMAL).unwrap();
+        assert!(settings.environment.vars.is_empty());
+
+        let with = format!("{MINIMAL}\n[environment.vars]\nFOO = \"bar\"\nEMPTY = \"\"\n");
+        let settings: ApplicationSettings = toml::from_str(&with).unwrap();
+        assert_eq!(
+            settings.environment.vars.get("FOO").map(String::as_str),
+            Some("bar")
+        );
+        assert_eq!(
+            settings.environment.vars.get("EMPTY").map(String::as_str),
+            Some("")
+        );
+        assert!(validate_environment(&settings).is_ok());
+    }
+
+    #[test]
+    fn environment_vars_reject_invalid_names() {
+        let mut settings: ApplicationSettings = toml::from_str(MINIMAL).unwrap();
+        for key in ["", "1BAD", "HAS=EQ", "has space", "not-valid"] {
+            settings.environment.vars.clear();
+            settings.environment.vars.insert(key.into(), "x".into());
+            let err = validate_environment(&settings).unwrap_err();
+            assert!(err.to_string().contains("environment.vars"), "{err}");
+        }
+    }
+
+    #[test]
+    fn environment_vars_from_config_reads_table_or_empty() {
+        let missing =
+            environment_vars_from_config(Path::new("/no/such/curupira-settings.toml")).unwrap();
+        assert!(missing.is_empty());
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.toml");
+        fs::write(
+            &path,
+            "[environment.vars]\nHTTPS_PROXY = \"http://proxy:8080\"\n",
+        )
+        .unwrap();
+        let vars = environment_vars_from_config(&path).unwrap();
+        assert_eq!(
+            vars.get("HTTPS_PROXY").map(String::as_str),
+            Some("http://proxy:8080")
+        );
+
+        fs::write(&path, "this is not toml {{{").unwrap();
+        assert!(environment_vars_from_config(&path).unwrap().is_empty());
+
+        fs::write(&path, "[environment.vars]\n\"1BAD\" = \"x\"\n").unwrap();
+        assert!(environment_vars_from_config(&path).is_err());
+    }
+
+    #[test]
+    fn load_settings_rejects_invalid_environment_var_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.toml");
+        fs::write(
+            &path,
+            r#"
+[repositories.api]
+remote = "https://example.com/api.git"
+
+[agents.defaults]
+profile = "p"
+timezone = "UTC"
+
+[agents.profiles.p]
+provider = "opencode"
+
+[automations.job]
+trigger_type = "cron"
+repository = "api"
+schedule = "0 9 * * 1"
+prompt = "hi"
+
+[environment.vars]
+"not-valid" = "x"
+"#,
+        )
+        .unwrap();
+        let err = load_settings(&path, None).unwrap_err();
+        assert!(err.to_string().contains("environment.vars"), "{err}");
     }
 }

@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Shared child environment.** Every process Curupira spawns (coding agents, Git, setup
+  scripts, and extensions) receives a copy of the environment Curupira itself can see.
+  `[environment.vars]` overwrites those values. See `docs/en/configuration.md`.
 - **Dynamic prompts.** Prompts accept Jinja syntax (`{{ field }}`, `{% if %}`, `{% for %}`,
   filters such as `default`, `truncate`, and `fromjson`) next to the existing `${field}`,
   which keeps working (an unknown `${name}` is still left unchanged). Field text is never

@@ -36,7 +36,7 @@ pub async fn run_command(
     let automations = resolve_automations(settings)?;
     let db_path = expand_user(&settings.settings.state_db_path);
     let conn = open_db(&db_path)?;
-    let namespace = PluginNamespaceIndex::build(&settings.plugins)?;
+    let namespace = PluginNamespaceIndex::build(&settings.plugins, &settings.environment.vars)?;
 
     if dry_run {
         let tasks = poll_all(settings, &automations, &conn, &namespace, true).await?;
@@ -192,7 +192,11 @@ async fn poll_all(
         let host = if let Some(h) = hosts.get_mut(&cache_key) {
             h
         } else {
-            let host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
+            let host = ExtensionHost::spawn_plugin(
+                &binding.alias,
+                &binding.launch,
+                &settings.environment.vars,
+            )?;
             hosts.insert(cache_key.clone(), host);
             hosts.get_mut(&cache_key).unwrap()
         };
@@ -315,7 +319,11 @@ async fn execute_task(
         let repo = CronScheduleRepository::new(conn);
         cron::on_task_started(&repo, task)?;
     } else if let Some(binding) = namespace.resolve(&task.trigger_type) {
-        let mut host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
+        let mut host = ExtensionHost::spawn_plugin(
+            &binding.alias,
+            &binding.launch,
+            &settings.environment.vars,
+        )?;
         host.on_started(&binding.local_trigger, &task.values)?;
         host.shutdown()?;
     }
@@ -326,12 +334,16 @@ async fn execute_task(
         let repo = CronScheduleRepository::new(conn);
         cron::on_task_finished(&repo, task)?;
     } else if let Some(binding) = namespace.resolve(&task.trigger_type) {
-        let mut host = ExtensionHost::spawn_plugin(&binding.alias, &binding.launch)?;
+        let mut host = ExtensionHost::spawn_plugin(
+            &binding.alias,
+            &binding.launch,
+            &settings.environment.vars,
+        )?;
         let _ = host.on_finished(&binding.local_trigger, &task.values);
         let _ = host.shutdown();
     }
 
-    if let Err(err) = vcs.cleanup(&prepared).await {
+    if let Err(err) = vcs.cleanup(&settings.environment.vars, &prepared).await {
         tracing::warn!("worktree cleanup failed: {err}");
     }
 
@@ -404,6 +416,7 @@ async fn run_agent(
         &launch.args,
         Some(work_dir),
         &launch.env,
+        &settings.environment.vars,
         timeout,
         settings.settings.max_output_bytes as usize,
     )
@@ -469,6 +482,7 @@ mod tests {
             plugins: BTreeMap::new(),
             automations: BTreeMap::new(),
             assistant: Default::default(),
+            environment: Default::default(),
         }
     }
 
