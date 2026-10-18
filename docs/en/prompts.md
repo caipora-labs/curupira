@@ -108,4 +108,4 @@ an `{% if %}`.
 Titles, bodies, and comments come from other people. Their text is inserted as plain text
 and is never interpreted as a template, so `{{ ... }}` inside an issue body does nothing. It can
 still try to steer the agent, so follow the advice in
-[the security notes](github.md#security-issue-and-pull-request-text-is-untrusted).
+[the security notes](github.md#security).

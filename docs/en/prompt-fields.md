@@ -67,7 +67,7 @@ a list is inserted as JSON, for example `["bug","security"]`.
 | `pull_request_comment_count` | number | Total number of comments |
 | `pull_request_comments` | text (JSON) | The latest 10 comments, like `issue_comments` |
 
-## Project items (`github-project-items`)
+## Project items (`github-project-items`) { #project-items }
 
 Issues and pull requests share the `item_*` names, so one prompt works for both.
 

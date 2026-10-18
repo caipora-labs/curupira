@@ -7,7 +7,7 @@ task runs in its own Git worktree, so your own checkout is never touched.
 
 Everything is configured in one TOML file, `~/.curupira/settings.toml`.
 
-## Quick start (about 5 minutes)
+## Quick start (about 5 minutes) { #quick-start }
 
 You need [Git](https://git-scm.com/), the [GitHub CLI](https://cli.github.com/) (`gh`), and one
 coding-agent CLI. Details are in [Installation](installation.md).

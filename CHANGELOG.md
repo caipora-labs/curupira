@@ -19,7 +19,9 @@ All notable changes to this project are documented here. The format follows
   `assignee`, and `author`. Needs the `read:project` token scope.
 - **Documentation.** New pages: a quick start on the home page, GitHub Projects, a prompt
   field reference, and recipes. The GitHub page now documents that completed tasks are
-  remembered across restarts.
+  remembered across restarts. The Portuguese and Spanish documentation is now a full translation
+  of the English pages (it used to link to the English reference), and CI fails when the three
+  languages drift apart (`.github/scripts/check_docs_parity.py`).
 - **Friendlier GitHub filters.** `labels`, `exclude_labels`, `merge_state`, and `column` accept a
   single string as well as a list.
 - **Richer prompt fields for issues and pull requests.** Assignees, milestone, timestamps,

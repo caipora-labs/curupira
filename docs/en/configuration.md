@@ -107,7 +107,7 @@ Each profile's `provider` selects a **built-in** coding agent: `claude`, `codex`
 CLI (not process extensions). `curu plugins list` shows those providers as
 `agent:<name>` with origin `built-in`, alongside trigger extensions.
 
-## Assistant
+## Assistant { #assistant }
 
 `[assistant]` is optional. It records which built-in coding-agent provider should run
 the interactive configuration assistant and which model that CLI should use:
@@ -218,7 +218,7 @@ prevents the agent from starting and removes the newly cloned checkout. Validati
 path syntax but does not require the script to exist. `run --dry-run` does not fetch, clone,
 create worktrees, or run setup.
 
-## Scheduling and state
+## Scheduling and state { #scheduling-and-state }
 
 Polls fetch up to `batch_size` items (default 100, maximum 1000). Empty poll cycles back off
 from `poll_interval_seconds` (default 30 seconds) up to five minutes; discovery resets the

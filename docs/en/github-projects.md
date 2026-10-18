@@ -101,7 +101,7 @@ again after a restart.
 ## What the prompt can use
 
 Project items expose `${item_*}`, `${project_*}` and a few `${pull_request_*}` fields. See
-the [Prompt field reference](prompt-fields.md#project-items-github-project-items). The
+the [Prompt field reference](prompt-fields.md#project-items). The
 column the item was found in is `${project_column}`, and every field of the card (for example
 `Priority` or `Iteration`) is in `${project_fields}` as JSON:
 

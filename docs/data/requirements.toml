@@ -1,13 +1,19 @@
 [python]
 range = ">=3.11"
 platforms = "Linux, macOS, and Windows"
+platforms_pt = "Linux, macOS e Windows"
+platforms_es = "Linux, macOS y Windows"
 
 [[required_tools]]
 name = "Git"
 url = "https://git-scm.com/"
 detail = "Used for `git clone` and worktrees. Authenticate remotes with your normal Git credentials (HTTPS helper or SSH agent)."
+detail_pt = "Usado para `git clone` e worktrees. Autentique os remotes com suas credenciais Git habituais (helper HTTPS ou agente SSH)."
+detail_es = "Se usa para `git clone` y worktrees. Autentica los remotes con tus credenciales Git habituales (helper HTTPS o agente SSH)."
 
 [[optional_tools]]
 name = "GitHub CLI (`gh`)"
 url = "https://cli.github.com/"
 detail = "Needed for `plugins-py/github-issues`, `plugins-py/github-pull-requests`, and `plugins-py/github-project-items`. Curupira reads the API token with `gh auth token` after `gh auth login`. `plugins-py/github-project-items` also needs `gh auth refresh -s read:project`."
+detail_pt = "Necessário para `plugins-py/github-issues`, `plugins-py/github-pull-requests` e `plugins-py/github-project-items`. O Curupira lê o token da API com `gh auth token` depois de `gh auth login`. `plugins-py/github-project-items` também precisa de `gh auth refresh -s read:project`."
+detail_es = "Necesario para `plugins-py/github-issues`, `plugins-py/github-pull-requests` y `plugins-py/github-project-items`. Curupira lee el token de la API con `gh auth token` después de `gh auth login`. `plugins-py/github-project-items` también necesita `gh auth refresh -s read:project`."

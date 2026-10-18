@@ -29,20 +29,58 @@ plugins:
             - Início: index.md
             - Instalação: installation.md
             - Configuração: configuration.md
+            - Automações: automations.md
+            - Prompts:
+                - Escrevendo prompts: prompts.md
+                - Referência de campos: prompt-fields.md
+                - Receitas: recipes.md
+            - Assistente TUI: assistant.md
+            - GitHub:
+                - Issues e pull requests: github.md
+                - Projects (colunas do board): github-projects.md
             - Operação: operations.md
-            - Providers e agentes: providers.md
+            - Providers e agentes:
+                - Visão geral: providers.md
+                - Claude Code: providers/claude.md
+                - Codex: providers/codex.md
+                - Cursor: providers/cursor.md
+                - Kilo CLI: providers/kilo.md
+                - Gemini CLI: providers/gemini.md
+                - GitHub Copilot CLI: providers/copilot.md
+                - OpenCode: providers/opencode.md
+                - pi: providers/pi.md
+                - Qwen Code: providers/qwen.md
             - Extensions: extensions.md
-            - Plugins (legacy): plugins.md
+            - Plugins (notas legadas): plugins.md
         - locale: es
           name: Español
           nav:
             - Inicio: index.md
             - Instalación: installation.md
             - Configuración: configuration.md
+            - Automatizaciones: automations.md
+            - Prompts:
+                - Escribir prompts: prompts.md
+                - Referencia de campos: prompt-fields.md
+                - Recetas: recipes.md
+            - Asistente TUI: assistant.md
+            - GitHub:
+                - Issues y pull requests: github.md
+                - Projects (columnas del tablero): github-projects.md
             - Operaciones: operations.md
-            - Proveedores y agentes: providers.md
+            - Proveedores y agentes:
+                - Resumen: providers.md
+                - Claude Code: providers/claude.md
+                - Codex: providers/codex.md
+                - Cursor: providers/cursor.md
+                - Kilo CLI: providers/kilo.md
+                - Gemini CLI: providers/gemini.md
+                - GitHub Copilot CLI: providers/copilot.md
+                - OpenCode: providers/opencode.md
+                - pi: providers/pi.md
+                - Qwen Code: providers/qwen.md
             - Extensions: extensions.md
-            - Plugins (legacy): plugins.md
+            - Plugins (notas legacy): plugins.md
   - macros:
       module_name: macros
 theme:
@@ -69,6 +107,12 @@ theme:
     - content.action.edit
     - content.code.copy
     - language.select
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
 extra_css:
   - stylesheets/extra.css
 nav:

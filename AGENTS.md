@@ -90,6 +90,10 @@ Each package has its own version and is released by its own git tag,
 - Cover behavior changes with Rust and/or Python tests as appropriate.
 - Keep stdout of extensions for protocol frames only; logs on stderr.
 - Update `CHANGELOG.md` (`Unreleased`) and `docs/en/` when user-visible behavior changes.
+- Keep `docs/pt/` and `docs/es/` equivalent to `docs/en/` in the same change: every page, section,
+  table row, and example that exists in English exists in both other languages. Translate prose and
+  code comments; never translate keys, field names, commands, or output. Link targets keep the same
+  explicit heading ids (`## Title { #id }`).
 - After `pyproject.toml` dependency changes, run `uv lock`. Do not bump the package
   version or push tags unless releasing.
 - Match each coding agent's documented native flags; omit unset optional flags.
@@ -102,7 +106,6 @@ Each package has its own version and is released by its own git tag,
 - Route coding agents through the extension protocol.
 - Delegate Git clone/worktree/setup to extensions.
 - Commit secrets. Tests must not hit the network or call real coding-agent CLIs.
-- Edit `docs/pt/` or `docs/es/` in the feature change.
 
 ## Workflow
 

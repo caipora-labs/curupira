@@ -45,7 +45,7 @@ depending on its profile. See
 [GitHub's GraphQL authentication guide](https://docs.github.com/en/graphql/guides/forming-calls-with-graphql#authenticating-with-graphql)
 for how requested data maps to scopes.
 
-## Minimal issue automation
+## Minimal issue automation { #minimal-issue-automation }
 
 In an automation, `repo` is the GitHub `owner/name` that Curupira searches. `repository` is
 the alias of a `[repositories.<alias>]` checkout where the agent runs. They can differ.
@@ -237,7 +237,7 @@ repo:acme/api is:issue is:open label:agent-ready -linked:pr sort:created-asc
 Discovery uses GraphQL Search (`ISSUE` search type covers both issues and pull requests).
 There is no free-form `query` field: filters are typed TOML only.
 
-### Deduplication
+### Deduplication { #deduplication }
 
 A task is identified by `[automation_id, repo, task_type, id]`. Curupira keeps two records:
 
@@ -265,7 +265,7 @@ The prompt can use `${field}` or Jinja syntax, see [Writing prompts](prompts.md)
 of issues and pull requests (title, body, labels, assignees, comments, review state, CI status,
 and more) is listed in the [Prompt field reference](prompt-fields.md).
 
-## Security: issue and pull-request text is untrusted
+## Security: issue and pull-request text is untrusted { #security }
 
 Titles, bodies, and comments (`${issue_title}`, `${issue_body}`, `${issue_comments}`,
 `${pull_request_title}`, `${pull_request_body}`, `${pull_request_comments}`, `${item_body}`,
