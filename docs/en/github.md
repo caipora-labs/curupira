@@ -240,13 +240,20 @@ There is no free-form `query` field: filters are typed TOML only.
 ### Deduplication { #deduplication }
 
 The host identifies a result by hashing the key/value list the trigger returned, in that
-order, together with the automation, repository, and trigger type. Curupira keeps two records:
+order, together with the automation, repository, and trigger type.
+Curupira keeps no history of issues or pull requests:
 
-- **Completed tasks are remembered across restarts.** When the agent finishes successfully, the
-  key is stored in the state database (`state_db_path`), and a later poll that returns the same
-  pairs is skipped, even after a restart.
-- **Failed tasks are retried.** A task whose agent run failed is not stored as completed. It is
-  skipped for the rest of the current process and tried again after a restart.
+- **No duplicates within a run.** A running `run --watch` or `tui` dispatches each task once,
+  whether it finishes or fails. A later poll that returns the same pairs is skipped until the
+  process exits.
+- **Nothing is remembered across runs.** Curupira does not record finished issues or pull
+  requests. After a restart, every item that still matches the trigger filters is dispatched
+  again, so the filters decide what is due.
+- **Interrupted work resumes.** This is the only task state Curupira keeps. The coding agent's
+  session id is saved in `state_db_path` as soon as the agent announces it, and removed when the
+  task finishes successfully. When Curupira restarts in the middle of a task (or the task failed
+  or timed out), the next dispatch continues that session with the same instructions instead of
+  starting over. A changed automation prompt starts a new session.
 
 Changing any returned value, including the title, body, or labels, makes a different task. For
 that reason the GitHub triggers do not return values that change by themselves or because the
@@ -255,12 +262,12 @@ the agent would be started again for the same issue. When the agent needs them, 
 them, for example with `gh issue view ${issue_number} --comments`.
 
 The key is per automation, so two automations may process the same issue or pull request with
-different prompts. `run --dry-run` previews without recording completion.
+different prompts. `run --dry-run` previews without dispatching.
 
-!!! tip "Running an item again"
-    To run a completed item again, edit it (a label or the title is enough), use a different
-    automation name (a new automation has its own history), or remove the row from the state
-    database. Changing the filters alone does not make a completed item eligible again.
+!!! tip "Keeping finished items out"
+    Filter on state the agent changes, and have the prompt tell the agent to change it when it
+    is done: close the item, add or remove a label (`exclude_labels = ["blocked"]`), or link a
+    pull request (`linked_pull_request = false`).
 
 When a full cycle finds nothing (or discovery fails), the feed waits
 `poll_interval_seconds`, then doubles the wait on consecutive empty cycles up to five
@@ -306,9 +313,9 @@ the `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_INDEX_FILE` variables that would point 
 repository. Your own checkout is never switched by an automation. OpenCode 1.x also receives
 `--dir <worktree>`. OpenCode 2.x has no `--dir`; a headless run uses the worktree as its working
 directory and passes `--standalone`, so the task does not join the shared background service.
-Both versions set `OPENCODE_DB` to `<worktree>.opencode.db`, so OpenCode sessions and project
-entries stay with that task. Other agent-wide state, such as the global OpenCode configuration
-and credentials, is still shared.
+OpenCode 1.x also gets `OPENCODE_DB` set to `<worktree>.opencode.db`, so its sessions and project
+entries stay with that task. OpenCode 2.x keeps your database, where it stores provider
+credentials. Other agent-wide state, such as the global OpenCode configuration, is shared.
 
 ## Common errors
 

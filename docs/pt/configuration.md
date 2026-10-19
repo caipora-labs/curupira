@@ -66,7 +66,7 @@ Todas as chaves são opcionais.
 | --- | --- | --- |
 | `max_active_tasks` | `1` | Agentes que podem rodar ao mesmo tempo. |
 | `workspace_dir` | `~/.curupira/workspaces` | Onde os repositórios são clonados. |
-| `state_db_path` | `~/.curupira/state.sqlite3` | Tarefas concluídas, ocorrências do cron e sessões retomáveis. |
+| `state_db_path` | `~/.curupira/state.sqlite3` | Ocorrências do cron e sessões retomáveis do agente; nenhum histórico de issues ou pull requests. |
 | `log_level` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` ou `CRITICAL`. `--log-level` o substitui. |
 | `task_timeout_minutes` | `20` | Prazo de uma execução do agente e do `setup_script`. |
 | `max_output_bytes` | `1000000` | Saída mantida de cada execução do agente e do script de setup. |
@@ -199,10 +199,13 @@ saída diferente de zero interrompe a tarefa. `run --dry-run` nunca clona nem ex
 Cada consulta pede ao trigger de cada automação até `batch_size` itens. Os campos de
 cada item geram um hash que vira a identidade da tarefa:
 
-- Uma tarefa que terminou `ok` é armazenada em `state_db_path` e nunca roda de novo.
+- Cada tarefa é despachada no máximo uma vez por processo, termine ela com sucesso ou com falha.
+- Nada é guardado quando uma tarefa termina: depois de uma reinicialização, um item que ainda
+  corresponda aos filtros roda de novo. Filtre por um estado que o agente altera (labels, itens
+  fechados, pull requests vinculados) para manter itens concluídos de fora.
 - O mesmo item com um campo alterado (um novo título, um novo commit no head) é uma nova identidade,
-  então pode rodar de novo.
-- Uma tarefa que falhou não é repetida no mesmo processo; o próximo `run` tenta de novo.
+  então pode rodar de novo no mesmo processo.
+- Uma tarefa com falha ou interrompida retoma a sessão do agente quando é despachada de novo.
 
 Filtros como `linked_pull_request = false` decidem o que o trigger do GitHub retorna; veja
 [Deduplicação](github.md#deduplication) para saber como os triggers do GitHub mantêm a sua saída

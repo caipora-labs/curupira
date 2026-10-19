@@ -12,7 +12,7 @@ El alias corto `curu` acepta todos los comandos.
 | `curupira run --size N` | Lo mismo, pero admite como máximo `N` tareas. |
 | `curupira run --dry-run` | Imprime la primera tarea que se ejecutaría y su prompt renderizado. No clona nada ni inicia ningún agente. |
 | `curupira run --watch` | Sigue consultando y ejecutando tareas hasta que lo interrumpas. |
-| `curupira tui` | El ciclo continuo desde el punto de entrada del [panel en la terminal](tui.md). |
+| `curupira tui` | El ciclo continuo, detrás del [panel en la terminal](tui.md) interactivo. |
 | `curupira plugins …` | Lista e inspecciona los [plugins y triggers](extensions.md#manage) disponibles. |
 
 `--dry-run`, `--watch` y `--size` no se pueden combinar; si lo intentas, Curupira sale con

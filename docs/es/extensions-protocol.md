@@ -57,7 +57,7 @@ Omitir `values` es un error de protocolo, distinto de `null`. El protocolo no ex
 2. Llama a `trigger/poll` repetidamente, hasta `[settings.polling].batch_size` veces por
    ronda. Los argumentos de polling no se pasan a la función del trigger.
 3. Calcula un hash del JSON canónico de los pares, en el orden recibido, que forma la
-   identidad de la tarea. Una identidad completada nunca vuelve a ejecutarse; los mismos
+   identidad de la tarea. Cada identidad se despacha una vez por proceso; los mismos
    pares en otro orden son una tarea distinta.
 4. Completa `${key}` en el prompt con el valor de cada par, en una sola pasada. El texto
    insertado no se vuelve a analizar, así que un valor `${other}` se queda literal, y un

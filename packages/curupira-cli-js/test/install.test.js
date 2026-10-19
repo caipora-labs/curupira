@@ -28,6 +28,9 @@ test("installs the single local npm package and runs the Rust CLI", { timeout: 6
     stdio: "inherit",
   });
   const built = path.join(CORE, "target", "debug", process.platform === "win32" ? "curupira.exe" : "curupira");
+  // A build from a git checkout reports the latest release tag, not the Cargo.toml placeholder
+  // the package is assembled with, so the wrappers must print exactly what the binary prints.
+  const binaryVersion = execFileSync(built, ["--version"], { encoding: "utf8" }).trim().replace(/^curupira /, "");
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), "curupira-npm-install-"));
   const assemble = path.join(PACKAGE_ROOT, "scripts/assemble.js");
   for (const bundled of TARGETS) {
@@ -68,9 +71,9 @@ test("installs the single local npm package and runs the Rust CLI", { timeout: 6
   const curupira = path.join(prefix, "node_modules", ".bin", "curupira");
   const curu = path.join(prefix, "node_modules", ".bin", "curu");
   const versionOut = execFileSync(curupira, ["--version"], { encoding: "utf8" });
-  assert.equal(versionOut.trim(), `curupira ${version}`);
+  assert.equal(versionOut.trim(), `curupira ${binaryVersion}`);
   const aliasOut = execFileSync(curu, ["--version"], { encoding: "utf8" });
-  assert.equal(aliasOut.trim(), `curu ${version}`);
+  assert.equal(aliasOut.trim(), `curu ${binaryVersion}`);
   const help = execFileSync(curupira, ["--help"], { encoding: "utf8" });
   assert.match(help, /Usage: curupira/);
   assert.match(help, /\bvalidate\b/);
@@ -119,7 +122,7 @@ test("installs the single local npm package and runs the Rust CLI", { timeout: 6
   const wrapper = path.join(prefix, "node_modules", "@caipora-labs", "curupira", "bin", "curupira.js");
   const direct = spawnSync(process.execPath, [wrapper, "--version"], { env: stripped, encoding: "utf8" });
   assert.equal(direct.status, 0, direct.stderr);
-  assert.equal(direct.stdout.trim(), `curupira ${version}`);
+  assert.equal(direct.stdout.trim(), `curupira ${binaryVersion}`);
 
   const npxConfig = path.join(configDir, "npx.toml");
   fs.writeFileSync(npxConfig, extensionSettings("npx", '["--yes", "@example/ext"]'));

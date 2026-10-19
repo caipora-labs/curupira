@@ -1,14 +1,15 @@
 //! Clap CLI surface preserving public commands and exit codes.
 
 use std::ffi::OsString;
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 
 use clap::{CommandFactory, Parser, Subcommand};
 
-use crate::config::{load_settings, LogLevel};
+use crate::config::{load_settings, ApplicationSettings, LogLevel};
+use crate::dispatch::Reporter;
 use crate::error::CurupiraError;
 use crate::extensions::manager::{install_extension, uninstall_extension, ExtensionSource};
 use crate::extensions::registry::{describe_installed, ExtensionRegistry};
@@ -16,6 +17,7 @@ use crate::runtime::{
     default_config_path, ensure_runtime_directories, prepare_default_config_parent,
     DispatchInstanceLock,
 };
+use crate::tui::app::Feed;
 use crate::version::VERSION;
 
 /// Exit code for Ctrl-C / KeyboardInterrupt parity with the former Python CLI.
@@ -242,16 +244,65 @@ fn cmd_tui(
         .enable_all()
         .build()
         .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
-    eprintln!("TUI: running dispatch dashboard (status mode); press Ctrl+C to stop");
-    let outcome = rt.block_on(crate::dispatch::run_command(
-        &settings,
-        false,
-        true,
-        None,
-        interrupted,
-    ));
+    let outcome = if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+        run_dashboard(&settings, &rt, interrupted)
+    } else {
+        eprintln!("TUI: no terminal attached; running dispatch in status mode (Ctrl+C to stop)");
+        rt.block_on(crate::dispatch::run_command(
+            &settings,
+            false,
+            true,
+            None,
+            interrupted,
+        ))
+    };
     drop(instance);
     outcome
+}
+
+/// Interactive dashboard in front, the `run --watch` loop on a background thread.
+fn run_dashboard(
+    settings: &ApplicationSettings,
+    rt: &tokio::runtime::Runtime,
+    interrupted: &AtomicBool,
+) -> Result<(), CurupiraError> {
+    let (tx, rx) = mpsc::channel();
+    let stop = AtomicBool::new(false);
+    let context = crate::tui::Context {
+        default_agent: settings.assistant.agent.clone(),
+        automations: settings.automations.len(),
+        log_path: Some(crate::runtime::dispatch_home().join("logs").join("tui.log")),
+    };
+    std::thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            let events = tx.clone();
+            let reporter = Reporter::Callback(Arc::new(move |event| {
+                // A closed channel means the dashboard has exited; the loop is stopping anyway.
+                let _ = events.send(Feed::Dispatch(event));
+            }));
+            let result = rt.block_on(crate::dispatch::run_command_with(
+                settings, false, true, None, &stop, &reporter,
+            ));
+            let _ = tx.send(Feed::Stopped(
+                result.as_ref().err().map(ToString::to_string),
+            ));
+            result
+        });
+        let ui = crate::tui::run(&context, &rx, interrupted);
+        stop.store(true, Ordering::SeqCst);
+        if let Ok(active) = ui {
+            if active > 0 && !worker.is_finished() {
+                eprintln!(
+                    "Waiting for {active} running task(s) to finish; press Ctrl+C to stop them."
+                );
+            }
+        }
+        let result = worker
+            .join()
+            .unwrap_or_else(|_| Err(CurupiraError::Runtime("dispatch thread panicked".into())));
+        ui.map_err(|e| CurupiraError::Runtime(format!("terminal: {e}")))?;
+        result
+    })
 }
 
 fn cmd_plugins(config: &Path, command: PluginsCommand) -> Result<(), CurupiraError> {

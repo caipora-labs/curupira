@@ -56,7 +56,7 @@ require `id`, `title`, `url`, or any other key, and the host does not interpret 
 2. It calls `trigger/poll` repeatedly, up to `[settings.polling].batch_size` times per
    round. Polling arguments are not passed to the trigger function.
 3. It hashes the canonical JSON of the pairs, in the order received, into the task
-   identity. A completed identity never runs again; the same pairs in another order are a
+   identity. Each identity is dispatched once per process; the same pairs in another order are a
    different task.
 4. It fills `${key}` in the prompt with each pair's value, in one pass. Inserted text is
    not scanned again, so a value of `${other}` stays literal, and a placeholder with no

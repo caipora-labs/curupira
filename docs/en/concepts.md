@@ -85,5 +85,5 @@ a change to Curupira, not a plugin. To write your own task source, see
 | --- | --- |
 | `~/.curupira/settings.toml` | Your configuration |
 | `~/.curupira/workspaces/` | Clones and per-task worktrees (`workspace_dir`) |
-| `~/.curupira/state.sqlite3` | Completed tasks, cron occurrences, resumable sessions (`state_db_path`) |
+| `~/.curupira/state.sqlite3` | Cron occurrences and resumable agent sessions (`state_db_path`) |
 | `~/.curupira/dispatch.lock` | Held by the one process that is dispatching |

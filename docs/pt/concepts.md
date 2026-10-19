@@ -85,5 +85,5 @@ uma mudança no Curupira, não um plugin. Para escrever a sua própria fonte de 
 | --- | --- |
 | `~/.curupira/settings.toml` | A sua configuração |
 | `~/.curupira/workspaces/` | Clones e worktrees por tarefa (`workspace_dir`) |
-| `~/.curupira/state.sqlite3` | Tarefas concluídas, ocorrências do cron, sessões retomáveis (`state_db_path`) |
+| `~/.curupira/state.sqlite3` | Ocorrências do cron e sessões retomáveis do agente (`state_db_path`) |
 | `~/.curupira/dispatch.lock` | Mantido pelo único processo que está despachando |

@@ -31,7 +31,7 @@ fn version_prints_program_and_semver() {
         .success()
         .stdout(predicate::str::starts_with(format!(
             "curupira {}",
-            env!("CARGO_PKG_VERSION")
+            env!("CURUPIRA_VERSION")
         )));
 }
 
@@ -43,7 +43,7 @@ fn curu_version_uses_alias_name() {
         .success()
         .stdout(predicate::str::starts_with(format!(
             "curu {}",
-            env!("CARGO_PKG_VERSION")
+            env!("CURUPIRA_VERSION")
         )));
 }
 

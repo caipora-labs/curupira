@@ -12,6 +12,7 @@ pub mod prompt;
 pub mod protocol;
 pub mod runtime;
 pub mod storage;
+pub mod tui;
 pub mod vcs;
 pub mod version;
 

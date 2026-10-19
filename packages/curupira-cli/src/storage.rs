@@ -15,6 +15,9 @@ pub fn open_db(path: &Path) -> Result<Connection, CurupiraError> {
         std::fs::create_dir_all(parent).map_err(|e| CurupiraError::Runtime(e.to_string()))?;
     }
     let conn = Connection::open(path).map_err(|e| CurupiraError::Runtime(e.to_string()))?;
+    // Tasks save their agent session from their own connection while dispatch writes.
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS cron_schedules (
@@ -23,10 +26,6 @@ pub fn open_db(path: &Path) -> Result<Connection, CurupiraError> {
             pending_scheduled_for TEXT,
             last_scheduled_for TEXT,
             started_at TEXT
-        );
-        CREATE TABLE IF NOT EXISTS completed_tasks (
-            task_key TEXT PRIMARY KEY,
-            completed_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS running_sessions (
             task_key TEXT PRIMARY KEY,
@@ -155,38 +154,6 @@ impl<'a> CronScheduleRepository<'a> {
             .execute(
                 "DELETE FROM running_sessions WHERE task_key = ?1",
                 params![task.identity.key()],
-            )
-            .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
-        Ok(())
-    }
-}
-
-pub struct CompletedTaskRepository<'a> {
-    conn: &'a Connection,
-}
-
-impl<'a> CompletedTaskRepository<'a> {
-    pub fn new(conn: &'a Connection) -> Self {
-        Self { conn }
-    }
-
-    pub fn contains(&self, key: &str) -> Result<bool, CurupiraError> {
-        let count: i64 = self
-            .conn
-            .query_row(
-                "SELECT COUNT(1) FROM completed_tasks WHERE task_key = ?1",
-                params![key],
-                |row| row.get(0),
-            )
-            .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
-        Ok(count > 0)
-    }
-
-    pub fn mark(&self, key: &str, at: DateTime<Utc>) -> Result<(), CurupiraError> {
-        self.conn
-            .execute(
-                "INSERT OR IGNORE INTO completed_tasks (task_key, completed_at) VALUES (?1, ?2)",
-                params![key, at.to_rfc3339()],
             )
             .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
         Ok(())

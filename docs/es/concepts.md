@@ -88,5 +88,5 @@ tareas, consulta [Desarrollar extensiones](extensions.md).
 | --- | --- |
 | `~/.curupira/settings.toml` | Tu configuración |
 | `~/.curupira/workspaces/` | Clones y worktrees por tarea (`workspace_dir`) |
-| `~/.curupira/state.sqlite3` | Tareas completadas, ocurrencias de cron, sesiones reanudables (`state_db_path`) |
+| `~/.curupira/state.sqlite3` | Ocurrencias de cron y sesiones reanudables del agente (`state_db_path`) |
 | `~/.curupira/dispatch.lock` | Lo mantiene el único proceso que está despachando |

@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Interactive terminal dashboard.** `curupira tui` now opens with the Curupira pixel-art logo,
+  then a two-column dashboard with keyboard and mouse support, while the `run --watch` loop
+  keeps dispatching in the background. Every dispatched task opens a live session in the
+  sidebar, named with the title its coding agent gives the session (OpenCode), with its prompt,
+  the agent's messages and tool calls as they stream in, and how it ended. Home lists started,
+  finished, and failed tasks by title. Stderr goes to `~/.curupira/logs/tui.log` while the
+  dashboard is open, and Ctrl+L repaints the screen. The dashboard uses no emoji. Without a
+  terminal, `tui` keeps the previous status mode. See `docs/en/tui.md`.
+- **TUI end-to-end tests.** `packages/curupira-cli/e2e` drives the real binary with
+  `@microsoft/tui-test` in a sandbox (fake agent, local Git repository, no network), and
+  `npm run inspect` saves the screen after each scripted key press or click for debugging.
 - **Shared child environment.** Every process Curupira spawns (coding agents, Git, setup
   scripts, and extensions) receives a copy of the environment Curupira itself can see.
   `[environment.vars]` overwrites those values. See `docs/en/configuration.md`.
@@ -45,6 +56,26 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Resumed sessions without instructions.** A task resumed after a failed or interrupted run
+  received only "continue the previous task", so an agent whose first run never started (for
+  example, model unavailable) finished without doing anything. Resumed sessions now get the
+  task's instructions again, and a changed automation prompt starts a new session.
+- **Restarting mid-task lost the agent session.** The session id was saved only after the agent
+  exited, so stopping or restarting Curupira (or a timeout) left nothing to continue and the next
+  run started over. It is now saved as soon as the agent announces it, so a restart continues
+  the same session.
+- **Version of local builds.** `--version`, the splash, and the sidebar showed the `0.2.0`
+  placeholder from Cargo.toml when built from a checkout. Builds from git now report the latest
+  `publish/curupira-cli/*` tag, with the commits since (`0.3.1+4.g1a2b3c4`); the TUI drops the
+  commit hash. Release builds keep the version stamped from the tag.
+- **OpenCode 2.x tasks failing with "Model unavailable".** 2.x stores provider credentials in its
+  database, and every task ran against a fresh one, so no model could be reached. 2.x tasks now
+  keep the user's OpenCode database; 1.x tasks still get their own.
+- **Empty agent failure messages.** When an agent exits with an error and empty stderr, the
+  failure now carries the error it printed on stdout (OpenCode 2.x reports errors as JSON events
+  there) instead of `agent exited 1:` with nothing after it.
+- **Prompt stop while idle.** `run --watch` and `tui` stop within a fraction of a second when
+  interrupted between polls, instead of finishing the `poll_interval_seconds` wait first.
 - **Windows npm shims.** Coding-agent and extension launches resolve the program on `PATH`
   (including `.cmd` and `.bat`) and start those shims through `cmd.exe`. Global npm CLIs such
   as `opencode`, `claude`, `codex`, and `kilo` no longer fail with `program not found` on
@@ -86,6 +117,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **No issue or pull request history.** Curupira no longer records finished tasks in
+  `state_db_path`. A running `run --watch` or `tui` still dispatches each task once, but after a
+  restart every item that matches the trigger filters is dispatched again: filter on state the
+  agent changes (labels, closed items, linked pull requests) to keep finished items out. The
+  state database keeps only cron occurrences and resumable agent sessions; an existing
+  `completed_tasks` table is no longer read.
 - **Internal package layout and release tags.** Checkout directories are
   `packages/curupira-cli`, `packages/curupira-cli-py`, `packages/curupira-cli-js`,
   `packages/curupira-sdk-py`, `packages/curupira-sdk-js`, and `packages/curupira-plugins-py`.

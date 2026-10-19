@@ -244,15 +244,21 @@ tipado.
 ### Deduplicación { #deduplication }
 
 El host identifica un resultado calculando un hash de la lista de pares clave/valor que devolvió el
-trigger, en ese orden, junto con la automatización, el repositorio y el tipo de trigger. Curupira mantiene dos
-registros:
+trigger, en ese orden, junto con la automatización, el repositorio y el tipo de trigger.
+Curupira no guarda historial de issues ni de pull requests:
 
-- **Las tareas completadas se recuerdan entre reinicios.** Cuando el agente termina con éxito, la
-  clave se guarda en la base de datos de estado (`state_db_path`), y un poll posterior que devuelva los mismos
-  pares se omite, incluso después de un reinicio.
-- **Las tareas fallidas se reintentan.** Una tarea cuya ejecución del agente falló no se
-  guarda como completada. Se omite durante el resto del proceso actual y se intenta de
-  nuevo tras un reinicio.
+- **Sin duplicados en una ejecución.** Un `run --watch` o `tui` en marcha despacha cada tarea una
+  vez, termine con éxito o con fallo. Un poll posterior que devuelva los mismos pares se omite
+  hasta que el proceso termina.
+- **Nada se recuerda entre ejecuciones.** Curupira no registra issues ni pull requests
+  terminados. Tras un reinicio, cada elemento que siga coincidiendo con los filtros del trigger
+  se despacha de nuevo, así que los filtros deciden qué está pendiente.
+- **El trabajo interrumpido se reanuda.** Es el único estado de tarea que Curupira guarda. El id
+  de sesión del agente de código se guarda en `state_db_path` en cuanto el agente lo anuncia, y
+  se borra cuando la tarea termina con éxito. Cuando Curupira se reinicia en medio de una tarea
+  (o la tarea falló o agotó el tiempo), el siguiente despacho continúa esa sesión con las mismas
+  instrucciones en lugar de empezar de nuevo. Un prompt de automatización cambiado empieza una
+  sesión nueva.
 
 Cambiar cualquier valor devuelto, incluidos el título, el cuerpo o los labels, crea una tarea distinta. Por
 eso los triggers de GitHub no devuelven valores que cambian por sí solos o porque el
@@ -261,13 +267,12 @@ el agente se iniciaría de nuevo para el mismo issue. Cuando el agente los neces
 por ejemplo con `gh issue view ${issue_number} --comments`.
 
 La clave es por automatización, así que dos automatizaciones pueden procesar el mismo issue o pull request con
-prompts distintos. `run --dry-run` previsualiza sin registrar la finalización.
+prompts distintos. `run --dry-run` previsualiza sin despachar.
 
-!!! tip "Ejecutar un elemento otra vez"
-    Para ejecutar de nuevo un elemento completado, edítalo (basta con un label o el título), usa un nombre de
-    automatización distinto (una automatización nueva tiene su propio historial) o elimina la fila de la
-    base de datos de estado. Cambiar solo los filtros no vuelve a hacer elegible un
-    elemento completado.
+!!! tip "Dejar fuera los elementos terminados"
+    Filtra por un estado que el agente cambia, y haz que el prompt le pida cambiarlo al terminar:
+    cierra el elemento, agrega o quita un label (`exclude_labels = ["blocked"]`) o vincula un pull
+    request (`linked_pull_request = false`).
 
 Cuando un ciclo completo no encuentra nada (o el descubrimiento falla), el feed espera
 `poll_interval_seconds` y luego duplica la espera en ciclos vacíos consecutivos hasta
@@ -314,10 +319,11 @@ worktree, y sin las variables `GIT_DIR`, `GIT_WORK_TREE` y `GIT_INDEX_FILE` que 
 que Git apunte a otro repositorio. Una automatización nunca cambia tu propio checkout.
 OpenCode 1.x también recibe `--dir <worktree>`. OpenCode 2.x no tiene `--dir`; una
 ejecución headless usa el worktree como directorio de trabajo y pasa `--standalone`, así
-que la tarea no se une al servicio en segundo plano compartido. Las dos versiones definen
-`OPENCODE_DB` como `<worktree>.opencode.db`, de modo que las sesiones y entradas de
-proyecto de OpenCode permanezcan con esa tarea. Otro estado global del agente, como la
-configuración global y las credenciales de OpenCode, sigue compartido.
+que la tarea no se une al servicio en segundo plano compartido. OpenCode 1.x también recibe
+`OPENCODE_DB` definido como `<worktree>.opencode.db`, de modo que sus sesiones y entradas de
+proyecto permanezcan con esa tarea. OpenCode 2.x conserva tu base de datos, donde guarda las
+credenciales de los proveedores. Otro estado global del agente, como la configuración global de
+OpenCode, se comparte.
 
 ## Errores comunes { #common-errors }
 

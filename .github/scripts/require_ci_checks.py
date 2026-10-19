@@ -16,6 +16,7 @@ REQUIRED_CHECKS = frozenset(
         "Rust tests on Windows",
         "JavaScript SDK tests",
         "npm CLI tests",
+        "TUI end-to-end tests",
         "Python SDK tests (Python 3.11)",
         "Python SDK tests (Python 3.12)",
         "Python SDK tests (Python 3.13)",

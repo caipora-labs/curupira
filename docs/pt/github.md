@@ -240,13 +240,20 @@ Não existe um campo `query` livre: os filtros são apenas TOML tipado.
 ### Deduplicação { #deduplication }
 
 O host identifica um resultado fazendo o hash da lista de chaves/valores que o trigger retornou, nessa
-ordem, junto com a automação, o repositório e o tipo do trigger. O Curupira mantém dois registros:
+ordem, junto com a automação, o repositório e o tipo do trigger.
+O Curupira não guarda histórico de issues nem de pull requests:
 
-- **Tarefas concluídas são lembradas entre reinicializações.** Quando o agente termina com sucesso, a
-  chave é guardada no banco de estado (`state_db_path`), e uma consulta posterior que retorne os mesmos
-  pares é ignorada, mesmo após uma reinicialização.
-- **Tarefas com falha são repetidas.** Uma tarefa cuja execução do agente falhou não é guardada como concluída. Ela é
-  ignorada pelo restante do processo atual e tentada novamente após uma reinicialização.
+- **Sem duplicatas numa execução.** Um `run --watch` ou `tui` em andamento despacha cada tarefa
+  uma vez, termine ela com sucesso ou com falha. Uma consulta posterior que retorne os mesmos pares
+  é ignorada até o processo terminar.
+- **Nada é lembrado entre execuções.** O Curupira não registra issues nem pull requests
+  concluídos. Depois de uma reinicialização, todo item que ainda corresponda aos filtros do
+  trigger é despachado de novo, então os filtros decidem o que está pendente.
+- **Trabalho interrompido é retomado.** Este é o único estado de tarefa que o Curupira guarda. O
+  id da sessão do agente de código é salvo em `state_db_path` assim que o agente o informa, e
+  removido quando a tarefa termina com sucesso. Quando o Curupira reinicia no meio de uma tarefa
+  (ou a tarefa falhou ou estourou o tempo), o próximo despacho continua essa sessão com as mesmas
+  instruções em vez de recomeçar. Um prompt de automação alterado começa uma sessão nova.
 
 Alterar qualquer valor retornado, inclusive o título, o corpo ou as labels, cria uma tarefa diferente. Por
 isso os triggers do GitHub não retornam valores que mudam sozinhos ou porque o agente trabalhou no item
@@ -255,12 +262,12 @@ o agente seria iniciado novamente para a mesma issue. Quando o agente precisar d
 por exemplo com `gh issue view ${issue_number} --comments`.
 
 A chave é por automação, então duas automações podem processar a mesma issue ou o mesmo pull request com
-prompts diferentes. `run --dry-run` faz a prévia sem registrar a conclusão.
+prompts diferentes. `run --dry-run` faz a prévia sem despachar.
 
-!!! tip "Executar um item novamente"
-    Para executar novamente um item concluído, edite-o (uma label ou o título já bastam), use outro
-    nome de automação (uma automação nova tem seu próprio histórico) ou remova a linha do banco
-    de estado. Alterar apenas os filtros não torna um item concluído elegível de novo.
+!!! tip "Manter itens concluídos de fora"
+    Filtre por um estado que o agente altera, e faça o prompt pedir que ele o altere ao
+    terminar: feche o item, adicione ou remova uma label (`exclude_labels = ["blocked"]`) ou
+    vincule um pull request (`linked_pull_request = false`).
 
 Quando um ciclo completo não encontra nada (ou a descoberta falha), o feed espera
 `poll_interval_seconds` e depois dobra a espera a cada ciclo vazio consecutivo, até cinco
@@ -306,9 +313,11 @@ as variáveis `GIT_DIR`, `GIT_WORK_TREE` e `GIT_INDEX_FILE` que apontariam o Git
 repositório. O seu próprio checkout nunca é alterado por uma automação. O OpenCode 1.x também
 recebe `--dir <worktree>`. O OpenCode 2.x não tem `--dir`; uma execução headless usa a worktree
 como diretório de trabalho e passa `--standalone`, então a tarefa não entra no serviço em
-segundo plano compartilhado. As duas versões definem `OPENCODE_DB` como `<worktree>.opencode.db`,
-para que as sessões e as entradas de projeto do OpenCode fiquem com aquela tarefa. Outros estados
-globais do agente, como a configuração global e as credenciais do OpenCode, continuam compartilhados.
+segundo plano compartilhado. O OpenCode 1.x também recebe
+`OPENCODE_DB` definido como `<worktree>.opencode.db`, para que as sessões e as entradas de projeto
+fiquem com aquela tarefa. O OpenCode 2.x mantém o seu banco, onde guarda as credenciais dos
+provedores. Outros estados globais do agente, como a configuração global do OpenCode, são
+compartilhados.
 
 ## Erros comuns { #common-errors }
 

@@ -10,8 +10,7 @@ opencode run --format json --dir <worktree> [options] -- <prompt>
 ```
 
 Execuções headless do OpenCode 2.x usam um servidor privado (`--standalone`) para que a tarefa
-mantenha o diretório da worktree e o próprio banco de dados. Sessões interativas da 2.x não
-passam `--standalone`.
+mantenha o diretório da worktree. Sessões interativas da 2.x não passam `--standalone`.
 
 ```text
 opencode run --standalone --format json [options] -- <prompt>
@@ -58,9 +57,11 @@ resolvido e escolhe o conjunto de flags a partir do primeiro `x.y.z` que encontr
 | `--standalone` | omitido | sempre passado | omitido |
 | `--session`, `--agent`, `--format json`, `--auto` | passados quando configurados | passados quando configurados | `--agent` e `--auto` quando configurados; sem `--format` |
 
-Cada execução define `OPENCODE_DB` como `<worktree>.opencode.db` na 1.x e na 2.x, então tarefas
-paralelas não compartilham sessões nem entradas de projeto do OpenCode. `--server` não é uma
-opção de perfil.
+Na 1.x, cada execução define `OPENCODE_DB` como `<worktree>.opencode.db`, então tarefas paralelas
+não compartilham sessões nem entradas de projeto do OpenCode. Na 2.x, as execuções mantêm o seu
+banco do OpenCode: a 2.x guarda nele as credenciais dos provedores, e um banco novo informa todos
+os modelos como indisponíveis. O servidor privado `--standalone` já mantém cada tarefa na sua
+worktree. `--server` não é uma opção de perfil.
 
 ## Exemplo { #example }
 

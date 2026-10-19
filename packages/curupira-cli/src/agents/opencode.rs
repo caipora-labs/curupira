@@ -215,16 +215,51 @@ fn build_headless_v2(
     Ok(args)
 }
 
-/// OpenCode keeps sessions and its project registry in one database. The registry is keyed by
-/// the repository's root commit, so clones of the same repository share it. Each task gets its
-/// own database next to its worktree, so the agent never reuses a session or project entry that
-/// points at another checkout. The path is derived from the worktree, so `--session` resumes
-/// still find the same database.
-pub(crate) fn headless_env(request: &AgentRequest) -> Vec<(String, String)> {
-    let mut db = request.cwd.as_os_str().to_owned();
+/// OpenCode 1.x keeps sessions and its project registry in one database. The registry is keyed
+/// by the repository's root commit, so clones of the same repository share it. Each 1.x task
+/// gets its own database next to its worktree, so the agent never reuses a session or project
+/// entry that points at another checkout. The path is derived from the worktree, so `--session`
+/// resumes still find the same database.
+///
+/// OpenCode 2.x also stores provider credentials in that database, so a fresh one has no model
+/// routes ("Model unavailable"). 2.x tasks keep the user's database; `--standalone` already
+/// gives each task a private server rooted at its worktree.
+pub(crate) fn headless_env(cwd: &Path, cli: OpenCodeCli) -> Vec<(String, String)> {
+    if cli == OpenCodeCli::V2 {
+        return Vec::new();
+    }
+    let mut db = cwd.as_os_str().to_owned();
     db.push(".opencode.db");
     let db = PathBuf::from(db);
     vec![("OPENCODE_DB".into(), db.to_string_lossy().into_owned())]
+}
+
+/// Lists recent sessions of the worktree's project as JSON, for reading the title OpenCode
+/// generates for a session a few seconds after it starts. Read-only; 2.x uses a private server
+/// like the run itself, so no background service is left behind.
+pub(crate) fn build_session_list(cli: OpenCodeCli) -> Vec<String> {
+    let mut args = vec!["session".to_string(), "list".into()];
+    if cli == OpenCodeCli::V2 {
+        args.push("--standalone".into());
+    }
+    args.extend(["--format".into(), "json".into(), "-n".into(), "50".into()]);
+    args
+}
+
+/// The generated title of `session_id` in `session list --format json` output. New sessions
+/// have no title yet (2.x) or a `New session - <timestamp>` placeholder (1.x).
+pub(crate) fn session_title(list: &str, session_id: &str) -> Option<String> {
+    let sessions: Vec<serde_json::Value> = serde_json::from_str(list).ok()?;
+    let title = sessions
+        .iter()
+        .find(|s| s.get("id").and_then(serde_json::Value::as_str) == Some(session_id))?
+        .get("title")?
+        .as_str()?
+        .trim();
+    let placeholder = ["New session - ", "Child session - "]
+        .iter()
+        .any(|prefix| title.starts_with(prefix));
+    (!title.is_empty() && !placeholder).then(|| title.to_owned())
 }
 
 pub(crate) fn build_interactive(
@@ -392,7 +427,10 @@ mod tests {
 
     #[test]
     fn task_database_sits_next_to_the_worktree_and_keeps_dots_in_the_path() {
-        let env = headless_env(&request("/ws/gh.dispatch.worktrees/auto/task"));
+        let env = headless_env(
+            Path::new("/ws/gh.dispatch.worktrees/auto/task"),
+            OpenCodeCli::V1,
+        );
 
         assert_eq!(
             env,
@@ -401,6 +439,52 @@ mod tests {
                 "/ws/gh.dispatch.worktrees/auto/task.opencode.db".to_string()
             )]
         );
+    }
+
+    #[test]
+    fn v2_tasks_keep_the_user_database_with_its_credentials() {
+        assert!(
+            headless_env(Path::new("/ws/repo.worktrees/auto/task"), OpenCodeCli::V2).is_empty()
+        );
+    }
+
+    #[test]
+    fn session_list_matches_the_run_mode() {
+        assert_eq!(
+            build_session_list(OpenCodeCli::V2),
+            vec![
+                "session",
+                "list",
+                "--standalone",
+                "--format",
+                "json",
+                "-n",
+                "50"
+            ]
+        );
+        assert_eq!(
+            build_session_list(OpenCodeCli::V1),
+            vec!["session", "list", "--format", "json", "-n", "50"]
+        );
+    }
+
+    #[test]
+    fn session_title_skips_missing_and_placeholder_titles() {
+        let list = r#"[
+            {"id": "ses_a", "title": "Revisão do PR #223", "directory": "/w"},
+            {"id": "ses_b", "directory": "/w"},
+            {"id": "ses_c", "title": "New session - 2026-10-19T03:40:00.000Z"},
+            {"id": "ses_d", "title": "  "}
+        ]"#;
+        assert_eq!(
+            session_title(list, "ses_a").as_deref(),
+            Some("Revisão do PR #223")
+        );
+        assert_eq!(session_title(list, "ses_b"), None);
+        assert_eq!(session_title(list, "ses_c"), None);
+        assert_eq!(session_title(list, "ses_d"), None);
+        assert_eq!(session_title(list, "ses_missing"), None);
+        assert_eq!(session_title("not json", "ses_a"), None);
     }
 
     #[test]
