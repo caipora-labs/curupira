@@ -56,7 +56,7 @@ exige `id`, `title`, `url` nem nenhuma outra chave, e o host não as interpreta.
 2. Ele chama `trigger/poll` repetidamente, até `[settings.polling].batch_size` vezes por
    rodada. Os argumentos de consulta não são passados para a função do trigger.
 3. Ele gera um hash do JSON canônico dos pares, na ordem recebida, que vira a identidade
-   da tarefa. Uma identidade concluída nunca roda de novo; os mesmos pares em outra ordem são uma
+   da tarefa. Cada identidade é despachada uma vez por processo; os mesmos pares em outra ordem são uma
    tarefa diferente.
 4. Ele preenche `${key}` no prompt com o valor de cada par, em uma única passada. O texto inserido
    não é examinado de novo, então um valor `${other}` permanece literal, e um placeholder sem

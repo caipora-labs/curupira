@@ -56,6 +56,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Resumed sessions without instructions.** A task resumed after a failed or interrupted run
+  received only "continue the previous task", so an agent whose first run never started (for
+  example, model unavailable) finished without doing anything. Resumed sessions now get the
+  task's instructions again, and a changed automation prompt starts a new session.
 - **Version of local builds.** `--version`, the splash, and the sidebar showed the `0.2.0`
   placeholder from Cargo.toml when built from a checkout. Builds from git now report the latest
   `publish/curupira-cli/*` tag, with the commits since (`0.3.1+4.g1a2b3c4`); the TUI drops the
@@ -109,6 +113,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **No issue or pull request history.** Curupira no longer records finished tasks in
+  `state_db_path`. A running `run --watch` or `tui` still dispatches each task once, but after a
+  restart every item that matches the trigger filters is dispatched again: filter on state the
+  agent changes (labels, closed items, linked pull requests) to keep finished items out. The
+  state database keeps only cron occurrences and resumable agent sessions; an existing
+  `completed_tasks` table is no longer read.
 - **Internal package layout and release tags.** Checkout directories are
   `packages/curupira-cli`, `packages/curupira-cli-py`, `packages/curupira-cli-js`,
   `packages/curupira-sdk-py`, `packages/curupira-sdk-js`, and `packages/curupira-plugins-py`.

@@ -66,7 +66,7 @@ Every key is optional.
 | --- | --- | --- |
 | `max_active_tasks` | `1` | Agents that may run at the same time. |
 | `workspace_dir` | `~/.curupira/workspaces` | Where repositories are cloned. |
-| `state_db_path` | `~/.curupira/state.sqlite3` | Completed tasks, cron occurrences, and resumable sessions. |
+| `state_db_path` | `~/.curupira/state.sqlite3` | Cron occurrences and resumable agent sessions; no issue or pull request history. |
 | `log_level` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`. `--log-level` overrides it. |
 | `task_timeout_minutes` | `20` | Deadline for one agent run, and for `setup_script`. |
 | `max_output_bytes` | `1000000` | Output kept from each agent run and setup script. |
@@ -199,10 +199,13 @@ non-zero exit stops the task. `run --dry-run` never clones or runs setup.
 Each poll asks every automation's trigger for up to `batch_size` items. The fields of
 each item are hashed into the task identity:
 
-- A task that finished `ok` is stored in `state_db_path` and never runs again.
+- Each task is dispatched at most once per process, whether it finishes or fails.
+- Nothing is stored when a task finishes: after a restart, an item that still matches the
+  filters runs again. Filter on state the agent changes (labels, closed items, linked pull
+  requests) to keep finished items out.
 - The same item with a changed field (a new title, a new head commit) is a new identity,
-  so it can run again.
-- A failed task is not retried in the same process; the next `run` tries it again.
+  so it can run again in the same process.
+- A failed or interrupted task resumes its agent session when it is dispatched again.
 
 Filters such as `linked_pull_request = false` decide what the GitHub trigger returns; see
 [Deduplication](github.md#deduplication) for how the GitHub triggers keep their output

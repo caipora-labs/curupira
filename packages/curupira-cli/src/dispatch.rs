@@ -21,8 +21,7 @@ use crate::extensions::namespace::PluginNamespaceIndex;
 use crate::process::{run_process, run_process_with_lines, LineSink};
 use crate::protocol::KeyValue;
 use crate::storage::{
-    open_db, CompletedTaskRepository, CronScheduleRepository, RunningCodingSession,
-    RunningSessionRepository,
+    open_db, CronScheduleRepository, RunningCodingSession, RunningSessionRepository,
 };
 use crate::vcs::VersionControl;
 
@@ -150,6 +149,19 @@ impl Reporter {
     }
 }
 
+/// Tasks this process has dispatched, finished or not. Memory only: a new run starts empty, so
+/// nothing runs twice while Curupira is running, yet no issue or pull request history is kept
+/// across runs. Which items are due is decided by the trigger filters (labels, state, links).
+#[derive(Debug, Default)]
+struct Dispatched(HashSet<String>);
+
+impl Dispatched {
+    /// Record `key`; `false` when this process already dispatched it.
+    fn first_time(&mut self, key: &str) -> bool {
+        self.0.insert(key.to_owned())
+    }
+}
+
 /// Sleep for `duration`, waking early once `interrupted` is set.
 async fn sleep_unless_interrupted(duration: Duration, interrupted: &AtomicBool) {
     let step = Duration::from_millis(200);
@@ -213,19 +225,16 @@ pub async fn run_command_with(
 
     // One VersionControl for the whole run: its per-checkout locks must be shared by every worker.
     let vcs = VersionControl::new();
-    let completed = CompletedTaskRepository::new(&conn);
     let poll_interval = Duration::from_secs(settings.settings.polling.poll_interval_seconds.max(1));
     let workers = settings.settings.max_active_tasks.max(1) as usize;
 
     let mut running = FuturesUnordered::new();
-    let mut in_flight: HashSet<String> = HashSet::new();
-    // Every task admitted in this run, so a failed task is not re-run in a loop.
-    let mut attempted: HashSet<String> = HashSet::new();
+    let mut dispatched = Dispatched::default();
     let mut admitted = 0_u32;
     let mut failed = 0_u32;
 
     loop {
-        // Fill free workers from a fresh poll; tasks already running or attempted are skipped.
+        // Fill free workers from a fresh poll; tasks this process already dispatched are skipped.
         let mut exhausted = false;
         while !exhausted
             && running.len() < workers
@@ -241,15 +250,10 @@ pub async fn run_command_with(
                     break;
                 }
                 let key = task.identity.key();
-                if in_flight.contains(&key)
-                    || attempted.contains(&key)
-                    || completed.contains(&key)?
-                {
+                if !dispatched.first_time(&key) {
                     continue;
                 }
                 admitted += 1;
-                in_flight.insert(key.clone());
-                attempted.insert(key);
                 reporter.report(DispatchEvent::Started(TaskStart::describe(settings, &task)));
                 running.push(run_task(settings, task, &conn, &vcs, &namespace, reporter));
             }
@@ -279,12 +283,8 @@ pub async fn run_command_with(
         };
         let Some(outcome) = next else { continue };
         let TaskOutcome { key, result } = outcome;
-        in_flight.remove(&key);
         match result {
-            Ok(()) => {
-                completed.mark(&key, Utc::now())?;
-                reporter.report(DispatchEvent::Ok(key));
-            }
+            Ok(()) => reporter.report(DispatchEvent::Ok(key)),
             Err(err) => {
                 failed += 1;
                 reporter.report(DispatchEvent::Fail {
@@ -522,6 +522,21 @@ async fn execute_task(
 const RESUME_SESSION_PROMPT: &str =
     "Continue the previous coding task for this work item. Use the repository state and prior session context.";
 
+/// The saved session to resume, unless the automation's prompt changed since it was saved: new
+/// instructions start a new session instead of continuing under the old ones.
+fn resumable(saved: Option<RunningCodingSession>, prompt: &str) -> Option<RunningCodingSession> {
+    saved.filter(|session| session.original_prompt == prompt)
+}
+
+/// What a resumed session receives. The task's instructions are repeated because the earlier
+/// run may have stopped before the agent saw them (for example, when the model was unreachable).
+fn resume_message(original_prompt: &str) -> String {
+    format!(
+        "{RESUME_SESSION_PROMPT} If the session holds no earlier work, start the task below.\n\n\
+         Task:\n{original_prompt}"
+    )
+}
+
 async fn run_agent(
     settings: &ApplicationSettings,
     task: &Task,
@@ -537,10 +552,10 @@ async fn run_agent(
     let provider = AgentProvider::parse(&profile.provider)?;
 
     let sessions = RunningSessionRepository::new(conn);
-    let existing = sessions.get(&task.identity.key())?;
+    let existing = resumable(sessions.get(&task.identity.key())?, &task.prompt);
     let (message, session_id, new_session_id) = if let Some(existing) = &existing {
         (
-            RESUME_SESSION_PROMPT.to_string(),
+            resume_message(&existing.original_prompt),
             Some(existing.session_id.clone()),
             None,
         )
@@ -899,6 +914,59 @@ mod tests {
             }],
             "placeholder titles are not reported"
         );
+    }
+
+    #[test]
+    fn a_task_runs_once_per_process_and_again_in_a_new_one() {
+        let mut run = Dispatched::default();
+        assert!(run.first_time("issue-1"));
+        assert!(!run.first_time("issue-1"), "no duplicate in the same run");
+        assert!(run.first_time("issue-2"));
+
+        let mut next_run = Dispatched::default();
+        assert!(
+            next_run.first_time("issue-1"),
+            "nothing is remembered across runs"
+        );
+    }
+
+    #[test]
+    fn the_state_database_keeps_no_task_history() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = open_db(&dir.path().join("state.sqlite3")).unwrap();
+        let mut tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        tables.sort();
+        assert_eq!(tables, vec!["cron_schedules", "running_sessions"]);
+    }
+
+    #[test]
+    fn resumed_sessions_get_the_task_again() {
+        let message = resume_message("Review PR #223 and merge it.");
+        assert!(message.starts_with(RESUME_SESSION_PROMPT));
+        assert!(message.ends_with("Task:\nReview PR #223 and merge it."));
+    }
+
+    #[test]
+    fn a_changed_prompt_starts_a_new_session() {
+        let saved = |prompt: &str| {
+            Some(RunningCodingSession {
+                session_id: "ses_1".into(),
+                provider: "opencode".into(),
+                original_prompt: prompt.into(),
+            })
+        };
+        assert_eq!(
+            resumable(saved("old"), "old").map(|s| s.session_id),
+            Some("ses_1".to_string())
+        );
+        assert!(resumable(saved("old"), "new").is_none());
+        assert!(resumable(None, "new").is_none());
     }
 
     #[test]

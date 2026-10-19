@@ -240,13 +240,19 @@ Não existe um campo `query` livre: os filtros são apenas TOML tipado.
 ### Deduplicação { #deduplication }
 
 O host identifica um resultado fazendo o hash da lista de chaves/valores que o trigger retornou, nessa
-ordem, junto com a automação, o repositório e o tipo do trigger. O Curupira mantém dois registros:
+ordem, junto com a automação, o repositório e o tipo do trigger.
+O Curupira não guarda histórico de issues nem de pull requests:
 
-- **Tarefas concluídas são lembradas entre reinicializações.** Quando o agente termina com sucesso, a
-  chave é guardada no banco de estado (`state_db_path`), e uma consulta posterior que retorne os mesmos
-  pares é ignorada, mesmo após uma reinicialização.
-- **Tarefas com falha são repetidas.** Uma tarefa cuja execução do agente falhou não é guardada como concluída. Ela é
-  ignorada pelo restante do processo atual e tentada novamente após uma reinicialização.
+- **Sem duplicatas numa execução.** Um `run --watch` ou `tui` em andamento despacha cada tarefa
+  uma vez, termine ela com sucesso ou com falha. Uma consulta posterior que retorne os mesmos pares
+  é ignorada até o processo terminar.
+- **Nada é lembrado entre execuções.** O Curupira não registra issues nem pull requests
+  concluídos. Depois de uma reinicialização, todo item que ainda corresponda aos filtros do
+  trigger é despachado de novo, então os filtros decidem o que está pendente.
+- **Trabalho interrompido é retomado.** O id da sessão do agente de código fica em
+  `state_db_path` até a tarefa terminar com sucesso. Uma tarefa interrompida ou com falha continua
+  essa sessão, com as mesmas instruções, na próxima vez em que for despachada. Um prompt de
+  automação alterado começa uma sessão nova.
 
 Alterar qualquer valor retornado, inclusive o título, o corpo ou as labels, cria uma tarefa diferente. Por
 isso os triggers do GitHub não retornam valores que mudam sozinhos ou porque o agente trabalhou no item
@@ -255,12 +261,12 @@ o agente seria iniciado novamente para a mesma issue. Quando o agente precisar d
 por exemplo com `gh issue view ${issue_number} --comments`.
 
 A chave é por automação, então duas automações podem processar a mesma issue ou o mesmo pull request com
-prompts diferentes. `run --dry-run` faz a prévia sem registrar a conclusão.
+prompts diferentes. `run --dry-run` faz a prévia sem despachar.
 
-!!! tip "Executar um item novamente"
-    Para executar novamente um item concluído, edite-o (uma label ou o título já bastam), use outro
-    nome de automação (uma automação nova tem seu próprio histórico) ou remova a linha do banco
-    de estado. Alterar apenas os filtros não torna um item concluído elegível de novo.
+!!! tip "Manter itens concluídos de fora"
+    Filtre por um estado que o agente altera, e faça o prompt pedir que ele o altere ao
+    terminar: feche o item, adicione ou remova uma label (`exclude_labels = ["blocked"]`) ou
+    vincule um pull request (`linked_pull_request = false`).
 
 Quando um ciclo completo não encontra nada (ou a descoberta falha), o feed espera
 `poll_interval_seconds` e depois dobra a espera a cada ciclo vazio consecutivo, até cinco

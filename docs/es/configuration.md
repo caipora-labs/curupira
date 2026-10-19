@@ -66,7 +66,7 @@ Todas las claves son opcionales.
 | --- | --- | --- |
 | `max_active_tasks` | `1` | Agentes que pueden ejecutarse al mismo tiempo. |
 | `workspace_dir` | `~/.curupira/workspaces` | Dónde se clonan los repositorios. |
-| `state_db_path` | `~/.curupira/state.sqlite3` | Tareas completadas, ocurrencias de cron y sesiones reanudables. |
+| `state_db_path` | `~/.curupira/state.sqlite3` | Ocurrencias de cron y sesiones reanudables del agente; ningún historial de issues ni pull requests. |
 | `log_level` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` o `CRITICAL`. `--log-level` lo reemplaza. |
 | `task_timeout_minutes` | `20` | Plazo máximo de una ejecución del agente y de `setup_script`. |
 | `max_output_bytes` | `1000000` | Salida que se conserva de cada ejecución del agente y del script de setup. |
@@ -201,10 +201,13 @@ En cada consulta, Curupira pide al trigger de cada automatización hasta `batch_
 elementos. Los campos de cada elemento se convierten en un hash que forma la identidad de
 la tarea:
 
-- Una tarea que terminó `ok` se guarda en `state_db_path` y nunca vuelve a ejecutarse.
+- Cada tarea se despacha como máximo una vez por proceso, termine con éxito o con fallo.
+- Nada se guarda cuando una tarea termina: tras un reinicio, un elemento que siga coincidiendo
+  con los filtros se ejecuta de nuevo. Filtra por un estado que el agente cambia (labels,
+  elementos cerrados, pull requests vinculados) para dejar fuera los elementos terminados.
 - El mismo elemento con un campo cambiado (un título nuevo, un nuevo commit de head) es una
-  identidad nueva, así que puede ejecutarse otra vez.
-- Una tarea fallida no se reintenta en el mismo proceso; el siguiente `run` la intenta de nuevo.
+  identidad nueva, así que puede ejecutarse otra vez en el mismo proceso.
+- Una tarea fallida o interrumpida reanuda su sesión del agente cuando se despacha de nuevo.
 
 Filtros como `linked_pull_request = false` deciden qué devuelve el trigger de GitHub;
 consulta [Deduplicación](github.md#deduplication) para ver cómo los triggers de GitHub
