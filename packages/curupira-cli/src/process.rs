@@ -666,10 +666,11 @@ mod launch_tests {
 @echo off
 setlocal DisableDelayedExpansion
 "%SystemRoot%\System32\cscript.exe" //nologo //e:jscript "%~f0" %*
-exit /b %ERRORLEVEL%
+exit /b
 @end
 var fso = new ActiveXObject("Scripting.FileSystemObject");
-var path = WScript.Environment("PROCESS").Item("CURUPIRA_SHIM_OUT");
+var shell = new ActiveXObject("WScript.Shell");
+var path = shell.Environment("PROCESS").Item("CURUPIRA_SHIM_OUT");
 var out = fso.CreateTextFile(path, true, false);
 function js(s) {
   var r = "";
