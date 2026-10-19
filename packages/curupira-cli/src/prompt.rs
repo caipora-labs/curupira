@@ -13,7 +13,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use minijinja::{Environment, Error, ErrorKind, UndefinedBehavior, Value};
+use minijinja::{
+    syntax::SyntaxConfig, value::Serde, Environment, Error, ErrorKind, UndefinedBehavior, Value,
+};
 
 use crate::error::CurupiraError;
 use crate::protocol::KeyValue;
@@ -51,10 +53,10 @@ pub fn render(
             context.insert((*name).to_string(), Value::from(*value));
         }
     }
-    context.insert(RAW.to_string(), Value::from_serialize(&fields));
+    context.insert(RAW.to_string(), Value::from(Serde(&fields)));
     let names: Vec<String> = fields.keys().map(|k| (*k).to_string()).collect();
     environment()
-        .render_str(&source, Value::from_serialize(&context))
+        .render_str(&source, Value::from(Serde(&context)))
         .map_err(|e| CurupiraError::Dispatch(describe(automation_id, template, &e, &names)))
 }
 
@@ -105,8 +107,13 @@ fn environment() -> Environment<'static> {
     env.set_undefined_behavior(UndefinedBehavior::Strict);
     // Indentation before a block tag is dropped, but the newline after it is kept, so text
     // that follows an inline `{% endif %}` never gets glued to the next line.
-    env.set_lstrip_blocks(true);
-    env.set_keep_trailing_newline(true);
+    env.set_syntax(
+        SyntaxConfig::builder()
+            .lstrip_blocks(true)
+            .keep_trailing_newline(true)
+            .build()
+            .expect("valid built-in syntax configuration"),
+    );
     // Prompts are plain text, not HTML.
     env.set_auto_escape_callback(|_| minijinja::AutoEscape::None);
     env.add_filter("fromjson", fromjson_filter);
@@ -121,7 +128,7 @@ fn fromjson_filter(text: String) -> Result<Value, Error> {
             format!("fromjson: invalid JSON: {e}"),
         )
     })?;
-    Ok(Value::from_serialize(&parsed))
+    Ok(Value::from(Serde(&parsed)))
 }
 
 /// Rewrite `${name}` into a lookup of the raw field text, for names that exist.
