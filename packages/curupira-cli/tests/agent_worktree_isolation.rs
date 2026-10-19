@@ -28,9 +28,11 @@ async fn opencode_task_runs_in_its_worktree_with_its_own_database() {
     .unwrap();
     fs::set_permissions(&fake, fs::Permissions::from_mode(0o755)).unwrap();
 
+    let mut extra = serde_json::Map::new();
+    extra.insert("api".into(), serde_json::Value::String("v1".into()));
     let profile = AgentProfile {
         provider: "opencode".into(),
-        extra: serde_json::Map::new(),
+        extra,
     };
     let request = AgentRequest {
         message: "resolve".into(),

@@ -116,6 +116,21 @@ jobs:
             uv run --no-sync cargo run --manifest-path packages/curupira-cli/Cargo.toml --bin curupira -- \
             --config "$tmp_config" validate
 
+  rust-windows:
+    name: Rust tests on Windows
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/curupira-cli
+      # Integration tests join PATH with ':' and assume a Unix Python. The .cmd shim
+      # test lives in the library suite under cfg(windows).
+      - run: cargo test --manifest-path packages/curupira-cli/Cargo.toml --lib
+
   js-sdk:
     name: JavaScript SDK tests
     needs: changes
@@ -255,7 +270,7 @@ jobs:
   docs:
     name: Deploy documentation
     # Only main deploys, and only after every other job has passed.
-    needs: [rust, js-sdk, npm-cli, python-sdk, python-plugins, python-packaging, package]
+    needs: [rust, rust-windows, js-sdk, npm-cli, python-sdk, python-plugins, python-packaging, package]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

@@ -303,10 +303,12 @@ checkout, not inside the worktree.
 
 The agent process runs with its working directory and `PWD` set to the worktree, and without
 the `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_INDEX_FILE` variables that would point Git at another
-repository. Your own checkout is never switched by an automation. For OpenCode, Curupira also
-passes `--dir <worktree>` and gives each task its own `OPENCODE_DB` at `<worktree>.opencode.db`,
-so OpenCode sessions and project entries stay with that task. Other agent-wide state, such as
-the global OpenCode configuration and credentials, is still shared.
+repository. Your own checkout is never switched by an automation. OpenCode 1.x also receives
+`--dir <worktree>`. OpenCode 2.x has no `--dir`; a headless run uses the worktree as its working
+directory and passes `--standalone`, so the task does not join the shared background service.
+Both versions set `OPENCODE_DB` to `<worktree>.opencode.db`, so OpenCode sessions and project
+entries stay with that task. Other agent-wide state, such as the global OpenCode configuration
+and credentials, is still shared.
 
 ## Common errors
 

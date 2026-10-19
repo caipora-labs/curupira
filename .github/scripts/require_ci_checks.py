@@ -13,6 +13,7 @@ import urllib.request
 REQUIRED_CHECKS = frozenset(
     {
         "Rust test and lint",
+        "Rust tests on Windows",
         "JavaScript SDK tests",
         "npm CLI tests",
         "Python SDK tests (Python 3.11)",

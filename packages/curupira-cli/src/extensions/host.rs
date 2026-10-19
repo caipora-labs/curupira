@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::io::{BufReader, Write};
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStdin, ChildStdout, Stdio};
 
 use crate::protocol::{
     negotiate, read_frame, write_frame, ClientInfo, DescribeResult, ErrorCode, InitializeParams,
@@ -67,9 +67,12 @@ impl ExtensionHost {
         cwd: Option<&std::path::Path>,
         env_vars: &BTreeMap<String, String>,
     ) -> Result<Self, CurupiraError> {
-        let mut command = Command::new(program);
+        let mut command = crate::process::std_command(program, args).map_err(|e| {
+            CurupiraError::Plugin(format!(
+                "failed to start extension {name}: {e} (program {program:?})"
+            ))
+        })?;
         command
-            .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
