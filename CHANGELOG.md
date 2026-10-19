@@ -60,6 +60,10 @@ All notable changes to this project are documented here. The format follows
   received only "continue the previous task", so an agent whose first run never started (for
   example, model unavailable) finished without doing anything. Resumed sessions now get the
   task's instructions again, and a changed automation prompt starts a new session.
+- **Restarting mid-task lost the agent session.** The session id was saved only after the agent
+  exited, so stopping or restarting Curupira (or a timeout) left nothing to continue and the next
+  run started over. It is now saved as soon as the agent announces it, so a restart continues
+  the same session.
 - **Version of local builds.** `--version`, the splash, and the sidebar showed the `0.2.0`
   placeholder from Cargo.toml when built from a checkout. Builds from git now report the latest
   `publish/curupira-cli/*` tag, with the commits since (`0.3.1+4.g1a2b3c4`); the TUI drops the

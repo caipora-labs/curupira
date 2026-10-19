@@ -22,6 +22,7 @@ export const LIVE_AUTOMATIONS = {
   "qa-ok": "Review the repository. SCENARIO:ok",
   "qa-fail": "Review the repository. SCENARIO:fail",
   "qa-noise": "Review the repository. SCENARIO:noise",
+  "qa-slow": "Review the repository. SCENARIO:slow",
 };
 
 function git(cwd, ...args) {
@@ -29,7 +30,7 @@ function git(cwd, ...args) {
 }
 
 function settings(root, live) {
-  const ids = live === true ? Object.keys(LIVE_AUTOMATIONS) : live || [];
+  const ids = live === true ? Object.keys(LIVE_AUTOMATIONS).filter((id) => id !== "qa-slow") : live || [];
   const automations = ids.length
     ? ids.map((id) => [id, LIVE_AUTOMATIONS[id]]).map(
         ([id, prompt]) => `
@@ -80,7 +81,8 @@ ${automations.join("")}`;
 
 /**
  * A throwaway Curupira home. `live` adds cron automations that dispatch the fake agent at the
- * next minute boundary: `true` for all of LIVE_AUTOMATIONS, or a list of their ids.
+ * next minute boundary: `true` for all of LIVE_AUTOMATIONS except `qa-slow` (only restart tests
+ * need it), or a list of their ids.
  */
 export function createWorkspace({ live = false } = {}) {
   if (!existsSync(BIN)) {

@@ -249,10 +249,11 @@ Curupira keeps no history of issues or pull requests:
 - **Nothing is remembered across runs.** Curupira does not record finished issues or pull
   requests. After a restart, every item that still matches the trigger filters is dispatched
   again, so the filters decide what is due.
-- **Interrupted work resumes.** The coding agent's session id is kept in `state_db_path` until
-  the task finishes successfully. A task that was interrupted or failed continues that session,
-  with the same instructions, the next time it is dispatched. A changed automation prompt starts
-  a new session.
+- **Interrupted work resumes.** This is the only task state Curupira keeps. The coding agent's
+  session id is saved in `state_db_path` as soon as the agent announces it, and removed when the
+  task finishes successfully. When Curupira restarts in the middle of a task (or the task failed
+  or timed out), the next dispatch continues that session with the same instructions instead of
+  starting over. A changed automation prompt starts a new session.
 
 Changing any returned value, including the title, body, or labels, makes a different task. For
 that reason the GitHub triggers do not return values that change by themselves or because the

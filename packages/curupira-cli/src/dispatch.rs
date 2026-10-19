@@ -591,11 +591,13 @@ async fn run_agent(
         )));
     }
 
-    // Only a dashboard follows the output and the session title; `run` skips both.
+    // Only a dashboard follows the output and the session title; `run` skips both. Every mode
+    // reads the agent's session id from its output, to continue the task after a restart.
     let key = task.identity.key();
-    let output = reporter.output_sink(&key);
+    let forward = reporter.output_sink(&key);
+    let saved = known_session.is_some();
     let session = Arc::new(Mutex::new(known_session));
-    let titles = match output {
+    let titles = match forward {
         Some(_) => {
             agents::build_session_list(provider, profile, work_dir)?.map(|list| TitleWatch {
                 list,
@@ -607,7 +609,7 @@ async fn run_agent(
         }
         None => None,
     };
-    let output = output.map(|forward| -> LineSink {
+    let output: LineSink = {
         let session = Arc::clone(&session);
         Arc::new(move |line: String| {
             if let Ok(mut id) = session.lock() {
@@ -615,9 +617,11 @@ async fn run_agent(
                     *id = agents::session_id_from_line(provider, &line);
                 }
             }
-            forward(line);
+            if let Some(forward) = &forward {
+                forward(line);
+            }
         })
-    });
+    };
 
     let timeout = Duration::from_secs(u64::from(settings.settings.task_timeout_minutes) * 60);
     let finished = AtomicBool::new(false);
@@ -630,7 +634,7 @@ async fn run_agent(
             &settings.environment.vars,
             timeout,
             settings.settings.max_output_bytes as usize,
-            output,
+            Some(output),
         )
         .await;
         finished.store(true, Ordering::SeqCst);
@@ -641,26 +645,34 @@ async fn run_agent(
             titles.run(&finished, &key, reporter).await;
         }
     };
-    let (result, ()) = tokio::join!(run, watch);
-    let result = result.map_err(CurupiraError::Dispatch)?;
-
-    // Persist the first native session id announced on stdout (when not caller-assigned).
-    if !provider.assigns_session_id() && existing.is_none() {
-        let stdout = String::from_utf8_lossy(&result.stdout);
-        for line in stdout.lines() {
-            if let Some(id) = agents::session_id_from_line(provider, line) {
+    // Save the session as soon as the agent announces it, not when it exits: a restart while the
+    // agent is still working (or a timeout) must still find the session to continue.
+    let persist = async {
+        if saved {
+            return;
+        }
+        loop {
+            let done = finished.load(Ordering::SeqCst);
+            let id = session.lock().ok().and_then(|id| id.clone());
+            if let Some(id) = id {
                 let _ = sessions.save(
-                    &task.identity.key(),
+                    &key,
                     &RunningCodingSession {
                         session_id: id,
                         provider: provider.as_str().into(),
                         original_prompt: task.prompt.clone(),
                     },
                 );
-                break;
+                return;
             }
+            if done {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
-    }
+    };
+    let (result, (), ()) = tokio::join!(run, watch, persist);
+    let result = result.map_err(CurupiraError::Dispatch)?;
 
     if result.exit_code != 0 {
         return Err(CurupiraError::Dispatch(format!(

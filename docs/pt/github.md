@@ -249,10 +249,11 @@ O Curupira não guarda histórico de issues nem de pull requests:
 - **Nada é lembrado entre execuções.** O Curupira não registra issues nem pull requests
   concluídos. Depois de uma reinicialização, todo item que ainda corresponda aos filtros do
   trigger é despachado de novo, então os filtros decidem o que está pendente.
-- **Trabalho interrompido é retomado.** O id da sessão do agente de código fica em
-  `state_db_path` até a tarefa terminar com sucesso. Uma tarefa interrompida ou com falha continua
-  essa sessão, com as mesmas instruções, na próxima vez em que for despachada. Um prompt de
-  automação alterado começa uma sessão nova.
+- **Trabalho interrompido é retomado.** Este é o único estado de tarefa que o Curupira guarda. O
+  id da sessão do agente de código é salvo em `state_db_path` assim que o agente o informa, e
+  removido quando a tarefa termina com sucesso. Quando o Curupira reinicia no meio de uma tarefa
+  (ou a tarefa falhou ou estourou o tempo), o próximo despacho continua essa sessão com as mesmas
+  instruções em vez de recomeçar. Um prompt de automação alterado começa uma sessão nova.
 
 Alterar qualquer valor retornado, inclusive o título, o corpo ou as labels, cria uma tarefa diferente. Por
 isso os triggers do GitHub não retornam valores que mudam sozinhos ou porque o agente trabalhou no item
