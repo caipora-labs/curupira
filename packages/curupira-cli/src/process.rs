@@ -189,8 +189,9 @@ fn quote_for_crt(arg: &str) -> String {
 ///
 /// npm shims forward `%*` into a second `cmd.exe` parse and then into `node.exe`, so meta
 /// characters are caret-escaped twice (the same rule `node-cross-spawn` uses for cmd shims).
-/// A raw newline is a command separator even inside quotes; each line is escaped on its own
-/// and joined with a caret-escaped blank line, which `cmd.exe` turns back into one newline.
+/// A raw newline ends a `cmd /c` command, so each line is escaped on its own and joined with
+/// a doubled caret-newline. The launcher batch file's parse leaves one `^<LF><LF>` for the
+/// shim, and the shim's parse turns that into a single newline inside the argument.
 fn escape_batch_argument(arg: &str) -> String {
     let normalized = arg.replace("\r\n", "\n").replace('\r', "\n");
     let mut parts = normalized.split('\n');
@@ -199,7 +200,8 @@ fn escape_batch_argument(arg: &str) -> String {
     };
     let mut out = escape_argument(first, true);
     for part in parts {
-        out.push_str("^\n\n");
+        // `^^^\r\n\r\n^\r\n\r\n` survives one caret pass as `^\n\n`.
+        out.push_str("^^^\r\n\r\n^\r\n\r\n");
         out.push_str(&escape_argument(part, true));
     }
     out
@@ -224,15 +226,56 @@ fn is_batch(path: &Path) -> bool {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("cmd") || ext.eq_ignore_ascii_case("bat"))
 }
 
-/// Interior of `cmd.exe /d /v:off /s /c`, wrapped in the quotes `/s` strips.
-pub(crate) fn batch_raw_tail(script: &Path, args: &[String]) -> OsString {
+/// Script path plus arguments, escaped for one `cmd.exe` parse on top of the shim's parse.
+fn batch_command_line(script: &Path, args: &[String]) -> String {
     let mut parts = Vec::with_capacity(args.len() + 1);
     parts.push(escape_cmd_command(&script.to_string_lossy()));
     for arg in args {
         parts.push(escape_batch_argument(arg));
     }
-    let inner = parts.join(" ");
-    OsString::from(format!("\"{inner}\""))
+    parts.join(" ")
+}
+
+/// Batch file that runs `command`.
+///
+/// `cmd /c` drops everything after a newline, so the escaped command is written to a file
+/// where caret continuation is real. `%` is doubled because a batch file turns `%%` into `%`
+/// before the caret pass; that restores the command-line form the shim already expects.
+/// Invoking the shim transfers control, so the caller deletes the file after the process exits.
+fn batch_launcher_script(command: &str) -> String {
+    let command = command.replace('%', "%%");
+    format!("@echo off\r\nsetlocal DisableDelayedExpansion\r\n{command}\r\n")
+}
+
+/// Deletes a Windows launcher batch file when the child that reads it has exited.
+pub(crate) struct BatchCleanup {
+    path: Option<PathBuf>,
+}
+
+impl Drop for BatchCleanup {
+    fn drop(&mut self) {
+        if let Some(path) = self.path.take() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
+fn write_batch_launcher(command: &str) -> Result<PathBuf, String> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static LAUNCH_SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = LAUNCH_SEQ.fetch_add(1, Ordering::Relaxed);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    let path = std::env::temp_dir().join(format!(
+        "curupira-launch-{}-{}-{seq}.cmd",
+        std::process::id(),
+        nanos
+    ));
+    std::fs::write(&path, batch_launcher_script(command))
+        .map_err(|err| format!("failed to write batch launcher: {err}"))?;
+    Ok(path)
 }
 
 /// Resolve `program` the way the preflight check does.
@@ -309,32 +352,45 @@ impl LaunchCommand for Command {
     }
 }
 
-fn configure_launch<C: LaunchCommand>(program: &str, args: &[String]) -> Result<C, String> {
+fn configure_launch<C: LaunchCommand>(
+    program: &str,
+    args: &[String],
+) -> Result<(C, BatchCleanup), String> {
     let resolved = resolve_executable(program)?;
     if cfg!(windows) && is_batch(&resolved) {
-        let tail = batch_raw_tail(&resolved, args);
+        let launcher = write_batch_launcher(&batch_command_line(&resolved, args))?;
         let mut cmd = C::from_program(&comspec_path());
         cmd.push_arg("/d");
         cmd.push_arg("/v:off");
-        cmd.push_arg("/s");
         cmd.push_arg("/c");
-        cmd.push_raw(&tail);
-        Ok(cmd)
+        cmd.push_raw(&OsString::from(format!("\"{}\"", launcher.display())));
+        Ok((
+            cmd,
+            BatchCleanup {
+                path: Some(launcher),
+            },
+        ))
     } else {
         let mut cmd = C::from_program(&resolved);
         for arg in args {
             cmd.push_arg(arg);
         }
-        Ok(cmd)
+        Ok((cmd, BatchCleanup { path: None }))
     }
 }
 
 /// `std::process::Command` for `program` plus `args`, resolving npm shims on Windows.
-pub(crate) fn std_command(program: &str, args: &[String]) -> Result<std::process::Command, String> {
+///
+/// Keep the [`BatchCleanup`] until the child exits. Dropping it sooner deletes the launcher
+/// file while `cmd.exe` may still be reading it.
+pub(crate) fn std_command(
+    program: &str,
+    args: &[String],
+) -> Result<(std::process::Command, BatchCleanup), String> {
     configure_launch(program, args)
 }
 
-fn tokio_command(program: &str, args: &[String]) -> Result<Command, String> {
+fn tokio_command(program: &str, args: &[String]) -> Result<(Command, BatchCleanup), String> {
     configure_launch(program, args)
 }
 
@@ -344,7 +400,7 @@ pub(crate) fn capture_sync(
     args: &[String],
     timeout_duration: Duration,
 ) -> Result<ProcessResult, String> {
-    let mut cmd = std_command(program, args)?;
+    let (mut cmd, _cleanup) = std_command(program, args)?;
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -401,6 +457,8 @@ fn wait_child(
 ///
 /// On Windows, a `.cmd` or `.bat` resolved via `PATHEXT` is launched through `cmd.exe` so
 /// npm shims (`opencode.cmd`, `claude.cmd`, …) run. Arguments are quoted for that parser.
+/// Newlines are written into a temporary launcher batch file, because `cmd /c` discards
+/// the text after the first newline.
 pub async fn run_process(
     program: &str,
     args: &[String],
@@ -410,7 +468,8 @@ pub async fn run_process(
     timeout_duration: Duration,
     max_output_bytes: usize,
 ) -> Result<ProcessResult, String> {
-    let mut cmd = tokio_command(program, args).map_err(|e| format!("spawn {program}: {e}"))?;
+    let (mut cmd, _cleanup) =
+        tokio_command(program, args).map_err(|e| format!("spawn {program}: {e}"))?;
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -644,16 +703,18 @@ mod launch_tests {
     }
 
     #[test]
-    fn batch_tail_wraps_one_quoted_command_and_splits_newlines() {
-        let tail = batch_raw_tail(
+    fn batch_launcher_doubles_percents_and_embeds_newlines_for_the_shim() {
+        let command = batch_command_line(
             Path::new(r"C:\npm\opencode.cmd"),
-            &["hello".into(), "line1\nline2".into()],
+            &["hello".into(), "line1\nline2".into(), "100%".into()],
         );
-        let text = tail.to_string_lossy().into_owned();
-        assert_eq!(
-            text,
-            "\"C:\\npm\\opencode.cmd ^^^\"hello^^^\" ^^^\"line1^^^\"^\n\n^^^\"line2^^^\"\""
+        let script = batch_launcher_script(&command);
+        assert!(
+            script.contains("^^^\"line1^^^\"^^^\r\n\r\n^\r\n\r\n^^^\"line2^^^\""),
+            "{script:?}"
         );
+        assert!(script.contains("^^^\"100^^^%%^^^\""));
+        assert!(script.starts_with("@echo off\r\nsetlocal DisableDelayedExpansion\r\n"));
     }
 
     #[cfg(windows)]
@@ -662,35 +723,56 @@ mod launch_tests {
         let dir = tempfile::tempdir().unwrap();
         let out = dir.path().join("args.json");
         let shim = dir.path().join("curupira_argv_shim.cmd");
-        let script = r#"@if (@CodeSection == @Batch) @then
-@echo off
-setlocal DisableDelayedExpansion
-"%SystemRoot%\System32\cscript.exe" //nologo //e:jscript "%~f0" %*
-exit /b
-@end
-var fso = new ActiveXObject("Scripting.FileSystemObject");
-var shell = new ActiveXObject("WScript.Shell");
-var path = shell.Environment("PROCESS").Item("CURUPIRA_SHIM_OUT");
-var out = fso.CreateTextFile(path, true, false);
-function js(s) {
-  var r = "";
-  for (var i = 0; i < s.length; i++) {
-    var c = s.charCodeAt(i);
-    if (c === 34) r += "\\\"";
-    else if (c === 92) r += "\\\\";
-    else if (c === 10) r += "\\n";
-    else if (c === 13) r += "\\r";
-    else r += s.charAt(i);
-  }
-  return "\"" + r + "\"";
+        let dumper_rs = dir.path().join("dump_args.rs");
+        let dumper_exe = dir.path().join("dump_args.exe");
+        // npm shims end in `node.exe script %*`, and node reads that with CommandLineToArgvW.
+        // cscript does not, so the recorder is a tiny executable with the same parser.
+        std::fs::write(
+            &dumper_rs,
+            r#"fn main() {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let out = std::env::var("CURUPIRA_SHIM_OUT").unwrap();
+    let mut json = String::from("[");
+    for (i, arg) in args.iter().enumerate() {
+        if i > 0 { json.push(','); }
+        json.push('"');
+        for c in arg.chars() {
+            match c {
+                '"' => json.push_str("\\\""),
+                '\\' => json.push_str("\\\\"),
+                '\n' => json.push_str("\\n"),
+                '\r' => json.push_str("\\r"),
+                c => json.push(c),
+            }
+        }
+        json.push('"');
+    }
+    json.push(']');
+    std::fs::write(out, json).unwrap();
 }
-var parts = [];
-for (var i = 0; i < WScript.Arguments.length; i++) parts.push(js(WScript.Arguments.Item(i)));
-out.WriteLine("[" + parts.join(",") + "]");
-out.Close();
-"#;
-        // cmd.exe parses a hybrid header reliably only with CRLF.
-        std::fs::write(&shim, script.replace('\n', "\r\n")).unwrap();
+"#,
+        )
+        .unwrap();
+        let compiled = std::process::Command::new("rustc")
+            .arg("--edition=2021")
+            .arg(&dumper_rs)
+            .arg("-o")
+            .arg(&dumper_exe)
+            .output()
+            .unwrap();
+        assert!(
+            compiled.status.success(),
+            "rustc failed: {}",
+            String::from_utf8_lossy(&compiled.stderr)
+        );
+        std::fs::write(
+            &shim,
+            format!(
+                "@echo off\r\nsetlocal DisableDelayedExpansion\r\n\"{}\" %*\r\n",
+                dumper_exe.display()
+            ),
+        )
+        .unwrap();
 
         let old_path = std::env::var_os("PATH");
         let old_pathext = std::env::var_os("PATHEXT");

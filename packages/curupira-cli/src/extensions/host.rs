@@ -27,6 +27,8 @@ pub struct ExtensionHost {
     stdout: BufReader<ChildStdout>,
     next_id: u64,
     max_frame: u32,
+    // Deleted after the child exits. The launcher holds the command line for `.cmd` shims.
+    _batch: crate::process::BatchCleanup,
 }
 
 impl ExtensionHost {
@@ -67,7 +69,7 @@ impl ExtensionHost {
         cwd: Option<&std::path::Path>,
         env_vars: &BTreeMap<String, String>,
     ) -> Result<Self, CurupiraError> {
-        let mut command = crate::process::std_command(program, args).map_err(|e| {
+        let (mut command, batch) = crate::process::std_command(program, args).map_err(|e| {
             CurupiraError::Plugin(format!(
                 "failed to start extension {name}: {e} (program {program:?})"
             ))
@@ -103,6 +105,7 @@ impl ExtensionHost {
             stdout: BufReader::new(stdout),
             next_id: 1,
             max_frame: DEFAULT_MAX_FRAME_BYTES,
+            _batch: batch,
         };
         let init: InitializeResult = host.call(
             METHOD_INITIALIZE,

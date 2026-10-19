@@ -208,7 +208,7 @@ fn fetch_pip_manifest(
         module,
         "--curupira-print-manifest".into(),
     ];
-    let mut command = crate::process::std_command(&program, &args)
+    let (mut command, _cleanup) = crate::process::std_command(&program, &args)
         .map_err(|e| CurupiraError::Plugin(format!("uvx failed: {e}")))?;
     apply_spawn_environment(&mut command, env_vars, &[], None);
     let output = command
@@ -239,7 +239,7 @@ fn fetch_npm_manifest(
     };
     let program = npx.to_string_lossy();
     let args = vec!["--yes".into(), spec, "--curupira-print-manifest".into()];
-    let mut command = crate::process::std_command(&program, &args)
+    let (mut command, _cleanup) = crate::process::std_command(&program, &args)
         .map_err(|e| CurupiraError::Plugin(format!("npx failed: {e}")))?;
     apply_spawn_environment(&mut command, env_vars, &[], None);
     let output = command
