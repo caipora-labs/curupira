@@ -162,7 +162,9 @@ pub fn build_headless(
         )));
     }
     let args = match provider {
-        AgentProvider::OpenCode => opencode::build_headless(profile, request)?,
+        AgentProvider::OpenCode => {
+            opencode::build_headless(profile, request, opencode_cli(profile)?)?
+        }
         AgentProvider::Claude => claude::build_headless(profile, request)?,
         AgentProvider::Codex => codex::build_headless(profile, request)?,
         AgentProvider::Cursor => cursor::build_headless(profile, request)?,
@@ -198,7 +200,9 @@ pub fn build_interactive(
         )));
     }
     let launch = match provider {
-        AgentProvider::OpenCode => opencode::build_interactive(profile, model, prompt)?,
+        AgentProvider::OpenCode => {
+            opencode::build_interactive(profile, model, prompt, opencode_cli(profile)?)?
+        }
         AgentProvider::Claude => claude::build_interactive(profile, model, prompt)?,
         AgentProvider::Codex => codex::build_interactive(profile, model, prompt)?,
         AgentProvider::Cursor => cursor::build_interactive(profile, model, prompt)?,
@@ -218,6 +222,15 @@ pub fn session_id_from_line(provider: AgentProvider, line: &str) -> Option<Strin
         AgentProvider::Pi => pi::session_id_from_line(line),
         AgentProvider::Gemini => gemini::session_id_from_line(line),
         _ => default_session_id_from_line(line),
+    }
+}
+
+fn opencode_cli(
+    profile: &crate::config::AgentProfile,
+) -> Result<opencode::OpenCodeCli, CurupiraError> {
+    match opencode::configured_cli(profile)? {
+        Some(cli) => Ok(cli),
+        None => opencode::detect_cli(AgentProvider::OpenCode.executable()),
     }
 }
 
@@ -264,9 +277,11 @@ mod tests {
 
     #[test]
     fn opencode_omits_optional_flags() {
+        let mut extra = serde_json::Map::new();
+        extra.insert("api".into(), json!("v1"));
         let launch = build_headless(
             AgentProvider::OpenCode,
-            &profile("opencode", serde_json::Map::new()),
+            &profile("opencode", extra),
             &req("hello"),
         )
         .unwrap();
@@ -290,6 +305,7 @@ mod tests {
     #[test]
     fn opencode_includes_configured_flags() {
         let mut extra = serde_json::Map::new();
+        extra.insert("api".into(), json!("v1"));
         extra.insert("model".into(), json!("p/m"));
         extra.insert("agent".into(), json!("build"));
         extra.insert("effort".into(), json!("high"));
@@ -325,6 +341,15 @@ mod tests {
                 "--",
                 "x"
             ]
+        );
+    }
+
+    #[test]
+    fn opencode_v2_session_id_comes_from_the_event() {
+        let line = r#"{"type":"step_start","timestamp":1,"sessionID":"ses_abc","part":{"type":"step-start"}}"#;
+        assert_eq!(
+            session_id_from_line(AgentProvider::OpenCode, line).as_deref(),
+            Some("ses_abc")
         );
     }
 

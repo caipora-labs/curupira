@@ -45,6 +45,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Windows npm shims.** Coding-agent and extension launches resolve the program on `PATH`
+  (including `.cmd` and `.bat`) and start those shims through `cmd.exe`. Global npm CLIs such
+  as `opencode`, `claude`, `codex`, and `kilo` no longer fail with `program not found` on
+  Windows when only the shim is installed.
+- **OpenCode 2.x.** Profiles accept `api = "v1"`, `"v2"`, or `"auto"` (the default). `auto`
+  runs `opencode --version` once per resolved binary. Headless 2.x uses
+  `run --standalone --format json` (no `--dir` or `--variant`); `effort` is appended as
+  `--model provider/model#effort`. Interactive 2.x uses the same model form and does not pass
+  `--standalone`. `OPENCODE_DB` is still `<worktree>.opencode.db`. See
+  `docs/en/providers/opencode.md`.
 - **Documentation matches the Rust CLI.** Removed claims inherited from the Python CLI:
   the Textual dashboard and its embedded assistant panel, configuration hot reload, the
   task log file and crash reports, `gh` retry with backoff, OTLP trace export, and

@@ -402,7 +402,7 @@ async fn run_agent(
     };
     let launch = agents::build_headless(provider, profile, &request)?;
 
-    if which::which(&launch.program).is_err() {
+    if crate::process::resolve_executable(&launch.program).is_err() {
         return Err(CurupiraError::Dispatch(format!(
             "coding-agent executable {:?} not found on PATH (provider {})",
             launch.program,

@@ -37,9 +37,10 @@ timezone = "UTC"
 
 [agents.profiles.opencode-default]
 provider = "opencode"
+# api = "auto" # "v1", "v2", or "auto" (default): OpenCode 1.x vs 2.x flag set
 # agent = "issue-resolver" # existing native OpenCode custom agent
 # model = "provider/model"
-# effort = "high"
+# effort = "high" # 1.x: --variant; 2.x: provider/model#effort
 # auto_approve = true # explicit native permission override
 
 [agents.profiles.claude-reviewer]

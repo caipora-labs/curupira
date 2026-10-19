@@ -3,7 +3,6 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use crate::process::apply_spawn_environment;
 
@@ -200,15 +199,17 @@ fn fetch_pip_manifest(
     };
     // Convention: `python -m <module> --curupira-print-manifest`
     let module = package.replace('-', "_");
-    let mut command = Command::new(&uvx);
-    command.args([
-        "--from",
-        &from,
-        "python",
-        "-m",
-        &module,
-        "--curupira-print-manifest",
-    ]);
+    let program = uvx.to_string_lossy();
+    let args = vec![
+        "--from".into(),
+        from,
+        "python".into(),
+        "-m".into(),
+        module,
+        "--curupira-print-manifest".into(),
+    ];
+    let (mut command, _cleanup) = crate::process::std_command(&program, &args)
+        .map_err(|e| CurupiraError::Plugin(format!("uvx failed: {e}")))?;
     apply_spawn_environment(&mut command, env_vars, &[], None);
     let output = command
         .output()
@@ -236,8 +237,10 @@ fn fetch_npm_manifest(
         Some(v) => format!("{package}@{v}"),
         None => package.to_string(),
     };
-    let mut command = Command::new(&npx);
-    command.args(["--yes", &spec, "--curupira-print-manifest"]);
+    let program = npx.to_string_lossy();
+    let args = vec!["--yes".into(), spec, "--curupira-print-manifest".into()];
+    let (mut command, _cleanup) = crate::process::std_command(&program, &args)
+        .map_err(|e| CurupiraError::Plugin(format!("npx failed: {e}")))?;
     apply_spawn_environment(&mut command, env_vars, &[], None);
     let output = command
         .output()
