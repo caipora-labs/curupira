@@ -167,6 +167,37 @@ jobs:
       - run: npm test
         working-directory: packages/curupira-cli-js
 
+  tui-e2e:
+    name: TUI end-to-end tests
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/curupira-cli
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/curupira-cli/e2e/package-lock.json
+      - run: cargo build --manifest-path packages/curupira-cli/Cargo.toml --bin curupira
+      - run: npm ci
+        working-directory: packages/curupira-cli/e2e
+      # Drives the real binary in a sandbox with a fake coding agent; one test waits for a
+      # cron automation to fire at the next minute.
+      - run: npm test
+        working-directory: packages/curupira-cli/e2e
+      - name: Upload tui-test traces
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: tui-e2e-artifacts
+          path: packages/curupira-cli/e2e/artifacts/
+          if-no-files-found: ignore
+
   python-sdk:
     name: Python SDK tests (Python ${{ matrix.python-version }})
     needs: changes
@@ -270,7 +301,7 @@ jobs:
   docs:
     name: Deploy documentation
     # Only main deploys, and only after every other job has passed.
-    needs: [rust, rust-windows, js-sdk, npm-cli, python-sdk, python-plugins, python-packaging, package]
+    needs: [rust, rust-windows, js-sdk, npm-cli, tui-e2e, python-sdk, python-plugins, python-packaging, package]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

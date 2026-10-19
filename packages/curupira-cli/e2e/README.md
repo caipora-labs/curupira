@@ -16,6 +16,7 @@ npm --prefix packages/curupira-cli/e2e install
 npm --prefix packages/curupira-cli/e2e test
 ```
 
+CI runs this suite in the `TUI end-to-end tests` job and uploads `artifacts/` when it fails.
 `CURUPIRA_BIN` points the tests at another binary. `tests/sessions.test.mjs` waits for a cron
 automation to fire at the next minute boundary, so the suite takes up to about a minute and a half.
 
