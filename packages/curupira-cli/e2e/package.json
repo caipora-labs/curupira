@@ -1,0 +1,16 @@
+{
+  "name": "curupira-tui-e2e",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end tests and inspection tools for the curupira TUI, driven by @microsoft/tui-test.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 \"tests/*.test.mjs\"",
+    "inspect": "node scripts/inspect.mjs"
+  },
+  "devDependencies": {
+    "@microsoft/tui-test": "0.1.0"
+  }
+}

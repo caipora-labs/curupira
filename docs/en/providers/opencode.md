@@ -10,7 +10,7 @@ opencode run --format json --dir <worktree> [options] -- <prompt>
 ```
 
 OpenCode 2.x headless runs use a private server (`--standalone`) so the task keeps the
-worktree directory and its own database. Interactive 2.x sessions do not pass `--standalone`.
+worktree directory. Interactive 2.x sessions do not pass `--standalone`.
 
 ```text
 opencode run --standalone --format json [options] -- <prompt>
@@ -57,8 +57,10 @@ binary and chooses the flag set from the first `x.y.z` it finds (`1.19.3` is 1.x
 | `--standalone` | omitted | always passed | omitted |
 | `--session`, `--agent`, `--format json`, `--auto` | passed when configured | passed when configured | `--agent` and `--auto` when configured; no `--format` |
 
-Each run sets `OPENCODE_DB` to `<worktree>.opencode.db` on both 1.x and 2.x, so parallel
-tasks do not share OpenCode sessions or project entries. `--server` is not a profile option.
+On 1.x, each run sets `OPENCODE_DB` to `<worktree>.opencode.db`, so parallel tasks do not
+share OpenCode sessions or project entries. On 2.x, runs keep your OpenCode database: 2.x stores
+provider credentials there, and a fresh database reports every model as unavailable. The private
+`--standalone` server already keeps each task in its worktree. `--server` is not a profile option.
 
 ## Example { #example }
 

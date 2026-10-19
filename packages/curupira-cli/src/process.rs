@@ -468,6 +468,34 @@ pub async fn run_process(
     timeout_duration: Duration,
     max_output_bytes: usize,
 ) -> Result<ProcessResult, String> {
+    run_process_with_lines(
+        program,
+        args,
+        cwd,
+        env,
+        env_overrides,
+        timeout_duration,
+        max_output_bytes,
+        None,
+    )
+    .await
+}
+
+/// Receives each stdout line (without the line ending) while the process runs.
+pub type LineSink = std::sync::Arc<dyn Fn(String) + Send + Sync>;
+
+/// [`run_process`] that also hands every stdout line to `on_stdout_line` as it arrives.
+#[allow(clippy::too_many_arguments)]
+pub async fn run_process_with_lines(
+    program: &str,
+    args: &[String],
+    cwd: Option<&std::path::Path>,
+    env: &[(String, String)],
+    env_overrides: &BTreeMap<String, String>,
+    timeout_duration: Duration,
+    max_output_bytes: usize,
+    on_stdout_line: Option<LineSink>,
+) -> Result<ProcessResult, String> {
     let (mut cmd, _cleanup) =
         tokio_command(program, args).map_err(|e| format!("spawn {program}: {e}"))?;
     cmd.stdin(Stdio::null())
@@ -490,11 +518,15 @@ pub async fn run_process(
 
     let stdout_task = tokio::spawn(async move {
         let mut buf = Vec::new();
+        let mut lines = on_stdout_line.map(|sink| LineSplitter::new(sink, max_output_bytes));
         let mut chunk = [0_u8; 8192];
         loop {
             match stdout.read(&mut chunk).await {
                 Ok(0) => break,
                 Ok(n) => {
+                    if let Some(lines) = &mut lines {
+                        lines.push(&chunk[..n]);
+                    }
                     buf.extend_from_slice(&chunk[..n]);
                     if buf.len() > max_output_bytes {
                         let keep = max_output_bytes;
@@ -503,6 +535,9 @@ pub async fn run_process(
                 }
                 Err(_) => break,
             }
+        }
+        if let Some(lines) = &mut lines {
+            lines.finish();
         }
         buf
     });
@@ -546,6 +581,48 @@ pub async fn run_process(
         stdout,
         stderr,
     })
+}
+
+/// Splits a byte stream into lines for a [`LineSink`]. A line longer than `max` is delivered in
+/// pieces so a stream without newlines cannot grow without bound.
+struct LineSplitter {
+    sink: LineSink,
+    pending: Vec<u8>,
+    max: usize,
+}
+
+impl LineSplitter {
+    fn new(sink: LineSink, max: usize) -> Self {
+        Self {
+            sink,
+            pending: Vec::new(),
+            max: max.max(1),
+        }
+    }
+
+    fn push(&mut self, bytes: &[u8]) {
+        self.pending.extend_from_slice(bytes);
+        while let Some(end) = self.pending.iter().position(|&b| b == b'\n') {
+            let line: Vec<u8> = self.pending.drain(..=end).collect();
+            self.emit(&line[..end]);
+        }
+        if self.pending.len() > self.max {
+            let line = std::mem::take(&mut self.pending);
+            self.emit(&line);
+        }
+    }
+
+    fn finish(&mut self) {
+        if !self.pending.is_empty() {
+            let line = std::mem::take(&mut self.pending);
+            self.emit(&line);
+        }
+    }
+
+    fn emit(&self, line: &[u8]) {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        (self.sink)(String::from_utf8_lossy(line).into_owned());
+    }
 }
 
 /// Write bytes to a child's stdin then close (unused helper for future setup scripts).
@@ -669,6 +746,56 @@ mod tests {
 #[cfg(test)]
 mod launch_tests {
     use super::*;
+
+    fn collector() -> (LineSink, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        let lines = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = std::sync::Arc::clone(&lines);
+        (
+            std::sync::Arc::new(move |line| sink.lock().unwrap().push(line)),
+            lines,
+        )
+    }
+
+    #[test]
+    fn line_splitter_joins_chunks_and_flushes_the_tail() {
+        let (sink, lines) = collector();
+        let mut splitter = LineSplitter::new(sink, 1000);
+        splitter.push(b"one\r\ntw");
+        splitter.push(b"o\n\nthree");
+        splitter.finish();
+        assert_eq!(*lines.lock().unwrap(), vec!["one", "two", "", "three"]);
+    }
+
+    #[test]
+    fn line_splitter_bounds_lines_without_newlines() {
+        let (sink, lines) = collector();
+        let mut splitter = LineSplitter::new(sink, 4);
+        splitter.push(b"abcdefgh");
+        splitter.finish();
+        assert_eq!(*lines.lock().unwrap(), vec!["abcdefgh"]);
+        assert!(splitter.pending.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn streams_stdout_lines_while_keeping_the_captured_output() {
+        let (sink, lines) = collector();
+        let result = run_process_with_lines(
+            "printf",
+            &["a\nb\nc".to_string()],
+            None,
+            &[],
+            &BTreeMap::new(),
+            Duration::from_secs(10),
+            1024,
+            Some(sink),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.exit_code, 0);
+        assert_eq!(result.stdout, b"a\nb\nc");
+        assert_eq!(*lines.lock().unwrap(), vec!["a", "b", "c"]);
+    }
 
     #[test]
     fn missing_name_reports_path() {

@@ -12,7 +12,7 @@ short alias `curu` accepts every command.
 | `curupira run --size N` | Same, but admits at most `N` tasks. |
 | `curupira run --dry-run` | Prints the first task that would run and its rendered prompt. Clones nothing, starts no agent. |
 | `curupira run --watch` | Keeps polling and running tasks until interrupted. |
-| `curupira tui` | The continuous loop from the [terminal dashboard](tui.md) entry point. |
+| `curupira tui` | The continuous loop, behind the interactive [terminal dashboard](tui.md). |
 | `curupira plugins …` | Lists and inspects the available [plugins and triggers](extensions.md#manage). |
 
 `--dry-run`, `--watch`, and `--size` cannot be combined; Curupira exits with status `2`

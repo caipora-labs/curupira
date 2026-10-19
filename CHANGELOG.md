@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Interactive terminal dashboard.** `curupira tui` now opens with the Curupira pixel-art logo,
+  then a two-column dashboard with keyboard and mouse support, while the `run --watch` loop
+  keeps dispatching in the background. Every dispatched task opens a live session in the
+  sidebar, named with the title its coding agent gives the session (OpenCode), with its prompt,
+  the agent's messages and tool calls as they stream in, and how it ended. Home lists started,
+  finished, and failed tasks by title. Stderr goes to `~/.curupira/logs/tui.log` while the
+  dashboard is open, and Ctrl+L repaints the screen. The dashboard uses no emoji. Without a
+  terminal, `tui` keeps the previous status mode. See `docs/en/tui.md`.
+- **TUI end-to-end tests.** `packages/curupira-cli/e2e` drives the real binary with
+  `@microsoft/tui-test` in a sandbox (fake agent, local Git repository, no network), and
+  `npm run inspect` saves the screen after each scripted key press or click for debugging.
 - **Shared child environment.** Every process Curupira spawns (coding agents, Git, setup
   scripts, and extensions) receives a copy of the environment Curupira itself can see.
   `[environment.vars]` overwrites those values. See `docs/en/configuration.md`.
@@ -45,6 +56,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Version of local builds.** `--version`, the splash, and the sidebar showed the `0.2.0`
+  placeholder from Cargo.toml when built from a checkout. Builds from git now report the latest
+  `publish/curupira-cli/*` tag, with the commits since (`0.3.1+4.g1a2b3c4`); the TUI drops the
+  commit hash. Release builds keep the version stamped from the tag.
+- **OpenCode 2.x tasks failing with "Model unavailable".** 2.x stores provider credentials in its
+  database, and every task ran against a fresh one, so no model could be reached. 2.x tasks now
+  keep the user's OpenCode database; 1.x tasks still get their own.
+- **Empty agent failure messages.** When an agent exits with an error and empty stderr, the
+  failure now carries the error it printed on stdout (OpenCode 2.x reports errors as JSON events
+  there) instead of `agent exited 1:` with nothing after it.
+- **Prompt stop while idle.** `run --watch` and `tui` stop within a fraction of a second when
+  interrupted between polls, instead of finishing the `poll_interval_seconds` wait first.
 - **Windows npm shims.** Coding-agent and extension launches resolve the program on `PATH`
   (including `.cmd` and `.bat`) and start those shims through `cmd.exe`. Global npm CLIs such
   as `opencode`, `claude`, `codex`, and `kilo` no longer fail with `program not found` on

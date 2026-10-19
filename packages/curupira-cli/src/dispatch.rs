@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use chrono::Utc;
@@ -17,13 +18,150 @@ use crate::cron;
 use crate::error::CurupiraError;
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::namespace::PluginNamespaceIndex;
-use crate::process::run_process;
+use crate::process::{run_process, run_process_with_lines, LineSink};
 use crate::protocol::KeyValue;
 use crate::storage::{
     open_db, CompletedTaskRepository, CronScheduleRepository, RunningCodingSession,
     RunningSessionRepository,
 };
 use crate::vcs::VersionControl;
+
+/// A task the dispatch loop just admitted, described for display.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskStart {
+    pub key: String,
+    pub automation: String,
+    /// `#123 Title` for issues and pull requests; the automation id otherwise.
+    pub title: String,
+    pub url: Option<String>,
+    /// Provider and model, e.g. `opencode · openai/gpt-5.5`.
+    pub agent: String,
+    pub prompt: String,
+}
+
+impl TaskStart {
+    fn describe(settings: &ApplicationSettings, task: &Task) -> Self {
+        let value = |name: &str| {
+            task.values
+                .iter()
+                .find(|kv| kv.key == name)
+                .map(|kv| kv.value.clone())
+                .filter(|v| !v.is_empty())
+        };
+        let (title, url) = ["pull_request", "issue", "item"]
+            .iter()
+            .find_map(|kind| {
+                let title = value(&format!("{kind}_title"))?;
+                let title = match value(&format!("{kind}_number")) {
+                    Some(number) => format!("#{number} {title}"),
+                    None => title,
+                };
+                Some((title, value(&format!("{kind}_url"))))
+            })
+            .unwrap_or_else(|| (task.automation_id.clone(), None));
+        let model = settings
+            .agents
+            .profiles
+            .get(&task.profile_name)
+            .and_then(|profile| profile.extra.get("model"))
+            .and_then(serde_json::Value::as_str);
+        let agent = match model {
+            Some(model) => format!("{} · {model}", task.provider),
+            None => task.provider.clone(),
+        };
+        Self {
+            key: task.identity.key(),
+            automation: task.automation_id.clone(),
+            title,
+            url,
+            agent,
+            prompt: task.prompt.clone(),
+        }
+    }
+}
+
+/// Progress of the dispatch loop, as reported to a [`Reporter`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DispatchEvent {
+    Started(TaskStart),
+    /// One stdout line from the task's coding agent.
+    Output {
+        key: String,
+        line: String,
+    },
+    /// The coding agent named its session (OpenCode generates a title after a few seconds).
+    Titled {
+        key: String,
+        title: String,
+    },
+    Ok(String),
+    Fail {
+        key: String,
+        error: String,
+    },
+}
+
+/// Where dispatch progress goes: stdout/stderr for `run`, a callback for the TUI.
+#[derive(Clone, Default)]
+pub enum Reporter {
+    #[default]
+    Stdio,
+    Callback(Arc<dyn Fn(DispatchEvent) + Send + Sync>),
+}
+
+impl std::fmt::Debug for Reporter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Stdio => "Reporter::Stdio",
+            Self::Callback(_) => "Reporter::Callback",
+        })
+    }
+}
+
+impl Reporter {
+    pub fn report(&self, event: DispatchEvent) {
+        match self {
+            Self::Stdio => match event {
+                DispatchEvent::Started(_)
+                | DispatchEvent::Output { .. }
+                | DispatchEvent::Titled { .. } => {}
+                DispatchEvent::Ok(key) => println!("ok\t{key}"),
+                DispatchEvent::Fail { key, error } => eprintln!("fail\t{key}\t{error}"),
+            },
+            Self::Callback(callback) => callback(event),
+        }
+    }
+
+    /// Forwards the agent's stdout lines for `key`; `run` does not print them.
+    fn output_sink(&self, key: &str) -> Option<LineSink> {
+        match self {
+            Self::Stdio => None,
+            Self::Callback(callback) => {
+                let callback = Arc::clone(callback);
+                let key = key.to_owned();
+                Some(Arc::new(move |line| {
+                    callback(DispatchEvent::Output {
+                        key: key.clone(),
+                        line,
+                    });
+                }))
+            }
+        }
+    }
+}
+
+/// Sleep for `duration`, waking early once `interrupted` is set.
+async fn sleep_unless_interrupted(duration: Duration, interrupted: &AtomicBool) {
+    let step = Duration::from_millis(200);
+    let deadline = tokio::time::Instant::now() + duration;
+    while !interrupted.load(Ordering::SeqCst) {
+        let now = tokio::time::Instant::now();
+        if now >= deadline {
+            break;
+        }
+        tokio::time::sleep(step.min(deadline - now)).await;
+    }
+}
 
 /// Run `run` / watch / dry-run after settings are loaded.
 pub async fn run_command(
@@ -32,6 +170,26 @@ pub async fn run_command(
     watch: bool,
     size: Option<u32>,
     interrupted: &AtomicBool,
+) -> Result<(), CurupiraError> {
+    run_command_with(
+        settings,
+        dry_run,
+        watch,
+        size,
+        interrupted,
+        &Reporter::Stdio,
+    )
+    .await
+}
+
+/// [`run_command`] with an explicit [`Reporter`] for task progress.
+pub async fn run_command_with(
+    settings: &ApplicationSettings,
+    dry_run: bool,
+    watch: bool,
+    size: Option<u32>,
+    interrupted: &AtomicBool,
+    reporter: &Reporter,
 ) -> Result<(), CurupiraError> {
     let automations = resolve_automations(settings)?;
     let db_path = expand_user(&settings.settings.state_db_path);
@@ -92,7 +250,8 @@ pub async fn run_command(
                 admitted += 1;
                 in_flight.insert(key.clone());
                 attempted.insert(key);
-                running.push(run_task(settings, task, &conn, &vcs, &namespace));
+                reporter.report(DispatchEvent::Started(TaskStart::describe(settings, &task)));
+                running.push(run_task(settings, task, &conn, &vcs, &namespace, reporter));
             }
             if running.len() < workers {
                 exhausted = true;
@@ -105,7 +264,7 @@ pub async fn run_command(
             if stop {
                 break;
             }
-            tokio::time::sleep(poll_interval).await;
+            sleep_unless_interrupted(poll_interval, interrupted).await;
             continue;
         }
 
@@ -124,11 +283,14 @@ pub async fn run_command(
         match result {
             Ok(()) => {
                 completed.mark(&key, Utc::now())?;
-                println!("ok\t{key}");
+                reporter.report(DispatchEvent::Ok(key));
             }
             Err(err) => {
                 failed += 1;
-                eprintln!("fail\t{key}\t{err}");
+                reporter.report(DispatchEvent::Fail {
+                    key,
+                    error: err.to_string(),
+                });
             }
         }
     }
@@ -151,9 +313,10 @@ async fn run_task(
     conn: &rusqlite::Connection,
     vcs: &VersionControl,
     namespace: &PluginNamespaceIndex,
+    reporter: &Reporter,
 ) -> TaskOutcome {
     let key = task.identity.key();
-    let result = execute_task(settings, &task, conn, vcs, namespace).await;
+    let result = execute_task(settings, &task, conn, vcs, namespace, reporter).await;
     TaskOutcome { key, result }
 }
 
@@ -312,6 +475,7 @@ async fn execute_task(
     conn: &rusqlite::Connection,
     vcs: &VersionControl,
     namespace: &PluginNamespaceIndex,
+    reporter: &Reporter,
 ) -> Result<(), CurupiraError> {
     let prepared = vcs.prepare(settings, task).await?;
 
@@ -328,7 +492,7 @@ async fn execute_task(
         host.shutdown()?;
     }
 
-    let result = run_agent(settings, task, &prepared.cwd, conn).await;
+    let result = run_agent(settings, task, &prepared.cwd, conn, reporter).await;
 
     if task.trigger_type == "cron" {
         let repo = CronScheduleRepository::new(conn);
@@ -363,6 +527,7 @@ async fn run_agent(
     task: &Task,
     work_dir: &std::path::Path,
     conn: &rusqlite::Connection,
+    reporter: &Reporter,
 ) -> Result<(), CurupiraError> {
     let profile = settings
         .agents
@@ -394,6 +559,7 @@ async fn run_agent(
         (task.prompt.clone(), None, None)
     };
 
+    let known_session = session_id.clone().or_else(|| new_session_id.clone());
     let request = AgentRequest {
         message,
         cwd: work_dir.to_path_buf(),
@@ -410,18 +576,58 @@ async fn run_agent(
         )));
     }
 
+    // Only a dashboard follows the output and the session title; `run` skips both.
+    let key = task.identity.key();
+    let output = reporter.output_sink(&key);
+    let session = Arc::new(Mutex::new(known_session));
+    let titles = match output {
+        Some(_) => {
+            agents::build_session_list(provider, profile, work_dir)?.map(|list| TitleWatch {
+                list,
+                cwd: work_dir,
+                env_overrides: &settings.environment.vars,
+                provider,
+                session: Arc::clone(&session),
+            })
+        }
+        None => None,
+    };
+    let output = output.map(|forward| -> LineSink {
+        let session = Arc::clone(&session);
+        Arc::new(move |line: String| {
+            if let Ok(mut id) = session.lock() {
+                if id.is_none() {
+                    *id = agents::session_id_from_line(provider, &line);
+                }
+            }
+            forward(line);
+        })
+    });
+
     let timeout = Duration::from_secs(u64::from(settings.settings.task_timeout_minutes) * 60);
-    let result = run_process(
-        &launch.program,
-        &launch.args,
-        Some(work_dir),
-        &launch.env,
-        &settings.environment.vars,
-        timeout,
-        settings.settings.max_output_bytes as usize,
-    )
-    .await
-    .map_err(CurupiraError::Dispatch)?;
+    let finished = AtomicBool::new(false);
+    let run = async {
+        let result = run_process_with_lines(
+            &launch.program,
+            &launch.args,
+            Some(work_dir),
+            &launch.env,
+            &settings.environment.vars,
+            timeout,
+            settings.settings.max_output_bytes as usize,
+            output,
+        )
+        .await;
+        finished.store(true, Ordering::SeqCst);
+        result
+    };
+    let watch = async {
+        if let Some(titles) = &titles {
+            titles.run(&finished, &key, reporter).await;
+        }
+    };
+    let (result, ()) = tokio::join!(run, watch);
+    let result = result.map_err(CurupiraError::Dispatch)?;
 
     // Persist the first native session id announced on stdout (when not caller-assigned).
     if !provider.assigns_session_id() && existing.is_none() {
@@ -445,10 +651,112 @@ async fn run_agent(
         return Err(CurupiraError::Dispatch(format!(
             "agent exited {}: {}",
             result.exit_code,
-            String::from_utf8_lossy(&result.stderr)
+            failure_detail(&result.stdout, &result.stderr)
         )));
     }
     Ok(())
+}
+
+/// Follows the title a coding agent gives its session, through the provider's session list.
+struct TitleWatch<'a> {
+    list: agents::HeadlessLaunch,
+    cwd: &'a std::path::Path,
+    env_overrides: &'a BTreeMap<String, String>,
+    provider: AgentProvider,
+    /// Known up front for resumed and caller-assigned sessions, else read from the agent's output.
+    session: Arc<Mutex<Option<String>>>,
+}
+
+impl TitleWatch<'_> {
+    const FIRST_LOOK: Duration = Duration::from_secs(3);
+    const INTERVAL: Duration = Duration::from_secs(10);
+
+    /// Report the title whenever it changes while the agent runs, and once more after it exits.
+    async fn run(&self, finished: &AtomicBool, key: &str, reporter: &Reporter) {
+        let mut last: Option<String> = None;
+        let mut next = tokio::time::Instant::now() + Self::FIRST_LOOK;
+        loop {
+            let done = finished.load(Ordering::SeqCst);
+            if done || tokio::time::Instant::now() >= next {
+                if let Some(title) = self.read().await {
+                    if last.as_deref() != Some(title.as_str()) {
+                        reporter.report(DispatchEvent::Titled {
+                            key: key.to_owned(),
+                            title: title.clone(),
+                        });
+                        last = Some(title);
+                    }
+                }
+                if done {
+                    return;
+                }
+                next = tokio::time::Instant::now() + Self::INTERVAL;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    }
+
+    async fn read(&self) -> Option<String> {
+        let id = self.session.lock().ok()?.clone()?;
+        let listed = run_process(
+            &self.list.program,
+            &self.list.args,
+            Some(self.cwd),
+            &self.list.env,
+            self.env_overrides,
+            Duration::from_secs(30),
+            1_000_000,
+        )
+        .await
+        .ok()?;
+        if listed.exit_code != 0 {
+            return None;
+        }
+        agents::session_title(self.provider, &String::from_utf8_lossy(&listed.stdout), &id)
+    }
+}
+
+/// Why an agent failed: its stderr, or else the error it reported on stdout. Agents in JSON
+/// mode (OpenCode 2.x) print errors as events on stdout and leave stderr empty.
+fn failure_detail(stdout: &[u8], stderr: &[u8]) -> String {
+    const MAX: usize = 600;
+    let stderr = String::from_utf8_lossy(stderr);
+    let stderr = stderr.trim();
+    let detail = if stderr.is_empty() {
+        let stdout = String::from_utf8_lossy(stdout);
+        let mut lines = stdout
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .rev();
+        let last = lines.clone().next().unwrap_or_default().to_owned();
+        lines
+            .find_map(|line| {
+                let value: serde_json::Value = serde_json::from_str(line).ok()?;
+                let error = value.get("error")?;
+                error
+                    .get("message")
+                    .and_then(serde_json::Value::as_str)
+                    .or_else(|| error.as_str())
+                    .map(str::to_owned)
+            })
+            .unwrap_or(last)
+    } else {
+        stderr.to_owned()
+    };
+    if detail.chars().count() > MAX {
+        let tail: String = detail
+            .chars()
+            .rev()
+            .take(MAX)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        format!("…{tail}")
+    } else {
+        detail
+    }
 }
 
 #[cfg(test)]
@@ -460,6 +768,47 @@ mod tests {
         AgentDefaults, AgentProfile, AgentsSettings, ApplicationSettings, ExecutionSettings,
         RepositoryConfiguration, ResolvedAutomation,
     };
+
+    #[test]
+    fn failure_detail_prefers_stderr_then_the_json_error_on_stdout() {
+        assert_eq!(failure_detail(b"ignored", b"  boom\n"), "boom");
+        let stdout = br#"{"type":"step"}
+{"type":"error","error":{"type":"provider.no-route","message":"Model unavailable: openai/x"}}
+"#;
+        assert_eq!(failure_detail(stdout, b""), "Model unavailable: openai/x");
+        assert_eq!(failure_detail(b"plain\nlast line\n", b""), "last line");
+        assert_eq!(failure_detail(b"", b""), "");
+        let long = "x".repeat(700);
+        assert_eq!(failure_detail(long.as_bytes(), b"").chars().count(), 601);
+    }
+
+    #[test]
+    fn callback_reporter_receives_events() {
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+        let reporter = Reporter::Callback(Arc::new(move |event| sink.lock().unwrap().push(event)));
+        reporter.report(DispatchEvent::Ok("k".into()));
+        reporter.output_sink("k").unwrap()("line".into());
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![
+                DispatchEvent::Ok("k".into()),
+                DispatchEvent::Output {
+                    key: "k".into(),
+                    line: "line".into()
+                }
+            ]
+        );
+        assert!(Reporter::Stdio.output_sink("k").is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn idle_sleep_wakes_when_interrupted() {
+        let interrupted = AtomicBool::new(true);
+        let started = tokio::time::Instant::now();
+        sleep_unless_interrupted(Duration::from_secs(30), &interrupted).await;
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
 
     fn pair(key: &str, value: &str) -> KeyValue {
         KeyValue {
@@ -506,6 +855,87 @@ mod tests {
             prompt: prompt.into(),
             checkout: "worktree".into(),
         }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn title_watch_reports_the_agent_session_title_once() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("list-sessions");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\nprintf '%s' '[{\"id\":\"ses_1\",\"title\":\"Revisão do PR #223\"},{\"id\":\"ses_2\",\"title\":\"New session - 2026\"}]'\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+        let reporter = Reporter::Callback(Arc::new(move |event| sink.lock().unwrap().push(event)));
+        let env = BTreeMap::new();
+        let watch = |id: &str| TitleWatch {
+            list: agents::HeadlessLaunch {
+                program: script.to_string_lossy().into_owned(),
+                args: Vec::new(),
+                env: Vec::new(),
+            },
+            cwd: dir.path(),
+            env_overrides: &env,
+            provider: AgentProvider::OpenCode,
+            session: Arc::new(Mutex::new(Some(id.to_owned()))),
+        };
+
+        // Finished agents get one last look, which is all that runs here.
+        let finished = AtomicBool::new(true);
+        watch("ses_1").run(&finished, "k", &reporter).await;
+        watch("ses_2").run(&finished, "k2", &reporter).await;
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![DispatchEvent::Titled {
+                key: "k".into(),
+                title: "Revisão do PR #223".into()
+            }],
+            "placeholder titles are not reported"
+        );
+    }
+
+    #[test]
+    fn task_start_names_pull_requests_and_the_agent_model() {
+        let mut settings = settings();
+        let mut extra = serde_json::Map::new();
+        extra.insert("model".into(), serde_json::json!("openai/gpt-5.5"));
+        settings.agents.profiles.insert(
+            "p".into(),
+            AgentProfile {
+                provider: "opencode".into(),
+                extra,
+            },
+        );
+        let task = task_from_values(
+            &settings,
+            &automation("Review ${pull_request_number}"),
+            vec![
+                pair("pull_request_number", "223"),
+                pair("pull_request_title", "bump paths-filter"),
+                pair("pull_request_url", "https://github.com/o/r/pull/223"),
+            ],
+        )
+        .unwrap();
+        let start = TaskStart::describe(&settings, &task);
+        assert_eq!(start.key, task.identity.key());
+        assert_eq!(start.title, "#223 bump paths-filter");
+        assert_eq!(
+            start.url.as_deref(),
+            Some("https://github.com/o/r/pull/223")
+        );
+        assert_eq!(start.agent, "opencode · openai/gpt-5.5");
+        assert_eq!(start.prompt, "Review 223");
+
+        let cron = task_from_values(&settings, &automation("Weekly"), vec![]).unwrap();
+        let start = TaskStart::describe(&settings, &cron);
+        assert_eq!((start.title.as_str(), start.url), ("weekly", None));
     }
 
     #[test]

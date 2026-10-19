@@ -314,10 +314,11 @@ worktree, y sin las variables `GIT_DIR`, `GIT_WORK_TREE` y `GIT_INDEX_FILE` que 
 que Git apunte a otro repositorio. Una automatización nunca cambia tu propio checkout.
 OpenCode 1.x también recibe `--dir <worktree>`. OpenCode 2.x no tiene `--dir`; una
 ejecución headless usa el worktree como directorio de trabajo y pasa `--standalone`, así
-que la tarea no se une al servicio en segundo plano compartido. Las dos versiones definen
-`OPENCODE_DB` como `<worktree>.opencode.db`, de modo que las sesiones y entradas de
-proyecto de OpenCode permanezcan con esa tarea. Otro estado global del agente, como la
-configuración global y las credenciales de OpenCode, sigue compartido.
+que la tarea no se une al servicio en segundo plano compartido. OpenCode 1.x también recibe
+`OPENCODE_DB` definido como `<worktree>.opencode.db`, de modo que sus sesiones y entradas de
+proyecto permanezcan con esa tarea. OpenCode 2.x conserva tu base de datos, donde guarda las
+credenciales de los proveedores. Otro estado global del agente, como la configuración global de
+OpenCode, se comparte.
 
 ## Errores comunes { #common-errors }
 

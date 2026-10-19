@@ -70,6 +70,7 @@ CLI (Rust) --JSON-RPC/stdio--> trigger extension (curupira_plugins)
 | `packages/curupira-cli/src/protocol/` | Framing, manifests, JSON-RPC types |
 | `packages/curupira-cli/PROTOCOL.md` | Wire protocol spec |
 | `packages/curupira-cli/tests/` | Rust CLI and extension tests; `tests/fixtures/` protocol fixtures |
+| `packages/curupira-cli/e2e/` | TUI end-to-end tests and `npm run inspect` (`@microsoft/tui-test`, sandboxed fake agent) |
 | `packages/curupira-cli/curupira.example.toml` | Example config (`validate` must accept it) |
 | `packages/curupira-cli-py/` | PyPI `curupira` package, maturin build, packaging tests |
 | `packages/curupira-cli-py/scripts/` | Release scripts (`publish_tag.py`, `stamp_release_version.py`, `verify_dist_version.py`, `check_packaged_readme.py`) |
@@ -92,6 +93,10 @@ Each package has its own version and is released by its own git tag,
   `publish.yml` stamps that from the `publish/curupira-cli/<version>` tag before building
   (`packages/curupira-cli-py/scripts/stamp_release_version.py`).
   Its checked-in version is a placeholder; do not bump it by hand for a release.
+  The binary reports `CURUPIRA_VERSION` from `packages/curupira-cli/build.rs`: in a git checkout
+  that is the latest `publish/curupira-cli/*` tag (`0.3.1+4.g1a2b3c4` after four more commits),
+  otherwise the Cargo.toml version. Release jobs check out without tags, so they report the
+  stamped version.
 - `@caipora-labs/curupira` uses that same `curupira-cli` tag. The stamp script writes the Cargo semver form
   (`0.3.0.dev0` → `0.3.0-dev0`) into `packages/curupira-cli-js/package.json`. All platform
   binaries are included in that one package and built from the maturin wheels, not from a
@@ -137,6 +142,8 @@ uv run --no-sync pytest
 npm --prefix packages/curupira-sdk-js install
 npm --prefix packages/curupira-sdk-js test
 npm --prefix packages/curupira-cli-js test
+npm --prefix packages/curupira-cli/e2e install
+npm --prefix packages/curupira-cli/e2e test   # needs the debug build of curupira
 uv run --no-sync cargo run --manifest-path packages/curupira-cli/Cargo.toml --bin curupira -- \
  --config packages/curupira-cli/curupira.example.toml validate
 uv build --all-packages --out-dir dist

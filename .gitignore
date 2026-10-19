@@ -196,3 +196,8 @@ cython_debug/
 # Node.js (JS/TS SDK and fixtures)
 node_modules/
 
+
+# TUI end-to-end test traces and inspection screens
+packages/curupira-cli/e2e/artifacts/
+# The e2e harness, not a Python build directory (see `lib/` above).
+!packages/curupira-cli/e2e/lib/

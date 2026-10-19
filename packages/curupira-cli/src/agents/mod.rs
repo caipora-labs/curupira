@@ -161,9 +161,12 @@ pub fn build_headless(
             provider.as_str()
         )));
     }
+    let mut env = Vec::new();
     let args = match provider {
         AgentProvider::OpenCode => {
-            opencode::build_headless(profile, request, opencode_cli(profile)?)?
+            let cli = opencode_cli(profile)?;
+            env = opencode::headless_env(&request.cwd, cli);
+            opencode::build_headless(profile, request, cli)?
         }
         AgentProvider::Claude => claude::build_headless(profile, request)?,
         AgentProvider::Codex => codex::build_headless(profile, request)?,
@@ -173,10 +176,6 @@ pub fn build_headless(
         AgentProvider::Kilo => kilo::build_headless(profile, request)?,
         AgentProvider::Pi => pi::build_headless(profile, request)?,
         AgentProvider::Qwen => qwen::build_headless(profile, request)?,
-    };
-    let env = match provider {
-        AgentProvider::OpenCode => opencode::headless_env(request),
-        _ => Vec::new(),
     };
     Ok(HeadlessLaunch {
         program: provider.executable().into(),
@@ -213,6 +212,36 @@ pub fn build_interactive(
         AgentProvider::Qwen => qwen::build_interactive(profile, model, prompt)?,
     };
     Ok(Some(launch))
+}
+
+/// A read-only command, run in the task worktree, that lists the provider's sessions so the
+/// title the agent gave a session can be read with [`session_title`]. `None` when the provider
+/// has no such command; its sessions keep the task's own name.
+pub fn build_session_list(
+    provider: AgentProvider,
+    profile: &AgentProfile,
+    cwd: &std::path::Path,
+) -> Result<Option<HeadlessLaunch>, CurupiraError> {
+    match provider {
+        AgentProvider::OpenCode => {
+            let cli = opencode_cli(profile)?;
+            Ok(Some(HeadlessLaunch {
+                program: provider.executable().into(),
+                args: opencode::build_session_list(cli),
+                env: opencode::headless_env(cwd, cli),
+            }))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// The title of `session_id` in the output of [`build_session_list`]'s command.
+#[must_use]
+pub fn session_title(provider: AgentProvider, list: &str, session_id: &str) -> Option<String> {
+    match provider {
+        AgentProvider::OpenCode => opencode::session_title(list, session_id),
+        _ => None,
+    }
 }
 
 /// Extract a native session id from one stdout line, if present.
