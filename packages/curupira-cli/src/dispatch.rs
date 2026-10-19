@@ -609,12 +609,32 @@ async fn run_agent(
         }
         None => None,
     };
+    // The session is saved the moment the agent announces it, before the line reaches the
+    // dashboard: a restart while the agent is still working (or a timeout) must find it to
+    // continue. The line reader runs on another thread, so it opens its own connection.
     let output: LineSink = {
         let session = Arc::clone(&session);
+        let db_path = expand_user(&settings.settings.state_db_path);
+        let key = key.clone();
+        let prompt = task.prompt.clone();
         Arc::new(move |line: String| {
             if let Ok(mut id) = session.lock() {
                 if id.is_none() {
-                    *id = agents::session_id_from_line(provider, &line);
+                    if let Some(found) = agents::session_id_from_line(provider, &line) {
+                        if !saved {
+                            if let Ok(conn) = open_db(&db_path) {
+                                let _ = RunningSessionRepository::new(&conn).save(
+                                    &key,
+                                    &RunningCodingSession {
+                                        session_id: found.clone(),
+                                        provider: provider.as_str().into(),
+                                        original_prompt: prompt.clone(),
+                                    },
+                                );
+                            }
+                        }
+                        *id = Some(found);
+                    }
                 }
             }
             if let Some(forward) = &forward {
@@ -645,33 +665,7 @@ async fn run_agent(
             titles.run(&finished, &key, reporter).await;
         }
     };
-    // Save the session as soon as the agent announces it, not when it exits: a restart while the
-    // agent is still working (or a timeout) must still find the session to continue.
-    let persist = async {
-        if saved {
-            return;
-        }
-        loop {
-            let done = finished.load(Ordering::SeqCst);
-            let id = session.lock().ok().and_then(|id| id.clone());
-            if let Some(id) = id {
-                let _ = sessions.save(
-                    &key,
-                    &RunningCodingSession {
-                        session_id: id,
-                        provider: provider.as_str().into(),
-                        original_prompt: task.prompt.clone(),
-                    },
-                );
-                return;
-            }
-            if done {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(200)).await;
-        }
-    };
-    let (result, (), ()) = tokio::join!(run, watch, persist);
+    let (result, ()) = tokio::join!(run, watch);
     let result = result.map_err(CurupiraError::Dispatch)?;
 
     if result.exit_code != 0 {

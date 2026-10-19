@@ -15,6 +15,9 @@ pub fn open_db(path: &Path) -> Result<Connection, CurupiraError> {
         std::fs::create_dir_all(parent).map_err(|e| CurupiraError::Runtime(e.to_string()))?;
     }
     let conn = Connection::open(path).map_err(|e| CurupiraError::Runtime(e.to_string()))?;
+    // Tasks save their agent session from their own connection while dispatch writes.
+    conn.busy_timeout(std::time::Duration::from_secs(5))
+        .map_err(|e| CurupiraError::Runtime(e.to_string()))?;
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS cron_schedules (
