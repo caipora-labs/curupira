@@ -27,7 +27,7 @@ chrono-tz = "0.10"
 clap = { version = "4", features = ["derive", "env"] }
 ctrlc = "3"
 cron = "0.17"
-dirs = "6"
+dirs = "7"
 fs2 = "0.4"
 futures = "0.3"
 hex = "0.4"
@@ -43,7 +43,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = { version = "1", features = ["v4"] }
 which = "8"
-minijinja = { version = "2", features = ["builtins", "json"] }
+minijinja = { version = "3", features = ["builtins", "json", "serde"] }
 ratatui = { version = "0.30", default-features = false, features = ["crossterm", "layout-cache"] }
 unicode-width = "0.2"
 
