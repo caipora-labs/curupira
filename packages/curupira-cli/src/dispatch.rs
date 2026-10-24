@@ -30,6 +30,8 @@ use crate::vcs::VersionControl;
 pub struct TaskStart {
     pub key: String,
     pub automation: String,
+    /// Alias from `[repositories.<alias>]`.
+    pub repository: String,
     /// `#123 Title` for issues and pull requests; the automation id otherwise.
     pub title: String,
     pub url: Option<String>,
@@ -71,6 +73,7 @@ impl TaskStart {
         Self {
             key: task.identity.key(),
             automation: task.automation_id.clone(),
+            repository: task.repository_alias.clone(),
             title,
             url,
             agent,
@@ -1006,6 +1009,7 @@ mod tests {
         );
         assert_eq!(start.agent, "opencode · openai/gpt-5.5");
         assert_eq!(start.prompt, "Review 223");
+        assert_eq!(start.repository, "api");
 
         let cron = task_from_values(&settings, &automation("Weekly"), vec![]).unwrap();
         let start = TaskStart::describe(&settings, &cron);

@@ -17,8 +17,9 @@ test("the splash gives way to a dashboard with nothing left behind", async (t) =
   await waitForDashboard(terminal);
   await terminal.getByText(TAGLINE).expect({ not: true });
   await terminal.getByText("DEFAULT AGENT").expect();
-  await terminal.getByText("No sessions yet.").expect();
-  await terminal.getByText("Tasks appear here.").expect();
+  await terminal.getByText("REPOSITORIES").expect();
+  await terminal.getByText("demo").expect();
+  await terminal.getByText("No sessions yet.").expect({ not: true });
 });
 
 test("any key skips the splash", async (t) => {

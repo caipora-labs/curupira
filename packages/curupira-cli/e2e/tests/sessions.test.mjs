@@ -24,7 +24,7 @@ test("dispatched tasks appear as live sessions with their agent output", { timeo
     start(t, ["qa-ok", "qa-fail"], "sessions"),
     start(t, ["qa-noise"], "noise"),
   ]);
-  const session = (name) => terminal.getByText("SESSIONS").getByText(name, { direction: "after" });
+  const session = (name) => terminal.getByText("REPOSITORIES").getByText(name, { direction: "after" });
   const titled = "Revisão automática do repositório";
   // The narrow sidebar truncates long titles; the header shows them in full.
   const shown = "Revisão automática";

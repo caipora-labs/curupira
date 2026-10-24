@@ -272,6 +272,7 @@ fn run_dashboard(
         default_agent: settings.assistant.agent.clone(),
         automations: settings.automations.len(),
         log_path: Some(crate::runtime::dispatch_home().join("logs").join("tui.log")),
+        repositories: settings.repositories.keys().cloned().collect(),
     };
     std::thread::scope(|scope| {
         let worker = scope.spawn(|| {

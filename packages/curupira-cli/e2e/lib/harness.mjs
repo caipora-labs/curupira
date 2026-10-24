@@ -133,5 +133,5 @@ export async function launch(workspace, { cols = 120, rows = 36, name = "tui" } 
 
 /** Wait until the splash has given way to the dashboard. */
 export async function waitForDashboard(terminal, timeout = 10_000) {
-  await terminal.getByText("SESSIONS").wait({ timeout });
+  await terminal.getByText("REPOSITORIES").wait({ timeout });
 }

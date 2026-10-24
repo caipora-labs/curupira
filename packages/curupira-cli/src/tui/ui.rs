@@ -7,7 +7,10 @@ use ratatui::widgets::{Block, Paragraph};
 use ratatui::Frame;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use super::app::{ActivityKind, App, DispatchStatus, Entry, Focus, SessionStatus, ViewState};
+use super::app::{
+    max_item_scroll, ActivityKind, App, DispatchStatus, Entry, Focus, SessionStatus, SidebarItem,
+    ViewState,
+};
 use super::logo;
 use super::theme;
 
@@ -42,7 +45,8 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     frame.render_widget(Block::new().style(Style::new().bg(theme::BG)), area);
     // Carry over only what keyboard handling needs between frames.
     let previous = std::mem::take(&mut app.regions);
-    app.regions.session_capacity = previous.session_capacity;
+    app.regions.list_height = previous.list_height;
+    app.regions.sidebar_gap = previous.sidebar_gap;
     let Some(cols) = columns(area) else {
         draw_too_small(frame, area);
         return;
@@ -255,8 +259,9 @@ fn draw_sidebar(frame: &mut Frame, app: &mut App, area: Rect) {
     y += 1 + gap;
 
     let title_row = row(inner, y);
+    let title = "REPOSITORIES";
     frame.render_widget(
-        Line::styled("SESSIONS", fg(theme::MUTED).add_modifier(Modifier::BOLD)),
+        Line::styled(title, fg(theme::MUTED).add_modifier(Modifier::BOLD)),
         title_row,
     );
     let running = app
@@ -264,12 +269,14 @@ fn draw_sidebar(frame: &mut Frame, app: &mut App, area: Rect) {
         .iter()
         .filter(|s| s.status == SessionStatus::Running)
         .count();
-    if running > 0 {
-        right_label(frame, title_row, &format!("{running} running"));
+    let count = format!("{running} running");
+    if running > 0 && title.width() + count.width() < usize::from(title_row.width) {
+        right_label(frame, title_row, &count);
     }
     y += 1 + gap;
+    app.regions.sidebar_gap = gap;
 
-    if app.sessions.is_empty() {
+    if app.sidebar_items().is_empty() {
         let hint = Paragraph::new(vec![
             Line::styled("No sessions yet.", fg(theme::FAINT)),
             Line::styled("Tasks appear here.", fg(theme::FAINT)),
@@ -278,16 +285,16 @@ fn draw_sidebar(frame: &mut Frame, app: &mut App, area: Rect) {
             hint,
             Rect::new(inner.x, y, inner.width, 2.min(bottom.saturating_sub(y))),
         );
-        app.regions.session_capacity = 0;
+        app.regions.list_height = bottom.saturating_sub(y);
         return;
     }
 
     if y >= bottom {
-        app.regions.session_capacity = 0;
+        app.regions.list_height = 0;
         return;
     }
     let list = Rect::new(area.x, y, area.width, bottom - y);
-    draw_sessions(frame, app, list, pad, gap);
+    draw_sidebar_list(frame, app, list, pad, gap);
 }
 
 /// Faint text at the right end of `row`, leaving the rest of the row's styles alone.
@@ -346,11 +353,11 @@ fn draw_brand(frame: &mut Frame, inner: Rect, y: u16, available: u16) -> u16 {
     icon.rows() + 1
 }
 
-fn draw_sessions(frame: &mut Frame, app: &mut App, list: Rect, pad: u16, gap: u16) {
-    const ITEM: u16 = 2;
-    let capacity = usize::from((list.height + gap) / (ITEM + gap)).max(1);
-    app.regions.session_capacity = capacity;
-    let max_scroll = app.sessions.len().saturating_sub(capacity);
+fn draw_sidebar_list(frame: &mut Frame, app: &mut App, list: Rect, pad: u16, gap: u16) {
+    const INDENT: u16 = 2;
+    let items = app.sidebar_items();
+    app.regions.list_height = list.height;
+    let max_scroll = max_item_scroll(&items, list.height, gap);
     app.sidebar_scroll = app.sidebar_scroll.min(max_scroll);
     let focused = app.focus == Focus::Sidebar;
     let attached = match app.view {
@@ -360,67 +367,111 @@ fn draw_sessions(frame: &mut Frame, app: &mut App, list: Rect, pad: u16, gap: u1
     let text_width = usize::from(list.width.saturating_sub(pad + 3));
 
     let mut y = list.y;
-    for (index, session) in app
-        .sessions
-        .iter()
-        .enumerate()
-        .skip(app.sidebar_scroll)
-        .take(capacity)
-    {
-        let item = Rect::new(list.x, y, list.width, ITEM.min(list.bottom() - y));
-        let is_attached = attached == Some(index);
-        // The cursor shows while the sidebar is focused; otherwise only the open session does.
-        let highlighted = if focused {
-            index == app.selected
-        } else {
-            is_attached
-        };
-        if highlighted {
-            let bg = if focused {
-                theme::SURFACE
-            } else {
-                theme::SURFACE_DIM
-            };
-            frame.render_widget(Block::new().style(Style::new().bg(bg)), item);
-            if focused {
-                let bar = Rect::new(item.x, item.y, 1, item.height);
-                frame.render_widget(
-                    Paragraph::new(vec![Line::raw("▎"); usize::from(item.height)])
-                        .style(fg(theme::ACCENT)),
-                    bar,
+    for item in items.iter().skip(app.sidebar_scroll) {
+        let available = list.bottom().saturating_sub(y);
+        if available == 0 {
+            break;
+        }
+        let height = item.rows().min(available);
+        let rect = Rect::new(list.x, y, list.width, height);
+        match item {
+            SidebarItem::Repository {
+                name,
+                running,
+                occupied,
+            } => {
+                let style = if *running {
+                    fg(theme::TEXT).add_modifier(Modifier::BOLD)
+                } else if *occupied {
+                    fg(theme::TEXT)
+                } else {
+                    fg(theme::FAINT)
+                };
+                let prefix = if *running { 2 } else { 0 };
+                let label = truncate(name, text_width.saturating_sub(prefix));
+                let line = if *running {
+                    Line::from(vec![
+                        Span::styled("● ", fg(theme::ACCENT)),
+                        Span::styled(label, style),
+                    ])
+                } else {
+                    Line::from(Span::styled(label, style))
+                };
+                frame.render_widget(line, row(inset(rect, pad), rect.y));
+            }
+            SidebarItem::Session(index) => {
+                let index = *index;
+                let Some((name, agent, status)) = app
+                    .sessions
+                    .get(index)
+                    .map(|session| (session.name.clone(), session.agent.clone(), session.status))
+                else {
+                    y += height + gap;
+                    continue;
+                };
+                let is_attached = attached == Some(index);
+                // The cursor shows while the sidebar is focused; otherwise only the open session does.
+                let highlighted = if focused {
+                    index == app.selected
+                } else {
+                    is_attached
+                };
+                if highlighted {
+                    let bg = if focused {
+                        theme::SURFACE
+                    } else {
+                        theme::SURFACE_DIM
+                    };
+                    frame.render_widget(Block::new().style(Style::new().bg(bg)), rect);
+                    if focused {
+                        let bar = Rect::new(rect.x, rect.y, 1, rect.height);
+                        frame.render_widget(
+                            Paragraph::new(vec![Line::raw("▎"); usize::from(rect.height)])
+                                .style(fg(theme::ACCENT)),
+                            bar,
+                        );
+                    }
+                }
+                let dot = match status {
+                    SessionStatus::Running => theme::ACCENT,
+                    SessionStatus::Finished => theme::OK,
+                    SessionStatus::Failed => theme::FAIL,
+                };
+                let name_style = if highlighted {
+                    fg(theme::TEXT).add_modifier(Modifier::BOLD)
+                } else {
+                    fg(theme::TEXT)
+                };
+                let session_width = text_width.saturating_sub(usize::from(INDENT));
+                let lines = vec![
+                    Line::from(vec![
+                        Span::styled("● ", fg(dot)),
+                        Span::styled(truncate(&name, session_width), name_style),
+                    ]),
+                    Line::from(vec![
+                        Span::raw("  "),
+                        Span::styled("Agent: ", fg(theme::FAINT)),
+                        Span::styled(
+                            truncate(&agent, session_width.saturating_sub(7)),
+                            fg(theme::MUTED),
+                        ),
+                    ]),
+                ];
+                let body = Rect::new(
+                    rect.x + pad + INDENT,
+                    rect.y,
+                    rect.width.saturating_sub(2 * pad + INDENT),
+                    rect.height,
                 );
+                frame.render_widget(Paragraph::new(lines), body);
+                app.regions.sessions.push((index, rect));
             }
         }
-        let dot = match session.status {
-            SessionStatus::Running => theme::ACCENT,
-            SessionStatus::Finished => theme::OK,
-            SessionStatus::Failed => theme::FAIL,
-        };
-        let name_style = if highlighted {
-            fg(theme::TEXT).add_modifier(Modifier::BOLD)
-        } else {
-            fg(theme::TEXT)
-        };
-        let lines = vec![
-            Line::from(vec![
-                Span::styled("● ", fg(dot)),
-                Span::styled(truncate(&session.name, text_width), name_style),
-            ]),
-            Line::from(vec![
-                Span::raw("  "),
-                Span::styled("Agent: ", fg(theme::FAINT)),
-                Span::styled(
-                    truncate(&session.agent, text_width.saturating_sub(7)),
-                    fg(theme::MUTED),
-                ),
-            ]),
-        ];
-        frame.render_widget(Paragraph::new(lines), inset(item, pad));
-        app.regions.sessions.push((index, item));
-        y += ITEM + gap;
+        y += height;
         if y >= list.bottom() {
             break;
         }
+        y += gap;
     }
 
     let arrow_x = list.right().saturating_sub(pad);
@@ -881,6 +932,7 @@ mod tests {
     fn app() -> App {
         App::new(
             fixtures::sessions(),
+            fixtures::repositories(),
             Conversation::new(vec![Entry::Note("intro".into())]),
             PathBuf::from("/home/ana/curupira"),
             "ana",
@@ -927,7 +979,7 @@ mod tests {
         let lines = text(&render(&mut app, 120, 36));
         assert!(contains(&lines, "curupira"));
         assert!(contains(&lines, "Home"));
-        assert!(contains(&lines, "SESSIONS"));
+        assert!(contains(&lines, "REPOSITORIES"));
         assert!(contains(&lines, "3 running"));
         assert!(contains(&lines, "Login Feature"));
         assert!(contains(&lines, "Agent: Codegen-01"));
@@ -1090,6 +1142,7 @@ mod tests {
     fn empty_sidebar_explains_where_sessions_come_from() {
         let mut app = App::new(
             Vec::new(),
+            Vec::new(),
             Conversation::default(),
             PathBuf::from("/repo"),
             "ana",
@@ -1099,6 +1152,68 @@ mod tests {
         assert!(contains(&lines, "No sessions yet."));
         assert!(!contains(&lines, "running"));
         assert!(app.regions.sessions.is_empty());
+    }
+
+    #[test]
+    fn sidebar_groups_sessions_under_repositories() {
+        let mut app = app();
+        app.sessions[0].status = SessionStatus::Finished;
+        app.sessions[1].status = SessionStatus::Failed;
+        let buffer = render(&mut app, 120, 36);
+        let lines = text(&buffer);
+        let flat = sidebar_text(&buffer, app.regions.sidebar.width);
+        let api = flat.find("api").expect("api");
+        let login = flat.find("Login Feature").expect("login");
+        let auth = flat.find("Auth Test").expect("auth");
+        let web = flat
+            .find("\nweb")
+            .or_else(|| flat.find("web"))
+            .expect("web");
+        let migration = flat.find("DB Migration").expect("migration");
+        let docs = flat.find("docs").expect("docs");
+        assert!(api < login && login < auth && auth < web && web < migration && migration < docs);
+
+        let api_y = row_of(&lines, "api");
+        assert!(
+            !lines[api_y].contains('●'),
+            "a repository with no running agent has no activity dot"
+        );
+        let web_y = row_of(&lines, "web");
+        let web_dot = lines[web_y].find('●').expect("running repository");
+        assert_eq!(buffer[(web_dot as u16, web_y as u16)].fg, theme::ACCENT);
+        let docs_y = row_of(&lines, "docs");
+        let docs_x = lines[docs_y].find("docs").unwrap() as u16;
+        assert_eq!(buffer[(docs_x, docs_y as u16)].fg, theme::FAINT);
+        assert!(!lines[docs_y].contains('●'));
+    }
+
+    fn sidebar_text(buffer: &Buffer, width: u16) -> String {
+        text(buffer)
+            .into_iter()
+            .map(|line| line.chars().take(usize::from(width)).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    fn row_of(lines: &[String], needle: &str) -> usize {
+        lines.iter().position(|line| line.contains(needle)).unwrap()
+    }
+
+    #[test]
+    fn registered_repositories_show_when_idle() {
+        let mut app = App::new(
+            Vec::new(),
+            vec!["demo".into()],
+            Conversation::default(),
+            PathBuf::from("/repo"),
+            "ana",
+            None,
+        );
+        let lines = text(&render(&mut app, 120, 36));
+        assert!(contains(&lines, "REPOSITORIES"));
+        assert!(contains(&lines, "demo"));
+        assert!(!contains(&lines, "No sessions yet."));
+        assert!(!contains(&lines, "running"));
     }
 
     #[test]

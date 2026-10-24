@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Repositories in the terminal dashboard.** The sidebar lists each registered repository
+  and, under it, the sessions dispatched for that repository. A repository with a running
+  agent shows an orange dot beside its name; a repository with no session stays listed and
+  dimmed. See `docs/en/tui.md`.
 - **Interactive terminal dashboard.** `curupira tui` now opens with the Curupira pixel-art logo,
   then a two-column dashboard with keyboard and mouse support, while the `run --watch` loop
   keeps dispatching in the background. Every dispatched task opens a live session in the
@@ -56,6 +60,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Agent text wiped when a session opens.** A task start no longer clears the terminal. An
+  agent can write straight to the screen before the dashboard paints the new session, and that
+  text now stays until the task ends (or until Ctrl+L).
 - **Resumed sessions without instructions.** A task resumed after a failed or interrupted run
   received only "continue the previous task", so an agent whose first run never started (for
   example, model unavailable) finished without doing anything. Resumed sessions now get the

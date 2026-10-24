@@ -16,7 +16,10 @@ segundo da paso al panel; pulsa cualquier tecla o haz clic para saltarlo.
 El panel tiene dos columnas:
 
 - **Barra lateral.** Alrededor de una quinta parte del ancho. El logo de Curupira y la versión, el botón
-  `[ Home ]` y las sesiones activas. Cada sesión muestra su nombre y su agente.
+  `[ Home ]` y los repositorios registrados. Debajo del nombre de cada repositorio están las
+  sesiones de ese repositorio. Un punto naranja junto al nombre indica que un agente está
+  actuando ahí; un repositorio sin sesión aparece atenuado. Cada sesión muestra su nombre y
+  su agente.
 - **Área de trabajo.** Un encabezado, el historial de la conversación y la entrada
   `curupira > ` fija al pie. En Home, el encabezado muestra
   `DEFAULT AGENT - (<directorio actual>)`. Con una sesión abierta, muestra
@@ -27,13 +30,18 @@ terminal.
 
 ## Sesiones { #sessions }
 
-Cada tarea que inicia el despacho en segundo plano abre una sesión en la barra lateral. Toma
+Cada tarea que inicia el despacho en segundo plano abre una sesión bajo su repositorio
+(`[repositories.<alias>]`) en la barra lateral. Los repositorios siguen listados cuando no
+tienen sesión, para que la barra muestre dónde está actuando un agente. La sesión toma
 el nombre que el agente de código le da a su sesión: OpenCode genera un título unos segundos
 después de que la sesión empieza, y el panel lee ese título con `opencode session list`. Hasta
 entonces, y para agentes que no exponen títulos de sesión, lleva el nombre de su issue o pull
 request (`#223 bump paths-filter`) o de su automatización, que también sigue en los detalles de
-la sesión. El punto muestra su estado: naranja mientras el agente se ejecuta, verde cuando terminó, rojo cuando
-falló. `N running` junto al título cuenta las que están en ejecución.
+la sesión. El punto junto al repositorio es naranja mientras uno de sus agentes se ejecuta, y
+no aparece en los demás casos. El punto junto a la sesión muestra el estado de esa sesión:
+naranja mientras el agente se ejecuta, verde cuando terminó, rojo cuando
+falló. `N running` junto al título `REPOSITORIES` cuenta las que están en ejecución, cuando la
+barra es lo bastante ancha para mostrar la cuenta.
 
 Abre una sesión para seguir a su agente en vivo: la automatización y el enlace, el prompt que
 recibió, los mensajes y las llamadas a herramientas del agente a medida que los informa y cómo
@@ -63,9 +71,10 @@ sus historiales.
 ## Ratón { #mouse }
 
 - Haz clic en `[ Home ]` para volver a Home.
-- Haz clic en una sesión (en cualquiera de sus dos líneas) para abrirla.
+- Haz clic en una sesión (en cualquiera de sus dos líneas) para abrirla. El nombre del
+  repositorio no es un botón.
 - Haz clic en la entrada para enfocarla y colocar el cursor.
-- Desplázate sobre la barra lateral para mover la lista de sesiones, o sobre el historial para
+- Desplázate sobre la barra lateral para mover la lista de repositorios, o sobre el historial para
   leer mensajes anteriores. Al volver al final, se siguen de nuevo los mensajes nuevos.
 
 Los clics en otros lugares no hacen nada.
