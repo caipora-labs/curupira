@@ -95,7 +95,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/curupira-cli
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
           python-version: "3.11"
           enable-cache: true
@@ -212,7 +212,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/curupira-cli
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
@@ -234,7 +234,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/curupira-cli
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
@@ -256,7 +256,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/curupira-cli
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
@@ -271,7 +271,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
           python-version: "3.11"
           enable-cache: true
@@ -290,7 +290,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/curupira-cli
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+      - uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
           python-version: "3.11"
           enable-cache: true
@@ -320,7 +320,7 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d
       - name: Set up uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
+        uses: astral-sh/setup-uv@18d369b23da25a81e9458561248e1aafff6a70fa
         with:
           python-version: "3.11"
           enable-cache: true
