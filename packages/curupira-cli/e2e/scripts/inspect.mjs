@@ -65,7 +65,7 @@ async function run(step) {
     case "click":
       return terminal.getByText(arg).first().click();
     case "session":
-      return terminal.getByText("SESSIONS").getByText(arg, { direction: "after" }).first().click();
+      return terminal.getByText("REPOSITORIES").getByText(arg, { direction: "after" }).first().click();
     case "key":
       return terminal.press(arg);
     case "type":
@@ -84,7 +84,7 @@ async function run(step) {
 }
 
 try {
-  await terminal.getByText("SESSIONS").wait({ timeout: 10_000 });
+  await terminal.getByText("REPOSITORIES").wait({ timeout: 10_000 });
   await capture("dashboard");
   for (const step of values.step) {
     try {

@@ -37,6 +37,8 @@ pub struct Context {
     pub automations: usize,
     /// File that receives stderr while the dashboard owns the terminal.
     pub log_path: Option<PathBuf>,
+    /// `[repositories.<alias>]` keys, in display order.
+    pub repositories: Vec<String>,
 }
 
 /// Run the dashboard until the user quits or `interrupted` is set.
@@ -53,6 +55,7 @@ pub fn run(
         .unwrap_or_else(|_| "user".into());
     let mut app = App::new(
         Vec::new(),
+        context.repositories.clone(),
         Conversation::new(intro(context)),
         cwd,
         &user,

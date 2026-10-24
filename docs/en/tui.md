@@ -16,7 +16,9 @@ second; press any key or click to skip it.
 The dashboard has two columns:
 
 - **Sidebar.** About a fifth of the width. The Curupira logo and version, the `[ Home ]` button,
-  and the active sessions. Each session shows its name and its agent.
+  and the registered repositories. Under each repository name are the sessions for that
+  repository. An orange dot beside the name means an agent is running there; a repository
+  with no session is dimmed. Each session shows its name and its agent.
 - **Workspace.** A header, the conversation history, and the `curupira > ` input fixed at the
   bottom. On Home, the header reads `DEFAULT AGENT - (<current directory>)`. With a session
   open, it reads `ATTACHED: <session> - <agent>`.
@@ -26,14 +28,17 @@ terminal.
 
 ## Sessions { #sessions }
 
-Every task the background dispatch starts opens a session in the sidebar. It takes the name
+Every task the background dispatch starts opens a session under its repository
+(`[repositories.<alias>]`) in the sidebar. Repositories stay listed when they have no
+session, so the sidebar shows where an agent is working. A session takes the name
 the coding agent gives its session: OpenCode titles a session a few seconds after it starts,
 and the dashboard reads that title from `opencode session list`. Until then, and for agents
 that do not expose session titles, the session is named after its issue or pull request
 (`#223 bump paths-filter`) or its automation, which also stays in the session details. The dot
-shows its state:
+beside a repository is orange while one of its agents is running, and absent otherwise. The
+dot beside a session shows that session's state:
 orange while the agent runs, green when it finished, red when it failed. `N running` next to
-the title counts the running ones.
+the `REPOSITORIES` title counts the running ones, when the sidebar is wide enough to show it.
 
 Open a session to follow its agent live: the automation and link, the prompt it received, the
 agent's messages and tool calls as it reports them, and how it ended, with the agent's own
@@ -62,9 +67,9 @@ history.
 ## Mouse { #mouse }
 
 - Click `[ Home ]` to go back to Home.
-- Click a session (either of its two lines) to open it.
+- Click a session (either of its two lines) to open it. Repository names are not buttons.
 - Click the input to focus it and place the cursor.
-- Scroll over the sidebar to move the session list, or over the history to read older
+- Scroll over the sidebar to move the repository list, or over the history to read older
   messages. Scrolling back to the bottom follows new messages again.
 
 Clicks elsewhere do nothing.

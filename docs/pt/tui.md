@@ -16,7 +16,10 @@ dá lugar ao painel; pressione qualquer tecla ou clique para pular.
 O painel tem duas colunas:
 
 - **Barra lateral.** Cerca de um quinto da largura. O logo do Curupira e a versão, o botão
-  `[ Home ]` e as sessões ativas. Cada sessão mostra seu nome e seu agente.
+  `[ Home ]` e os repositórios cadastrados. Abaixo do nome de cada repositório ficam as
+  sessões daquele repositório. Um ponto laranja ao lado do nome indica que um agente está
+  atuando ali; um repositório sem sessão aparece esmaecido. Cada sessão mostra seu nome e
+  seu agente.
 - **Área de trabalho.** Um cabeçalho, o histórico da conversa e a entrada `curupira > ` fixa
   no rodapé. Na Home, o cabeçalho mostra `DEFAULT AGENT - (<diretório atual>)`. Com uma
   sessão aberta, mostra `ATTACHED: <sessão> - <agente>`.
@@ -26,13 +29,18 @@ terminal.
 
 ## Sessões { #sessions }
 
-Cada tarefa iniciada pelo despacho em segundo plano abre uma sessão na barra lateral. Ela usa
+Cada tarefa iniciada pelo despacho em segundo plano abre uma sessão sob o repositório
+(`[repositories.<alias>]`) na barra lateral. Os repositórios continuam listados quando não
+têm sessão, para a barra mostrar onde um agente está atuando. A sessão usa
 o nome que o agente de código dá à própria sessão: o OpenCode gera um título alguns segundos
 depois de a sessão começar, e o painel lê esse título com `opencode session list`. Até lá, e
 para agentes que não expõem títulos de sessão, ela leva o nome da issue ou do pull request
 (`#223 bump paths-filter`) ou da automação, que também continua nos detalhes da sessão. O
-ponto mostra o estado: laranja enquanto o agente roda, verde quando terminou, vermelho quando falhou.
-`N running` ao lado do título conta as que estão rodando.
+ponto ao lado do repositório fica laranja enquanto algum agente dele está rodando, e não
+aparece nos outros casos. O ponto ao lado da sessão mostra o estado dela: laranja enquanto o
+agente roda, verde quando terminou, vermelho quando falhou.
+`N running` ao lado do título `REPOSITORIES` conta as que estão rodando, quando a barra tem
+largura para mostrar a contagem.
 
 Abra uma sessão para acompanhar o agente ao vivo: a automação e o link, o prompt que ele
 recebeu, as mensagens e as chamadas de ferramenta do agente conforme ele as informa e como a
@@ -62,9 +70,10 @@ históricos.
 ## Mouse { #mouse }
 
 - Clique em `[ Home ]` para voltar para a Home.
-- Clique em uma sessão (em qualquer uma das duas linhas) para abri-la.
+- Clique em uma sessão (em qualquer uma das duas linhas) para abri-la. O nome do
+  repositório não é um botão.
 - Clique na entrada para focá-la e posicionar o cursor.
-- Role sobre a barra lateral para mover a lista de sessões, ou sobre o histórico para ler
+- Role sobre a barra lateral para mover a lista de repositórios, ou sobre o histórico para ler
   mensagens anteriores. Rolar de volta até o fim volta a acompanhar novas mensagens.
 
 Cliques em outros lugares não fazem nada.

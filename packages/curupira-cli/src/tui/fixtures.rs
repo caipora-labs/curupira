@@ -20,9 +20,10 @@ fn code(lang: &str, source: &str) -> Entry {
     }
 }
 
-fn session(name: &str, agent: &str, entries: Vec<Entry>) -> Session {
+fn session(repository: &str, name: &str, agent: &str, entries: Vec<Entry>) -> Session {
     Session {
         key: format!("test:{name}"),
+        repository: repository.into(),
         name: name.into(),
         agent: agent.into(),
         status: SessionStatus::Running,
@@ -30,10 +31,17 @@ fn session(name: &str, agent: &str, entries: Vec<Entry>) -> Session {
     }
 }
 
+/// Aliases registered in the sample settings. `docs` has no session.
+#[must_use]
+pub fn repositories() -> Vec<String> {
+    vec!["api".into(), "web".into(), "docs".into()]
+}
+
 #[must_use]
 pub fn sessions() -> Vec<Session> {
     vec![
         session(
+            "api",
             "Login Feature",
             "Cursor",
             vec![
@@ -77,6 +85,7 @@ router.post("/login", async (req, res) => {
             ],
         ),
         session(
+            "api",
             "Auth Test",
             "Codegen-01",
             vec![
@@ -101,6 +110,7 @@ router.post("/login", async (req, res) => {
             ],
         ),
         session(
+            "web",
             "DB Migration",
             "Claude-3",
             vec![

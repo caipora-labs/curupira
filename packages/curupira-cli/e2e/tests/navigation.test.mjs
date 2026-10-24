@@ -47,12 +47,13 @@ test("letters typed into the input never trigger shortcuts", async (t) => {
 
 test("the layout follows resizes down to the too-small notice and back", async (t) => {
   const terminal = await dashboard(t, "resize");
+  await terminal.getByText("demo").expect();
   await terminal.resize(80, 24);
-  await terminal.getByText("SESSIONS").wait({ timeout: 2_000 });
+  await terminal.getByText("REPOSITORIES").wait({ timeout: 2_000 });
   await terminal.resize(40, 10);
   await terminal.getByText("Terminal too small").wait({ timeout: 2_000 });
   await terminal.resize(120, 36);
-  await terminal.getByText("SESSIONS").wait({ timeout: 2_000 });
+  await terminal.getByText("REPOSITORIES").wait({ timeout: 2_000 });
 });
 
 test("escape quits with status 0 and restores the terminal", async (t) => {

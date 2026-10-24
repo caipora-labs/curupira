@@ -15,9 +15,9 @@ test("a restart continues the agent session of an unfinished task", { timeout: 1
   t.after(() => workspace.dispose());
   const session = (terminal) =>
     terminal
-      .getByText("SESSIONS")
+      .getByText("REPOSITORIES")
       .getByText("qa-slow", { direction: "after" })
-      .or(terminal.getByText("SESSIONS").getByText("Tarefa longa", { direction: "after" }));
+      .or(terminal.getByText("REPOSITORIES").getByText("Tarefa longa", { direction: "after" }));
 
   // First run: the fake agent starts the task and keeps working for 30 s.
   const first = await launch(workspace, { name: "restart-first", cols: 140, rows: 40 });

@@ -97,6 +97,8 @@ pub enum SessionStatus {
 #[derive(Debug)]
 pub struct Session {
     pub key: String,
+    /// Alias from `[repositories.<alias>]`.
+    pub repository: String,
     /// The task's name (issue or pull request title, else the automation) until the coding
     /// agent titles its session; then the agent's title.
     pub name: String,
@@ -116,6 +118,7 @@ impl Session {
         }
         Self {
             key: start.key,
+            repository: start.repository,
             name: start.title,
             agent: start.agent,
             status: SessionStatus::Running,
@@ -149,12 +152,73 @@ pub struct Regions {
     pub home: Rect,
     pub sidebar: Rect,
     pub sessions: Vec<(usize, Rect)>,
-    pub session_capacity: usize,
+    /// Rows available to the repository list. Scroll math uses this with `sidebar_gap`.
+    pub list_height: u16,
+    /// Blank rows between sidebar items. `0` when the sidebar is compact.
+    pub sidebar_gap: u16,
     pub history: Rect,
     pub history_max_scroll: usize,
     pub input: Rect,
     /// Column where the input text (after the prompt) starts.
     pub input_text_x: u16,
+}
+
+/// One row group in the sidebar: a repository header, or a session under it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SidebarItem {
+    Repository {
+        name: String,
+        /// An agent is running in this repository.
+        running: bool,
+        /// At least one session, finished or not.
+        occupied: bool,
+    },
+    Session(usize),
+}
+
+impl SidebarItem {
+    /// Terminal rows this item occupies, before the gap that follows it.
+    #[must_use]
+    pub fn rows(&self) -> u16 {
+        match self {
+            Self::Repository { .. } => 1,
+            Self::Session(_) => 2,
+        }
+    }
+}
+
+/// First index after `start` that does not fit in `height` rows.
+pub(crate) fn visible_end(items: &[SidebarItem], start: usize, height: u16, gap: u16) -> usize {
+    if height == 0 || start >= items.len() {
+        return start.min(items.len());
+    }
+    let mut used = 0u16;
+    let mut end = start;
+    while end < items.len() {
+        let extra = if end > start { gap } else { 0 };
+        if used.saturating_add(extra) >= height {
+            break;
+        }
+        let row_budget = height - used - extra;
+        used += extra + items[end].rows().min(row_budget);
+        end += 1;
+        if used >= height {
+            break;
+        }
+    }
+    end
+}
+
+/// Largest first-item index from which the last item is still on screen.
+pub(crate) fn max_item_scroll(items: &[SidebarItem], height: u16, gap: u16) -> usize {
+    if items.is_empty() || height == 0 {
+        return 0;
+    }
+    let mut start = items.len() - 1;
+    while start > 0 && visible_end(items, start - 1, height, gap) == items.len() {
+        start -= 1;
+    }
+    start
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -261,7 +325,11 @@ pub struct App {
     pub view: ViewState,
     pub focus: Focus,
     pub sessions: Vec<Session>,
+    /// Registered repository aliases, in display order. Sessions for an alias that is not
+    /// listed here are grouped after these.
+    pub repositories: Vec<String>,
     pub selected: usize,
+    /// Index of the first [`SidebarItem`] drawn in the repository list.
     pub sidebar_scroll: usize,
     pub home: Conversation,
     pub input: InputLine,
@@ -283,6 +351,7 @@ impl App {
     #[must_use]
     pub fn new(
         sessions: Vec<Session>,
+        repositories: Vec<String>,
         home: Conversation,
         cwd: PathBuf,
         user: &str,
@@ -294,6 +363,7 @@ impl App {
             view: ViewState::Home,
             focus: Focus::Input,
             sessions,
+            repositories,
             selected: 0,
             sidebar_scroll: 0,
             home,
@@ -357,23 +427,79 @@ impl App {
         }
     }
 
+    /// Registered repositories first, then any alias that only appears on a session.
+    /// Sessions under a name stay in dispatch order.
+    #[must_use]
+    pub fn sidebar_items(&self) -> Vec<SidebarItem> {
+        let mut names = self.repositories.clone();
+        for session in &self.sessions {
+            if !names.iter().any(|name| name == &session.repository) {
+                names.push(session.repository.clone());
+            }
+        }
+        let mut items = Vec::new();
+        for name in names {
+            let indexes: Vec<usize> = self
+                .sessions
+                .iter()
+                .enumerate()
+                .filter(|(_, session)| session.repository == name)
+                .map(|(index, _)| index)
+                .collect();
+            let running = indexes
+                .iter()
+                .any(|index| self.sessions[*index].status == SessionStatus::Running);
+            items.push(SidebarItem::Repository {
+                name,
+                running,
+                occupied: !indexes.is_empty(),
+            });
+            for index in indexes {
+                items.push(SidebarItem::Session(index));
+            }
+        }
+        items
+    }
+
     fn keep_selected_visible(&mut self) {
-        let capacity = self.regions.session_capacity;
-        if capacity == 0 {
+        let height = self.regions.list_height;
+        if height == 0 {
             return;
         }
-        if self.selected < self.sidebar_scroll {
-            self.sidebar_scroll = self.selected;
-        } else if self.selected >= self.sidebar_scroll + capacity {
-            self.sidebar_scroll = self.selected + 1 - capacity;
+        let items = self.sidebar_items();
+        let Some(index) = items.iter().position(
+            |item| matches!(item, SidebarItem::Session(selected) if *selected == self.selected),
+        ) else {
+            return;
+        };
+        let gap = self.regions.sidebar_gap;
+        if index < self.sidebar_scroll {
+            self.sidebar_scroll = index;
+            if self.sidebar_scroll > 0
+                && matches!(
+                    items[self.sidebar_scroll - 1],
+                    SidebarItem::Repository { .. }
+                )
+                && visible_end(&items, self.sidebar_scroll - 1, height, gap) > index
+            {
+                self.sidebar_scroll -= 1;
+            }
         }
+        while self.sidebar_scroll < index
+            && visible_end(&items, self.sidebar_scroll, height, gap) <= index
+        {
+            self.sidebar_scroll += 1;
+        }
+        let max = max_item_scroll(&items, height, gap);
+        self.sidebar_scroll = self.sidebar_scroll.min(max);
     }
 
     pub fn scroll_sessions(&mut self, delta: isize) {
-        let max = self
-            .sessions
-            .len()
-            .saturating_sub(self.regions.session_capacity.max(1));
+        let max = max_item_scroll(
+            &self.sidebar_items(),
+            self.regions.list_height,
+            self.regions.sidebar_gap,
+        );
         self.sidebar_scroll = self.sidebar_scroll.saturating_add_signed(delta).min(max);
     }
 
@@ -634,6 +760,7 @@ mod tests {
     fn app() -> App {
         App::new(
             fixtures::sessions(),
+            fixtures::repositories(),
             Conversation::default(),
             PathBuf::from("/home/ana/repo"),
             "ana",
@@ -678,7 +805,8 @@ mod tests {
             home: Rect::new(0, 3, 20, 1),
             sidebar: Rect::new(0, 0, 20, 30),
             sessions: vec![(0, Rect::new(0, 9, 20, 2)), (1, Rect::new(0, 12, 20, 2))],
-            session_capacity: 2,
+            list_height: 4,
+            sidebar_gap: 1,
             history: Rect::new(22, 3, 60, 20),
             history_max_scroll: 10,
             input: Rect::new(22, 26, 60, 1),
@@ -911,11 +1039,19 @@ mod tests {
     fn wheel_scrolls_session_list_within_bounds() {
         let mut app = app();
         app.regions = regions();
-        wheel(&mut app, true, 3, 20);
-        wheel(&mut app, true, 3, 20);
-        assert_eq!(app.sidebar_scroll, 1, "3 sessions, 2 visible");
-        wheel(&mut app, false, 3, 20);
-        wheel(&mut app, false, 3, 20);
+        let max = max_item_scroll(
+            &app.sidebar_items(),
+            app.regions.list_height,
+            app.regions.sidebar_gap,
+        );
+        assert!(max >= 1, "the sample list is taller than the viewport");
+        for _ in 0..max + 3 {
+            wheel(&mut app, true, 3, 20);
+        }
+        assert_eq!(app.sidebar_scroll, max);
+        for _ in 0..max + 3 {
+            wheel(&mut app, false, 3, 20);
+        }
         assert_eq!(app.sidebar_scroll, 0);
     }
 
@@ -926,16 +1062,81 @@ mod tests {
         app.focus = Focus::Sidebar;
         press(&mut app, KeyCode::Down);
         press(&mut app, KeyCode::Down);
-        assert_eq!(app.sidebar_scroll, 1);
+        assert_eq!(app.selected, 2);
+        assert!(
+            session_visible(&app, 2),
+            "the selected session stays in the viewport"
+        );
         press(&mut app, KeyCode::Up);
         press(&mut app, KeyCode::Up);
-        assert_eq!(app.sidebar_scroll, 0);
+        assert_eq!(app.selected, 0);
+        assert!(session_visible(&app, 0));
+    }
+
+    fn session_visible(app: &App, session: usize) -> bool {
+        let items = app.sidebar_items();
+        let Some(index) = items.iter().position(
+            |item| matches!(item, SidebarItem::Session(selected) if *selected == session),
+        ) else {
+            return false;
+        };
+        let end = visible_end(
+            &items,
+            app.sidebar_scroll,
+            app.regions.list_height,
+            app.regions.sidebar_gap,
+        );
+        (app.sidebar_scroll..end).contains(&index)
+    }
+
+    #[test]
+    fn sidebar_items_follow_registered_order_then_unknown_aliases() {
+        let mut app = app();
+        app.sessions[0].repository = "other".into();
+        let names: Vec<_> = app
+            .sidebar_items()
+            .into_iter()
+            .map(|item| match item {
+                SidebarItem::Repository { name, .. } => name,
+                SidebarItem::Session(index) => format!("session:{index}"),
+            })
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "api",
+                "session:1",
+                "web",
+                "session:2",
+                "docs",
+                "other",
+                "session:0",
+            ]
+        );
+    }
+
+    #[test]
+    fn sidebar_scroll_stops_when_the_last_item_is_visible() {
+        let items = [
+            SidebarItem::Repository {
+                name: "api".into(),
+                running: true,
+                occupied: true,
+            },
+            SidebarItem::Session(0),
+            SidebarItem::Session(1),
+        ];
+        assert_eq!(visible_end(&items, 0, 5, 1), 2);
+        assert_eq!(max_item_scroll(&items, 5, 1), 1);
+        assert_eq!(max_item_scroll(&items, 20, 1), 0);
+        assert_eq!(max_item_scroll(&items, 0, 1), 0);
     }
 
     #[test]
     fn dispatched_tasks_become_live_sessions() {
         let mut app = App::new(
             Vec::new(),
+            vec!["api".into()],
             Conversation::default(),
             PathBuf::from("/repo"),
             "ana",
@@ -945,6 +1146,7 @@ mod tests {
             Feed::Dispatch(DispatchEvent::Started(TaskStart {
                 key: key.into(),
                 automation: "merge-dependabot".into(),
+                repository: "api".into(),
                 title: format!("#{key} bump x"),
                 url: Some(format!("https://github.com/o/r/pull/{key}")),
                 agent: "opencode · openai/gpt-5.5".into(),
@@ -958,8 +1160,8 @@ mod tests {
         assert_eq!(app.sessions.len(), 2);
         let first = &app.sessions[0];
         assert_eq!(
-            (first.name.as_str(), first.status),
-            ("#1 bump x", SessionStatus::Running)
+            (first.name.as_str(), first.repository.as_str(), first.status),
+            ("#1 bump x", "api", SessionStatus::Running)
         );
         assert_eq!(
             first.conversation.entries[1],

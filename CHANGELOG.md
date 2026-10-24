@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Repositories in the terminal dashboard.** The sidebar lists each registered repository
+  and, under it, the sessions dispatched for that repository. A repository with a running
+  agent shows an orange dot beside its name; a repository with no session stays listed and
+  dimmed. See `docs/en/tui.md`.
 - **Interactive terminal dashboard.** `curupira tui` now opens with the Curupira pixel-art logo,
   then a two-column dashboard with keyboard and mouse support, while the `run --watch` loop
   keeps dispatching in the background. Every dispatched task opens a live session in the
