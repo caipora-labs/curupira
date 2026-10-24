@@ -60,6 +60,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Agent text wiped when a session opens.** A task start no longer clears the terminal. An
+  agent can write straight to the screen before the dashboard paints the new session, and that
+  text now stays until the task ends (or until Ctrl+L).
 - **Resumed sessions without instructions.** A task resumed after a failed or interrupted run
   received only "continue the previous task", so an agent whose first run never started (for
   example, model unavailable) finished without doing anything. Resumed sessions now get the

@@ -342,8 +342,9 @@ pub struct App {
     pub dispatch: DispatchStatus,
     pub regions: Regions,
     pub should_quit: bool,
-    /// Repaint the whole screen next frame (task start/end, Ctrl+L), in case an agent wrote to
-    /// the terminal directly.
+    /// Repaint the whole screen next frame (task end, Ctrl+L). An agent can write straight to
+    /// the terminal as soon as it starts, before this loop paints the new session, so task start
+    /// must not clear or that text disappears immediately.
     pub needs_clear: bool,
 }
 
@@ -573,7 +574,6 @@ impl App {
                 });
                 self.sessions.push(Session::from_start(start));
                 self.adjust_active(1);
-                self.needs_clear = true;
             }
             Feed::Dispatch(DispatchEvent::Ok(key)) => {
                 let title = self.session_name(&key);
@@ -1155,7 +1155,10 @@ mod tests {
         };
         app.push_feed(start("1"));
         app.push_feed(start("2"));
-        assert!(std::mem::take(&mut app.needs_clear), "task start repaints");
+        assert!(
+            !app.needs_clear,
+            "task start leaves an agent's direct terminal writes on screen"
+        );
         assert_eq!(app.dispatch, DispatchStatus::Running { active: 2 });
         assert_eq!(app.sessions.len(), 2);
         let first = &app.sessions[0];
@@ -1195,6 +1198,10 @@ mod tests {
         );
 
         app.push_feed(Feed::Dispatch(DispatchEvent::Ok("1".into())));
+        assert!(
+            std::mem::take(&mut app.needs_clear),
+            "task end repaints over text the agent wrote to the terminal"
+        );
         assert_eq!(
             app.home.entries.last(),
             Some(&Entry::Activity {
@@ -1207,6 +1214,7 @@ mod tests {
             key: "2".into(),
             error: "agent exited 1: Model unavailable".into(),
         }));
+        assert!(app.needs_clear, "task failure repaints");
         assert_eq!(app.sessions[0].status, SessionStatus::Finished);
         assert_eq!(app.sessions[1].status, SessionStatus::Failed);
         assert_eq!(
