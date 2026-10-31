@@ -15,7 +15,7 @@ Homepage = "https://github.com/caipora-labs/curupira"
 Repository = "https://github.com/caipora-labs/curupira"
 
 [build-system]
-requires = ["hatchling>=1.32.4,<2", "hatch-vcs>=0.5,<1"]
+requires = ["hatchling>=1.33.0,<2", "hatch-vcs>=0.5,<1"]
 build-backend = "hatchling.build"
 
 # The version is the publish/curupira-plugins-py/<version> git tag (see curupira-sdk).

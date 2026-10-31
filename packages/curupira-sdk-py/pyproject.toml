@@ -9,7 +9,7 @@ dependencies = []
 pydantic = ["pydantic>=2,<3"]
 
 [build-system]
-requires = ["hatchling>=1.32.4,<2", "hatch-vcs>=0.5,<1"]
+requires = ["hatchling>=1.33.0,<2", "hatch-vcs>=0.5,<1"]
 build-backend = "hatchling.build"
 
 # The version is the publish/curupira-sdk-py/<version> git tag. Untagged builds get a
